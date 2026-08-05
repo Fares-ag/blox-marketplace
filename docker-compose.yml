@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: drivemarket-postgres
+    restart: unless-stopped
+    ports:
+      - '55432:5432'
+    environment:
+      POSTGRES_USER: drivemarket
+      POSTGRES_PASSWORD: drivemarket
+      POSTGRES_DB: drivemarket
+    volumes:
+      - dm_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U drivemarket -d drivemarket']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Optional local S3-compatible storage (MinIO) for listing/KYC/contracts
+  minio:
+    image: minio/minio:latest
+    container_name: drivemarket-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    environment:
+      MINIO_ROOT_USER: drivemarket
+      MINIO_ROOT_PASSWORD: drivemarketsecret
+    volumes:
+      - dm_minio_data:/data
+
+volumes:
+  dm_pg_data:
+  dm_minio_data:

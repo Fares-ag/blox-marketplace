@@ -1,0 +1,347 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  customer
+  dealer_agent
+  credit_officer
+  finance_officer
+  admin
+  super_admin
+}
+
+enum OfficerScope {
+  all
+  assigned
+}
+
+enum CompanyStatus {
+  active
+  inactive
+}
+
+enum ListingStatus {
+  draft
+  published
+  reserved
+  sold
+  archived
+}
+
+enum VehicleCondition {
+  new
+  used
+}
+
+enum OfferStatus {
+  active
+  inactive
+}
+
+enum ApplicationStatus {
+  draft
+  under_review
+  resubmission_required
+  contract_signing_required
+  contracts_submitted
+  contract_under_review
+  down_payment_required
+  down_payment_submitted
+  pending_finance_activation
+  active
+  completed
+  rejected
+  submission_cancelled
+}
+
+enum DocumentCategory {
+  qid
+  salary
+  bank
+  other
+}
+
+/// Better Auth + DriveMarket profile (single user table)
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  role         UserRole     @default(customer)
+  companyId    String?
+  company      Company?     @relation(fields: [companyId], references: [id])
+  creditScope  OfficerScope @default(assigned)
+  financeScope OfficerScope @default(assigned)
+  phone        String?
+  qid          String?
+  isActive     Boolean      @default(true)
+
+  sessions  Session[]
+  accounts  Account[]
+
+  applications         Application[]         @relation("CustomerApplications")
+  uploadedDocuments    ApplicationDocument[]
+  notifications        Notification[]
+  activityLogs         ActivityLog[]
+  creditCompanies      CreditOfficerCompany[]
+  financeCompanies     FinanceOfficerCompany[]
+  agentApplications    Application[]         @relation("AgentApplications")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verifications")
+}
+
+model Company {
+  id                  String        @id @default(cuid())
+  name                String
+  code                String?       @unique
+  status              CompanyStatus @default(active)
+  canPay              Boolean       @default(false)
+  logoUrl             String?
+  branding            Json?
+  contactEmail        String?
+  contactPhone        String?
+  address             String?
+  allowDirectActivate Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  users            User[]
+  products         Product[]
+  offers           Offer[]
+  applications     Application[]
+  creditOfficers   CreditOfficerCompany[]
+  financeOfficers  FinanceOfficerCompany[]
+
+  @@map("companies")
+}
+
+model CreditOfficerCompany {
+  userId    String
+  companyId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, companyId])
+  @@map("credit_officer_companies")
+}
+
+model FinanceOfficerCompany {
+  userId    String
+  companyId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, companyId])
+  @@map("finance_officer_companies")
+}
+
+model Offer {
+  id                 String      @id @default(cuid())
+  name               String
+  annualRentRate     Decimal     @db.Decimal(8, 4)
+  profitRate         Decimal?    @db.Decimal(8, 4)
+  tenureOptions      Json
+  insuranceRateId    String?
+  isDefault          Boolean     @default(false)
+  status             OfferStatus @default(active)
+  minDownPaymentPct  Decimal     @default(0) @db.Decimal(5, 2)
+  companyId          String?
+  company            Company?    @relation(fields: [companyId], references: [id])
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  products     Product[]
+  applications Application[]
+
+  @@map("offers")
+}
+
+model Product {
+  id              String           @id @default(cuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
+  slug            String           @unique
+  make            String
+  model           String
+  trim            String?
+  modelYear       Int
+  condition       VehicleCondition @default(used)
+  engine          String?
+  color           String?
+  mileage         Int?
+  vin             String?
+  chassisNumber   String?
+  description     String?
+  price           Decimal          @db.Decimal(12, 2)
+  financeEligible Boolean          @default(true)
+  defaultOfferId  String?
+  defaultOffer    Offer?           @relation(fields: [defaultOfferId], references: [id])
+  listingStatus   ListingStatus    @default(draft)
+  publishedAt     DateTime?
+  featuredUntil   DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  images       ProductImage[]
+  applications Application[]
+
+  @@index([listingStatus, publishedAt])
+  @@index([make])
+  @@index([modelYear])
+  @@index([price])
+  @@index([companyId, listingStatus])
+  @@map("products")
+}
+
+model ProductImage {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storagePath String
+  sortOrder   Int      @default(0)
+  altText     String?
+  createdAt   DateTime @default(now())
+
+  @@index([productId, sortOrder])
+  @@map("product_images")
+}
+
+model Application {
+  id                 String            @id @default(cuid())
+  customerUserId     String
+  customer           User              @relation("CustomerApplications", fields: [customerUserId], references: [id])
+  customerEmail      String
+  customerSnapshot   Json
+  productId          String
+  product            Product           @relation(fields: [productId], references: [id])
+  companyId          String
+  company            Company           @relation(fields: [companyId], references: [id])
+  offerId            String
+  offer              Offer             @relation(fields: [offerId], references: [id])
+  pricingSnapshot    Json
+  status             ApplicationStatus @default(under_review)
+  installmentPlan    Json?
+  contractGenerated  Boolean           @default(false)
+  contractData       Json?
+  contractPdfPath    String?
+  signedContractPath String?
+  agentUserId        String?
+  agent              User?             @relation("AgentApplications", fields: [agentUserId], references: [id])
+  rejectionReason    String?
+  resubmissionComment String?
+  statusReason       String?
+  submittedAt        DateTime?
+  activatedAt        DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  documents ApplicationDocument[]
+
+  @@index([customerUserId, status])
+  @@index([companyId, status])
+  @@index([productId, status])
+  @@index([status, createdAt])
+  @@map("applications")
+}
+
+model ApplicationDocument {
+  id            String           @id @default(cuid())
+  applicationId String
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  category      DocumentCategory
+  storagePath   String
+  mimeType      String?
+  uploadedById  String
+  uploadedBy    User             @relation(fields: [uploadedById], references: [id])
+  createdAt     DateTime         @default(now())
+
+  @@map("application_documents")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String?
+  linkPath  String?
+  readAt    DateTime?
+  channel   String    @default("in_app")
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  entityType  String
+  entityId    String
+  action      String
+  fromValue   String?
+  toValue     String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@map("activity_logs")
+}

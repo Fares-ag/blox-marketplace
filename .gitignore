@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+.env
+.env.local
+*.local
+.DS_Store
+coverage
+.turbo
+supabase/.branches
+supabase/.temp
+*.log
+.uploads
+cookies.txt
+signin.json
+signin-out.txt
+packages/api/.uploads

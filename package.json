@@ -1,0 +1,25 @@
+{
+  "name": "drivemarket",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm -w @drivemarket/api run start:dev",
+    "dev:marketplace": "npm -w @drivemarket/marketplace run dev",
+    "dev:dealer": "npm -w @drivemarket/dealer run dev",
+    "dev:credit": "npm -w @drivemarket/credit run dev",
+    "dev:finance": "npm -w @drivemarket/finance run dev",
+    "dev:admin": "npm -w @drivemarket/admin run dev",
+    "dev:super-admin": "npm -w @drivemarket/super-admin run dev",
+    "db:push": "npm -w @drivemarket/api run db:push",
+    "db:seed": "npm -w @drivemarket/api run db:seed",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
