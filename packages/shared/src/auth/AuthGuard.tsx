@@ -54,7 +54,8 @@ export function GuestGuard({ children }: { children: ReactNode }) {
   }, [init]);
 
   if (!initialized) return null;
-  if (user) {
+  // Only auto-redirect customers; other roles must see login (e.g. not_customer banner + sign out)
+  if (user && roleAllowed(user.role, 'customer')) {
     return <Navigate to="/app/dashboard" replace />;
   }
   return <>{children}</>;

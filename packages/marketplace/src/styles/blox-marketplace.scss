@@ -1,0 +1,128 @@
+/* Blox customer marketplace — remaps DriveMarket CSS vars to Blox tokens */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  --blox-deep-green: #16535b;
+  --blox-emerald: #00cfa2;
+  --blox-lime: #dbff00;
+  --blox-slate: #708090;
+  --blox-canvas: #f0f5f5;
+  --blox-surface: #ffffff;
+
+  --dm-graphite-980: #0f3f45;
+  --dm-graphite-900: #16535b;
+  --dm-graphite-800: #1a5f68;
+  --dm-graphite-700: #24707a;
+  --dm-ink: #16535b;
+  --dm-slate-600: #708090;
+  --dm-slate-400: #8a9aa2;
+  --dm-slate-200: #d8e2e2;
+  --dm-canvas: #f0f5f5;
+  --dm-surface: #ffffff;
+  --dm-surface-muted: #e8f0f0;
+  --dm-amber: #dbff00;
+  --dm-amber-deep: #c8e600;
+  --dm-steel: #00cfa2;
+  --dm-steel-soft: #e6fbf5;
+  --dm-success: #00cfa2;
+  --dm-success-soft: #e6fbf5;
+  --dm-teal-100: #e6fbf5;
+  --dm-teal-600: #00cfa2;
+  --dm-teal-800: #16535b;
+  --dm-font-display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  --dm-font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --dm-font-mono: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+}
+
+body {
+  font-family: var(--dm-font-ui);
+  background: var(--dm-canvas);
+  color: var(--dm-ink);
+}
+
+html[lang='ar'] body {
+  font-family: 'IBM Plex Sans Arabic', var(--dm-font-ui);
+}
+
+a {
+  color: var(--dm-steel);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-color: var(--dm-steel);
+}
+
+.dm-btn-cta {
+  background: var(--dm-amber);
+  color: var(--dm-ink);
+  font-weight: 700;
+}
+
+.dm-btn-cta:hover {
+  background: var(--dm-amber-deep);
+  color: var(--dm-ink);
+}
+
+.dm-cta-panel__primary:hover {
+  background: var(--dm-amber-deep) !important;
+  color: var(--dm-ink) !important;
+}
+
+.dm-cta-panel__badge {
+  border-color: rgba(219, 255, 0, 0.85) !important;
+}
+
+.dm-cta-panel__help {
+  color: var(--dm-amber) !important;
+}
+
+.dm-auth-brand {
+  background: linear-gradient(160deg, #0f3f45, #16535b) !important;
+}
+
+.dm-auth-brand__portal {
+  color: var(--blox-emerald) !important;
+}
+
+.dm-money,
+.dm-numeric,
+[data-dm-numeric] {
+  font-family: var(--dm-font-mono);
+}
+
+/* Mobile browse: stack facets above results */
+.blox-browse-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  width: 100%;
+  margin: 0;
+  padding: 24px 32px;
+  box-sizing: border-box;
+}
+
+.blox-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 420px);
+  gap: 32px;
+  width: 100%;
+  margin: 0;
+  padding: 24px 32px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .blox-browse-layout {
+    grid-template-columns: 1fr;
+    padding: 16px 20px;
+  }
+
+  .blox-detail-layout {
+    grid-template-columns: 1fr;
+    padding: 16px 20px;
+  }
+}

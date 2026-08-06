@@ -6,54 +6,57 @@ import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AuthGuard,
   LoginPage,
-  OpsShell,
-  dmThemeWithBrand,
   useAuthStore,
+  BloxShell,
+  bloxThemeWithBrand,
 } from '@drivemarket/shared';
-import '@drivemarket/shared/styles/global.scss';
+import { DashboardPage } from './pages/DashboardPage';
+import { ApplicationsPage } from './pages/ApplicationsPage';
+import { ProductsPage } from './pages/ProductsPage';
+import { OffersPage, PromotionsPage, PackagesPage } from './pages/EntityListPages';
+import { LedgersPage } from './pages/LedgersPage';
 
 const queryClient = new QueryClient();
-const nav = [
-  { to: '/', label: 'Companies' },
-  { to: '/users', label: 'Users' },
-  { to: '/offers', label: 'Offers' },
-  { to: '/products', label: 'Products' },
-  { to: '/applications', label: 'Applications' },
-  { to: '/settings', label: 'Settings' },
-];
 
-function Page({ title }: { title: string }) {
-  return (
-    <div>
-      <h1 style={{ fontFamily: 'var(--dm-font-display)', marginTop: 0 }}>{title}</h1>
-      <p style={{ color: 'var(--dm-slate-600)' }}>Phase 0 scaffold — company/dealer invite in Phase 1.</p>
-    </div>
-  );
-}
+const nav = [
+  { to: '/main/dashboard', label: 'Dashboard' },
+  { to: '/main/applications', label: 'Applications' },
+  { to: '/main/products', label: 'Products' },
+  { to: '/main/offers', label: 'Offers' },
+  { to: '/main/promotions', label: 'Promotions' },
+  { to: '/main/packages', label: 'Packages' },
+  { to: '/main/ledgers', label: 'Ledgers' },
+];
 
 function App() {
   const init = useAuthStore((s) => s.init);
   useEffect(() => {
     void init();
   }, [init]);
+
   return (
     <Routes>
-      <Route path="/auth/login" element={<LoginPage portalLabel="Admin portal" homePath="/" />} />
+      <Route
+        path="/auth/login"
+        element={<LoginPage portalLabel="Blox Admin" homePath="/main/dashboard" />}
+      />
       <Route
         path="/*"
         element={
           <AuthGuard allowedRole="admin" reasonParam="not_admin">
-            <OpsShell title="Admin" nav={nav}>
+            <BloxShell title="Admin" nav={nav} homePaths={['/main/dashboard']}>
               <Routes>
-                <Route path="/" element={<Page title="Companies" />} />
-                <Route path="/users" element={<Page title="Users" />} />
-                <Route path="/offers" element={<Page title="Offers" />} />
-                <Route path="/products" element={<Page title="Products" />} />
-                <Route path="/applications" element={<Page title="Applications" />} />
-                <Route path="/settings" element={<Page title="Settings" />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="/" element={<Navigate to="/main/dashboard" replace />} />
+                <Route path="/main/dashboard" element={<DashboardPage />} />
+                <Route path="/main/applications" element={<ApplicationsPage />} />
+                <Route path="/main/products" element={<ProductsPage />} />
+                <Route path="/main/offers" element={<OffersPage />} />
+                <Route path="/main/promotions" element={<PromotionsPage />} />
+                <Route path="/main/packages" element={<PackagesPage />} />
+                <Route path="/main/ledgers" element={<LedgersPage />} />
+                <Route path="*" element={<Navigate to="/main/dashboard" replace />} />
               </Routes>
-            </OpsShell>
+            </BloxShell>
           </AuthGuard>
         }
       />
@@ -64,7 +67,7 @@ function App() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={dmThemeWithBrand}>
+      <ThemeProvider theme={bloxThemeWithBrand}>
         <CssBaseline />
         <BrowserRouter>
           <App />

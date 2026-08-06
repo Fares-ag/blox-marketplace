@@ -208,6 +208,12 @@ PK `(user_id, company_id)`.
 | model_year | int NOT NULL | |
 | condition | vehicle_condition NOT NULL | |
 | engine | text | |
+| transmission | transmission NULL | `automatic` \| `manual` |
+| cylinders | int | |
+| drivetrain | drivetrain NULL | `fwd` \| `rwd` \| `awd` \| `four_wd` |
+| body_type | body_type NULL | `sedan` \| `suv` \| `coupe` \| `hatchback` \| `pickup` \| `van` \| `other` |
+| warranty_months | int | NULL = no warranty chip |
+| warranty_notes | text | Optional short label |
 | color | text | |
 | mileage | int | |
 | vin | text | **Restricted read** — not in public select policies |

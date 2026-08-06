@@ -1,0 +1,585 @@
+/* Blox ops chrome — used by admin, dealer, credit, finance, super-admin */
+
+.blox-ops {
+  --blox-deep-green: #16535b;
+  --blox-emerald: #00cfa2;
+  --blox-lime: #dbff00;
+  --blox-slate: #708090;
+  --blox-canvas: #f0f5f5;
+  --blox-surface: #ffffff;
+  --blox-ink: #16535b;
+  --blox-border: #d8e2e2;
+  --blox-font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --blox-font-display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+
+  /* Bridge legacy DriveMarket CSS vars used in dealer/credit pages */
+  --dm-font-display: var(--blox-font-display);
+  --dm-font-ui: var(--blox-font-ui);
+  --dm-slate-600: var(--blox-slate);
+  --dm-slate-400: #9aa8b0;
+  --dm-danger: #b42318;
+  --dm-canvas: var(--blox-canvas);
+  --dm-surface: var(--blox-surface);
+  --dm-ink: var(--blox-ink);
+  --dm-amber: var(--blox-lime);
+  --dm-steel: var(--blox-emerald);
+  --dm-graphite-900: var(--blox-deep-green);
+  --dm-graphite-800: #0f3f45;
+  --dm-graphite-700: #1a5a63;
+
+  min-height: 100vh;
+  background: var(--blox-canvas);
+  color: var(--blox-ink);
+  font-family: var(--blox-font-ui);
+
+  .dm-btn-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--blox-lime);
+    color: var(--blox-deep-green);
+    border: none;
+    border-radius: 10px;
+    min-height: 40px;
+    padding: 0 16px;
+    font-family: var(--blox-font-ui);
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover {
+      filter: brightness(0.97);
+    }
+  }
+}
+
+.blox-ops *,
+.blox-ops *::before,
+.blox-ops *::after {
+  box-sizing: border-box;
+}
+
+.blox-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+
+  &__nav {
+    background: var(--blox-deep-green);
+    color: #fff;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__brand {
+    font-family: var(--blox-font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  &__portal {
+    color: var(--blox-emerald);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+
+  &__links {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    a {
+      display: block;
+      color: rgba(255, 255, 255, 0.88);
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border-inline-start: 3px solid transparent;
+      transition: background 0.15s, border-color 0.15s;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-inline-start-color: var(--blox-emerald);
+      }
+
+      &.is-active {
+        background: rgba(0, 207, 162, 0.18);
+        border-inline-start-color: var(--blox-emerald);
+        color: #fff;
+        font-weight: 600;
+      }
+    }
+  }
+
+  &__user {
+    margin-top: auto;
+    padding-top: 24px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.65);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    button {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+      font-family: var(--blox-font-ui);
+      font-size: 0.875rem;
+
+      &:hover {
+        border-color: var(--blox-emerald);
+        background: rgba(0, 207, 162, 0.12);
+      }
+    }
+  }
+
+  &__main {
+    padding: 32px;
+    background: var(--blox-canvas);
+    min-width: 0;
+  }
+}
+
+.blox-money {
+  font-family: var(--blox-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.blox-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.blox-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
+  h1 {
+    margin: 0;
+    font-family: var(--blox-font-ui);
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--blox-ink);
+  }
+
+  &__subtitle {
+    margin: 4px 0 0;
+    font-size: 0.875rem;
+    color: var(--blox-slate);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+}
+
+.blox-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-family: var(--blox-font-ui);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    background: var(--blox-lime);
+    color: var(--blox-deep-green);
+
+    &:hover:not(:disabled) {
+      filter: brightness(0.97);
+    }
+  }
+
+  &--secondary {
+    background: transparent;
+    color: var(--blox-deep-green);
+    border: 1.5px solid var(--blox-emerald);
+
+    &:hover:not(:disabled) {
+      background: var(--blox-emerald);
+      color: var(--blox-deep-green);
+    }
+  }
+
+  &--ghost {
+    background: var(--blox-surface);
+    color: var(--blox-slate);
+    border: 1px solid var(--blox-border);
+
+    &:hover:not(:disabled) {
+      border-color: var(--blox-emerald);
+      color: var(--blox-deep-green);
+    }
+  }
+
+  &--danger {
+    background: transparent;
+    color: #b42318;
+    border: 1.5px solid #b42318;
+
+    &:hover:not(:disabled) {
+      background: rgba(180, 35, 24, 0.08);
+    }
+  }
+}
+
+.blox-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blox-stat-card {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: 12px;
+  padding: 20px;
+
+  &__label {
+    margin: 0 0 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--blox-slate);
+  }
+
+  &__value {
+    margin: 0;
+    font-family: var(--blox-font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--blox-ink);
+  }
+
+  &__delta {
+    margin: 8px 0 0;
+    font-size: 0.75rem;
+    color: var(--blox-emerald);
+  }
+}
+
+.blox-panel {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: 12px;
+  padding: 24px;
+
+  &__title {
+    margin: 0 0 16px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--blox-ink);
+  }
+}
+
+.blox-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 16px 20px;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: 12px;
+
+  input,
+  select,
+  textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--blox-border);
+    border-radius: 8px;
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    color: var(--blox-ink);
+    background: var(--blox-surface);
+    min-width: 140px;
+
+    &:focus {
+      outline: 2px solid var(--blox-emerald);
+      outline-offset: 1px;
+    }
+  }
+}
+
+.blox-table-wrap {
+  overflow-x: auto;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: 12px;
+}
+
+.blox-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th,
+  td {
+    padding: 14px 16px;
+    text-align: start;
+    border-bottom: 1px solid var(--blox-border);
+  }
+
+  th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--blox-slate);
+    background: var(--blox-canvas);
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tbody tr:hover {
+    background: rgba(0, 207, 162, 0.04);
+  }
+
+  a {
+    color: var(--blox-deep-green);
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--blox-emerald);
+    }
+  }
+}
+
+.blox-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  &--active,
+  &--published,
+  &--paid,
+  &--approved {
+    background: rgba(0, 207, 162, 0.15);
+    color: var(--blox-deep-green);
+  }
+
+  &--pending,
+  &--draft,
+  &--reserved {
+    background: rgba(112, 128, 144, 0.15);
+    color: var(--blox-slate);
+  }
+
+  &--rejected,
+  &--expired,
+  &--sold {
+    background: rgba(180, 35, 24, 0.1);
+    color: #b42318;
+  }
+}
+
+.blox-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  color: var(--blox-slate);
+  border-top: 1px solid var(--blox-border);
+}
+
+.blox-chart-row {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blox-chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.875rem;
+    color: var(--blox-slate);
+  }
+
+  &__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+}
+
+.blox-product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.blox-product-card {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: 12px;
+  overflow: hidden;
+
+  &__image {
+    aspect-ratio: 16 / 10;
+    background: linear-gradient(135deg, var(--blox-canvas), var(--blox-border));
+    object-fit: cover;
+    width: 100%;
+    display: block;
+  }
+
+  &__body {
+    padding: 16px;
+  }
+
+  &__title {
+    margin: 0 0 4px;
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  &__meta {
+    margin: 0 0 12px;
+    font-size: 0.875rem;
+    color: var(--blox-slate);
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+}
+
+.blox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: 12px;
+  overflow: hidden;
+
+  li {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--blox-border);
+    font-size: 0.875rem;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    a {
+      color: var(--blox-deep-green);
+      font-weight: 600;
+      text-decoration: none;
+
+      &:hover {
+        color: var(--blox-emerald);
+      }
+    }
+  }
+}
+
+.blox-form {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+
+  label {
+    display: grid;
+    gap: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--blox-ink);
+  }
+
+  input,
+  select,
+  textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--blox-border);
+    border-radius: 8px;
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--blox-ink);
+    background: var(--blox-surface);
+    min-height: 40px;
+    width: 100%;
+
+    &:focus {
+      outline: 2px solid var(--blox-emerald);
+      outline-offset: 1px;
+    }
+  }
+}
+
+.blox-empty {
+  margin: 0;
+  padding: 32px;
+  text-align: center;
+  color: var(--blox-slate);
+  background: var(--blox-surface);
+  border: 1px dashed var(--blox-border);
+  border-radius: 12px;
+}

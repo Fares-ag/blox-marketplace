@@ -51,6 +51,12 @@ Mark each case Pass / Fail / Blocked. Do not declare a phase complete with open 
 | P1-18 | M | Reserved detail as applicant | Pending financing visible | 1 |
 | P1-19 | M | Admin creates company + dealer | Dealer can log in | 1 |
 | P1-20 | M | Visual QA marketplace home + detail | Checklist in `11` | 1 |
+| P1-21 | M | Listing card facets | Year · transmission · cylinders · km on card; New/Warranty chips when applicable | 1 |
+| P1-22 | M | Facets URL sync | `/vehicles?make=&yearMin=&transmission=` filters results | 1 |
+| P1-23 | M | Detail dealer + specs | Dealer name/logo; full spec grid; gallery | 1 |
+| P1-24 | M | Showroom `/dealers/GULF` | Only that dealer's published stock | 1 |
+| P1-25 | M | EN/AR toggle | `dir` and copy switch on marketplace browse/detail | 1 |
+| P1-26 | M | Document title on detail | Tab title includes make/model/year | 1 |
 
 ---
 

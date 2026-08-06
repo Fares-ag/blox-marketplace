@@ -11,8 +11,23 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { User, UserRole, VehicleCondition } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  BodyType,
+  Drivetrain,
+  Transmission,
+  User,
+  UserRole,
+  VehicleCondition,
+} from '@prisma/client';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { CurrentUser, OptionalSessionGuard, Public, Roles } from '../auth/guards';
 import { ProductsService } from './products.service';
 
@@ -23,11 +38,39 @@ class CreateProductDto {
   @IsInt() modelYear!: number;
   @IsOptional() @IsEnum(VehicleCondition) condition?: VehicleCondition;
   @IsOptional() @IsString() engine?: string;
+  @IsOptional() @IsEnum(Transmission) transmission?: Transmission;
+  @IsOptional() @IsInt() cylinders?: number;
+  @IsOptional() @IsEnum(Drivetrain) drivetrain?: Drivetrain;
+  @IsOptional() @IsEnum(BodyType) bodyType?: BodyType;
+  @IsOptional() @IsInt() warrantyMonths?: number;
+  @IsOptional() @IsString() warrantyNotes?: string;
   @IsOptional() @IsString() color?: string;
   @IsOptional() @IsInt() mileage?: number;
   @IsOptional() @IsString() vin?: string;
   @IsOptional() @IsString() description?: string;
   @IsNumber() @Min(1) price!: number;
+  @IsOptional() @IsBoolean() financeEligible?: boolean;
+  @IsOptional() @IsString() defaultOfferId?: string;
+}
+
+class UpdateProductDto {
+  @IsOptional() @IsString() make?: string;
+  @IsOptional() @IsString() model?: string;
+  @IsOptional() @IsString() trim?: string;
+  @IsOptional() @IsInt() modelYear?: number;
+  @IsOptional() @IsEnum(VehicleCondition) condition?: VehicleCondition;
+  @IsOptional() @IsString() engine?: string;
+  @IsOptional() @IsEnum(Transmission) transmission?: Transmission;
+  @IsOptional() @IsInt() cylinders?: number;
+  @IsOptional() @IsEnum(Drivetrain) drivetrain?: Drivetrain;
+  @IsOptional() @IsEnum(BodyType) bodyType?: BodyType;
+  @IsOptional() @IsInt() warrantyMonths?: number;
+  @IsOptional() @IsString() warrantyNotes?: string;
+  @IsOptional() @IsString() color?: string;
+  @IsOptional() @IsInt() mileage?: number;
+  @IsOptional() @IsString() vin?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsNumber() @Min(1) price?: number;
   @IsOptional() @IsBoolean() financeEligible?: boolean;
   @IsOptional() @IsString() defaultOfferId?: string;
 }
@@ -47,9 +90,16 @@ export class ProductsController {
     @Query('priceMax') priceMax?: number,
     @Query('condition') condition?: VehicleCondition,
     @Query('companyId') companyId?: string,
+    @Query('transmission') transmission?: Transmission,
+    @Query('drivetrain') drivetrain?: Drivetrain,
+    @Query('bodyType') bodyType?: BodyType,
+    @Query('cylinders') cylinders?: number,
+    @Query('mileageMax') mileageMax?: number,
+    @Query('hasWarranty') hasWarranty?: string,
     @Query('q') q?: string,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
+    @Query('sort') sort?: 'newest' | 'price_asc' | 'price_desc' | 'year_desc' | 'mileage_asc',
   ) {
     return this.products.listPublished({
       make,
@@ -60,10 +110,23 @@ export class ProductsController {
       priceMax,
       condition,
       companyId,
+      transmission,
+      drivetrain,
+      bodyType,
+      cylinders: cylinders ? Number(cylinders) : undefined,
+      mileageMax: mileageMax != null ? Number(mileageMax) : undefined,
+      hasWarranty: hasWarranty === 'true' || hasWarranty === '1',
       q,
       limit,
       offset,
+      sort,
     });
+  }
+
+  @Public()
+  @Get('products/facet-options')
+  facetOptions() {
+    return this.products.listFacetOptions();
   }
 
   @Public()
@@ -87,7 +150,7 @@ export class ProductsController {
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
   @Patch('dealer/inventory/:id')
-  update(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: CreateProductDto) {
+  update(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: UpdateProductDto) {
     return this.products.update(user, id, dto);
   }
 

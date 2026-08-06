@@ -49,7 +49,7 @@ This file is **information architecture only**: routes, purpose, data hooks, emp
 |--|--|
 | **Purpose** | Dense, scannable results of `published` listings |
 | **Data** | `list_published_products` + count; facets from query string |
-| **Key components** | Facet panel (make, year, price, condition, dealer); result grid of **listing cards** (allowed as selection containers); sort; pagination |
+| **Key components** | Facet panel (make, model, year, price, condition, transmission, drivetrain, body type, cylinders, mileage max, warranty, dealer); result grid of **listing cards** showing year · gear · cylinders · km, New/Warranty chips, dealer name; sort; pagination |
 | **Empty** | “No vehicles match these filters” + clear filters CTA |
 | **Error** | Retry banner |
 | **Mobile** | Facets in bottom sheet; 1-column cards |
@@ -62,11 +62,31 @@ This file is **information architecture only**: routes, purpose, data hooks, emp
 |--|--|
 | **Purpose** | Vehicle story, gallery, price, calculator, Apply |
 | **Data** | `get_listing_detail`; offer tenure options |
-| **Key components** | Image gallery; spec list; price (numeric); installment calculator block; Apply CTA; Add to compare (Phase 5) |
+| **Key components** | Image gallery; spec grid (transmission, cylinders, drivetrain, body type, warranty); dealer identity + link to showroom; price (numeric); installment calculator block; Apply CTA; Add to compare (Phase 5) |
 | **Empty/unavailable** | Sold-style / not available message (reserved for others, sold, archived) |
 | **Error** | Retry; 404 page |
 | **CTAs** | Apply (auth gate); secondary contact/help |
 | **Mobile** | Sticky Apply bar |
+
+---
+
+### `/dealers` — Dealer directory (public)
+
+| | |
+|--|--|
+| **Purpose** | List active dealers with published inventory count |
+| **Data** | `GET /api/companies` (public) |
+| **Key components** | Dealer rows linking to showroom |
+
+---
+
+### `/dealers/:code` — Dealer showroom (public)
+
+| | |
+|--|--|
+| **Purpose** | Branded inventory grid for one dealer (`companies.code`) |
+| **Data** | `GET /api/companies/by-code/:code` + `list_published_products?companyId=` |
+| **Key components** | Dealer logo/name; listing card grid; DriveMarket chrome |
 
 ---
 
@@ -293,7 +313,7 @@ Empty: “No log entries”. Error: export failure toast.
 
 | Component | Used in | Notes |
 |-----------|---------|-------|
-| `ListingCard` | marketplace browse | Image, title, price, year, CTA |
+| `ListingCard` | marketplace browse | Image, New/Warranty chips, make/model/trim, year·gear·cyl·km, dealer, price |
 | `ListingGallery` | detail | Aspect ratios per `11` |
 | `InstallmentCalculator` | detail, apply | Numeric font |
 | `StatusChip` | all apps | Tokenized colors |

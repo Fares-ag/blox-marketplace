@@ -39,6 +39,28 @@ enum VehicleCondition {
   used
 }
 
+enum Transmission {
+  automatic
+  manual
+}
+
+enum Drivetrain {
+  fwd
+  rwd
+  awd
+  four_wd
+}
+
+enum BodyType {
+  sedan
+  suv
+  coupe
+  hatchback
+  pickup
+  van
+  other
+}
+
 enum OfferStatus {
   active
   inactive
@@ -223,6 +245,12 @@ model Product {
   modelYear       Int
   condition       VehicleCondition @default(used)
   engine          String?
+  transmission    Transmission?
+  cylinders       Int?
+  drivetrain      Drivetrain?
+  bodyType        BodyType?
+  warrantyMonths  Int?
+  warrantyNotes   String?
   color           String?
   mileage         Int?
   vin             String?

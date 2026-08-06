@@ -6,8 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BodyType,
+  Drivetrain,
   ListingStatus,
   Prisma,
+  Transmission,
   User,
   UserRole,
   VehicleCondition,
@@ -16,6 +19,28 @@ import slugify from 'slugify';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
 import { StorageService } from '../storage/storage.service';
+
+export type ProductInputDto = {
+  make: string;
+  model: string;
+  trim?: string;
+  modelYear: number;
+  condition?: VehicleCondition;
+  engine?: string;
+  transmission?: Transmission;
+  cylinders?: number;
+  drivetrain?: Drivetrain;
+  bodyType?: BodyType;
+  warrantyMonths?: number;
+  warrantyNotes?: string;
+  color?: string;
+  mileage?: number;
+  vin?: string;
+  description?: string;
+  price: number;
+  financeEligible?: boolean;
+  defaultOfferId?: string;
+};
 
 @Injectable()
 export class ProductsService {
@@ -34,15 +59,22 @@ export class ProductsService {
     priceMax?: number;
     condition?: VehicleCondition;
     companyId?: string;
+    transmission?: Transmission;
+    drivetrain?: Drivetrain;
+    bodyType?: BodyType;
+    cylinders?: number;
+    mileageMax?: number;
+    hasWarranty?: boolean;
     q?: string;
     limit?: number;
     offset?: number;
+    sort?: 'newest' | 'price_asc' | 'price_desc' | 'year_desc' | 'mileage_asc';
   }) {
     const where: Prisma.ProductWhereInput = {
       listingStatus: ListingStatus.published,
       company: { status: 'active' },
       ...(query.make ? { make: { equals: query.make, mode: 'insensitive' } } : {}),
-      ...(query.model ? { model: { contains: query.model, mode: 'insensitive' } } : {}),
+      ...(query.model ? { model: { equals: query.model, mode: 'insensitive' } } : {}),
       ...(query.yearMin || query.yearMax
         ? {
             modelYear: {
@@ -61,6 +93,12 @@ export class ProductsService {
         : {}),
       ...(query.condition ? { condition: query.condition } : {}),
       ...(query.companyId ? { companyId: query.companyId } : {}),
+      ...(query.transmission ? { transmission: query.transmission } : {}),
+      ...(query.drivetrain ? { drivetrain: query.drivetrain } : {}),
+      ...(query.bodyType ? { bodyType: query.bodyType } : {}),
+      ...(query.cylinders ? { cylinders: query.cylinders } : {}),
+      ...(query.mileageMax != null ? { mileage: { lte: query.mileageMax } } : {}),
+      ...(query.hasWarranty ? { warrantyMonths: { gt: 0 } } : {}),
       ...(query.q
         ? {
             OR: [
@@ -75,14 +113,31 @@ export class ProductsService {
     const take = Math.min(Math.max(query.limit ?? 24, 1), 100);
     const skip = Math.max(query.offset ?? 0, 0);
 
+    const orderBy: Prisma.ProductOrderByWithRelationInput[] = (() => {
+      switch (query.sort) {
+        case 'price_asc':
+          return [{ price: 'asc' }];
+        case 'price_desc':
+          return [{ price: 'desc' }];
+        case 'year_desc':
+          return [{ modelYear: 'desc' }];
+        case 'mileage_asc':
+          return [{ mileage: { sort: 'asc', nulls: 'last' } }];
+        case 'newest':
+        default:
+          return [{ publishedAt: 'desc' }, { createdAt: 'desc' }];
+      }
+    })();
+
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
         include: {
-          company: { select: { id: true, name: true, logoUrl: true } },
+          company: { select: { id: true, name: true, code: true, logoUrl: true } },
           images: { orderBy: { sortOrder: 'asc' }, take: 1 },
+          defaultOffer: true,
         },
-        orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+        orderBy,
         take,
         skip,
       }),
@@ -95,11 +150,65 @@ export class ProductsService {
     };
   }
 
+  private estimateMonthlyFromOffer(
+    price: number,
+    offer: {
+      annualRentRate: Prisma.Decimal;
+      minDownPaymentPct: Prisma.Decimal;
+      tenureOptions: Prisma.JsonValue;
+    } | null,
+  ): number | null {
+    if (!offer) return null;
+    const tenureRaw = offer.tenureOptions;
+    const tenureOptions = Array.isArray(tenureRaw)
+      ? tenureRaw.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)
+      : [36];
+    const tenure = tenureOptions.includes(36)
+      ? 36
+      : (tenureOptions[Math.floor(tenureOptions.length / 2)] ?? tenureOptions[0] ?? 36);
+    const downPct = Number(offer.minDownPaymentPct);
+    const down = (price * downPct) / 100;
+    const principal = Math.max(price - down, 0);
+    const n = tenure;
+    if (n <= 0) return 0;
+    const r = Number(offer.annualRentRate) / 100 / 12;
+    if (r === 0) return Math.round(principal / n);
+    const factor = Math.pow(1 + r, n);
+    return Math.round((principal * r * factor) / (factor - 1));
+  }
+
+  async listFacetOptions() {
+    const rows = await this.prisma.product.findMany({
+      where: {
+        listingStatus: ListingStatus.published,
+        company: { status: 'active' },
+      },
+      select: { make: true, model: true },
+      distinct: ['make', 'model'],
+      orderBy: [{ make: 'asc' }, { model: 'asc' }],
+    });
+
+    const makes = [...new Set(rows.map((r) => r.make))].sort((a, b) => a.localeCompare(b));
+    const modelsByMake: Record<string, string[]> = {};
+    for (const row of rows) {
+      const key = row.make;
+      if (!modelsByMake[key]) modelsByMake[key] = [];
+      if (!modelsByMake[key].includes(row.model)) {
+        modelsByMake[key].push(row.model);
+      }
+    }
+    for (const make of Object.keys(modelsByMake)) {
+      modelsByMake[make].sort((a, b) => a.localeCompare(b));
+    }
+
+    return { makes, models_by_make: modelsByMake };
+  }
+
   async getBySlug(slug: string, viewer?: User | null) {
     const product = await this.prisma.product.findUnique({
       where: { slug },
       include: {
-        company: { select: { id: true, name: true, logoUrl: true } },
+        company: { select: { id: true, name: true, code: true, logoUrl: true, contactPhone: true } },
         images: { orderBy: { sortOrder: 'asc' } },
         defaultOffer: true,
       },
@@ -147,7 +256,9 @@ export class ProductsService {
         company: {
           id: product.company.id,
           name: product.company.name,
+          code: product.company.code,
           logo_url: product.company.logoUrl,
+          contact_phone: product.company.contactPhone,
         },
         offer: offer
           ? {
@@ -175,21 +286,7 @@ export class ProductsService {
     });
   }
 
-  async create(user: User, dto: {
-    make: string;
-    model: string;
-    trim?: string;
-    modelYear: number;
-    condition?: VehicleCondition;
-    engine?: string;
-    color?: string;
-    mileage?: number;
-    vin?: string;
-    description?: string;
-    price: number;
-    financeEligible?: boolean;
-    defaultOfferId?: string;
-  }) {
+  async create(user: User, dto: ProductInputDto) {
     if (user.role !== UserRole.dealer_agent || !user.companyId) {
       if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
         throw new ForbiddenException('forbidden_role');
@@ -197,22 +294,25 @@ export class ProductsService {
     }
     const companyId = user.companyId!;
     const id = randomUUID();
-    const slugBase = slugify(`${dto.make}-${dto.model}-${dto.modelYear}-${id.slice(0, 8)}`, {
-      lower: true,
-      strict: true,
-    });
+    const slug = this.buildSlug(dto, id);
 
     return this.prisma.product.create({
       data: {
         id,
         companyId,
-        slug: slugBase,
+        slug,
         make: dto.make,
         model: dto.model,
         trim: dto.trim,
         modelYear: dto.modelYear,
         condition: dto.condition ?? VehicleCondition.used,
         engine: dto.engine,
+        transmission: dto.transmission,
+        cylinders: dto.cylinders,
+        drivetrain: dto.drivetrain,
+        bodyType: dto.bodyType,
+        warrantyMonths: dto.warrantyMonths,
+        warrantyNotes: dto.warrantyNotes,
         color: dto.color,
         mileage: dto.mileage,
         vin: dto.vin,
@@ -225,25 +325,7 @@ export class ProductsService {
     });
   }
 
-  async update(
-    user: User,
-    id: string,
-    dto: {
-      make?: string;
-      model?: string;
-      trim?: string;
-      modelYear?: number;
-      condition?: VehicleCondition;
-      engine?: string;
-      color?: string;
-      mileage?: number;
-      vin?: string;
-      description?: string;
-      price?: number;
-      financeEligible?: boolean;
-      defaultOfferId?: string;
-    },
-  ) {
+  async update(user: User, id: string, dto: Partial<ProductInputDto>) {
     const product = await this.requireDealerProduct(user, id);
     return this.prisma.product.update({
       where: { id: product.id },
@@ -254,6 +336,12 @@ export class ProductsService {
         modelYear: dto.modelYear,
         condition: dto.condition,
         engine: dto.engine,
+        transmission: dto.transmission,
+        cylinders: dto.cylinders,
+        drivetrain: dto.drivetrain,
+        bodyType: dto.bodyType,
+        warrantyMonths: dto.warrantyMonths,
+        warrantyNotes: dto.warrantyNotes,
         color: dto.color,
         mileage: dto.mileage,
         vin: dto.vin,
@@ -283,6 +371,12 @@ export class ProductsService {
   async publish(user: User, productId: string) {
     const product = await this.requireDealerProduct(user, productId);
     if (!product.price || Number(product.price) <= 0 || !product.make || !product.model) {
+      throw new BadRequestException('validation_failed');
+    }
+    if (!product.transmission) {
+      throw new BadRequestException('validation_failed');
+    }
+    if (product.condition === VehicleCondition.used && product.mileage == null) {
       throw new BadRequestException('validation_failed');
     }
     const images = await this.prisma.productImage.count({ where: { productId } });
@@ -336,6 +430,20 @@ export class ProductsService {
     return updated;
   }
 
+  buildSlug(dto: Pick<ProductInputDto, 'make' | 'model' | 'trim' | 'modelYear' | 'color' | 'transmission' | 'bodyType'>, id: string) {
+    const parts = [
+      dto.make,
+      dto.model,
+      dto.trim,
+      String(dto.modelYear),
+      dto.color,
+      dto.transmission,
+      dto.bodyType,
+      id.slice(0, 8),
+    ].filter(Boolean);
+    return slugify(parts.join('-'), { lower: true, strict: true });
+  }
+
   private async requireDealerProduct(user: User, id: string) {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException('listing_not_available');
@@ -355,16 +463,28 @@ export class ProductsService {
     trim: string | null;
     modelYear: number;
     condition: VehicleCondition;
+    transmission: Transmission | null;
+    cylinders: number | null;
+    drivetrain: Drivetrain | null;
+    bodyType: BodyType | null;
     color: string | null;
     mileage: number | null;
     description: string | null;
     price: Prisma.Decimal;
     financeEligible: boolean;
+    warrantyMonths: number | null;
+    warrantyNotes: string | null;
     companyId: string;
     publishedAt: Date | null;
-    company: { id: string; name: string; logoUrl: string | null };
+    company: { id: string; name: string; code: string | null; logoUrl: string | null };
     images: { storagePath: string }[];
+    defaultOffer?: {
+      annualRentRate: Prisma.Decimal;
+      minDownPaymentPct: Prisma.Decimal;
+      tenureOptions: Prisma.JsonValue;
+    } | null;
   }) {
+    const price = Number(p.price);
     return {
       id: p.id,
       slug: p.slug,
@@ -373,16 +493,27 @@ export class ProductsService {
       trim: p.trim,
       model_year: p.modelYear,
       condition: p.condition,
+      transmission: p.transmission,
+      cylinders: p.cylinders,
+      drivetrain: p.drivetrain,
+      body_type: p.bodyType,
       color: p.color,
       mileage: p.mileage,
       description: p.description,
-      price: Number(p.price),
+      price,
       finance_eligible: p.financeEligible,
+      warranty_months: p.warrantyMonths,
+      warranty_notes: p.warrantyNotes,
       company_id: p.companyId,
       company_name: p.company.name,
+      company_code: p.company.code,
       company_logo: p.company.logoUrl,
       primary_image: p.images[0]?.storagePath ?? null,
       published_at: p.publishedAt,
+      est_monthly:
+        p.financeEligible && p.defaultOffer
+          ? this.estimateMonthlyFromOffer(price, p.defaultOffer)
+          : null,
     };
   }
 
@@ -395,31 +526,30 @@ export class ProductsService {
     modelYear: number;
     condition: VehicleCondition;
     engine: string | null;
+    transmission: Transmission | null;
+    cylinders: number | null;
+    drivetrain: Drivetrain | null;
+    bodyType: BodyType | null;
     color: string | null;
     mileage: number | null;
     description: string | null;
     price: Prisma.Decimal;
     financeEligible: boolean;
+    warrantyMonths: number | null;
+    warrantyNotes: string | null;
     listingStatus: ListingStatus;
     defaultOfferId: string | null;
+    companyId: string;
+    publishedAt: Date | null;
+    company: { id: string; name: string; code: string | null; logoUrl: string | null };
+    images: { storagePath: string }[];
   }) {
+    const card = this.toPublicCard(p);
     return {
-      id: p.id,
-      slug: p.slug,
-      make: p.make,
-      model: p.model,
-      trim: p.trim,
-      model_year: p.modelYear,
-      condition: p.condition,
+      ...card,
       engine: p.engine,
-      color: p.color,
-      mileage: p.mileage,
-      description: p.description,
-      price: Number(p.price),
-      finance_eligible: p.financeEligible,
       listing_status: p.listingStatus,
       default_offer_id: p.defaultOfferId,
-      // vin omitted
     };
   }
 }

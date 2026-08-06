@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
 import { IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Public, Roles } from '../auth/guards';
@@ -20,9 +20,58 @@ export class CompaniesController {
   listPublic() {
     return this.prisma.company.findMany({
       where: { status: 'active' },
-      select: { id: true, name: true, code: true, logoUrl: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        logoUrl: true,
+        _count: {
+          select: {
+            products: { where: { listingStatus: 'published' } },
+          },
+        },
+      },
       orderBy: { name: 'asc' },
+    }).then((rows) =>
+      rows.map((c) => ({
+        id: c.id,
+        name: c.name,
+        code: c.code,
+        logo_url: c.logoUrl,
+        published_count: c._count.products,
+      })),
+    );
+  }
+
+  @Public()
+  @Get('by-code/:code')
+  async byCode(@Param('code') code: string) {
+    const company = await this.prisma.company.findFirst({
+      where: { code, status: 'active' },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        logoUrl: true,
+        address: true,
+        contactPhone: true,
+        _count: {
+          select: {
+            products: { where: { listingStatus: 'published' } },
+          },
+        },
+      },
     });
+    if (!company) return null;
+    return {
+      id: company.id,
+      name: company.name,
+      code: company.code,
+      logo_url: company.logoUrl,
+      address: company.address,
+      contact_phone: company.contactPhone,
+      published_count: company._count.products,
+    };
   }
 
   @Roles(UserRole.admin, UserRole.super_admin)
