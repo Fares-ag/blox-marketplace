@@ -5,6 +5,7 @@ import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { createAuth } from './auth/auth';
+import { resolveApiPort } from './auth/auth-config';
 import { PrismaService } from './prisma/prisma.service';
 import { MailService } from './mail/mail.service';
 import { initApiSentry } from './observability/sentry';
@@ -54,7 +55,7 @@ async function bootstrap() {
   app.get(AppModule);
   (global as { __dmAuth?: typeof auth }).__dmAuth = auth;
 
-  const port = Number(config.get('API_PORT') ?? 3000);
+  const port = resolveApiPort(config);
   await app.listen(port);
   console.log(`DriveMarket API http://localhost:${port}`);
   console.log(`Better Auth   http://localhost:${port}/api/auth`);
