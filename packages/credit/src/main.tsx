@@ -14,7 +14,10 @@ import {
   apiFetch,
   getApiBase,
   ScrollToTop,
+  initAppSentry,
 } from '@drivemarket/shared';
+
+initAppSentry('credit');
 
 const queryClient = new QueryClient();
 const nav = [

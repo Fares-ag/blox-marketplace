@@ -12,7 +12,10 @@ import {
   apiFetch,
   formatQar,
   MoneyText,
+  initAppSentry,
 } from '@drivemarket/shared';
+
+initAppSentry('dealer');
 
 const queryClient = new QueryClient();
 

@@ -25,7 +25,10 @@ import {
   OpsEmptyState,
   ScrollToTop,
   type BloxNavItem,
+  initAppSentry,
 } from '@drivemarket/shared';
+
+initAppSentry('ops');
 
 const queryClient = new QueryClient();
 const nav: BloxNavItem[] = [

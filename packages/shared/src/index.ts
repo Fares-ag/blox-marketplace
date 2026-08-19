@@ -4,6 +4,7 @@ export { bloxTokens, bloxMeta } from './config/blox-tokens';
 export { bloxTheme, bloxThemeWithBrand } from './config/blox-theme';
 export { applicationStatusStyles, listingStatusStyles } from './config/status-styles';
 export { apiFetch, ApiError, getApiBase } from './lib/api';
+export { initAppSentry } from './lib/sentry';
 export { formatQar, formatPercent } from './lib/format';
 export {
   labelTransmission,

@@ -13,12 +13,15 @@ import {
   bloxThemeWithBrand,
   ScrollToTop,
   type BloxNavItem,
+  initAppSentry,
 } from '@drivemarket/shared';
 import { DashboardPage } from './pages/DashboardPage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { OffersPage } from './pages/EntityListPages';
 import { LedgersPage } from './pages/LedgersPage';
+
+initAppSentry('admin');
 
 const queryClient = new QueryClient();
 

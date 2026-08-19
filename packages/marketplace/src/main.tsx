@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, CssBaseline } from '@mui/material';
-import { bloxThemeWithBrand, useAuthStore, i18n, ScrollToTop } from '@drivemarket/shared';
+import { bloxThemeWithBrand, useAuthStore, i18n, ScrollToTop, initAppSentry } from '@drivemarket/shared';
 import '@drivemarket/shared/styles/global.scss';
 import './styles/blox-marketplace.scss';
 import { AppRoutes } from './AppRoutes';
+
+initAppSentry('marketplace');
 
 void i18n;
 

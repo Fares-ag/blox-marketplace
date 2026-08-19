@@ -58,6 +58,7 @@ declare global {
     readonly VITE_APP_URL: string;
     readonly VITE_SENTRY_DSN?: string;
     readonly VITE_MARKETPLACE_NAME?: string;
+    readonly MODE: string;
   }
   interface ImportMeta {
     readonly env: ImportMetaEnv;

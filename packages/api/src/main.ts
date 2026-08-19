@@ -7,6 +7,9 @@ import { AppModule } from './app.module';
 import { createAuth } from './auth/auth';
 import { PrismaService } from './prisma/prisma.service';
 import { MailService } from './mail/mail.service';
+import { initApiSentry } from './observability/sentry';
+
+initApiSentry();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });

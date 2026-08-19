@@ -26,7 +26,10 @@ import {
   ScrollToTop,
   type BloxNavItem,
   type OpsPillVariant,
+  initAppSentry,
 } from '@drivemarket/shared';
+
+initAppSentry('finance');
 
 const queryClient = new QueryClient();
 const nav: BloxNavItem[] = [
