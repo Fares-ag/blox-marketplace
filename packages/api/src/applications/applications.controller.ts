@@ -4,14 +4,17 @@ import {
   Get,
   Param,
   Post,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
-import { IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
-import { CurrentUser, Public, Roles } from '../auth/guards';
+import { IsBoolean, IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
+import { Response } from 'express';
+import { CurrentUser, Roles } from '../auth/guards';
 import { ApplicationsService } from './applications.service';
+import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 
 class CreateApplicationDto {
   @IsString() productId!: string;
@@ -19,6 +22,7 @@ class CreateApplicationDto {
   @IsObject() customerSnapshot!: Record<string, unknown>;
   @IsObject() pricingSnapshot!: Record<string, unknown>;
   @IsOptional() @IsObject() installmentPlan?: Record<string, unknown>;
+  @IsOptional() @IsString() quoteToken?: string;
 }
 
 class TransitionDto {
@@ -26,9 +30,16 @@ class TransitionDto {
   @IsOptional() @IsString() reason?: string;
 }
 
+class ActivateDto {
+  @IsOptional() @IsBoolean() direct?: boolean;
+}
+
 @Controller()
 export class ApplicationsController {
-  constructor(private readonly apps: ApplicationsService) {}
+  constructor(
+    private readonly apps: ApplicationsService,
+    private readonly lifecycle: ApplicationsLifecycleService,
+  ) {}
 
   @Roles(UserRole.customer)
   @Get('applications/blocking')
@@ -51,6 +62,12 @@ export class ApplicationsController {
   @Get('applications/:id')
   one(@CurrentUser() user: User, @Param('id') id: string) {
     return this.apps.getOne(user, id);
+  }
+
+  @Roles(UserRole.customer)
+  @Post('applications/:id/submit')
+  submit(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.apps.submit(user, id);
   }
 
   @Roles(UserRole.customer)
@@ -81,13 +98,60 @@ export class ApplicationsController {
     return this.apps.uploadDoc(user, id, category || 'other', file);
   }
 
+  @Get('applications/:id/documents/:docId/file')
+  async downloadDoc(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.apps.downloadDocument(user, id, docId);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
+    res.send(file.buffer);
+  }
+
+  @Get('applications/:id/contract/file')
+  async downloadContract(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.lifecycle.downloadContract(user, id);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.send(file.buffer);
+  }
+
+  @Roles(UserRole.customer)
+  @Post('applications/:id/contract/signed')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadSignedContract(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.lifecycle.submitSignedContract(user, id, file);
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Post('ops/applications/:id/contract/signed')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadSignedContractOps(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.lifecycle.submitSignedContractOps(user, id, file);
+  }
+
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.finance_officer)
   @Get('ops/applications')
   queue(@CurrentUser() user: User) {
     return this.apps.opsQueue(user);
   }
 
-  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.finance_officer)
   @Post('ops/applications/:id/transition')
   transition(
     @CurrentUser() user: User,
@@ -95,6 +159,18 @@ export class ApplicationsController {
     @Body() dto: TransitionDto,
   ) {
     return this.apps.transition(user, id, dto.toStatus, dto.reason);
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Post('ops/applications/:id/approve-contract')
+  approveContract(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.lifecycle.approveWithContract(user, id);
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Post('ops/applications/:id/activate')
+  activate(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: ActivateDto) {
+    return this.lifecycle.activate(user, id, { direct: dto.direct });
   }
 
   @Roles(UserRole.dealer_agent)

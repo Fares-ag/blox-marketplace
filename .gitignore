@@ -15,3 +15,5 @@ cookies.txt
 signin.json
 signin-out.txt
 packages/api/.uploads
+.vercel
+.env*

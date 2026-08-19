@@ -1,36 +1,66 @@
 /* Blox ops chrome — used by admin, dealer, credit, finance, super-admin */
 
+$bp-xs: 480px;
+$bp-sm: 640px;
+$bp-md: 900px;
+$bp-lg: 1200px;
+$bp-xl: 1600px;
+$bp-xxl: 1920px;
+$bp-content-max: 1600px;
+$bp-content-wide: 2000px;
+$bp-content-ultra: 2560px;
+
 .blox-ops {
   --blox-deep-green: #16535b;
+  --blox-deep-green-dark: #0f3f45;
   --blox-emerald: #00cfa2;
+  --blox-emerald-soft: #e6fbf5;
   --blox-lime: #dbff00;
-  --blox-slate: #708090;
-  --blox-canvas: #f0f5f5;
+  --blox-slate: #5f6f78;
+  --blox-slate-soft: #8a9aa3;
+  --blox-canvas: #eef3f3;
   --blox-surface: #ffffff;
-  --blox-ink: #16535b;
-  --blox-border: #d8e2e2;
+  --blox-ink: #123f45;
+  --blox-border: #d3dedf;
+  --blox-surface-muted: #f7fafa;
+  --blox-danger: #b42318;
+  --blox-radius: 10px;
+  --blox-radius-sm: 8px;
+  --blox-space: 20px;
   --blox-font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
   --blox-font-display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  --blox-shadow: 0 1px 2px rgba(15, 63, 69, 0.04);
+  --bp-xs: #{$bp-xs};
+  --bp-sm: #{$bp-sm};
+  --bp-md: #{$bp-md};
+  --bp-lg: #{$bp-lg};
+  --bp-xl: #{$bp-xl};
+  --bp-xxl: #{$bp-xxl};
+  --bp-content-max: #{$bp-content-max};
+  --bp-content-wide: #{$bp-content-wide};
+  --bp-content-ultra: #{$bp-content-ultra};
 
   /* Bridge legacy DriveMarket CSS vars used in dealer/credit pages */
   --dm-font-display: var(--blox-font-display);
   --dm-font-ui: var(--blox-font-ui);
   --dm-slate-600: var(--blox-slate);
-  --dm-slate-400: #9aa8b0;
-  --dm-danger: #b42318;
+  --dm-slate-400: var(--blox-slate-soft);
+  --dm-danger: var(--blox-danger);
   --dm-canvas: var(--blox-canvas);
   --dm-surface: var(--blox-surface);
   --dm-ink: var(--blox-ink);
   --dm-amber: var(--blox-lime);
   --dm-steel: var(--blox-emerald);
   --dm-graphite-900: var(--blox-deep-green);
-  --dm-graphite-800: #0f3f45;
+  --dm-graphite-800: var(--blox-deep-green-dark);
   --dm-graphite-700: #1a5a63;
 
   min-height: 100vh;
   background: var(--blox-canvas);
   color: var(--blox-ink);
   font-family: var(--blox-font-ui);
+  font-size: 14px;
+  line-height: 1.45;
 
   .dm-btn-cta {
     display: inline-flex;
@@ -39,12 +69,12 @@
     background: var(--blox-lime);
     color: var(--blox-deep-green);
     border: none;
-    border-radius: 10px;
-    min-height: 40px;
-    padding: 0 16px;
+    border-radius: var(--blox-radius-sm);
+    min-height: 36px;
+    padding: 0 14px;
     font-family: var(--blox-font-ui);
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     text-decoration: none;
     cursor: pointer;
 
@@ -62,61 +92,156 @@
 
 .blox-shell {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 232px 1fr;
   min-height: 100vh;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
   }
 
-  &__nav {
+  &__menu-btn {
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 16px;
+    border: none;
+    border-bottom: 1px solid var(--blox-border);
     background: var(--blox-deep-green);
     color: #fff;
-    padding: 24px 16px;
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    @media (max-width: 900px) {
+      display: flex;
+    }
+  }
+
+  &__menu-icon {
+    width: 18px;
+    height: 2px;
+    background: #fff;
+    box-shadow: 0 5px 0 #fff, 0 -5px 0 #fff;
+  }
+
+  &__backdrop {
+    display: none;
+
+    @media (max-width: 900px) {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 35;
+      border: none;
+      background: rgba(15, 63, 69, 0.45);
+      cursor: pointer;
+    }
+  }
+
+  &__nav {
+    background: linear-gradient(180deg, var(--blox-deep-green) 0%, var(--blox-deep-green-dark) 100%);
+    color: #fff;
+    padding: 20px 14px;
     display: flex;
     flex-direction: column;
     gap: 4px;
+    border-inline-end: 1px solid rgba(255, 255, 255, 0.06);
+
+    @media (max-width: 900px) {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: min(280px, 86vw);
+      z-index: 40;
+      transform: translateX(-105%);
+      transition: transform 180ms ease;
+      box-shadow: 8px 0 32px rgba(0, 0, 0, 0.25);
+    }
+  }
+
+  &.is-nav-open &__nav {
+    @media (max-width: 900px) {
+      transform: translateX(0);
+    }
+  }
+
+  &__brand-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 4px 6px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  &__logo {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  &__mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--blox-lime);
+    color: var(--blox-deep-green);
+    font-family: var(--blox-font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    flex-shrink: 0;
   }
 
   &__brand {
     font-family: var(--blox-font-display);
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: -0.02em;
+    line-height: 1.1;
   }
 
   &__portal {
     color: var(--blox-emerald);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-weight: 600;
-    margin-bottom: 20px;
+    margin-top: 2px;
   }
 
   &__links {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    flex: 1;
 
     a {
-      display: block;
-      color: rgba(255, 255, 255, 0.88);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255, 255, 255, 0.82);
       text-decoration: none;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 0.875rem;
+      padding: 9px 10px;
+      border-radius: var(--blox-radius-sm);
+      font-size: 0.8125rem;
       font-weight: 500;
       border-inline-start: 3px solid transparent;
-      transition: background 0.15s, border-color 0.15s;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
 
       &:hover {
         background: rgba(255, 255, 255, 0.08);
-        border-inline-start-color: var(--blox-emerald);
+        border-inline-start-color: rgba(0, 207, 162, 0.55);
+        color: #fff;
       }
 
       &.is-active {
-        background: rgba(0, 207, 162, 0.18);
+        background: rgba(0, 207, 162, 0.16);
         border-inline-start-color: var(--blox-emerald);
         color: #fff;
         font-weight: 600;
@@ -124,36 +249,91 @@
     }
   }
 
+  &__nav-icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    opacity: 0.9;
+    flex-shrink: 0;
+  }
+
   &__user {
     margin-top: auto;
-    padding-top: 24px;
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.65);
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+  }
 
-    button {
-      background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      color: #fff;
-      border-radius: 8px;
-      padding: 8px;
-      cursor: pointer;
-      font-family: var(--blox-font-ui);
-      font-size: 0.875rem;
+  &__user-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
 
-      &:hover {
-        border-color: var(--blox-emerald);
-        background: rgba(0, 207, 162, 0.12);
-      }
+  &__user-email {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__role {
+    display: inline-flex;
+    align-self: flex-start;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(0, 207, 162, 0.16);
+    color: var(--blox-emerald);
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__user button {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #fff;
+    border-radius: var(--blox-radius-sm);
+    padding: 8px;
+    cursor: pointer;
+    font-family: var(--blox-font-ui);
+    font-size: 0.8125rem;
+    font-weight: 600;
+
+    &:hover {
+      border-color: var(--blox-emerald);
+      background: rgba(0, 207, 162, 0.12);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--blox-emerald);
+      outline-offset: 2px;
     }
   }
 
   &__main {
-    padding: 32px;
-    background: var(--blox-canvas);
+    padding: 24px 28px 40px;
+    background:
+      radial-gradient(ellipse 80% 40% at 100% 0%, rgba(0, 207, 162, 0.06), transparent 55%),
+      var(--blox-canvas);
     min-width: 0;
+
+    @media (max-width: 900px) {
+      padding: 16px;
+    }
+
+    @media (min-width: $bp-xl) {
+      padding: 28px 36px 48px;
+    }
+
+    @media (min-width: $bp-xxl) {
+      padding: 32px 48px 56px;
+    }
   }
 }
 
@@ -166,7 +346,27 @@
 .blox-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--blox-space);
+  max-width: min(100%, var(--bp-content-max));
+  width: 100%;
+}
+
+@media (min-width: $bp-xl) {
+  .blox-page {
+    max-width: min(100%, var(--bp-content-wide));
+  }
+}
+
+@media (min-width: $bp-xxl) {
+  .blox-page {
+    max-width: min(100%, var(--bp-content-ultra));
+  }
+}
+
+@media (min-width: 2560px) {
+  .blox-page {
+    max-width: min(100%, 2800px);
+  }
 }
 
 .blox-page-header {
@@ -174,27 +374,38 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
 
   h1 {
     margin: 0;
-    font-family: var(--blox-font-ui);
-    font-size: 2rem;
+    font-family: var(--blox-font-display);
+    font-size: clamp(1.35rem, 2vw, 1.65rem);
     font-weight: 600;
+    letter-spacing: -0.02em;
     color: var(--blox-ink);
   }
 
   &__subtitle {
     margin: 4px 0 0;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: var(--blox-slate);
+    max-width: 52ch;
   }
 
   &__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
+  }
+
+  @media (max-width: $bp-sm) {
+    flex-direction: column;
+    align-items: stretch;
+
+    &__actions {
+      width: 100%;
+    }
   }
 }
 
@@ -203,19 +414,25 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 18px;
-  border-radius: 10px;
+  padding: 0 14px;
+  min-height: 36px;
+  border-radius: var(--blox-radius-sm);
   font-family: var(--blox-font-ui);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   border: none;
   text-decoration: none;
-  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s, color 0.15s;
 
   &:disabled {
     opacity: 0.55;
     cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--blox-emerald);
+    outline-offset: 2px;
   }
 
   &--primary {
@@ -233,8 +450,7 @@
     border: 1.5px solid var(--blox-emerald);
 
     &:hover:not(:disabled) {
-      background: var(--blox-emerald);
-      color: var(--blox-deep-green);
+      background: var(--blox-emerald-soft);
     }
   }
 
@@ -251,8 +467,8 @@
 
   &--danger {
     background: transparent;
-    color: #b42318;
-    border: 1.5px solid #b42318;
+    color: var(--blox-danger);
+    border: 1.5px solid var(--blox-danger);
 
     &:hover:not(:disabled) {
       background: rgba(180, 35, 24, 0.08);
@@ -263,13 +479,13 @@
 .blox-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 
   @media (max-width: 1100px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  @media (max-width: 600px) {
+  @media (max-width: $bp-sm) {
     grid-template-columns: 1fr;
   }
 }
@@ -277,102 +493,157 @@
 .blox-stat-card {
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: var(--blox-radius);
+  padding: 16px 18px;
+  box-shadow: var(--blox-shadow);
 
   &__label {
-    margin: 0 0 8px;
-    font-size: 0.75rem;
+    margin: 0 0 6px;
+    font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     color: var(--blox-slate);
   }
 
   &__value {
     margin: 0;
     font-family: var(--blox-font-display);
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 600;
     color: var(--blox-ink);
+    letter-spacing: -0.02em;
   }
 
   &__delta {
-    margin: 8px 0 0;
+    margin: 6px 0 0;
     font-size: 0.75rem;
     color: var(--blox-emerald);
+    font-weight: 500;
   }
 }
 
 .blox-panel {
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: 12px;
-  padding: 24px;
+  border-radius: var(--blox-radius);
+  padding: 18px 20px;
+  box-shadow: var(--blox-shadow);
 
   &__title {
-    margin: 0 0 16px;
-    font-size: 1rem;
+    margin: 0 0 14px;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--blox-ink);
+  }
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+
+    .blox-panel__title {
+      margin: 0;
+    }
+  }
+}
+
+.blox-section-grid {
+  display: grid;
+  gap: 16px;
+
+  &--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    @media (max-width: 800px) {
+      grid-template-columns: 1fr;
+    }
   }
 }
 
 .blox-filter-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 16px 20px;
+  padding: 12px 14px;
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: 12px;
+  border-radius: var(--blox-radius);
+  box-shadow: var(--blox-shadow);
 
   input,
   select,
   textarea {
-    padding: 10px 12px;
+    padding: 8px 10px;
     border: 1px solid var(--blox-border);
-    border-radius: 8px;
+    border-radius: var(--blox-radius-sm);
     font-family: var(--blox-font-ui);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: var(--blox-ink);
     background: var(--blox-surface);
-    min-width: 140px;
+    min-width: 132px;
+    min-height: 36px;
 
     &:focus {
       outline: 2px solid var(--blox-emerald);
       outline-offset: 1px;
     }
   }
+
+  @media (max-width: $bp-sm) {
+    flex-direction: column;
+    align-items: stretch;
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+}
+
+.blox-data-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .blox-table-wrap {
   overflow-x: auto;
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: 12px;
+  border-radius: var(--blox-radius);
+  box-shadow: var(--blox-shadow);
 }
 
 .blox-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 
   th,
   td {
-    padding: 14px 16px;
+    padding: 11px 14px;
     text-align: start;
     border-bottom: 1px solid var(--blox-border);
+    vertical-align: middle;
   }
 
-  th {
-    font-size: 0.75rem;
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     color: var(--blox-slate);
-    background: var(--blox-canvas);
+    background: #f7fafa;
   }
 
   tr:last-child td {
@@ -394,25 +665,134 @@
   }
 }
 
+.blox-table-cards {
+  display: none;
+  gap: 12px;
+}
+
+.blox-table-card {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius);
+  padding: 14px 16px;
+  box-shadow: var(--blox-shadow);
+
+  &__fields {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+  }
+
+  &__field {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+
+    dt {
+      margin: 0;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--blox-slate);
+    }
+
+    dd {
+      margin: 0;
+      font-size: 0.8125rem;
+      color: var(--blox-ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      > * {
+        max-width: 100%;
+      }
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--blox-border);
+  }
+}
+
+@media (max-width: $bp-md) {
+  .blox-table-wrap {
+    display: none;
+  }
+
+  .blox-table-cards {
+    display: grid;
+  }
+
+  .blox-data-table .blox-pagination {
+    margin-top: 0;
+    background: var(--blox-surface);
+    border: 1px solid var(--blox-border);
+    border-radius: var(--blox-radius);
+  }
+}
+
+@media (min-width: $bp-md + 1px) {
+  .blox-table-cards {
+    display: none;
+  }
+}
+
+.blox-kyc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8125rem;
+  padding: 10px 12px;
+  background: var(--blox-surface-muted);
+  border-radius: 8px;
+  min-width: 0;
+
+  > span {
+    text-transform: capitalize;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: $bp-xs) {
+    flex-wrap: wrap;
+
+    > a,
+    > button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+}
+
 .blox-pill {
   display: inline-block;
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 
   &--active,
   &--published,
   &--paid,
   &--approved {
-    background: rgba(0, 207, 162, 0.15);
+    background: var(--blox-emerald-soft);
     color: var(--blox-deep-green);
   }
 
   &--pending,
   &--draft,
   &--reserved {
-    background: rgba(112, 128, 144, 0.15);
+    background: rgba(95, 111, 120, 0.12);
     color: var(--blox-slate);
   }
 
@@ -420,24 +800,37 @@
   &--expired,
   &--sold {
     background: rgba(180, 35, 24, 0.1);
-    color: #b42318;
+    color: var(--blox-danger);
   }
+}
+
+.blox-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius);
 }
 
 .blox-pagination {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  font-size: 0.875rem;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 0.8125rem;
   color: var(--blox-slate);
   border-top: 1px solid var(--blox-border);
 }
 
 .blox-chart-row {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 16px;
+  grid-template-columns: 1fr 300px;
+  gap: 12px;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
@@ -447,14 +840,14 @@
 .blox-chart-legend {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   margin-top: 8px;
 
   &__item {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: var(--blox-slate);
   }
 
@@ -468,15 +861,16 @@
 
 .blox-product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
 }
 
 .blox-product-card {
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: 12px;
+  border-radius: var(--blox-radius);
   overflow: hidden;
+  box-shadow: var(--blox-shadow);
 
   &__image {
     aspect-ratio: 16 / 10;
@@ -487,18 +881,18 @@
   }
 
   &__body {
-    padding: 16px;
+    padding: 14px;
   }
 
   &__title {
     margin: 0 0 4px;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.9375rem;
   }
 
   &__meta {
     margin: 0 0 12px;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: var(--blox-slate);
   }
 
@@ -516,13 +910,14 @@
   padding: 0;
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: 12px;
+  border-radius: var(--blox-radius);
   overflow: hidden;
+  box-shadow: var(--blox-shadow);
 
   li {
-    padding: 14px 16px;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--blox-border);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
 
     &:last-child {
       border-bottom: none;
@@ -543,12 +938,31 @@
 .blox-form {
   display: grid;
   gap: 12px;
-  max-width: 560px;
+  max-width: 640px;
+
+  &--wide {
+    max-width: none;
+  }
+
+  &--2col {
+    max-width: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    @media (max-width: 700px) {
+      grid-template-columns: 1fr;
+    }
+
+    > .blox-form__span,
+    > button,
+    > .blox-form__full {
+      grid-column: 1 / -1;
+    }
+  }
 
   label {
     display: grid;
-    gap: 6px;
-    font-size: 0.875rem;
+    gap: 5px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--blox-ink);
   }
@@ -556,15 +970,15 @@
   input,
   select,
   textarea {
-    padding: 10px 12px;
+    padding: 8px 10px;
     border: 1px solid var(--blox-border);
-    border-radius: 8px;
+    border-radius: var(--blox-radius-sm);
     font-family: var(--blox-font-ui);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 400;
     color: var(--blox-ink);
     background: var(--blox-surface);
-    min-height: 40px;
+    min-height: 36px;
     width: 100%;
 
     &:focus {
@@ -576,10 +990,23 @@
 
 .blox-empty {
   margin: 0;
-  padding: 32px;
+  padding: 36px 24px;
   text-align: center;
   color: var(--blox-slate);
   background: var(--blox-surface);
   border: 1px dashed var(--blox-border);
-  border-radius: 12px;
+  border-radius: var(--blox-radius);
+  font-size: 0.875rem;
+
+  &__title {
+    margin: 0 0 6px;
+    font-weight: 600;
+    color: var(--blox-ink);
+    font-size: 0.9375rem;
+  }
+
+  &__body {
+    margin: 0;
+    color: var(--blox-slate);
+  }
 }

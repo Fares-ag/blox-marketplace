@@ -13,6 +13,20 @@ import {
 import { useCompareStore } from '../lib/compare-store';
 import { MarketplaceNav } from '../components/MarketplaceNav';
 
+function estimateMonthly(p: ProductDetailResponse['product'], offer: ProductDetailResponse['offer']) {
+  if (!p || !offer) return null;
+  const downPct = Number(offer.min_down_payment_pct);
+  const down = (p.price * downPct) / 100;
+  const principal = Math.max(p.price - down, 0);
+  const opts = offer.tenure_options || [36];
+  const tenure = opts.includes(36) ? 36 : opts[0];
+  const r = offer.annual_rent_rate / 100 / 12;
+  const n = tenure;
+  if (r === 0) return Math.round(principal / n);
+  const f = Math.pow(1 + r, n);
+  return Math.round((principal * r * f) / (f - 1));
+}
+
 export function ComparePage() {
   const { t } = useTranslation();
   const locale = getAppLocale();
@@ -34,14 +48,12 @@ export function ComparePage() {
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
       <DocumentMeta title={t('meta.compareTitle')} />
-      <div style={{ background: 'var(--dm-graphite-900)', color: '#fff', padding: '20px 24px' }}>
-        <MarketplaceNav />
-        <div style={{ paddingTop: 56 }}>
-          <h1 style={{ fontFamily: 'var(--dm-font-display)', margin: '0 0 8px' }}>{t('compare.title')}</h1>
-          <p style={{ margin: 0, color: 'rgba(255,255,255,0.75)' }}>{t('compare.subtitle')}</p>
-        </div>
+      <MarketplaceNav variant="solid" />
+      <div className="dm-page-head dm-page-head--brand">
+        <h1>{t('compare.title')}</h1>
+        <p>{t('compare.subtitle')}</p>
       </div>
-      <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
+      <div className="blox-page-pad blox-content-wide">
         {!entries.length ? (
           <div className="dm-compare-empty">
             <p>{t('compare.empty')}</p>
@@ -51,10 +63,66 @@ export function ComparePage() {
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+            <div className="dm-compare-toolbar">
               <button type="button" className="dm-btn-ghost dm-facet-clear" onClick={clear}>
                 {t('compare.clearAll')}
               </button>
+            </div>
+            <div className="dm-compare-cards">
+              {rows.map(({ entry, data, loading }) => {
+                const p = data?.product;
+                const est = p && data?.offer ? estimateMonthly(p, data.offer) : p?.est_monthly ?? null;
+                return (
+                  <article key={entry.id} className="dm-compare-card">
+                    <h2 className="dm-compare-card__title">
+                      {loading ? t('vehicles.loading') : p ? (
+                        <Link to={`/vehicles/${p.slug}`} className="dm-compare-link">
+                          {p.make} {p.model}
+                          {p.trim ? ` ${p.trim}` : ''}
+                        </Link>
+                      ) : (
+                        t('detail.unavailable')
+                      )}
+                    </h2>
+                    <dl className="dm-compare-card__rows">
+                      <div>
+                        <dt>{t('compare.price')}</dt>
+                        <dd>{p ? <MoneyText>{formatQar(p.price, false, locale)}</MoneyText> : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt>{t('compare.monthly')}</dt>
+                        <dd>{est != null ? <MoneyText>{formatQar(est, true, locale)}</MoneyText> : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt>{t('compare.year')}</dt>
+                        <dd>{p?.model_year ?? '—'}</dd>
+                      </div>
+                      <div>
+                        <dt>{t('compare.mileage')}</dt>
+                        <dd>{p?.mileage != null ? `${p.mileage.toLocaleString()} ${t('facets.km')}` : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt>{t('compare.transmission')}</dt>
+                        <dd>{p?.transmission ? labelTransmission(p.transmission, t) : '—'}</dd>
+                      </div>
+                      <div>
+                        <dt>{t('compare.dealer')}</dt>
+                        <dd>{data?.company?.name ?? '—'}</dd>
+                      </div>
+                    </dl>
+                    <div className="dm-compare-actions">
+                      {p && (
+                        <Link className="dm-btn-cta dm-compare-apply" to={`/vehicles/${p.slug}`}>
+                          {t('compare.viewApply')}
+                        </Link>
+                      )}
+                      <button type="button" className="dm-compare-remove" onClick={() => remove(entry.id)}>
+                        {t('compare.remove')}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
             <div className="dm-compare-table-wrap">
               <table className="dm-compare-table">
@@ -73,23 +141,7 @@ export function ComparePage() {
                 <tbody>
                   {rows.map(({ entry, data, loading }) => {
                     const p = data?.product;
-                    const est =
-                      p && data?.offer
-                        ? Math.round(
-                            (() => {
-                              const downPct = Number(data.offer!.min_down_payment_pct);
-                              const down = (p.price * downPct) / 100;
-                              const principal = Math.max(p.price - down, 0);
-                              const opts = data.offer!.tenure_options || [36];
-                              const tenure = opts.includes(36) ? 36 : opts[0];
-                              const r = data.offer!.annual_rent_rate / 100 / 12;
-                              const n = tenure;
-                              if (r === 0) return principal / n;
-                              const f = Math.pow(1 + r, n);
-                              return (principal * r * f) / (f - 1);
-                            })(),
-                          )
-                        : p?.est_monthly ?? null;
+                    const est = p && data?.offer ? estimateMonthly(p, data.offer) : p?.est_monthly ?? null;
                     return (
                       <tr key={entry.id}>
                         <td>
@@ -103,9 +155,7 @@ export function ComparePage() {
                           )}
                         </td>
                         <td>{p ? <MoneyText>{formatQar(p.price, false, locale)}</MoneyText> : '—'}</td>
-                        <td>
-                          {est != null ? <MoneyText>{formatQar(est, true, locale)}</MoneyText> : '—'}
-                        </td>
+                        <td>{est != null ? <MoneyText>{formatQar(est, true, locale)}</MoneyText> : '—'}</td>
                         <td>{p?.model_year ?? '—'}</td>
                         <td>{p?.mileage != null ? `${p.mileage.toLocaleString()} ${t('facets.km')}` : '—'}</td>
                         <td>{p?.transmission ? labelTransmission(p.transmission, t) : '—'}</td>
@@ -139,8 +189,56 @@ export function ComparePage() {
           border-radius: 16px;
           border: 1px dashed var(--dm-slate-200);
         }
-        .dm-compare-table-wrap { overflow-x: auto; background: var(--dm-surface); border-radius: 16px; border: 1px solid var(--dm-slate-200); }
-        .dm-compare-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .dm-compare-toolbar {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: 16px;
+        }
+        .dm-compare-cards {
+          display: none;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .dm-compare-card {
+          background: var(--dm-surface);
+          border: 1px solid var(--dm-slate-200);
+          border-radius: 14px;
+          padding: 16px;
+        }
+        .dm-compare-card__title {
+          margin: 0 0 12px;
+          font-family: var(--dm-font-display);
+          font-size: 1.05rem;
+        }
+        .dm-compare-card__rows {
+          margin: 0 0 14px;
+          display: grid;
+          gap: 8px;
+        }
+        .dm-compare-card__rows > div {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 14px;
+        }
+        .dm-compare-card__rows dt {
+          margin: 0;
+          color: var(--dm-slate-600);
+          font-weight: 500;
+        }
+        .dm-compare-card__rows dd {
+          margin: 0;
+          text-align: end;
+          font-weight: 600;
+        }
+        .dm-compare-table-wrap {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          background: var(--dm-surface);
+          border-radius: 16px;
+          border: 1px solid var(--dm-slate-200);
+        }
+        .dm-compare-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 14px; }
         .dm-compare-table th, .dm-compare-table td { padding: 14px 16px; text-align: start; border-bottom: 1px solid var(--dm-slate-200); }
         .dm-compare-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dm-slate-600); background: var(--dm-canvas); }
         .dm-compare-link { font-weight: 600; color: var(--dm-ink); text-decoration: none; }
@@ -148,6 +246,16 @@ export function ComparePage() {
         .dm-compare-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
         .dm-compare-apply { min-height: 40px; padding: 0 14px; font-size: 13px; }
         .dm-compare-remove { background: none; border: none; color: var(--dm-slate-600); cursor: pointer; font-size: 13px; text-decoration: underline; }
+        @media (max-width: 900px) {
+          .dm-compare-table-wrap { display: none; }
+          .dm-compare-cards { display: flex; }
+        }
+        @media (min-width: 901px) and (max-width: 1199px) {
+          .dm-compare-table-wrap { overflow-x: auto; }
+        }
+        @media (max-width: 640px) {
+          .dm-compare-table th, .dm-compare-table td { padding: 10px 12px; font-size: 13px; }
+        }
       `}</style>
     </div>
   );

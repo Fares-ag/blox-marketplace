@@ -7,6 +7,8 @@ import {
   GuestGuard,
   LoginPage,
   RegisterPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
   MoneyText,
   DocumentMeta,
   apiFetch,
@@ -32,7 +34,8 @@ import { MarketplaceNav } from './components/MarketplaceNav';
 import { ComparePage } from './pages/ComparePage';
 import { HelpPage } from './pages/HelpPage';
 import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
-import { ApplicationStatusView } from './components/ApplicationStatusView';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { ApplicationDetailPanel, type ApplicationDetailData } from './components/ApplicationDetailPanel';
 
 function HomePage() {
   const { t } = useTranslation();
@@ -599,6 +602,7 @@ function ApplyWizardPage() {
         body: JSON.stringify({
           productId: product.id,
           offerId: offer.id,
+          quoteToken: params.get('quote') || undefined,
           customerSnapshot: {
             full_name: fullName,
             phone,
@@ -810,23 +814,87 @@ function ApplicationsListPage() {
   );
 }
 
+function QuoteRedeemPage() {
+  const { token } = useParams();
+  const { t } = useTranslation();
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['quote', token],
+    queryFn: () =>
+      apiFetch<{
+        gate: string;
+        product?: { slug: string; make: string; model: string; modelYear?: number };
+        negotiatedPrice?: number;
+        customerEmailMasked?: string;
+      }>(`/api/quotes/${token}`),
+    enabled: !!token,
+  });
+
+  if (isLoading) return <p>{t('vehicles.loading')}</p>;
+  if (error || !data || data.gate !== 'active') {
+    return (
+      <div className="dm-home">
+        <MarketplaceNav />
+        <div style={{ padding: 32, maxWidth: 640, margin: '0 auto' }}>
+          <h1>Quote unavailable</h1>
+          <p>This special price link is expired, used, or not assigned to your account.</p>
+          <Link to="/vehicles">Browse vehicles</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const product = data.product!;
+  return (
+    <div className="dm-home">
+      <MarketplaceNav />
+      <div style={{ padding: 32, maxWidth: 640, margin: '0 auto' }}>
+        <h1>Special price for you</h1>
+        <p>
+          {product.make} {product.model} {product.modelYear ?? ''}
+        </p>
+        {data.negotiatedPrice != null && (
+          <p>
+            Negotiated price: <MoneyText>{formatQar(data.negotiatedPrice, false, getAppLocale())}</MoneyText>
+          </p>
+        )}
+        <Link
+          className="dm-btn-cta"
+          to={`/app/applications/new?product=${product.slug}&quote=${token}`}
+          style={{ display: 'inline-block', marginTop: 16 }}
+        >
+          Continue to apply
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function ApplicationDetailPage() {
   const { id } = useParams();
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['app', id],
-    queryFn: () =>
-      apiFetch<{
-        id: string;
-        status: string;
-        createdAt: string;
-        pricingSnapshot?: Record<string, unknown>;
-        rejectionReason?: string | null;
-        resubmissionComment?: string | null;
-        product?: { make?: string; model?: string; slug?: string; modelYear?: number };
-      }>(`/api/applications/${id}`),
+    queryFn: () => apiFetch<ApplicationDetailData>(`/api/applications/${id}`),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    const skipcashKey = searchParams.get('skipcash_key');
+    if (!skipcashKey || !id) return;
+    void (async () => {
+      try {
+        await apiFetch('/api/payments/skipcash/complete', {
+          method: 'POST',
+          body: JSON.stringify({ idempotency_key: skipcashKey }),
+        });
+        void qc.invalidateQueries({ queryKey: ['app', id] });
+      } catch {
+        /* optional sandbox completion */
+      }
+    })();
+  }, [searchParams, id, qc]);
 
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
@@ -838,7 +906,7 @@ function ApplicationDetailPage() {
           <Link to="/app/applications">← {t('application.title')}</Link>
         </p>
         {isLoading && <p>{t('vehicles.loading')}</p>}
-        {data && <ApplicationStatusView app={data} />}
+        {data && <ApplicationDetailPanel app={data} />}
       </div>
     </div>
   );
@@ -854,6 +922,7 @@ export function AppRoutes() {
       <Route path="/dealers/:code" element={<DealerShowroomPage />} />
       <Route path="/compare" element={<ComparePage />} />
       <Route path="/help" element={<HelpPage />} />
+      <Route path="/quotes/:token" element={<QuoteRedeemPage />} />
       <Route
         path="/auth/login"
         element={
@@ -870,7 +939,10 @@ export function AppRoutes() {
           </GuestGuard>
         }
       />
+      <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
       <Route path="/app/dashboard" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><CustomerDashboardPage /></AuthGuard>} />
+      <Route path="/app/notifications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><NotificationsPage /></AuthGuard>} />
       <Route path="/app/applications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><ApplicationsListPage /></AuthGuard>} />
       <Route path="/app/applications/new" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><ApplyWizardPage /></AuthGuard>} />
       <Route path="/app/applications/:id" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><ApplicationDetailPage /></AuthGuard>} />

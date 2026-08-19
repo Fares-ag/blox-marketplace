@@ -19,6 +19,7 @@ const queryClient = new QueryClient();
 const nav = [
   { to: '/', label: 'Dashboard' },
   { to: '/inventory', label: 'Inventory' },
+  { to: '/quotes', label: 'Quotes' },
   { to: '/applications', label: 'Applications' },
   { to: '/company', label: 'Company' },
 ];
@@ -169,6 +170,7 @@ function InventoryEditor() {
   const [mileage, setMileage] = useState<number | ''>('');
   const [warrantyMonths, setWarrantyMonths] = useState<number | ''>('');
   const [warrantyNotes, setWarrantyNotes] = useState('');
+  const [financeEligible, setFinanceEligible] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const existing = useQuery({
@@ -197,6 +199,7 @@ function InventoryEditor() {
     setMileage(row.mileage != null ? Number(row.mileage) : '');
     setWarrantyMonths(row.warrantyMonths != null ? Number(row.warrantyMonths) : '');
     setWarrantyNotes(String(row.warrantyNotes ?? ''));
+    setFinanceEligible(row.financeEligible !== false);
   }, [existing.data, id, isNew]);
 
   const save = useMutation({
@@ -218,6 +221,7 @@ function InventoryEditor() {
         mileage: mileage === '' ? undefined : Number(mileage),
         warrantyMonths: warrantyMonths === '' ? undefined : Number(warrantyMonths),
         warrantyNotes: warrantyNotes || undefined,
+        financeEligible,
       };
       if (isNew) {
         return apiFetch<{ id: string }>('/api/dealer/inventory', {
@@ -240,6 +244,12 @@ function InventoryEditor() {
 
   const publish = useMutation({
     mutationFn: () => apiFetch(`/api/dealer/inventory/${id}/publish`, { method: 'POST' }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['dealer-inventory'] }),
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const unpublish = useMutation({
+    mutationFn: () => apiFetch(`/api/dealer/inventory/${id}/unpublish`, { method: 'POST' }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['dealer-inventory'] }),
     onError: (e: Error) => setError(e.message),
   });
@@ -358,6 +368,14 @@ function InventoryEditor() {
           Description
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={financeEligible}
+            onChange={(e) => setFinanceEligible(e.target.checked)}
+          />
+          Finance eligible
+        </label>
         {error && <p style={{ color: '#b42318', margin: 0 }}>{error}</p>}
         <button type="submit" className="blox-btn blox-btn--primary">
           Save
@@ -373,6 +391,217 @@ function InventoryEditor() {
           <button type="button" className="blox-btn blox-btn--secondary" style={{ marginTop: 12 }} onClick={() => publish.mutate()}>
             Publish
           </button>
+          <button type="button" className="blox-btn blox-btn--ghost" style={{ marginTop: 12, marginLeft: 8 }} onClick={() => unpublish.mutate()}>
+            Unpublish
+          </button>
+          {error && error.includes('listing_has_active_financing') && (
+            <p style={{ color: '#b42318', marginTop: 8 }}>
+              This listing has an in-flight financing application and cannot be unpublished.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuotesPage() {
+  const qc = useQueryClient();
+  const [productId, setProductId] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [negotiatedPrice, setNegotiatedPrice] = useState(90000);
+  const [expiresAt, setExpiresAt] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 16);
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [createdUrl, setCreatedUrl] = useState<string | null>(null);
+
+  const inventory = useQuery({
+    queryKey: ['dealer-inventory'],
+    queryFn: () =>
+      apiFetch<
+        Array<{
+          id: string;
+          make: string;
+          model: string;
+          modelYear: number;
+          price: string | number;
+          listingStatus: string;
+        }>
+      >('/api/dealer/inventory'),
+  });
+
+  const quotes = useQuery({
+    queryKey: ['dealer-quotes'],
+    queryFn: () =>
+      apiFetch<
+        Array<{
+          id: string;
+          url: string;
+          customerEmail: string;
+          negotiatedPrice: number;
+          listPriceSnapshot: number;
+          expiresAt: string;
+          status: string;
+          product: { make: string; model: string; modelYear: number };
+        }>
+      >('/api/dealer/quotes'),
+  });
+
+  const createQuote = useMutation({
+    mutationFn: () =>
+      apiFetch<{ url: string }>('/api/dealer/quotes', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId,
+          customerEmail,
+          negotiatedPrice,
+          expiresAt: new Date(expiresAt).toISOString(),
+        }),
+      }),
+    onSuccess: (row) => {
+      setError(null);
+      setCreatedUrl(row.url);
+      void qc.invalidateQueries({ queryKey: ['dealer-quotes'] });
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const revoke = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/dealer/quotes/${id}/revoke`, { method: 'POST' }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['dealer-quotes'] }),
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const published = (inventory.data ?? []).filter((p) => p.listingStatus === 'published');
+
+  function onCreate(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setCreatedUrl(null);
+    createQuote.mutate();
+  }
+
+  return (
+    <div className="blox-page">
+      <header className="blox-page-header">
+        <div>
+          <h1>Customer quotes</h1>
+          <p className="blox-page-header__subtitle">Send negotiated price links to customers</p>
+        </div>
+      </header>
+
+      <section className="blox-panel" style={{ maxWidth: 560, marginBottom: 24 }}>
+        <h2 className="blox-panel__title">Create quote</h2>
+        <form onSubmit={onCreate} className="blox-form">
+          <label>
+            Published listing
+            <select required value={productId} onChange={(e) => setProductId(e.target.value)}>
+              <option value="">Select vehicle</option>
+              {published.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.make} {p.model} {p.modelYear} — {Number(p.price).toLocaleString()} QAR
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Customer email
+            <input
+              type="email"
+              required
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+            />
+          </label>
+          <label>
+            Negotiated price (QAR)
+            <input
+              type="number"
+              required
+              min={1}
+              value={negotiatedPrice}
+              onChange={(e) => setNegotiatedPrice(Number(e.target.value))}
+            />
+          </label>
+          <label>
+            Expires
+            <input
+              type="datetime-local"
+              required
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+            />
+          </label>
+          {error && <p style={{ color: '#b42318', margin: 0 }}>{error}</p>}
+          {createdUrl && (
+            <p style={{ margin: 0, wordBreak: 'break-all' }}>
+              Quote link:{' '}
+              <a href={createdUrl} target="_blank" rel="noreferrer">
+                {createdUrl}
+              </a>
+            </p>
+          )}
+          <button type="submit" className="blox-btn blox-btn--primary" disabled={createQuote.isPending}>
+            Create quote link
+          </button>
+        </form>
+      </section>
+
+      {!quotes.data?.length ? (
+        <p className="blox-empty">No quotes yet.</p>
+      ) : (
+        <div className="blox-table-wrap">
+          <table className="blox-table">
+            <thead>
+              <tr>
+                <th>Vehicle</th>
+                <th>Customer</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Link</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {quotes.data.map((q) => (
+                <tr key={q.id}>
+                  <td>
+                    {q.product.make} {q.product.model} {q.product.modelYear}
+                  </td>
+                  <td>{q.customerEmail}</td>
+                  <td>
+                    <span className="blox-money">
+                      <MoneyText>{formatQar(q.negotiatedPrice)}</MoneyText>
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`blox-pill blox-pill--${q.status === 'active' ? 'published' : 'draft'}`}>
+                      {q.status}
+                    </span>
+                  </td>
+                  <td>
+                    <a href={q.url} target="_blank" rel="noreferrer">
+                      Open
+                    </a>
+                  </td>
+                  <td>
+                    {q.status === 'active' && (
+                      <button
+                        type="button"
+                        className="blox-btn blox-btn--ghost"
+                        onClick={() => revoke.mutate(q.id)}
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -457,6 +686,7 @@ function App() {
                 <Route path="/inventory" element={<InventoryList />} />
                 <Route path="/inventory/new" element={<InventoryEditor />} />
                 <Route path="/inventory/:id" element={<InventoryEditor />} />
+                <Route path="/quotes" element={<QuotesPage />} />
                 <Route path="/applications" element={<Applications />} />
                 <Route path="/company" element={<CompanyPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

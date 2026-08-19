@@ -43,6 +43,7 @@ export interface ProductCard {
   company_name: string;
   company_code: string | null;
   company_logo: string | null;
+  company_contact_phone?: string | null;
   primary_image: string | null;
   published_at: string | null;
   est_monthly: number | null;

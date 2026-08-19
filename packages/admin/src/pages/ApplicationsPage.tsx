@@ -1,65 +1,111 @@
-import {
-  DataTable,
-  PageHeader,
-  PrimaryButton,
-  SecondaryButton,
-  StatusPill,
-} from '../components/ui';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch, OpsEmptyState } from '@drivemarket/shared';
+import { DataTable, PageHeader, StatusPill, type PillVariant } from '../components/ui';
 
-const applications = [
-  { id: 'APP-2401', customer: 'Ahmed Al-Kuwari', vehicle: 'Hyundai Tucson Limited', amount: 'QAR 119,500', status: 'pending' as const, date: '2026-08-01' },
-  { id: 'APP-2400', customer: 'Sara Al-Mannai', vehicle: 'Toyota Camry SE', amount: 'QAR 98,200', status: 'approved' as const, date: '2026-07-30' },
-  { id: 'APP-2399', customer: 'Omar Hassan', vehicle: 'Nissan Patrol SE', amount: 'QAR 245,000', status: 'rejected' as const, date: '2026-07-28' },
-  { id: 'APP-2398', customer: 'Fatima Al-Thani', vehicle: 'Kia Sportage GT', amount: 'QAR 87,400', status: 'pending' as const, date: '2026-07-27' },
-  { id: 'APP-2397', customer: 'Khalid Al-Emadi', vehicle: 'BMW 320i M Sport', amount: 'QAR 178,900', status: 'approved' as const, date: '2026-07-25' },
-];
-
-const statusVariant = {
-  pending: 'pending' as const,
-  approved: 'approved' as const,
-  rejected: 'rejected' as const,
-};
+function statusVariant(status: string): PillVariant {
+  if (status === 'active' || status === 'completed') return 'approved';
+  if (status === 'rejected') return 'rejected';
+  return 'pending';
+}
 
 export function ApplicationsPage() {
+  const qc = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const { data, error } = useQuery({
+    queryKey: ['admin-apps'],
+    queryFn: () =>
+      apiFetch<
+        Array<{
+          id: string;
+          status: string;
+          createdAt: string;
+          customer: { name: string; email: string };
+          product: { make: string; model: string; modelYear: number };
+          company: { name: string };
+        }>
+      >('/api/ops/applications'),
+  });
+
+  const transition = useMutation({
+    mutationFn: (payload: { id: string; toStatus: string }) =>
+      apiFetch(`/api/ops/applications/${payload.id}/transition`, {
+        method: 'POST',
+        body: JSON.stringify({ toStatus: payload.toStatus, reason: reason.trim() || undefined }),
+      }),
+    onSuccess: () => {
+      setActionError(null);
+      void qc.invalidateQueries({ queryKey: ['admin-apps'] });
+    },
+    onError: (e: Error) => setActionError(e.message),
+  });
+
+  const selected = data?.find((a) => a.id === selectedId);
+
   return (
     <div className="blox-page">
-      <PageHeader
-        title="Applications"
-        subtitle="Vehicle financing applications across all dealers"
-        actions={
-          <>
-            <SecondaryButton>Filters</SecondaryButton>
-            <PrimaryButton>New application</PrimaryButton>
-          </>
-        }
-      />
-
-      <div className="blox-filter-bar">
-        <input type="search" placeholder="Search customer or ID…" />
-        <select defaultValue="">
-          <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <select defaultValue="">
-          <option value="">All dealers</option>
-          <option value="gulf">Gulf Motors Demo</option>
-        </select>
-      </div>
-
+      <PageHeader title="Applications" subtitle="Vehicle financing applications across all dealers" />
+      {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
       <DataTable
-        columns={['ID', 'Customer', 'Vehicle', 'Amount', 'Status', 'Submitted']}
-        rows={applications.map((a) => [
-          a.id,
-          a.customer,
-          a.vehicle,
-          <span key={`${a.id}-amt`} className="blox-money">{a.amount}</span>,
-          <StatusPill key={`${a.id}-st`} label={a.status} variant={statusVariant[a.status]} />,
-          a.date,
+        columns={['Customer', 'Vehicle', 'Dealer', 'Status', 'Created', '']}
+        empty={<OpsEmptyState title="No open applications" body="Applications in review appear here." />}
+        rows={(data ?? []).map((a) => [
+          <span key="c" title={a.customer.email}>{a.customer.name}</span>,
+          `${a.product.make} ${a.product.model} ${a.product.modelYear}`,
+          a.company.name,
+          <StatusPill key="s" label={a.status} variant={statusVariant(a.status)} />,
+          new Date(a.createdAt).toLocaleDateString(),
+          <button key="b" type="button" className="blox-btn blox-btn--ghost" onClick={() => setSelectedId(a.id)}>
+            Manage
+          </button>,
         ])}
-        pagination={{ from: 1, to: 5, total: 128 }}
       />
+
+      {selected && (
+        <section className="blox-panel" style={{ marginTop: 24, maxWidth: 560 }}>
+          <h2 className="blox-panel__title">
+            {selected.product.make} {selected.product.model} · {selected.status}
+          </h2>
+          {actionError && <p style={{ color: 'var(--blox-danger)' }}>{actionError}</p>}
+          <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: '0.875rem' }}>
+            Reason
+            <input value={reason} onChange={(e) => setReason(e.target.value)} />
+          </label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+            <button
+              type="button"
+              className="blox-btn blox-btn--secondary"
+              onClick={() => transition.mutate({ id: selected.id, toStatus: 'resubmission_required' })}
+            >
+              Request resubmission
+            </button>
+            <button
+              type="button"
+              className="blox-btn blox-btn--danger"
+              onClick={() => transition.mutate({ id: selected.id, toStatus: 'rejected' })}
+            >
+              Reject
+            </button>
+            {selected.status === 'pending_finance_activation' && (
+              <button
+                type="button"
+                className="blox-btn blox-btn--primary"
+                onClick={() =>
+                  apiFetch(`/api/ops/applications/${selected.id}/activate`, {
+                    method: 'POST',
+                    body: '{}',
+                  }).then(() => void qc.invalidateQueries({ queryKey: ['admin-apps'] }))
+                }
+              >
+                Activate
+              </button>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

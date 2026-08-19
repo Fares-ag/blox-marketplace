@@ -14,6 +14,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
 import { StorageService } from '../storage/storage.service';
+import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
+import { shouldSyncStatusToCrm } from '../integrations/zoho/zoho-sync-policy';
+import {
+  buildApplicationPricingSnapshot,
+  assertOfferMatchesProduct,
+} from './application-pricing';
+import { hasAllRequiredDocuments } from './application-documents';
+import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 
 const BLOCKING: ApplicationStatus[] = [
   'draft',
@@ -38,6 +46,8 @@ export class ApplicationsService {
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
     private readonly storage: StorageService,
+    private readonly lifecycle: ApplicationsLifecycleService,
+    private readonly zoho: ZohoCrmService,
   ) {}
 
   async hasBlocking(userId: string) {
@@ -56,6 +66,7 @@ export class ApplicationsService {
       customerSnapshot: Record<string, unknown>;
       pricingSnapshot: Record<string, unknown>;
       installmentPlan?: Record<string, unknown>;
+      quoteToken?: string;
     },
   ) {
     if (user.role !== UserRole.customer) throw new ForbiddenException('forbidden_role');
@@ -63,7 +74,10 @@ export class ApplicationsService {
     const blocking = await this.hasBlocking(user.id);
     if (blocking.blocking) throw new BadRequestException('blocking_application_exists');
 
-    const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+      include: { defaultOffer: true },
+    });
     if (
       !product ||
       product.listingStatus !== ListingStatus.published ||
@@ -72,8 +86,11 @@ export class ApplicationsService {
       throw new BadRequestException('listing_not_available');
     }
 
+    const resolvedOfferId = product.defaultOfferId ?? dto.offerId;
+    assertOfferMatchesProduct(dto.offerId, resolvedOfferId);
+
     const offer = await this.prisma.offer.findFirst({
-      where: { id: dto.offerId, status: 'active' },
+      where: { id: resolvedOfferId, status: 'active' },
     });
     if (!offer) throw new BadRequestException('validation_failed');
 
@@ -81,6 +98,32 @@ export class ApplicationsService {
     if (!snap.full_name || !snap.phone || !snap.qid) {
       throw new BadRequestException('validation_failed');
     }
+
+    let listPrice = Number(product.price);
+    let leadSource: string | undefined;
+    if (dto.quoteToken) {
+      const quote = await this.prisma.dealerQuote.findUnique({
+        where: { token: dto.quoteToken },
+      });
+      if (
+        !quote ||
+        quote.productId !== product.id ||
+        quote.usedAt ||
+        quote.revokedAt ||
+        quote.expiresAt.getTime() <= Date.now() ||
+        quote.customerEmail.toLowerCase() !== user.email.toLowerCase()
+      ) {
+        throw new BadRequestException('validation_failed');
+      }
+      listPrice = Number(quote.negotiatedPrice);
+      leadSource = 'dealer_quote';
+    }
+
+    const pricingSnapshot = buildApplicationPricingSnapshot({
+      listPrice,
+      offer,
+      pricingSnapshot: dto.pricingSnapshot,
+    });
 
     const app = await this.prisma.$transaction(async (tx) => {
       const created = await tx.application.create({
@@ -91,17 +134,20 @@ export class ApplicationsService {
           productId: product.id,
           companyId: product.companyId,
           offerId: offer.id,
-          pricingSnapshot: asJson(dto.pricingSnapshot),
+          financePartnerId: offer.financePartnerId,
+          leadSource,
+          pricingSnapshot: asJson(pricingSnapshot),
           installmentPlan: dto.installmentPlan ? asJson(dto.installmentPlan) : undefined,
-          status: ApplicationStatus.under_review,
-          submittedAt: new Date(),
+          status: ApplicationStatus.draft,
         },
       });
 
-      await tx.product.update({
-        where: { id: product.id },
-        data: { listingStatus: ListingStatus.reserved },
-      });
+      if (dto.quoteToken) {
+        await tx.dealerQuote.update({
+          where: { token: dto.quoteToken },
+          data: { usedAt: new Date(), usedByApplicationId: created.id },
+        });
+      }
 
       await tx.user.update({
         where: { id: user.id },
@@ -119,30 +165,62 @@ export class ApplicationsService {
       actorUserId: user.id,
       entityType: 'application',
       entityId: app.id,
+      action: 'application_created',
+      toValue: 'draft',
+    });
+
+    return app;
+  }
+
+  async submit(user: User, id: string) {
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+      include: { documents: true, product: true },
+    });
+    if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
+    if (app.status !== 'draft' && app.status !== 'resubmission_required') {
+      throw new BadRequestException('invalid_status_transition');
+    }
+    if (!hasAllRequiredDocuments(app.documents)) {
+      throw new BadRequestException('documents_incomplete');
+    }
+
+    if (app.product.listingStatus !== ListingStatus.published && app.status === 'draft') {
+      throw new BadRequestException('listing_not_available');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.application.update({
+        where: { id },
+        data: {
+          status: ApplicationStatus.under_review,
+          submittedAt: app.submittedAt ?? new Date(),
+        },
+      });
+
+      if (app.status === 'draft') {
+        await tx.product.update({
+          where: { id: app.productId },
+          data: { listingStatus: ListingStatus.reserved },
+        });
+      }
+
+      return next;
+    });
+
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: id,
       action: 'status_transition',
+      fromValue: app.status,
       toValue: 'under_review',
     });
 
-    const notifyTargets = await this.prisma.user.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { role: UserRole.credit_officer, creditScope: 'all' },
-          { role: UserRole.dealer_agent, companyId: product.companyId },
-          { role: { in: [UserRole.admin, UserRole.super_admin] } },
-        ],
-      },
-    });
-    for (const t of notifyTargets) {
-      await this.activity.notify(
-        t.id,
-        t.role === UserRole.dealer_agent ? 'New lead on your stock' : 'New financing application',
-        'A customer applied for financing.',
-        `/applications/${app.id}`,
-      );
-    }
+    await this.notifyOpsOnSubmit(app.companyId, id);
+    void this.maybeSyncZoho(id, user.id);
 
-    return app;
+    return updated;
   }
 
   async listMine(user: User) {
@@ -162,15 +240,14 @@ export class ApplicationsService {
         product: true,
         documents: true,
         company: { select: { id: true, name: true } },
+        customer: { select: { name: true, email: true, phone: true } },
         offer: true,
+        paymentSchedules: { orderBy: { sequence: 'asc' } },
       },
     });
     if (!app) throw new NotFoundException();
     this.assertCanView(user, app);
     const safeProduct = { ...app.product, vin: undefined, chassisNumber: undefined };
-    if (user.role === UserRole.customer || user.role === UserRole.dealer_agent) {
-      // dealer can see lead; still hide nothing critical for MVP dealer
-    }
     return { ...app, product: safeProduct };
   }
 
@@ -184,6 +261,9 @@ export class ApplicationsService {
     if (!allowed.includes(user.role)) {
       throw new ForbiddenException('forbidden_role');
     }
+
+    const companyFilter = await this.opsCompanyFilter(user);
+
     return this.prisma.application.findMany({
       where: {
         status: {
@@ -193,9 +273,12 @@ export class ApplicationsService {
             'contract_signing_required',
             'contracts_submitted',
             'contract_under_review',
+            'down_payment_required',
+            'down_payment_submitted',
             'pending_finance_activation',
           ],
         },
+        ...(companyFilter ? { companyId: { in: companyFilter } } : {}),
       },
       include: {
         product: { select: { make: true, model: true, modelYear: true, slug: true } },
@@ -220,42 +303,55 @@ export class ApplicationsService {
     });
   }
 
-  async transition(
-    user: User,
-    id: string,
-    toStatus: ApplicationStatus,
-    reason?: string,
-  ) {
-    const roleOk: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
-    if (!roleOk.includes(user.role)) {
-      throw new ForbiddenException('forbidden_role');
-    }
-    const app = await this.prisma.application.findUnique({ where: { id } });
-    if (!app) throw new NotFoundException();
+  async transition(user: User, id: string, toStatus: ApplicationStatus, reason?: string) {
+    return this.lifecycle.opsTransition(user, id, toStatus, reason);
+  }
 
-    let transitionOk = false;
-    if (app.status === 'under_review' && (toStatus === 'rejected' || toStatus === 'resubmission_required')) {
-      transitionOk = true;
+  async resubmit(user: User, id: string) {
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+      include: { documents: true },
+    });
+    if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
+    if (app.status !== 'resubmission_required') {
+      throw new BadRequestException('invalid_status_transition');
     }
-    if (app.status === 'resubmission_required' && toStatus === 'rejected') transitionOk = true;
-    if (!transitionOk) throw new BadRequestException('invalid_status_transition');
-    if ((toStatus === 'rejected' || toStatus === 'resubmission_required') && !reason?.trim()) {
-      throw new BadRequestException('validation_failed');
+    if (!hasAllRequiredDocuments(app.documents)) {
+      throw new BadRequestException('documents_incomplete');
+    }
+
+    const updated = await this.prisma.application.update({
+      where: { id },
+      data: { status: 'under_review' },
+    });
+
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: id,
+      action: 'status_transition',
+      fromValue: 'resubmission_required',
+      toValue: 'under_review',
+    });
+
+    void this.maybeSyncZoho(id, user.id);
+    return updated;
+  }
+
+  async cancel(user: User, id: string, reason?: string) {
+    const app = await this.prisma.application.findUnique({ where: { id } });
+    if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
+    if (!['draft', 'under_review', 'resubmission_required'].includes(app.status)) {
+      throw new BadRequestException('invalid_status_transition');
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.application.update({
         where: { id },
-        data: {
-          status: toStatus,
-          statusReason: reason,
-          rejectionReason: toStatus === 'rejected' ? reason : app.rejectionReason,
-          resubmissionComment:
-            toStatus === 'resubmission_required' ? reason : app.resubmissionComment,
-        },
+        data: { status: 'submission_cancelled', statusReason: reason },
       });
 
-      if (toStatus === 'rejected' || toStatus === 'submission_cancelled') {
+      if (app.status !== 'draft') {
         const stillBlocking = await tx.application.findFirst({
           where: {
             productId: app.productId,
@@ -270,74 +366,10 @@ export class ApplicationsService {
           });
         }
       }
+
       return next;
     });
 
-    await this.activity.log({
-      actorUserId: user.id,
-      entityType: 'application',
-      entityId: id,
-      action: 'status_transition',
-      fromValue: app.status,
-      toValue: toStatus,
-      metadata: { reason },
-    });
-    await this.activity.notify(
-      app.customerUserId,
-      toStatus === 'rejected' ? 'Application rejected' : 'Documents required',
-      reason,
-      `/app/applications/${id}`,
-    );
-    return updated;
-  }
-
-  async resubmit(user: User, id: string) {
-    const app = await this.prisma.application.findUnique({ where: { id } });
-    if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
-    if (app.status !== 'resubmission_required') {
-      throw new BadRequestException('invalid_status_transition');
-    }
-    const updated = await this.prisma.application.update({
-      where: { id },
-      data: { status: 'under_review' },
-    });
-    await this.activity.log({
-      actorUserId: user.id,
-      entityType: 'application',
-      entityId: id,
-      action: 'status_transition',
-      fromValue: 'resubmission_required',
-      toValue: 'under_review',
-    });
-    return updated;
-  }
-
-  async cancel(user: User, id: string, reason?: string) {
-    const app = await this.prisma.application.findUnique({ where: { id } });
-    if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
-    if (!['draft', 'under_review', 'resubmission_required'].includes(app.status)) {
-      throw new BadRequestException('invalid_status_transition');
-    }
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const next = await tx.application.update({
-        where: { id },
-        data: { status: 'submission_cancelled', statusReason: reason },
-      });
-      const stillBlocking = await tx.application.findFirst({
-        where: {
-          productId: app.productId,
-          id: { not: id },
-          status: { in: BLOCKING },
-        },
-      });
-      if (!stillBlocking) {
-        await tx.product.update({
-          where: { id: app.productId },
-          data: { listingStatus: ListingStatus.published },
-        });
-      }
-      return next;
-    });
     await this.activity.log({
       actorUserId: user.id,
       entityType: 'application',
@@ -356,9 +388,11 @@ export class ApplicationsService {
   ) {
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
-    if (!['under_review', 'resubmission_required', 'draft'].includes(app.status)) {
+    if (!['draft', 'resubmission_required'].includes(app.status)) {
       throw new BadRequestException('validation_failed');
     }
+
+    this.storage.assertKycFile(file);
     const key = await this.storage.uploadKyc(file, id, category);
     return this.prisma.applicationDocument.create({
       data: {
@@ -371,10 +405,77 @@ export class ApplicationsService {
     });
   }
 
-  private assertCanView(
-    user: User,
-    app: { customerUserId: string; companyId: string },
-  ) {
+  async downloadDocument(user: User, appId: string, docId: string) {
+    const app = await this.prisma.application.findUnique({ where: { id: appId } });
+    if (!app) throw new NotFoundException();
+    this.assertCanView(user, app);
+
+    const doc = await this.prisma.applicationDocument.findFirst({
+      where: { id: docId, applicationId: appId },
+    });
+    if (!doc) throw new NotFoundException();
+
+    const file = await this.storage.readKyc(doc.storagePath);
+    const filename = doc.storagePath.split('/').pop() ?? `${doc.category}.pdf`;
+    return { ...file, filename };
+  }
+
+  private async opsCompanyFilter(user: User): Promise<string[] | null> {
+    if (user.role === UserRole.admin || user.role === UserRole.super_admin) return null;
+    if (user.role === UserRole.credit_officer) {
+      if (user.creditScope === 'all') return null;
+      const assigned = await this.prisma.creditOfficerCompany.findMany({
+        where: { userId: user.id },
+        select: { companyId: true },
+      });
+      return assigned.map((r) => r.companyId);
+    }
+    if (user.role === UserRole.finance_officer) {
+      if (user.financeScope === 'all') return null;
+      const assigned = await this.prisma.financeOfficerCompany.findMany({
+        where: { userId: user.id },
+        select: { companyId: true },
+      });
+      return assigned.map((r) => r.companyId);
+    }
+    return null;
+  }
+
+  private async notifyOpsOnSubmit(companyId: string, appId: string) {
+    const notifyTargets = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { role: UserRole.credit_officer, creditScope: 'all' },
+          { role: UserRole.dealer_agent, companyId },
+          { role: { in: [UserRole.admin, UserRole.super_admin] } },
+        ],
+      },
+    });
+    for (const t of notifyTargets) {
+      await this.activity.notify(
+        t.id,
+        t.role === UserRole.dealer_agent ? 'New lead on your stock' : 'New financing application',
+        'A customer submitted a financing application.',
+        t.role === UserRole.dealer_agent ? `/applications/${appId}` : `/applications/${appId}`,
+      );
+    }
+  }
+
+  private async maybeSyncZoho(applicationId: string, actorUserId?: string) {
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { status: true },
+    });
+    if (!app || !shouldSyncStatusToCrm(app.status)) return;
+    try {
+      await this.zoho.syncApplicationToZoho(applicationId, actorUserId);
+    } catch {
+      /* logged inside zoho service */
+    }
+  }
+
+  private assertCanView(user: User, app: { customerUserId: string; companyId: string }) {
     if (user.role === UserRole.customer && app.customerUserId === user.id) return;
     if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return;
     const ops: UserRole[] = [
@@ -383,9 +484,7 @@ export class ApplicationsService {
       UserRole.admin,
       UserRole.super_admin,
     ];
-    if (ops.includes(user.role)) {
-      return;
-    }
+    if (ops.includes(user.role)) return;
     throw new ForbiddenException('forbidden_role');
   }
 }

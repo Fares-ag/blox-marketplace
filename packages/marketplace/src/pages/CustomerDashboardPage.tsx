@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@drivemarket/shared';
 import { MarketplaceNav } from '../components/MarketplaceNav';
 import { ListingCard } from '../components/ListingCard';
+import { OwnershipProgress } from '../components/OwnershipProgress';
 import { useCompareStore } from '../lib/compare-store';
 
 type MyApplication = {
@@ -29,7 +30,18 @@ type MyApplication = {
   };
 };
 
+type AppDetail = MyApplication & {
+  paymentSchedules?: Array<{
+    id: string;
+    sequence: number;
+    dueDate: string;
+    amount: string | number;
+    status: string;
+  }>;
+};
+
 const ACTIVE_STATUSES = new Set([
+  'draft',
   'under_review',
   'resubmission_required',
   'contract_signing_required',
@@ -44,12 +56,13 @@ const ACTIVE_STATUSES = new Set([
 function statusVariant(status: string) {
   if (status === 'active' || status === 'completed') return 'approved';
   if (status === 'rejected' || status === 'submission_cancelled') return 'rejected';
-  if (status === 'resubmission_required') return 'action';
+  if (status === 'resubmission_required' || status === 'draft') return 'action';
   return 'pending';
 }
 
 export function CustomerDashboardPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const locale = getAppLocale();
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
@@ -84,12 +97,26 @@ export function CustomerDashboardPage() {
     list[0] ??
     null;
 
-  const needsAction = list.filter((a) => a.status === 'resubmission_required').length;
+  const needsAction = list.filter(
+    (a) => a.status === 'resubmission_required' || a.status === 'draft',
+  ).length;
   const underReview = list.filter((a) => a.status === 'under_review').length;
   const displayName = user?.full_name?.trim() || user?.email?.split('@')[0] || 'there';
 
   const spotlightMonthly = Number(spotlight?.pricingSnapshot?.monthly ?? 0);
   const spotlightDown = Number(spotlight?.pricingSnapshot?.down_payment ?? 0);
+
+  const showOwnershipProgress = spotlight != null && !!spotlight.pricingSnapshot;
+
+  const spotlightDetail = useQuery({
+    queryKey: ['app', spotlight?.id, 'dashboard'],
+    queryFn: () => apiFetch<AppDetail>(`/api/applications/${spotlight!.id}`),
+    enabled:
+      !!spotlight?.id &&
+      (spotlight.status === 'active' ||
+        spotlight.status === 'completed' ||
+        spotlight.status === 'pending_finance_activation'),
+  });
 
   return (
     <div className="dm-dash">
@@ -180,7 +207,10 @@ export function CustomerDashboardPage() {
                       {t(`application.status.${spotlight.status}`, { defaultValue: spotlight.status })}
                     </span>
                     <time dateTime={spotlight.createdAt}>
-                      {t('application.submitted')}:{' '}
+                      {spotlight.status === 'draft'
+                        ? t('application.created')
+                        : t('application.submitted')}
+                      :{' '}
                       {new Date(spotlight.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-QA' : 'en-QA')}
                     </time>
                   </div>
@@ -207,6 +237,15 @@ export function CustomerDashboardPage() {
                         </>
                       )}
                     </dl>
+                  )}
+                  {showOwnershipProgress && (
+                    <OwnershipProgress
+                      compact
+                      pricingSnapshot={spotlightDetail.data?.pricingSnapshot ?? spotlight.pricingSnapshot}
+                      paymentSchedules={spotlightDetail.data?.paymentSchedules}
+                      onRecoveryContribute={() => navigate(`/app/applications/${spotlight!.id}`)}
+                      onRecoveryViewTimeline={() => navigate(`/app/applications/${spotlight!.id}`)}
+                    />
                   )}
                   <div className="dm-dash__spotlight-actions">
                     <Link className="dm-btn-cta" to={`/app/applications/${spotlight.id}`}>
@@ -342,9 +381,9 @@ export function CustomerDashboardPage() {
                 </div>
                 <Link to="/vehicles?sort=newest">{t('home.viewAll')}</Link>
               </div>
-              <div className="dm-dash__arrivals-grid">
+              <div className="dm-dash__arrivals-list">
                 {arrivals!.data!.items.map((p) => (
-                  <ListingCard key={p.id} product={p} />
+                  <ListingCard key={p.id} product={p} variant="row" />
                 ))}
               </div>
             </section>
@@ -354,7 +393,7 @@ export function CustomerDashboardPage() {
 
       <style>{`
         .dm-dash {
-          --dm-dash-max: 1120px;
+          --dm-dash-max: min(100%, var(--bp-content-max, 1600px));
           --dm-dash-gutter: 24px;
           background: var(--dm-canvas);
           min-height: 100vh;
@@ -705,17 +744,16 @@ export function CustomerDashboardPage() {
           flex-shrink: 0;
         }
         .dm-dash__arrivals .dm-dash__panel-head { margin-bottom: 20px; }
-        .dm-dash__arrivals-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 18px;
+        .dm-dash__arrivals-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
         }
-        @media (max-width: 960px) {
+        @media (max-width: 900px) {
           .dm-dash__snapshot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .dm-dash__grid { grid-template-columns: 1fr; }
-          .dm-dash__arrivals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
-        @media (max-width: 560px) {
+        @media (max-width: 480px) {
           .dm-dash { --dm-dash-gutter: 16px; }
           .dm-dash__body { padding-top: 16px; }
           .dm-dash .dm-topnav { margin-bottom: 20px; }
@@ -723,7 +761,17 @@ export function CustomerDashboardPage() {
           .dm-dash__hero-actions .dm-btn-cta,
           .dm-dash__hero-actions .dm-btn-ghost { flex: 1 1 auto; text-align: center; }
           .dm-dash__notice-btn { width: 100%; }
-          .dm-dash__arrivals-grid { grid-template-columns: 1fr; }
+        }
+        @media (min-width: 1600px) {
+          .dm-dash {
+            --dm-dash-max: min(100%, var(--bp-content-wide, 2000px));
+          }
+        }
+        @media (min-width: 1920px) {
+          .dm-dash { --dm-dash-max: min(100%, var(--bp-content-ultra, 2560px)); }
+        }
+        @media (min-width: 2560px) {
+          .dm-dash { --dm-dash-max: min(100%, 2800px); }
         }
       `}</style>
     </div>

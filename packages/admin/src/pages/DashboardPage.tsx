@@ -1,89 +1,107 @@
+import { useQuery } from '@tanstack/react-query';
 import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
-import { bloxTokens } from '@drivemarket/shared';
-import { PageHeader, PrimaryButton, SecondaryButton, StatCard } from '../components/ui';
+import { apiFetch, bloxTokens } from '@drivemarket/shared';
+import { PageHeader, StatCard } from '../components/ui';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const chartData = {
-  labels: ['Paid', 'Unpaid'],
-  datasets: [
-    {
-      data: [68, 32],
-      backgroundColor: [bloxTokens.emerald, bloxTokens.slate],
-      borderWidth: 0,
-      hoverOffset: 4,
-    },
-  ],
-};
-
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: true,
-  cutout: '68%',
-  plugins: {
-    legend: { display: false },
-  },
+type Metrics = {
+  users_total: number;
+  customers_total: number;
+  companies_active: number;
+  products_published: number;
+  applications_by_status: Record<string, number>;
+  schedules_pending: number;
+  schedules_overdue: number;
 };
 
 export function DashboardPage() {
+  const { data, error } = useQuery({
+    queryKey: ['admin-metrics'],
+    queryFn: () => apiFetch<Metrics>('/api/ops/metrics'),
+  });
+
+  const byStatus = data?.applications_by_status ?? {};
+  const active = byStatus.active ?? 0;
+  const completed = byStatus.completed ?? 0;
+  const inReview =
+    (byStatus.under_review ?? 0) +
+    (byStatus.resubmission_required ?? 0) +
+    (byStatus.contracts_submitted ?? 0) +
+    (byStatus.contract_under_review ?? 0);
+  const settledOrOnTrack = data ? data.schedules_pending : 0;
+  const overdue = data?.schedules_overdue ?? 0;
+
+  const chartData = {
+    labels: ['On track', 'Overdue'],
+    datasets: [
+      {
+        data: [settledOrOnTrack, overdue],
+        backgroundColor: [bloxTokens.emerald, bloxTokens.slate],
+        borderWidth: 0,
+        hoverOffset: 4,
+      },
+    ],
+  };
+
   return (
     <div className="blox-page">
-      <PageHeader
-        title="Dashboard"
-        subtitle="Platform overview and installment performance"
-        actions={
-          <>
-            <input type="date" defaultValue="2026-01-01" aria-label="Start date" />
-            <input type="date" defaultValue="2026-08-05" aria-label="End date" />
-            <SecondaryButton>Apply range</SecondaryButton>
-            <PrimaryButton>Export report</PrimaryButton>
-          </>
-        }
-      />
+      <PageHeader title="Dashboard" subtitle="Live platform overview" />
+      {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
 
       <div className="blox-stat-grid">
-        <StatCard label="Projected Insurance" value="QAR 1.24M" delta="+4.2% vs last month" />
-        <StatCard label="Funding" value="QAR 8.92M" delta="+12.1% vs last month" />
-        <StatCard label="Revenue" value="QAR 2.18M" delta="+6.8% vs last month" />
-        <StatCard label="Real Revenue" value="QAR 1.87M" delta="+3.4% vs last month" />
+        <StatCard label="Customers" value={String(data?.customers_total ?? '—')} delta={`${data?.users_total ?? 0} total users`} />
+        <StatCard label="Active dealers" value={String(data?.companies_active ?? '—')} />
+        <StatCard label="Published vehicles" value={String(data?.products_published ?? '—')} />
+        <StatCard label="Applications in review" value={String(inReview)} delta={`${active} active · ${completed} completed`} />
       </div>
 
       <div className="blox-chart-row">
         <section className="blox-panel">
-          <h2 className="blox-panel__title">Paid vs unpaid installments</h2>
+          <h2 className="blox-panel__title">Installments — on track vs overdue</h2>
           <div style={{ maxWidth: 280, margin: '0 auto' }}>
-            <Doughnut data={chartData} options={chartOptions} />
+            <Doughnut
+              data={chartData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: true,
+                cutout: '68%',
+                plugins: { legend: { display: false } },
+              }}
+            />
           </div>
           <div className="blox-chart-legend">
             <div className="blox-chart-legend__item">
               <span className="blox-chart-legend__dot" style={{ background: bloxTokens.emerald }} />
-              Paid — 68% (QAR 612,400)
+              Pending on schedule — {settledOrOnTrack}
             </div>
             <div className="blox-chart-legend__item">
               <span className="blox-chart-legend__dot" style={{ background: bloxTokens.slate }} />
-              Unpaid — 32% (QAR 288,100)
+              Overdue — {overdue}
             </div>
           </div>
         </section>
 
         <section className="blox-panel">
-          <h2 className="blox-panel__title">Blox share</h2>
-          <p className="blox-money" style={{ fontSize: '2.5rem', margin: '8px 0 4px' }}>
-            14.5%
-          </p>
-          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--blox-slate)' }}>
-            Average platform take across active contracts
-          </p>
-          <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--blox-slate)' }}>Insurance margin</span>
-              <span className="blox-money">8.2%</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--blox-slate)' }}>Financing spread</span>
-              <span className="blox-money">6.3%</span>
-            </div>
+          <h2 className="blox-panel__title">Applications by status</h2>
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {Object.entries(byStatus)
+              .sort(([, a], [, b]) => b - a)
+              .map(([status, count]) => (
+                <div
+                  key={status}
+                  style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}
+                >
+                  <span style={{ color: 'var(--blox-slate)' }}>{status.replaceAll('_', ' ')}</span>
+                  <span className="blox-money">{count}</span>
+                </div>
+              ))}
+            {Object.keys(byStatus).length === 0 && (
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--blox-slate)' }}>
+                No applications yet.
+              </p>
+            )}
           </div>
         </section>
       </div>

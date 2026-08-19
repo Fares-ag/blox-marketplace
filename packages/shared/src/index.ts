@@ -16,6 +16,14 @@ export {
 export { default as i18n, setAppLocale, getAppLocale, applyDocumentLocale } from './i18n';
 export type { AppLocale } from './i18n';
 export { estimateMonthlyPayment } from './lib/calculator';
+export {
+  calculateOwnershipTimeline,
+  filterKeyMilestones,
+  type OwnershipMilestone,
+  type OwnershipMilestoneKind,
+  type OwnershipScheduleInput,
+  type OwnershipTimeline,
+} from './lib/ownership';
 export type {
   UserRole,
   OfficerScope,
@@ -37,8 +45,20 @@ export type {
 export { NON_BLOCKING_APPLICATION_STATUSES } from './types/domain';
 export { useAuthStore, roleAllowed } from './auth/auth-store';
 export { AuthGuard, GuestGuard } from './auth/AuthGuard';
-export { LoginPage, RegisterPage } from './auth/LoginPage';
+export { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from './auth/LoginPage';
 export { MoneyText, MarketplaceTopNav, OpsShell } from './components/ui';
+export {
+  OpsPageHeader,
+  OpsStatusPill,
+  OpsDataTable,
+  OpsStatCard,
+  OpsEmptyState,
+  OpsPrimaryButton,
+  OpsSecondaryButton,
+  OpsGhostButton,
+} from './components/ops-ui';
+export { ScrollToTop } from './components/ScrollToTop';
+export type { OpsPillVariant } from './components/ops-ui';
 export { BloxShell } from './components/BloxShell';
 export type { BloxNavItem } from './components/BloxShell';
 export { DocumentMeta } from './components/DocumentMeta';

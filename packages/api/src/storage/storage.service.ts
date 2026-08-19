@@ -6,10 +6,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   CreateBucketCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -96,5 +97,90 @@ export class StorageService implements OnModuleInit {
     if (!file.mimetype.startsWith('image/')) {
       throw new BadRequestException('validation_failed');
     }
+  }
+
+  private static readonly KYC_ALLOWED_MIME = new Set([
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+  ]);
+
+  private static readonly KYC_MAX_BYTES = 10 * 1024 * 1024;
+
+  assertKycFile(file?: Express.Multer.File) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('validation_failed');
+    }
+    if (!StorageService.KYC_ALLOWED_MIME.has(file.mimetype)) {
+      throw new BadRequestException('invalid_file_type');
+    }
+    const size = file.size ?? file.buffer.length;
+    if (size > StorageService.KYC_MAX_BYTES) {
+      throw new BadRequestException('file_too_large');
+    }
+  }
+
+  async readKyc(storagePath: string): Promise<{ buffer: Buffer; contentType: string }> {
+    const bucket = this.config.get('S3_BUCKET_KYC') ?? 'kyc-docs';
+    return this.readObject(bucket, storagePath);
+  }
+
+  async storeContractPdf(applicationId: string, buffer: Buffer): Promise<string> {
+    const bucket = this.config.get('S3_BUCKET_CONTRACTS') ?? 'contracts';
+    const key = `${applicationId}/generated/contract.pdf`;
+    await this.put(bucket, key, buffer, 'application/pdf');
+    return key;
+  }
+
+  async uploadSignedContract(file: Express.Multer.File, applicationId: string): Promise<string> {
+    const bucket = this.config.get('S3_BUCKET_CONTRACTS') ?? 'contracts';
+    const key = `${applicationId}/signed/${randomUUID()}-${file.originalname}`;
+    await this.put(bucket, key, file.buffer, file.mimetype);
+    return key;
+  }
+
+  async readContract(storagePath: string): Promise<{ buffer: Buffer; contentType: string }> {
+    const bucket = this.config.get('S3_BUCKET_CONTRACTS') ?? 'contracts';
+    return this.readObject(bucket, storagePath);
+  }
+
+  assertSignedContractFile(file?: Express.Multer.File) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('validation_failed');
+    }
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('invalid_file_type');
+    }
+    const size = file.size ?? file.buffer.length;
+    if (size > StorageService.KYC_MAX_BYTES) {
+      throw new BadRequestException('file_too_large');
+    }
+  }
+
+  private async readObject(bucket: string, storagePath: string): Promise<{ buffer: Buffer; contentType: string }> {
+    if (this.useLocal || !this.client) {
+      const full = path.join(this.localRoot, bucket, storagePath);
+      const buffer = await readFile(full);
+      const ext = path.extname(storagePath).toLowerCase();
+      const contentType =
+        ext === '.pdf'
+          ? 'application/pdf'
+          : ext === '.png'
+            ? 'image/png'
+            : ext === '.webp'
+              ? 'image/webp'
+              : ext === '.jpg' || ext === '.jpeg'
+                ? 'image/jpeg'
+                : 'application/octet-stream';
+      return { buffer, contentType };
+    }
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: storagePath }),
+    );
+    const body = result.Body;
+    if (!body) throw new BadRequestException('validation_failed');
+    const buffer = Buffer.from(await body.transformToByteArray());
+    return { buffer, contentType: result.ContentType ?? 'application/octet-stream' };
   }
 }

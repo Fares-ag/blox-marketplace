@@ -17,4 +17,9 @@ export const bloxTokens = {
 
 export const bloxMeta = {
   name: 'Blox',
+  tagline: "Own it, don't owe it.",
+  /** Standard wordmark — white + teal x (use on dark, or via BloxLogo tone=onLight). */
+  logo: {
+    nav: '/brand/blox-logo-nav.png',
+  },
 } as const;

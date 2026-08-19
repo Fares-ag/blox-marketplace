@@ -1,6 +1,9 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { bloxMeta } from '../config/blox-tokens';
+import { BloxLogo } from '../components/BloxLogo';
+import { getApiBase } from '../lib/api';
 import { useAuthStore } from './auth-store';
 
 const reasonCopy: Record<string, string> = {
@@ -17,6 +20,8 @@ interface LoginPageProps {
   portalLabel: string;
   homePath?: string;
   allowSignUp?: boolean;
+  /** Marketplace-only: show link back to public browse. Ops portals leave this off. */
+  showMarketplaceLink?: boolean;
   brandName?: string;
   tagline?: string;
 }
@@ -25,9 +30,11 @@ export function LoginPage({
   portalLabel,
   homePath = '/app/dashboard',
   allowSignUp = false,
+  showMarketplaceLink = false,
   brandName = bloxMeta.name,
-  tagline = 'Cars you can finance. Clearly.',
+  tagline = bloxMeta.tagline,
 }: LoginPageProps) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +52,11 @@ export function LoginPage({
     setError(null);
     const result = await signIn(email.trim(), password);
     if (result.error) {
-      setError(result.error);
+      setError(
+        /not verified/i.test(result.error)
+          ? 'Your email is not verified yet. Check your inbox for the verification link before signing in.'
+          : result.error,
+      );
       return;
     }
     navigate(returnUrl ? decodeURIComponent(returnUrl) : homePath);
@@ -58,7 +69,7 @@ export function LoginPage({
         <div className="dm-auth-card__inner">
           <p className="dm-auth-card__eyebrow">{portalLabel}</p>
           <h1>Sign in</h1>
-          <p className="dm-auth-card__lead">Continue to your applications and saved financing progress.</p>
+          <p className="dm-auth-card__lead">{t('auth.signInLead')}</p>
 
           {(reason || (user && reason)) && (
             <div className="dm-auth-banner" role="status">
@@ -101,18 +112,25 @@ export function LoginPage({
             <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={loading}>
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
+            <p className="dm-auth-foot" style={{ marginTop: 14 }}>
+              <Link to="/auth/forgot-password">Forgot password?</Link>
+            </p>
           </form>
-          <p className="dm-auth-foot">
-            {allowSignUp && (
-              <>
-                No account? <Link to="/auth/register">Create one</Link>
-                <span className="dm-auth-foot__sep" aria-hidden>
-                  ·
-                </span>
-              </>
-            )}
-            <Link to="/">Back to marketplace</Link>
-          </p>
+          {(allowSignUp || showMarketplaceLink) && (
+            <p className="dm-auth-foot">
+              {allowSignUp && (
+                <>
+                  No account? <Link to="/auth/register">Create one</Link>
+                  {showMarketplaceLink && (
+                    <span className="dm-auth-foot__sep" aria-hidden>
+                      ·
+                    </span>
+                  )}
+                </>
+              )}
+              {showMarketplaceLink && <Link to="/">Back to marketplace</Link>}
+            </p>
+          )}
         </div>
       </main>
       <AuthPageStyles />
@@ -129,8 +147,9 @@ interface RegisterPageProps {
 export function RegisterPage({
   homePath = '/app/dashboard',
   brandName = bloxMeta.name,
-  tagline = 'Cars you can finance. Clearly.',
+  tagline = bloxMeta.tagline,
 }: RegisterPageProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -163,7 +182,7 @@ export function RegisterPage({
         <div className="dm-auth-card__inner">
           <p className="dm-auth-card__eyebrow">Customer marketplace</p>
           <h1>Create account</h1>
-          <p className="dm-auth-card__lead">Browse listings, compare options, and apply when you are ready.</p>
+          <p className="dm-auth-card__lead">{t('auth.signUpLead')}</p>
           <form onSubmit={onSubmit} className="dm-auth-form">
             <label>
               Full name
@@ -218,6 +237,212 @@ export function RegisterPage({
   );
 }
 
+/** P0-3: request a password-reset email (Better Auth requestPasswordReset). */
+export function ForgotPasswordPage({
+  brandName = bloxMeta.name,
+  tagline = bloxMeta.tagline,
+}: {
+  brandName?: string;
+  tagline?: string;
+}) {
+  const [params] = useSearchParams();
+  const [email, setEmail] = useState(params.get('email') ?? '');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`${getApiBase()}/api/auth/request-password-reset`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          redirectTo: `${window.location.origin}/auth/reset-password`,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        setError(data.message ?? 'Could not send reset email. Try again.');
+        return;
+      }
+      // Always confirm — never reveal whether the address has an account.
+      setSent(true);
+    } catch {
+      setError('Could not send reset email. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="dm-auth-layout">
+      <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel="Account recovery" />
+      <main className="dm-auth-card">
+        <div className="dm-auth-card__inner">
+          <p className="dm-auth-card__eyebrow">Account recovery</p>
+          <h1>Reset password</h1>
+          {sent ? (
+            <>
+              <p className="dm-auth-card__lead">
+                If an account exists for <strong>{email}</strong>, a reset link is on its way.
+                Check your inbox (and spam folder).
+              </p>
+              <p className="dm-auth-foot">
+                <Link to="/auth/login">Back to sign in</Link>
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="dm-auth-card__lead">
+                Enter your account email and we&apos;ll send you a link to set a new password.
+              </p>
+              <form onSubmit={onSubmit} className="dm-auth-form">
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    placeholder="you@example.com"
+                  />
+                </label>
+                {error && <p className="dm-auth-error">{error}</p>}
+                <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={busy}>
+                  {busy ? 'Sending…' : 'Send reset link'}
+                </button>
+              </form>
+              <p className="dm-auth-foot">
+                <Link to="/auth/login">Back to sign in</Link>
+              </p>
+            </>
+          )}
+        </div>
+      </main>
+      <AuthPageStyles />
+    </div>
+  );
+}
+
+/** P0-3: set a new password from the emailed token. */
+export function ResetPasswordPage({
+  brandName = bloxMeta.name,
+  tagline = bloxMeta.tagline,
+}: {
+  brandName?: string;
+  tagline?: string;
+}) {
+  const [params] = useSearchParams();
+  const token = params.get('token');
+  const tokenError = params.get('error');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`${getApiBase()}/api/auth/reset-password`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: password, token }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        setError(data.message ?? 'Reset link is invalid or expired. Request a new one.');
+        return;
+      }
+      setDone(true);
+    } catch {
+      setError('Could not reset password. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const invalidLink = !token || tokenError;
+
+  return (
+    <div className="dm-auth-layout">
+      <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel="Account recovery" />
+      <main className="dm-auth-card">
+        <div className="dm-auth-card__inner">
+          <p className="dm-auth-card__eyebrow">Account recovery</p>
+          <h1>Choose a new password</h1>
+          {done ? (
+            <>
+              <p className="dm-auth-card__lead">Your password has been updated.</p>
+              <p className="dm-auth-foot">
+                <Link to="/auth/login">Sign in with your new password</Link>
+              </p>
+            </>
+          ) : invalidLink ? (
+            <>
+              <p className="dm-auth-card__lead">
+                This reset link is invalid or has expired.
+              </p>
+              <p className="dm-auth-foot">
+                <Link to="/auth/forgot-password">Request a new link</Link>
+              </p>
+            </>
+          ) : (
+            <form onSubmit={onSubmit} className="dm-auth-form">
+              <label>
+                New password
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  placeholder="At least 8 characters"
+                />
+              </label>
+              <label>
+                Confirm new password
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  required
+                  minLength={8}
+                  placeholder="Repeat the password"
+                />
+              </label>
+              {error && <p className="dm-auth-error">{error}</p>}
+              <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={busy}>
+                {busy ? 'Saving…' : 'Set new password'}
+              </button>
+            </form>
+          )}
+        </div>
+      </main>
+      <AuthPageStyles />
+    </div>
+  );
+}
+
 function AuthBrandPanel({
   brandName,
   tagline,
@@ -234,12 +459,12 @@ function AuthBrandPanel({
       <div className="dm-auth-brand__glow" aria-hidden />
       <div className="dm-auth-brand__content">
         <p className="dm-auth-brand__portal">{portalLabel}</p>
-        <p className="dm-auth-brand__name">{brandName}</p>
+        <BloxLogo height={44} tone="onDark" className="dm-auth-brand__logo" />
         <p className="dm-auth-brand__tag">{tagline}</p>
         <ul className="dm-auth-brand__points">
           <li>Published dealer inventory across Qatar</li>
-          <li>Clear QAR installment estimates</li>
-          <li>One financing pipeline from listing to approval</li>
+          <li>Build your stake with clear contribution estimates</li>
+          <li>One ownership journey from browse to fully yours</li>
         </ul>
       </div>
     </aside>
@@ -322,6 +547,11 @@ function AuthPageStyles() {
         font-weight: 700;
         line-height: 0.95;
         letter-spacing: -0.03em;
+      }
+
+      .dm-auth-brand__logo {
+        margin: 0 0 14px;
+        display: block;
       }
 
       .dm-auth-brand__tag {
@@ -563,6 +793,27 @@ function AuthPageStyles() {
           align-items: flex-start;
           padding-top: 32px;
           padding-bottom: 48px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .dm-auth-brand {
+          min-height: 28vh;
+          min-height: 28dvh;
+        }
+        .dm-auth-brand__content {
+          padding: 20px 16px 24px;
+        }
+        .dm-auth-brand__logo {
+          margin-bottom: 10px;
+        }
+        .dm-auth-brand__tag {
+          margin-bottom: 16px;
+          font-size: 1rem;
+        }
+        .dm-auth-card {
+          padding-top: 24px;
+          padding-bottom: 32px;
         }
       }
 

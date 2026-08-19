@@ -228,48 +228,218 @@ export function ImageGallery({ images }: { images: { storage_path: string; alt_t
 
 export function VehicleSpecGrid({ product }: { product: ProductDetail }) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(true);
 
   const rows: [string, string][] = [
+    [t('vehicles.make'), product.make],
+    [t('vehicles.model'), product.model],
     [t('facets.year'), String(product.model_year)],
     product.trim ? [t('facets.trim'), product.trim] : null,
     [t('facets.condition'), labelCondition(product.condition, t)],
     product.transmission ? [t('facets.transmission'), labelTransmission(product.transmission, t)] : null,
-    product.cylinders ? [t('facets.cylinders'), String(product.cylinders)] : null,
+    product.cylinders ? [t('vehicles.cylinders'), String(product.cylinders)] : null,
     product.drivetrain ? [t('facets.drivetrain'), labelDrivetrain(product.drivetrain, t)] : null,
     product.body_type ? [t('facets.bodyType'), labelBodyType(product.body_type, t)] : null,
     product.engine ? [t('facets.engine'), product.engine] : null,
     product.color ? [t('facets.color'), product.color] : null,
-    product.mileage != null ? [t('facets.mileage'), `${product.mileage.toLocaleString()} ${t('facets.km')}`] : null,
+    product.mileage != null
+      ? [t('facets.mileage'), `${product.mileage.toLocaleString()} ${t('facets.km')}`]
+      : null,
     hasWarranty(product.warranty_months)
       ? [t('facets.warrantyMonths'), product.warranty_notes || `${product.warranty_months} mo`]
       : null,
   ].filter(Boolean) as [string, string][];
 
+  if (rows.length === 0) return null;
+
   return (
-    <div className="dm-spec-grid">
-      <h2>{t('detail.specs')}</h2>
-      <dl>
-        {rows.map(([label, value]) => (
-          <div key={label} className="dm-spec-grid__row">
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
+    <section className="dm-spec-grid" aria-labelledby="dm-spec-grid-heading">
+      <button
+        type="button"
+        className="dm-spec-grid__toggle"
+        aria-expanded={expanded}
+        aria-controls="dm-spec-grid-body"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span id="dm-spec-grid-heading" className="dm-spec-grid__title">
+          {t('detail.specs')}
+        </span>
+        <span className="dm-spec-grid__meta">
+          {!expanded && (
+            <span className="dm-spec-grid__count">
+              {t('detail.specsCount', { count: rows.length })}
+            </span>
+          )}
+          <span className={`dm-spec-grid__chevron${expanded ? ' is-open' : ''}`} aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M4 6l4 4 4-4"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </span>
+      </button>
+
+      <div
+        id="dm-spec-grid-body"
+        className={`dm-spec-grid__collapse${expanded ? ' is-open' : ''}`}
+      >
+        <div className="dm-spec-grid__collapse-inner">
+          <dl className="dm-spec-grid__list">
+            {rows.map(([label, value]) => (
+              <div key={label} className="dm-spec-grid__cell">
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+
       <style>{`
-        .dm-spec-grid h2 { font-family: var(--dm-font-display); font-size: 1.1rem; margin: 24px 0 12px; }
-        .dm-spec-grid dl { margin: 0; display: grid; gap: 8px; }
-        .dm-spec-grid__row {
-          display: grid;
-          grid-template-columns: 140px 1fr;
-          gap: 12px;
-          font-size: 14px;
-          padding-bottom: 8px;
-          border-bottom: 1px solid var(--dm-slate-100);
+        .dm-spec-grid {
+          margin-top: 28px;
+          background: var(--dm-surface);
+          border: 1px solid var(--dm-slate-200);
+          border-radius: 16px;
+          overflow: hidden;
         }
-        .dm-spec-grid__row dt { color: var(--dm-slate-600); margin: 0; }
-        .dm-spec-grid__row dd { margin: 0; font-weight: 500; }
+        .dm-spec-grid__toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          width: 100%;
+          margin: 0;
+          padding: 16px 18px;
+          border: none;
+          background: var(--dm-surface-muted);
+          font: inherit;
+          color: inherit;
+          cursor: pointer;
+          text-align: start;
+          transition: background 160ms var(--dm-ease, ease);
+        }
+        .dm-spec-grid__toggle:hover {
+          background: #eef3f4;
+        }
+        .dm-spec-grid__toggle:focus-visible {
+          outline: 2px solid var(--dm-steel, #3d7a82);
+          outline-offset: -2px;
+        }
+        .dm-spec-grid__title {
+          font-family: var(--dm-font-display);
+          font-size: 1.15rem;
+          font-weight: 700;
+          color: var(--dm-ink);
+          letter-spacing: -0.01em;
+        }
+        .dm-spec-grid__meta {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+        .dm-spec-grid__count {
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--dm-slate-600);
+          background: var(--dm-surface);
+          border: 1px solid var(--dm-slate-200);
+          border-radius: 999px;
+          padding: 3px 10px;
+        }
+        .dm-spec-grid__chevron {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          background: var(--dm-surface);
+          border: 1px solid var(--dm-slate-200);
+          color: var(--dm-ink);
+          transition: transform 180ms var(--dm-ease, ease);
+        }
+        .dm-spec-grid__chevron.is-open {
+          transform: rotate(180deg);
+        }
+        .dm-spec-grid__collapse {
+          display: grid;
+          grid-template-rows: 0fr;
+          transition: grid-template-rows 220ms var(--dm-ease, ease);
+        }
+        .dm-spec-grid__collapse.is-open {
+          grid-template-rows: 1fr;
+        }
+        .dm-spec-grid__collapse-inner {
+          overflow: hidden;
+        }
+        .dm-spec-grid__list {
+          margin: 0;
+          padding: 14px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .dm-spec-grid__cell {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 12px;
+          min-width: 0;
+          padding: 12px 14px;
+          border-radius: 10px;
+          background: var(--dm-surface-muted);
+          border: 1px solid transparent;
+        }
+        .dm-spec-grid__cell dt {
+          margin: 0;
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+          color: var(--dm-slate-600);
+          flex-shrink: 0;
+        }
+        .dm-spec-grid__cell dd {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--dm-ink);
+          text-align: end;
+          overflow-wrap: anywhere;
+        }
+        @media (max-width: 640px) {
+          .dm-spec-grid__list {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 10px;
+            gap: 8px;
+          }
+          .dm-spec-grid__cell {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            padding: 10px 12px;
+          }
+          .dm-spec-grid__cell dd {
+            text-align: start;
+            font-size: 13px;
+          }
+          .dm-spec-grid__toggle {
+            padding: 14px 16px;
+          }
+        }
+        @media (max-width: 400px) {
+          .dm-spec-grid__list {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
-    </div>
+    </section>
   );
 }

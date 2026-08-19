@@ -1,66 +1,74 @@
-import {
-  DataTable,
-  PageHeader,
-  PrimaryButton,
-  SecondaryButton,
-  StatusPill,
-} from '../components/ui';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch, OpsEmptyState } from '@drivemarket/shared';
+import { DataTable, PageHeader, StatusPill, type PillVariant } from '../components/ui';
 
-const ledgerRows = [
-  { ref: 'TXN-88201', type: 'Installment', party: 'Ahmed Al-Kuwari', amount: 'QAR 3,590', status: 'paid' as const, date: '2026-08-01' },
-  { ref: 'TXN-88200', type: 'Funding release', party: 'Gulf Motors Demo', amount: 'QAR 119,500', status: 'paid' as const, date: '2026-07-31' },
-  { ref: 'TXN-88199', type: 'Insurance premium', party: 'Qatar Insurance Co.', amount: 'QAR 4,200', status: 'pending' as const, date: '2026-07-30' },
-  { ref: 'TXN-88198', type: 'Platform fee', party: 'Blox', amount: 'QAR 1,840', status: 'paid' as const, date: '2026-07-29' },
-  { ref: 'TXN-88197', type: 'Refund', party: 'Omar Hassan', amount: 'QAR 2,100', status: 'rejected' as const, date: '2026-07-28' },
-];
+function scheduleVariant(status: string): PillVariant {
+  if (status === 'paid') return 'approved';
+  if (status === 'overdue') return 'rejected';
+  if (status === 'waived') return 'draft';
+  return 'pending';
+}
 
-const statusVariant = {
-  paid: 'paid' as const,
-  pending: 'pending' as const,
-  rejected: 'rejected' as const,
-};
-
+/** Real installment ledger (replaces the former mocked transactions view). */
 export function LedgersPage() {
+  const [status, setStatus] = useState('');
+  const { data, error } = useQuery({
+    queryKey: ['admin-schedules', status],
+    queryFn: () =>
+      apiFetch<{
+        total: number;
+        items: Array<{
+          id: string;
+          customer_name: string | null;
+          customer_email: string;
+          vehicle: string;
+          company_name: string;
+          sequence: number;
+          due_date: string;
+          amount: number;
+          paid_amount: number;
+          status: string;
+          effective_status: string;
+          payment_reference: string | null;
+        }>;
+      }>(`/api/ops/payment-schedules?limit=100${status ? `&status=${status}` : ''}`),
+  });
+
   return (
     <div className="blox-page">
       <PageHeader
-        title="Ledgers"
-        subtitle="Financial transactions and platform ledger entries"
-        actions={
-          <>
-            <SecondaryButton>Filter</SecondaryButton>
-            <PrimaryButton>Export CSV</PrimaryButton>
-          </>
-        }
+        title="Installments"
+        subtitle={`Installment ledger across active financings${data ? ` — ${data.total} rows` : ''}`}
       />
-
+      {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
       <div className="blox-filter-bar">
-        <input type="date" defaultValue="2026-07-01" aria-label="From date" />
-        <input type="date" defaultValue="2026-08-05" aria-label="To date" />
-        <select defaultValue="">
-          <option value="">All types</option>
-          <option value="installment">Installment</option>
-          <option value="funding">Funding release</option>
-          <option value="fee">Platform fee</option>
-        </select>
-        <select defaultValue="">
+        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
           <option value="">All statuses</option>
-          <option value="paid">Paid</option>
           <option value="pending">Pending</option>
+          <option value="overdue">Overdue</option>
+          <option value="paid">Paid</option>
+          <option value="waived">Waived</option>
         </select>
       </div>
-
       <DataTable
-        columns={['Reference', 'Type', 'Party', 'Amount', 'Status', 'Date']}
-        rows={ledgerRows.map((r) => [
-          r.ref,
-          r.type,
-          r.party,
-          <span key={`${r.ref}-amt`} className="blox-money">{r.amount}</span>,
-          <StatusPill key={`${r.ref}-st`} label={r.status} variant={statusVariant[r.status]} />,
-          r.date,
+        columns={['Customer', 'Vehicle', 'Dealer', 'Seq', 'Due', 'Amount', 'Status', 'Reference']}
+        empty={
+          <OpsEmptyState
+            title="No installments"
+            body="Schedules appear once financings are activated."
+          />
+        }
+        rows={(data?.items ?? []).map((r) => [
+          <span key="c" title={r.customer_email}>{r.customer_name ?? r.customer_email}</span>,
+          r.vehicle,
+          r.company_name,
+          String(r.sequence),
+          r.due_date,
+          <span key="a" className="blox-money">QAR {r.amount.toLocaleString()}</span>,
+          <StatusPill key="s" label={r.effective_status} variant={scheduleVariant(r.effective_status)} />,
+          r.payment_reference ?? '—',
         ])}
-        pagination={{ from: 1, to: 5, total: 342 }}
       />
     </div>
   );

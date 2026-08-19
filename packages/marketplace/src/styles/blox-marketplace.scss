@@ -1,6 +1,16 @@
 /* Blox customer marketplace — remaps DriveMarket CSS vars to Blox tokens */
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
+$bp-xs: 480px;
+$bp-sm: 640px;
+$bp-md: 900px;
+$bp-lg: 1200px;
+$bp-xl: 1600px;
+$bp-xxl: 1920px;
+$bp-content-max: 1600px;
+$bp-content-wide: 2000px;
+$bp-content-ultra: 2560px;
+
 :root {
   --blox-deep-green: #16535b;
   --blox-emerald: #00cfa2;
@@ -32,16 +42,46 @@
   --dm-font-display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
   --dm-font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
   --dm-font-mono: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  --blox-page-gutter: clamp(16px, 4vw, 48px);
+  --bp-xs: #{$bp-xs};
+  --bp-sm: #{$bp-sm};
+  --bp-md: #{$bp-md};
+  --bp-lg: #{$bp-lg};
+  --bp-xl: #{$bp-xl};
+  --bp-xxl: #{$bp-xxl};
+  --bp-content-max: #{$bp-content-max};
+  --bp-content-wide: #{$bp-content-wide};
+  --bp-content-ultra: #{$bp-content-ultra};
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: clip;
 }
 
 body {
   font-family: var(--dm-font-ui);
   background: var(--dm-canvas);
   color: var(--dm-ink);
+  margin: 0;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
 }
 
 html[lang='ar'] body {
   font-family: 'IBM Plex Sans Arabic', var(--dm-font-ui);
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
 }
 
 a {
@@ -94,35 +134,279 @@ textarea:focus-visible {
   font-family: var(--dm-font-mono);
 }
 
-/* Mobile browse: stack facets above results */
+/* Vehicle browse — filters on top, stacked list results */
 .blox-browse-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   width: 100%;
-  margin: 0;
-  padding: 24px 32px;
+  max-width: min(100%, var(--bp-content-max));
+  margin: 0 auto;
+  padding: 24px var(--blox-page-gutter);
   box-sizing: border-box;
 }
 
 .blox-detail-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 420px);
-  gap: 32px;
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 440px);
+  gap: clamp(20px, 3vw, 40px);
   width: 100%;
-  margin: 0;
-  padding: 24px 32px;
+  max-width: min(100%, var(--bp-content-max));
+  margin: 0 auto;
+  padding: 24px var(--blox-page-gutter);
   box-sizing: border-box;
 }
 
-@media (max-width: 900px) {
+.blox-content-wide {
+  max-width: min(100%, var(--bp-content-max));
+  margin-inline: auto;
+}
+
+@media (min-width: $bp-xl) {
+  .blox-browse-layout,
+  .blox-detail-layout,
+  .blox-content-wide {
+    max-width: min(100%, var(--bp-content-wide));
+  }
+
+  .blox-detail-layout {
+    grid-template-columns: minmax(0, 1.75fr) minmax(360px, 520px);
+  }
+}
+
+@media (min-width: $bp-xxl) {
+  .blox-browse-layout,
+  .blox-detail-layout,
+  .blox-content-wide {
+    max-width: min(100%, var(--bp-content-ultra));
+  }
+
+  .blox-detail-layout {
+    grid-template-columns: minmax(0, 1.85fr) minmax(380px, 560px);
+    gap: clamp(28px, 2.5vw, 48px);
+  }
+}
+
+@media (min-width: 2560px) {
+  .blox-browse-layout,
+  .blox-detail-layout,
+  .blox-content-wide {
+    max-width: min(100%, 2800px);
+  }
+}
+
+.blox-detail-title {
+  font-family: var(--dm-font-display);
+  margin: 0 0 8px;
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  line-height: 1.15;
+}
+
+.blox-detail-dealer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+
+.blox-detail-dealer img {
+  flex-shrink: 0;
+}
+
+.blox-detail-dealer > div {
+  min-width: 0;
+}
+
+.dm-flow-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(16px, 4vw, 32px) var(--blox-page-gutter);
+  box-sizing: border-box;
+}
+
+.dm-flow-page h1 {
+  font-family: var(--dm-font-display);
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  margin: 0 0 8px;
+}
+
+.dm-flow-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--dm-surface);
+  border: 1px solid var(--dm-slate-200);
+  display: grid;
+  gap: 12px;
+}
+
+.dm-flow-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.dm-flow-field {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--dm-slate-600);
+}
+
+.dm-flow-field input,
+.dm-flow-field select {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--dm-slate-200);
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dm-help-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.dm-help-faq {
+  display: grid;
+  gap: 16px;
+}
+
+.dm-help-item {
+  background: var(--dm-surface);
+  border: 1px solid var(--dm-slate-200);
+  border-radius: 12px;
+  padding: 20px 24px;
+  min-width: 0;
+}
+
+.dm-help-item h2 {
+  margin: 0 0 8px;
+  font-family: var(--dm-font-display);
+  font-size: clamp(1rem, 3vw, 1.1rem);
+}
+
+.dm-help-item p {
+  margin: 0;
+  color: var(--dm-slate-600);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.dm-listing-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: $bp-xl) {
+  .dm-listing-stack {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (min-width: $bp-xxl) {
+  .dm-listing-stack {
+    gap: 14px;
+  }
+}
+
+@media (min-width: 2560px) {
+  .dm-listing-stack {
+    gap: 16px;
+  }
+}
+
+.blox-page-pad {
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px var(--blox-page-gutter);
+  box-sizing: border-box;
+}
+
+.dm-page-head {
+  padding: 20px var(--blox-page-gutter) 24px;
+  box-sizing: border-box;
+}
+
+.dm-page-head--brand {
+  background: linear-gradient(180deg, var(--dm-graphite-900) 0%, var(--dm-graphite-980) 100%);
+  color: #fff;
+}
+
+.dm-page-head--brand h1 {
+  font-family: var(--dm-font-display);
+  margin: 0 0 8px;
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  line-height: 1.15;
+}
+
+.dm-page-head--brand p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  max-width: 52ch;
+  line-height: 1.45;
+}
+
+.dm-page-head__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+@media (max-width: $bp-sm) {
+  .dm-page-head {
+    padding: 16px var(--blox-page-gutter) 20px;
+  }
+}
+
+@media (max-width: $bp-md) {
   .blox-browse-layout {
-    grid-template-columns: 1fr;
-    padding: 16px 20px;
+    padding: 16px var(--blox-page-gutter);
+    gap: 16px;
+  }
+
+  .blox-browse-layout > .dm-facet-panel--top {
+    display: none;
   }
 
   .blox-detail-layout {
     grid-template-columns: 1fr;
-    padding: 16px 20px;
+    padding: 16px var(--blox-page-gutter);
+  }
+}
+
+@media (max-width: $bp-sm) {
+  .blox-browse-layout,
+  .blox-detail-layout,
+  .blox-page-pad {
+    padding-top: 16px;
+  }
+
+  .dm-help-item {
+    padding: 16px;
+  }
+}
+
+@media (max-width: $bp-xs) {
+  .blox-browse-layout,
+  .blox-detail-layout,
+  .blox-page-pad,
+  .dm-flow-page {
+    padding-inline: 14px;
+  }
+
+  .blox-detail-dealer {
+    flex-wrap: wrap;
   }
 }

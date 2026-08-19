@@ -1,79 +1,51 @@
-import { PageHeader, PrimaryButton, SecondaryButton, StatusPill } from '../components/ui';
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch, OpsEmptyState } from '@drivemarket/shared';
+import { DataTable, PageHeader, StatusPill, type PillVariant } from '../components/ui';
 
-const products = [
-  {
-    title: 'Hyundai Tucson Limited',
-    meta: '2024 · Automatic · 12,400 km',
-    price: 'QAR 119,500',
-    status: 'published' as const,
-    image: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?auto=format&fit=crop&w=600&q=70',
-  },
-  {
-    title: 'Toyota Camry SE',
-    meta: '2023 · Automatic · 28,100 km',
-    price: 'QAR 98,200',
-    status: 'published' as const,
-    image: 'https://images.unsplash.com/photo-1621007947382-b76b334c3a4d?auto=format&fit=crop&w=600&q=70',
-  },
-  {
-    title: 'Nissan Patrol SE',
-    meta: '2022 · Automatic · 45,000 km',
-    price: 'QAR 245,000',
-    status: 'draft' as const,
-    image: 'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=600&q=70',
-  },
-  {
-    title: 'Kia Sportage GT',
-    meta: '2024 · Automatic · 8,200 km',
-    price: 'QAR 87,400',
-    status: 'published' as const,
-    image: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=600&q=70',
-  },
-];
+function listingVariant(status: string): PillVariant {
+  if (status === 'published') return 'approved';
+  if (status === 'sold') return 'rejected';
+  return 'pending';
+}
 
 export function ProductsPage() {
+  const { data, error } = useQuery({
+    queryKey: ['admin-products'],
+    queryFn: () =>
+      apiFetch<{
+        total: number;
+        items: Array<{
+          id: string;
+          slug: string;
+          make: string;
+          model: string;
+          model_year: number;
+          price: number;
+          listing_status: string;
+          company_name: string;
+          updated_at: string;
+        }>;
+      }>('/api/ops/products?limit=100'),
+  });
+
   return (
     <div className="blox-page">
       <PageHeader
         title="Products"
-        subtitle="Vehicle catalog across all dealers"
-        actions={
-          <>
-            <SecondaryButton>Import</SecondaryButton>
-            <PrimaryButton>Add product</PrimaryButton>
-          </>
-        }
+        subtitle={`Vehicle catalog across all dealers${data ? ` — ${data.total} total` : ''}`}
       />
-
-      <div className="blox-filter-bar">
-        <input type="search" placeholder="Search make, model, VIN…" />
-        <select defaultValue="">
-          <option value="">All makes</option>
-          <option value="hyundai">Hyundai</option>
-          <option value="toyota">Toyota</option>
-        </select>
-        <select defaultValue="">
-          <option value="">All statuses</option>
-          <option value="published">Published</option>
-          <option value="draft">Draft</option>
-        </select>
-      </div>
-
-      <div className="blox-product-grid">
-        {products.map((p) => (
-          <article key={p.title} className="blox-product-card">
-            <img className="blox-product-card__image" src={p.image} alt="" />
-            <div className="blox-product-card__body">
-              <h3 className="blox-product-card__title">{p.title}</h3>
-              <p className="blox-product-card__meta">{p.meta}</p>
-              <div className="blox-product-card__footer">
-                <span className="blox-money">{p.price}</span>
-                <StatusPill label={p.status} variant={p.status} />
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
+      {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
+      <DataTable
+        columns={['Vehicle', 'Dealer', 'Price', 'Status', 'Updated']}
+        empty={<OpsEmptyState title="No products" body="Dealer inventory appears here." />}
+        rows={(data?.items ?? []).map((p) => [
+          `${p.make} ${p.model} ${p.model_year}`,
+          p.company_name,
+          <span key="p" className="blox-money">QAR {p.price.toLocaleString()}</span>,
+          <StatusPill key="s" label={p.listing_status} variant={listingVariant(p.listing_status)} />,
+          new Date(p.updated_at).toLocaleDateString(),
+        ])}
+      />
     </div>
   );
 }

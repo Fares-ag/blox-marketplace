@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Public, Roles } from '../auth/guards';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -9,6 +9,11 @@ class CreateCompanyDto {
   @IsOptional() @IsString() code?: string;
   @IsOptional() @IsString() contactEmail?: string;
   @IsOptional() @IsString() dealerUserId?: string;
+}
+
+class UpdateCompanyDto {
+  @IsOptional() @IsBoolean() allowDirectActivate?: boolean;
+  @IsOptional() @IsBoolean() canPay?: boolean;
 }
 
 @Controller('companies')
@@ -98,6 +103,20 @@ export class CompaniesController {
       });
     }
     return company;
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateCompanyDto) {
+    return this.prisma.company.update({
+      where: { id },
+      data: {
+        ...(dto.allowDirectActivate !== undefined
+          ? { allowDirectActivate: dto.allowDirectActivate }
+          : {}),
+        ...(dto.canPay !== undefined ? { canPay: dto.canPay } : {}),
+      },
+    });
   }
 
   @Roles(UserRole.dealer_agent)

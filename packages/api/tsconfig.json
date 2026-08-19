@@ -16,5 +16,6 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*", "prisma/seed.ts"]
+  "include": ["src/**/*", "prisma/seed.ts", "prisma/seed-chery.ts", "prisma/seed-finance-partners.ts"],
+  "exclude": ["src/**/*.spec.ts"]
 }

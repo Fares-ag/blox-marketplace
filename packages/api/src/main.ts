@@ -6,11 +6,13 @@ import type { Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { createAuth } from './auth/auth';
 import { PrismaService } from './prisma/prisma.service';
+import { MailService } from './mail/mail.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
   const prisma = app.get(PrismaService);
+  const mail = app.get(MailService);
 
   const origins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:5173')
     .split(',')
@@ -22,7 +24,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const auth = createAuth(prisma, config);
+  const auth = createAuth(prisma, config, mail);
   const expressApp = app.getHttpAdapter().getInstance();
   const handler = toNodeHandler(auth);
 
