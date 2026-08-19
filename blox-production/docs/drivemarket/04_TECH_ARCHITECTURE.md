@@ -11,6 +11,7 @@
 drivemarket/
   package.json                 # workspaces: packages/*
   packages/
+    api/                       # port 3010 — NestJS + Prisma (canonical backend)
     shared/                    # @drivemarket/shared
     marketplace/               # port 5173 — customer-facing
     dealer/                    # port 5176
@@ -18,16 +19,11 @@ drivemarket/
     finance/                   # port 5179
     admin/                     # port 5174
     super-admin/               # port 5175
-  supabase/
-    config.toml
-    migrations/
-    functions/
-      skipcash-payment/
-      skipcash-verify/
-      skipcash-webhook/
-      payment-reminders/
-      payment-monitor/
-      _shared/
+  packages/api/prisma/
+    schema.prisma              # canonical domain model
+    migrations/                # numbered SQL migrations (apply via Prisma)
+  attic/
+    supabase/                  # archived parallel schema — do not use
   docs/
     drivemarket/               # this pack (may live only in docs repo initially)
 ```
@@ -43,19 +39,21 @@ Workspace name: `drivemarket`. Package scope: `@drivemarket/*`.
 | UI | React 19 + TypeScript + Vite | One Vite app per package |
 | Components | MUI + SCSS modules / CSS variables | Theme from `11`; MUI overrides in shared `theme.ts` |
 | Routing | React Router 6 | Per-app route modules |
-| Server state | **TanStack Query** | Fetch/cache Supabase reads |
+| Server state | **TanStack Query** | Fetch/cache REST reads from `@drivemarket/api` |
 | Client state | **Zustand** | Auth session mirror, UI chrome, compare tray |
-| Backend | Supabase | Auth, Postgres, RLS, Storage, Edge Functions (Deno) |
-| Payments | SkipCash via Edge Functions | Secrets server-side only |
+| Backend | **NestJS + Prisma + Postgres** | Better Auth, role guards, service layer |
+| ORM / migrations | **Prisma** | `schema.prisma` is source of truth; SQL in `prisma/migrations/` |
+| Object storage | S3-compatible (MinIO locally) | Listing images, KYC docs, contracts |
+| Payments | SkipCash via API service | Secrets server-side only |
 | Currency | `Intl` QAR | Shared formatter |
-| Unit tests | Vitest | Shared + critical RPCs mocked |
+| Unit tests | Vitest | Shared + API service tests |
 | E2E later | Playwright | Smoke: login + publish + apply |
-| CI | lint + typecheck + migration dry-run | Block merge on fail |
-| Mobile later | Flutter | Phase 5; same Supabase project |
+| CI | lint + typecheck + test + build | Block merge on fail |
+| Mobile later | Flutter | Phase 5; same REST API |
 
 **Locked:** Prefer TanStack Query + Zustand over Redux unless the implementing team insists on Blox Redux parity.
 
-Auth storage key (namespaced): `drivemarket-supabase-auth`.
+Auth: Better Auth session cookies against `packages/api` (not Supabase Auth).
 
 ---
 
@@ -65,11 +63,10 @@ Auth storage key (namespaced): `drivemarket-supabase-auth`.
 
 | Area | Contents |
 |------|----------|
-| Supabase client factory | URL, anon key, storage key |
-| Types / Zod schemas | Mirror domain enums and row shapes |
+| API client helpers | Typed fetch wrappers for REST endpoints |
+| Types / Zod schemas | Mirror domain enums and DTO shapes |
 | Formatters | Money QAR, dates, phone |
 | Brand tokens | `brand-tokens.ts`, `theme.ts`, `global.scss` per `11` |
-| RPC wrappers | Typed callers for `05` RPCs |
 | RBAC helpers | Role checks, scope helpers (UI gating only — server enforces) |
 | Status config | Labels + semantic colors for chips (tokens from `11`) |
 | Calculator | Pure functions: monthly from price, rate, tenure, down payment |
@@ -78,38 +75,52 @@ Apps import shared; apps must not duplicate status enums.
 
 ---
 
-## 4. Supabase layout
+## 4. Database and migration flow (Prisma)
 
-### 4.1 Environments
+### 4.1 Canonical schema
+
+- **Single source of truth:** `packages/api/prisma/schema.prisma`
+- **Never** hand-edit production Postgres without a matching migration file.
+- Archived Supabase SQL lives under `attic/supabase/` for reference only — it is **not** applied.
+
+### 4.2 Environments
 
 | Env | Purpose |
 |-----|---------|
-| local | `supabase start` |
-| staging | Shared QA project |
-| production | Live Qatar market |
+| local | Docker Postgres + `npm -w @drivemarket/api run db:migrate` |
+| staging | Managed Postgres; `prisma migrate deploy` in CI/CD |
+| production | Live Qatar market; same deploy path as staging |
 
 Separate SkipCash sandbox vs live keys per env.
 
-### 4.2 Migrations
+### 4.3 Migration workflow
 
-- All schema changes as numbered SQL under `supabase/migrations/`.
-- Never hand-edit remote schema without a migration.
-- Include: enums, tables, indexes, RLS policies, triggers, RPC functions.
+1. Edit `schema.prisma` to reflect domain changes in `03`.
+2. Create a migration: `npm -w @drivemarket/api run db:migrate -- --name descriptive_name`
+3. Review generated SQL under `packages/api/prisma/migrations/<timestamp>_descriptive_name/migration.sql`.
+4. Commit both `schema.prisma` and the migration folder.
+5. CI and deploy run `npm -w @drivemarket/api run db:deploy` (alias for `prisma migrate deploy`).
 
-### 4.3 Triggers (minimum)
+Rules:
 
-| Trigger | Purpose |
-|---------|---------|
-| `set_updated_at` | All mutable tables |
-| `enforce_application_transition` | BEFORE UPDATE OF status — validate matrix in `03` |
-| `sync_listing_reservation` | AFTER INSERT/UPDATE applications — reserve / unreserve / sold |
-| `protect_immutable_application_company` | Block `company_id` / `product_id` change after submit |
+- Migrations are **append-only** — do not rewrite applied migration history.
+- Include enums, tables, indexes, foreign keys, and check constraints in migrations.
+- Prefer Prisma relations + service-layer guards over database RLS for tenancy (API enforces company scope).
 
-### 4.4 Storage buckets
+### 4.4 Application-level invariants (implemented in services)
+
+| Concern | Where enforced |
+|---------|----------------|
+| Application status transitions | `packages/api` guarded transitions + transition matrix |
+| Listing reservation / sold | Application lifecycle service on status change |
+| Immutable snapshots after submit | Service writes; no client updates to `customerSnapshot` / `pricingSnapshot` |
+| Payment ledger append-only | Prisma models + service rules |
+
+### 4.5 Storage buckets (S3-compatible)
 
 | Bucket | Public read? | Who writes |
 |--------|--------------|------------|
-| `listing-images` | Yes | dealer, admin |
+| `listing-images` | Yes (via public base URL) | dealer, admin |
 | `kyc-docs` | No | customer (own apps), credit/admin read |
 | `contracts` | No | system/credit generate; customer upload signed; credit/admin read |
 
@@ -122,27 +133,25 @@ contracts/{application_id}/generated.pdf
 contracts/{application_id}/signed/{filename}
 ```
 
+Configure via `S3_*` env vars in `packages/api/.env.example`.
+
 ---
 
 ## 5. Security architecture
 
-1. **RLS on every user-facing table.** Deny by default; add explicit policies.
-2. **Service role only in Edge Functions** (and local migration tooling) — never in Vite.
-3. **SECURITY DEFINER RPCs** must:
-   - Call `auth.uid()` and resolve role from `users`
-   - Enforce transition matrix / tenancy
-   - Avoid granting broader SELECT than needed
-4. **CORS / return URLs** allowlisted per env (`VITE_APP_URL` variants for each app).
-5. **No secrets in `VITE_*`** except Supabase URL + anon key + public app URL.
+1. **Role guards on every ops route** in `packages/api` (`@Roles`, company scope helpers).
+2. **Service role / DB credentials** live only in the API process — never in Vite bundles.
+3. **Better Auth** handles sessions; email verification configurable per env.
+4. **CORS** allowlisted per env (`CORS_ORIGINS`).
+5. **No secrets in `VITE_*`** except public app URLs; API keys stay server-side.
 6. **PII:** KYC and contracts buckets authenticated; VIN excluded from public product views.
 7. **Idempotency** on payment completion and activate (see `05`).
 
 ### Auth flows
 
-- Email/password signup + login via Supabase Auth.
-- Email verification required before apply (marketplace `AuthGuard`).
-- Password reset via Supabase templates.
-- Role from `public.users.role` — JWT custom claims optional later; MVP: fetch profile after session.
+- Email/password signup + login via Better Auth (`packages/api`).
+- Email verification required before apply when `REQUIRE_EMAIL_VERIFICATION=true` (default in production).
+- Role from `users.role` — fetched after session establishment.
 
 ### Guard pattern (each app)
 
@@ -161,36 +170,27 @@ Wrong role → redirect login with `?reason=not_<role>`.
 
 ## 6. Environment variables
 
-### 6.1 All Vite apps
+See `packages/api/.env.example` for the full API surface. Frontend apps use `VITE_*` for public origins only.
+
+### 6.1 API (`packages/api`)
 
 | Variable | Required | Notes |
 |----------|----------|-------|
-| `VITE_SUPABASE_URL` | Y | |
-| `VITE_SUPABASE_ANON_KEY` | Y | |
+| `DATABASE_URL` | Y | Postgres connection string |
+| `BETTER_AUTH_SECRET` | Y | Session signing secret |
+| `BETTER_AUTH_URL` | Y | Public API origin |
+| `CORS_ORIGINS` | Y | Comma-separated frontend origins |
+| `S3_*` | N | Omit for local `.uploads/` fallback |
+| `SKIPCASH_*` | N | Payment gateway |
+| `SENTRY_DSN` | N | Optional error tracking |
+
+### 6.2 Vite apps
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `VITE_API_URL` | Y | Points at `@drivemarket/api` |
 | `VITE_APP_URL` | Y | This app’s public origin |
 | `VITE_SENTRY_DSN` | N | Optional |
-
-Marketplace may also need:
-
-| Variable | Notes |
-|----------|-------|
-| `VITE_MARKETPLACE_NAME` | Display name override |
-
-### 6.2 Edge Functions / Vault
-
-| Variable | Notes |
-|----------|-------|
-| `SUPABASE_URL` | |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Never** to browsers |
-| `SUPABASE_ANON_KEY` | If function acts as user |
-| `SKIPCASH_API_KEY` | |
-| `SKIPCASH_CLIENT_ID` | As required by SkipCash API |
-| `SKIPCASH_WEBHOOK_SECRET` | |
-| `SKIPCASH_BASE_URL` | Sandbox vs live |
-| `PAYMENT_RETURN_URL_ALLOWLIST` | Comma-separated origins |
-| `SENTRY_DSN` | Optional for functions |
-
-Exact SkipCash field names may vary by API version — keep adapters in `functions/_shared/skipcash.ts`.
 
 ---
 
@@ -198,9 +198,9 @@ Exact SkipCash field names may vary by API version — keep adapters in `functio
 
 | Signal | Mechanism |
 |--------|-----------|
-| Domain transitions | `activity_logs` |
-| Edge payments | Structured `console` JSON logs + gateway ids |
-| Stuck payments | `payment-monitor` cron Edge Function |
+| Domain transitions | `activity_logs` table |
+| Payments | Structured logs + gateway ids in API |
+| Scheduled jobs | NestJS `@nestjs/schedule` cron in `packages/api` |
 | Frontend errors | Optional Sentry per app |
 | Email | `email_outbox` status + attempts |
 
@@ -221,10 +221,10 @@ All share one token set from `11`. Density differs by shell, not by palette fork
 
 ## 9. CI checklist
 
-1. `pnpm`/`npm` install workspaces  
+1. `npm` install workspaces  
 2. ESLint + TypeScript project references  
-3. Vitest unit  
-4. `supabase db lint` / migration apply on ephemeral DB  
+3. Vitest unit tests (`npm -w @drivemarket/api test`)  
+4. `prisma migrate deploy` against ephemeral Postgres in CI  
 5. Optional: Playwright smoke on staging  
 
 ---
@@ -233,6 +233,7 @@ All share one token set from `11`. Density differs by shell, not by palette fork
 
 | App | Port |
 |-----|------|
+| api | 3010 |
 | marketplace | 5173 |
 | admin | 5174 |
 | super-admin | 5175 |
@@ -240,7 +241,7 @@ All share one token set from `11`. Density differs by shell, not by palette fork
 | credit | 5177 |
 | finance | 5179 |
 
-Document these in each package `vite.config.ts` `server.port`.
+Document these in each package config (`vite.config.ts` or `main.ts`).
 
 ---
 
@@ -249,5 +250,6 @@ Document these in each package `vite.config.ts` `server.port`.
 - Second database for listings vs applications (keep one Postgres).
 - Client-held payment secrets.
 - Parallel status enums in frontend that diverge from DB.
+- New schema under `attic/supabase` or ad-hoc SQL outside Prisma migrations.
 - Blockchain nodes, wallets, or “integrity sidechains” in this version.
 - Redux boilerplate unless team-mandated.
