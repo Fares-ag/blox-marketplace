@@ -90,7 +90,7 @@ export function calculateOwnershipTimeline(
   const paidAmount = schedules
     .filter((s) => s.status === 'paid')
     .reduce((sum, s) => sum + num(s.amount), 0);
-  const principal = Math.max(vehiclePrice - downPayment, 0);
+  const _principal = Math.max(vehiclePrice - downPayment, 0);
   const currentOwnershipAmount = downPayment + paidAmount;
   const currentOwnership =
     vehiclePrice > 0 ? Math.min(100, (currentOwnershipAmount / vehiclePrice) * 100) : 0;
@@ -131,7 +131,7 @@ export function calculateOwnershipTimeline(
     };
   });
 
-  const lastPaid = [...schedules].reverse().find((s) => s.status === 'paid');
+  const _lastPaid = [...schedules].reverse().find((s) => s.status === 'paid');
   const lastSchedule = schedules[schedules.length - 1];
   const estimatedCompletionDate = lastSchedule?.dueDate ?? null;
   const projected = totalPayments > 0 && completedPayments < totalPayments;

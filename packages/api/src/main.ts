@@ -53,9 +53,7 @@ async function bootstrap() {
 
   const port = Number(config.get('API_PORT') ?? 3000);
   await app.listen(port);
-  // eslint-disable-next-line no-console
   console.log(`DriveMarket API http://localhost:${port}`);
-  // eslint-disable-next-line no-console
   console.log(`Better Auth   http://localhost:${port}/api/auth`);
 }
 

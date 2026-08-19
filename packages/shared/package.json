@@ -13,12 +13,13 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"lint: shared ok\""
+    "lint": "eslint ."
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/material": "^6.4.0",
+    "@sentry/react": "^10.70.0",
     "i18next": "^26.3.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
