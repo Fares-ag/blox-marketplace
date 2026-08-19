@@ -12,9 +12,11 @@ export function initAppSentry(appName: string): void {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
   if (!dsn) return;
 
+  const meta = import.meta.env as ImportMetaEnv & { MODE?: string; PROD?: boolean };
+
   Sentry.init({
     dsn,
-    environment: import.meta.env.MODE,
+    environment: meta.MODE ?? (meta.PROD ? 'production' : 'development'),
     sendDefaultPii: false,
     initialScope: {
       tags: { app: appName },
