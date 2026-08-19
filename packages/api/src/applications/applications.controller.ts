@@ -10,16 +10,29 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
-import { IsBoolean, IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsNumber, IsObject, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Response } from 'express';
 import { CurrentUser, Roles } from '../auth/guards';
+import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
 import { ApplicationsService } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
+
+class CustomerSnapshotDto {
+  @IsString() full_name!: string;
+  @IsString() phone!: string;
+  @Matches(QID_PATTERN, { message: QID_VALIDATION_MESSAGE })
+  qid!: string;
+  @IsOptional() @IsString() employment?: string;
+  @IsOptional() @IsNumber() income?: number;
+}
 
 class CreateApplicationDto {
   @IsString() productId!: string;
   @IsString() offerId!: string;
-  @IsObject() customerSnapshot!: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => CustomerSnapshotDto)
+  customerSnapshot!: CustomerSnapshotDto;
   @IsObject() pricingSnapshot!: Record<string, unknown>;
   @IsOptional() @IsObject() installmentPlan?: Record<string, unknown>;
   @IsOptional() @IsString() quoteToken?: string;
@@ -32,6 +45,13 @@ class TransitionDto {
 
 class ActivateDto {
   @IsOptional() @IsBoolean() direct?: boolean;
+}
+
+class RecordDownPaymentDto {
+  @IsNumber() amount!: number;
+  @IsOptional() @IsString() method?: string;
+  @IsOptional() @IsString() reference?: string;
+  @IsOptional() @IsDateString() paidAt?: string;
 }
 
 @Controller()
@@ -171,6 +191,16 @@ export class ApplicationsController {
   @Post('ops/applications/:id/activate')
   activate(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: ActivateDto) {
     return this.lifecycle.activate(user, id, { direct: dto.direct });
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @Post('ops/applications/:id/down-payment')
+  recordDownPayment(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: RecordDownPaymentDto,
+  ) {
+    return this.lifecycle.recordDownPayment(user, id, dto);
   }
 
   @Roles(UserRole.dealer_agent)

@@ -1,6 +1,7 @@
 import { Controller, Get, Patch, Body } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, Matches } from 'class-validator';
 import type { User } from '@prisma/client';
+import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
 import { CurrentUser } from './guards';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -15,6 +16,7 @@ class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
+  @Matches(QID_PATTERN, { message: QID_VALIDATION_MESSAGE })
   qid?: string;
 }
 
