@@ -3,6 +3,9 @@ builder = "DOCKERFILE"
 dockerfilePath = "packages/api/Dockerfile"
 
 [deploy]
-healthcheckPath = "/api/health"
+healthcheckPath = "/api/health/ready"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
+# Run migrations once per deploy before traffic cutover (Railway pre-deploy phase).
+# A failed migration must block the release — do not start the API until deploy succeeds.
+preDeployCommand = "npx prisma migrate deploy"
