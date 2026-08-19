@@ -15,6 +15,7 @@ import { Type } from 'class-transformer';
 import { Response } from 'express';
 import { CurrentUser, Roles } from '../auth/guards';
 import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
+import { ComplianceService } from '../compliance/compliance.service';
 import { ApplicationsService } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 
@@ -59,6 +60,7 @@ export class ApplicationsController {
   constructor(
     private readonly apps: ApplicationsService,
     private readonly lifecycle: ApplicationsLifecycleService,
+    private readonly compliance: ComplianceService,
   ) {}
 
   @Roles(UserRole.customer)
@@ -179,6 +181,12 @@ export class ApplicationsController {
     @Body() dto: TransitionDto,
   ) {
     return this.apps.transition(user, id, dto.toStatus, dto.reason);
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Post('ops/applications/:id/compliance-check')
+  runComplianceCheck(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.compliance.runCheck(user, id);
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)

@@ -107,6 +107,12 @@ enum PaymentTransactionStatus {
   failed
 }
 
+enum ComplianceCheckStatus {
+  pass
+  fail
+  pending
+}
+
 /// Better Auth + DriveMarket profile (single user table)
 model User {
   id            String    @id @default(cuid())
@@ -137,6 +143,7 @@ model User {
   financeCompanies     FinanceOfficerCompany[]
   agentApplications    Application[]         @relation("AgentApplications")
   createdQuotes        DealerQuote[]         @relation("QuoteCreator")
+  complianceChecks     ComplianceCheck[]     @relation("ComplianceVerifier")
 
   @@map("users")
 }
@@ -369,6 +376,7 @@ model Application {
   paymentSchedules  PaymentSchedule[]
   paymentTransactions PaymentTransaction[]
   redeemedQuote     DealerQuote?      @relation("QuoteRedemption")
+  complianceChecks  ComplianceCheck[]
 
   @@index([customerUserId, status])
   @@index([companyId, status])
@@ -389,6 +397,28 @@ model ApplicationDocument {
   createdAt     DateTime         @default(now())
 
   @@map("application_documents")
+}
+
+model ComplianceCheck {
+  id               String                @id @default(cuid())
+  applicationId    String
+  application      Application           @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  provider         String
+  identityStatus   ComplianceCheckStatus @default(pending)
+  sanctionsStatus  ComplianceCheckStatus @default(pending)
+  overallStatus    ComplianceCheckStatus @default(pending)
+  identityResult   Json?
+  sanctionsResult  Json?
+  verifiedByUserId String?
+  verifiedBy       User?                 @relation("ComplianceVerifier", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+  qidScreened      String
+  applicantName    String
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([applicationId, createdAt])
+  @@index([applicationId, overallStatus])
+  @@map("compliance_checks")
 }
 
 model Notification {

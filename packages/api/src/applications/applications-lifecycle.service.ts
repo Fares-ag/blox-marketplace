@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
+import { ComplianceService } from '../compliance/compliance.service';
 import { StorageService } from '../storage/storage.service';
 import {
   assertOpsTransitionAllowed,
@@ -46,6 +47,7 @@ export class ApplicationsLifecycleService {
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
     private readonly storage: StorageService,
+    private readonly compliance: ComplianceService,
   ) {}
 
   private assertOps(user: User) {
@@ -67,6 +69,7 @@ export class ApplicationsLifecycleService {
     if (app.status !== 'under_review') {
       throw new BadRequestException('invalid_status_transition');
     }
+    await this.compliance.assertPassedForApproval(id);
 
     const snap = app.customerSnapshot as Record<string, unknown>;
     const pricing = app.pricingSnapshot as Record<string, unknown>;
@@ -275,6 +278,14 @@ export class ApplicationsLifecycleService {
     await this.activity.notify(app.customerUserId, notifyTitle, reason, `/app/applications/${id}`);
 
     return updated;
+  }
+
+  async recordDownPayment(
+    _user: User,
+    _id: string,
+    _body: { amount: number; method?: string; reference?: string; paidAt?: string },
+  ) {
+    throw new BadRequestException('down_payment_not_implemented');
   }
 
   async activate(user: User, id: string, opts?: { direct?: boolean }) {
