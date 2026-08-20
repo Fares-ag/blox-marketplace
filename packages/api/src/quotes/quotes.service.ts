@@ -5,11 +5,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ListingStatus, User, UserRole } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
+import { AppConfigService } from '../config/app-config.service';
 import { assertRowsUpdated } from '../applications/guarded-transitions';
 import { normalizeEmail, resolveQuoteGate } from './quote-pricing';
 import {
@@ -37,7 +37,7 @@ export class QuotesService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   /**
@@ -62,11 +62,7 @@ export class QuotesService {
   }
 
   private marketplaceUrl(token: string): string {
-    const base =
-      this.config.get<string>('MARKETPLACE_URL') ??
-      this.config.get<string>('VITE_MARKETPLACE_URL') ??
-      'http://localhost:5173';
-    return `${base.replace(/\/$/, '')}/quotes/${token}`;
+    return this.appConfig.marketplacePath(`/quotes/${token}`);
   }
 
   private assertDealer(user: User) {

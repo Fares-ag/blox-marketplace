@@ -22,6 +22,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { isUniqueConstraintError } from '../common/prisma-errors';
 import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
+import { AppConfigService } from '../config/app-config.service';
 import { ActivityService } from '../common/activity.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { SYSTEM_ACTOR, SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
@@ -67,6 +68,7 @@ export class PaymentsService {
     private readonly activity: ActivityService,
     private readonly analytics: AnalyticsService,
     private readonly config: ConfigService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   private isSkipCashSandbox(): boolean {
@@ -533,11 +535,7 @@ export class PaymentsService {
     txn: { id: string; idempotencyKey: string; amount: Prisma.Decimal },
     applicationId: string,
   ) {
-    const marketplace =
-      this.config.get<string>('MARKETPLACE_URL') ??
-      this.config.get<string>('VITE_MARKETPLACE_URL') ??
-      'http://localhost:5173';
-    const returnUrl = `${marketplace.replace(/\/$/, '')}/app/applications/${applicationId}?skipcash_key=${encodeURIComponent(txn.idempotencyKey)}`;
+    const returnUrl = `${this.appConfig.marketplacePath(`/app/applications/${applicationId}`)}?skipcash_key=${encodeURIComponent(txn.idempotencyKey)}`;
 
     return {
       transaction_id: txn.id,
