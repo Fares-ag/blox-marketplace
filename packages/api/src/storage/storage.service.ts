@@ -14,6 +14,20 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
+const KYC_MIME_TO_EXT: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
+
+const LISTING_MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+};
+
 @Injectable()
 export class StorageService implements OnModuleInit {
   private client: S3Client | null = null;
@@ -23,12 +37,34 @@ export class StorageService implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
 
   async onModuleInit() {
-    const endpoint = this.config.get<string>('S3_ENDPOINT');
+    const endpoint = this.config.get<string>('S3_ENDPOINT')?.trim();
+    const isProduction = process.env.NODE_ENV === 'production';
+
     if (!endpoint) {
+      if (isProduction) {
+        throw new Error(
+          'S3_ENDPOINT is required in production. Local .uploads/ fallback is not permitted — KYC and contract PDFs must use durable object storage.',
+        );
+      }
       this.useLocal = true;
       await mkdir(this.localRoot, { recursive: true });
       return;
     }
+
+    if (isProduction) {
+      const missing: string[] = [];
+      if (!this.config.get<string>('S3_ACCESS_KEY')?.trim()) missing.push('S3_ACCESS_KEY');
+      if (!this.config.get<string>('S3_SECRET_KEY')?.trim()) missing.push('S3_SECRET_KEY');
+      for (const key of ['S3_BUCKET_LISTINGS', 'S3_BUCKET_KYC', 'S3_BUCKET_CONTRACTS'] as const) {
+        if (!this.config.get<string>(key)?.trim()) missing.push(key);
+      }
+      if (missing.length) {
+        throw new Error(
+          `Missing required S3 configuration in production: ${missing.join(', ')}`,
+        );
+      }
+    }
+
     this.client = new S3Client({
       region: this.config.get('S3_REGION') ?? 'us-east-1',
       endpoint,
@@ -51,7 +87,8 @@ export class StorageService implements OnModuleInit {
 
   async uploadListingImage(file: Express.Multer.File, companyId: string, productId: string) {
     const bucket = this.config.get('S3_BUCKET_LISTINGS') ?? 'listing-images';
-    const key = `${companyId}/${productId}/${randomUUID()}-${file.originalname}`;
+    const ext = this.extensionFromMime(file.mimetype, LISTING_MIME_TO_EXT);
+    const key = `${companyId}/${productId}/${randomUUID()}${ext}`;
     await this.put(bucket, key, file.buffer, file.mimetype);
     return this.publicUrl(bucket, key);
   }
@@ -62,7 +99,8 @@ export class StorageService implements OnModuleInit {
     category: string,
   ) {
     const bucket = this.config.get('S3_BUCKET_KYC') ?? 'kyc-docs';
-    const key = `${applicationId}/${category}/${randomUUID()}-${file.originalname}`;
+    const ext = this.extensionFromMime(file.mimetype, KYC_MIME_TO_EXT);
+    const key = `${applicationId}/${category}/${randomUUID()}${ext}`;
     await this.put(bucket, key, file.buffer, file.mimetype);
     return key;
   }
@@ -99,12 +137,7 @@ export class StorageService implements OnModuleInit {
     }
   }
 
-  private static readonly KYC_ALLOWED_MIME = new Set([
-    'application/pdf',
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-  ]);
+  private static readonly KYC_ALLOWED_MIME = new Set(Object.keys(KYC_MIME_TO_EXT));
 
   private static readonly KYC_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -135,7 +168,7 @@ export class StorageService implements OnModuleInit {
 
   async uploadSignedContract(file: Express.Multer.File, applicationId: string): Promise<string> {
     const bucket = this.config.get('S3_BUCKET_CONTRACTS') ?? 'contracts';
-    const key = `${applicationId}/signed/${randomUUID()}-${file.originalname}`;
+    const key = `${applicationId}/signed/${randomUUID()}.pdf`;
     await this.put(bucket, key, file.buffer, file.mimetype);
     return key;
   }
@@ -156,6 +189,12 @@ export class StorageService implements OnModuleInit {
     if (size > StorageService.KYC_MAX_BYTES) {
       throw new BadRequestException('file_too_large');
     }
+  }
+
+  private extensionFromMime(mime: string, allowList: Record<string, string>): string {
+    const ext = allowList[mime];
+    if (!ext) throw new BadRequestException('invalid_file_type');
+    return ext;
   }
 
   private async readObject(bucket: string, storagePath: string): Promise<{ buffer: Buffer; contentType: string }> {
