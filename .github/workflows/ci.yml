@@ -25,8 +25,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test API
+      - name: Test API (unit)
         run: npm -w @drivemarket/api test
+
+      - name: Test API (integration)
+        run: npm -w @drivemarket/api run test:integration
 
       - name: Build
         run: npm run build
