@@ -21,6 +21,11 @@ Production layout for the DriveMarket monorepo:
 - Domain `blox.market` added to your Vercel team/account
 - Cloudflare R2 or S3 bucket for uploads (required in production)
 
+### Secrets hygiene
+
+- **Never commit `.env.local`** (or any file containing Vercel/Railway/API tokens). Add it to `.gitignore` and keep deploy credentials in your password manager or platform secret stores only.
+- If a Vercel token (or any deploy credential) was ever committed or shared, **rotate it in the [Vercel dashboard](https://vercel.com/account/tokens)** and delete the local file from disk — rotation cannot be done from this repo.
+
 ## Monorepo build reference
 
 Deploy **from the repository root** (not from `packages/<app>`). Each portal’s `vercel.json` assumes Root Directory is empty / `.`:
