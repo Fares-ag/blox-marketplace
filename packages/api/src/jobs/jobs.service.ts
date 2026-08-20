@@ -4,6 +4,8 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { ApplicationStatus, ScheduleStatus } from '@prisma/client';
 import { CronJob } from 'cron';
 import { ActivityService } from '../common/activity.service';
+import { cronJobLockKey, tryWithAdvisoryLock } from '../common/pg-advisory-lock';
+import { isUniqueConstraintError } from '../common/prisma-errors';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
 import { MailService } from '../mail/mail.service';
@@ -90,11 +92,18 @@ export class JobsService implements OnModuleInit {
   }
 
   private registerCron(name: string, expression: string, handler: () => Promise<unknown>): void {
+    const lockKey = cronJobLockKey(`cron:${name}`);
     const job = new CronJob(expression, () => {
-      void handler().catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        this.logger.error(`Job "${name}" failed: ${message}`);
-      });
+      void tryWithAdvisoryLock(this.prisma, lockKey, handler)
+        .then((result) => {
+          if (result === null) {
+            this.logger.debug(`Job "${name}" skipped — advisory lock held by another instance`);
+          }
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.error(`Job "${name}" failed: ${message}`);
+        });
     });
     this.schedulerRegistry.addCronJob(name, job);
     job.start();
@@ -149,13 +158,20 @@ export class JobsService implements OnModuleInit {
       const kind = isOverdue ? 'overdue' : 'due_soon';
       const dedupAction = `payment_reminder:${kind}:${schedule.id}:${dateKey}`;
 
-      const existing = await this.prisma.activityLog.findFirst({
-        where: { action: dedupAction },
-        select: { id: true },
-      });
-      if (existing) {
-        skipped += 1;
-        continue;
+      try {
+        await this.prisma.paymentReminderSent.create({
+          data: {
+            scheduleId: schedule.id,
+            kind,
+            reminderDate: today,
+          },
+        });
+      } catch (err) {
+        if (isUniqueConstraintError(err)) {
+          skipped += 1;
+          continue;
+        }
+        throw err;
       }
 
       const vehicle = `${schedule.application.product.make} ${schedule.application.product.model} ${schedule.application.product.modelYear}`;
@@ -249,9 +265,15 @@ export class JobsService implements OnModuleInit {
     let failed = 0;
 
     for (const app of apps) {
-      const result = await this.zoho.syncApplicationToZoho(app.id, SYSTEM_ACTOR_USER_ID);
-      if (result.error) failed += 1;
-      else succeeded += 1;
+      try {
+        const result = await this.zoho.syncApplicationToZoho(app.id, SYSTEM_ACTOR_USER_ID);
+        if (result.error) failed += 1;
+        else succeeded += 1;
+      } catch (err) {
+        failed += 1;
+        const message = err instanceof Error ? err.message : 'zoho_sync_failed';
+        this.logger.error(`Zoho retry item failed for ${app.id}: ${message}`);
+      }
     }
 
     this.logger.log(

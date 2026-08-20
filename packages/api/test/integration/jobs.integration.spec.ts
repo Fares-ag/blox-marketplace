@@ -77,6 +77,11 @@ describe('system actor cron jobs (integration)', () => {
     expect(first.due_soon).toBe(1);
     expect(first.skipped).toBe(0);
 
+    const dedupRow = await ctx.prisma.paymentReminderSent.findFirstOrThrow({
+      where: { scheduleId: schedule.id, kind: 'due_soon', reminderDate: addDaysUtc(0) },
+    });
+    expect(dedupRow.scheduleId).toBe(schedule.id);
+
     const dedupAction = `payment_reminder:due_soon:${schedule.id}:${todayKeyUtc()}`;
     const dedupLog = await ctx.prisma.activityLog.findFirstOrThrow({
       where: { action: dedupAction },
@@ -101,7 +106,42 @@ describe('system actor cron jobs (integration)', () => {
       where: { action: dedupAction },
     });
     expect(dedupLogs).toBe(1);
+    expect(await ctx.prisma.paymentReminderSent.count({ where: { scheduleId: schedule.id } })).toBe(1);
     expect(application.id).toBeTruthy();
+  });
+
+  it('concurrent payment-reminder runs send at most one notification per schedule', async () => {
+    const company = await seedCompany(ctx.prisma, 'Reminder Race Co');
+    const offer = await seedOffer(ctx.prisma, company.id);
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
+
+    const customerEmail = await signUpFresh(createAgent(ctx), 'reminder-race-customer');
+    const customer = await ctx.prisma.user.findUniqueOrThrow({ where: { email: customerEmail } });
+    const { schedule } = await seedActiveApplicationWithSchedule(ctx.prisma, {
+      customer,
+      company,
+      product,
+      offer,
+    });
+
+    await ctx.prisma.paymentSchedule.update({
+      where: { id: schedule.id },
+      data: { dueDate: addDaysUtc(2), status: 'pending' },
+    });
+
+    const jobs = ctx.app.get(JobsService);
+    const [first, second] = await Promise.all([
+      jobs.runPaymentReminders(),
+      jobs.runPaymentReminders(),
+    ]);
+
+    const sent = first.due_soon + first.overdue + second.due_soon + second.overdue;
+    const skipped = first.skipped + second.skipped;
+    expect(sent).toBe(1);
+    expect(skipped).toBe(1);
+
+    expect(await ctx.prisma.notification.count({ where: { userId: customer.id } })).toBe(1);
+    expect(await ctx.prisma.paymentReminderSent.count({ where: { scheduleId: schedule.id } })).toBe(1);
   });
 
   it('overdue sweep logs activity with the system actor', async () => {

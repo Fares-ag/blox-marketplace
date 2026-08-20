@@ -514,11 +514,25 @@ model PaymentSchedule {
 
   transactions  PaymentTransaction[]
   paymentEvents PaymentEvent[]
+  remindersSent PaymentReminderSent[]
 
   @@unique([applicationId, sequence])
   @@index([applicationId, status])
   @@index([status, dueDate])
   @@map("payment_schedules")
+}
+
+/// Cron dedup ledger — one reminder per schedule, kind, and UTC day.
+model PaymentReminderSent {
+  id           String          @id @default(cuid())
+  scheduleId   String
+  schedule     PaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  kind         String
+  reminderDate DateTime        @db.Date
+  createdAt    DateTime        @default(now())
+
+  @@unique([scheduleId, kind, reminderDate])
+  @@map("payment_reminder_sent")
 }
 
 model PaymentTransaction {
