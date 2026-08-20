@@ -11,6 +11,7 @@ import { MailService } from '../../../src/mail/mail.service';
 import { PrismaService } from '../../../src/prisma/prisma.service';
 import { applyIntegrationEnv } from './env';
 import { applySecurityMiddleware } from '../../../src/common/security-middleware';
+import { applyRequestIdMiddleware } from '../../../src/common/request-id';
 
 export type IntegrationAgent = ReturnType<typeof request.agent>;
 
@@ -53,6 +54,7 @@ export async function createIntegrationApp(
 
   const auth = createAuth(prisma, config, mail);
   const expressApp = app.getHttpAdapter().getInstance();
+  applyRequestIdMiddleware(expressApp);
   applySecurityMiddleware(expressApp, config);
   const handler = toNodeHandler(auth);
   expressApp.all('/api/auth/*path', (req: Request, res: Response) => handler(req, res));
