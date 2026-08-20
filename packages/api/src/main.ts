@@ -4,41 +4,33 @@ import { ConfigService } from '@nestjs/config';
 import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response } from 'express';
 import { AppModule } from './app.module';
-import { createAuth } from './auth/auth';
-import { resolveApiPort } from './auth/auth-config';
+import { AUTH_INSTANCE } from './auth/auth.constants';
 import { applySecurityMiddleware } from './common/security-middleware';
 import { applyRequestIdMiddleware, RequestIdLogger } from './common/request-id';
 import { applyMulterErrorMiddleware } from './common/multer-error.middleware';
-import { PrismaService } from './prisma/prisma.service';
-import { MailService } from './mail/mail.service';
 import { initApiSentry } from './observability/sentry';
+import { AppConfigService } from './config/app-config.service';
 
 initApiSentry();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const appConfig = app.get(AppConfigService);
   const config = app.get(ConfigService);
-  const prisma = app.get(PrismaService);
-  const mail = app.get(MailService);
-
-  const origins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:5173')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
 
   app.enableCors({
-    origin: origins,
+    origin: appConfig.corsOrigins,
     credentials: true,
   });
 
-  const auth = createAuth(prisma, config, mail);
+  const auth = app.get(AUTH_INSTANCE);
   const expressApp = app.getHttpAdapter().getInstance();
   // Railway / reverse proxies set X-Forwarded-For; required for rate-limit + Better Auth IP.
   if (process.env.NODE_ENV === 'production') {
     expressApp.set('trust proxy', 1);
   }
   applyRequestIdMiddleware(expressApp);
-  applySecurityMiddleware(expressApp, config);
+  await applySecurityMiddleware(expressApp, config);
 
   const handler = toNodeHandler(auth);
 
@@ -71,11 +63,7 @@ async function bootstrap() {
 
   app.useLogger(new RequestIdLogger());
 
-  // Expose auth instance for session lookups in guards
-  app.get(AppModule);
-  (global as { __dmAuth?: typeof auth }).__dmAuth = auth;
-
-  const port = resolveApiPort(config);
+  const port = appConfig.apiPort;
   await app.listen(port);
   console.log(`DriveMarket API http://localhost:${port}`);
   console.log(`Better Auth   http://localhost:${port}/api/auth`);

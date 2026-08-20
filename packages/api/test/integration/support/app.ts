@@ -6,11 +6,11 @@ import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response } from 'express';
 import request from 'supertest';
 import { AppModule } from '../../../src/app.module';
-import { createAuth } from '../../../src/auth/auth';
+import { AUTH_INSTANCE } from '../../../src/auth/auth.constants';
 import { MailService } from '../../../src/mail/mail.service';
 import { PrismaService } from '../../../src/prisma/prisma.service';
 import { applyIntegrationEnv } from './env';
-import { applySecurityMiddleware } from '../../../src/common/security-middleware';
+import { applySecurityMiddleware, closeSecurityMiddlewareClients } from '../../../src/common/security-middleware';
 import { applyRequestIdMiddleware } from '../../../src/common/request-id';
 
 export type IntegrationAgent = ReturnType<typeof request.agent>;
@@ -44,7 +44,6 @@ export async function createIntegrationApp(
 
   const app = moduleRef.createNestApplication({ bodyParser: false });
   const prisma = app.get(PrismaService);
-  const mail = app.get(MailService);
   const config = app.get(ConfigService);
 
   app.enableCors({
@@ -52,10 +51,10 @@ export async function createIntegrationApp(
     credentials: true,
   });
 
-  const auth = createAuth(prisma, config, mail);
+  const auth = app.get(AUTH_INSTANCE);
   const expressApp = app.getHttpAdapter().getInstance();
   applyRequestIdMiddleware(expressApp);
-  applySecurityMiddleware(expressApp, config);
+  await applySecurityMiddleware(expressApp, config);
   const handler = toNodeHandler(auth);
   expressApp.all('/api/auth/*path', (req: Request, res: Response) => handler(req, res));
 
@@ -78,7 +77,6 @@ export async function createIntegrationApp(
     type: VersioningType.URI,
     defaultVersion: '1',
   });
-  (global as { __dmAuth?: typeof auth }).__dmAuth = auth;
 
   await app.init();
 
@@ -95,6 +93,6 @@ export function createAgent(ctx: IntegrationContext): IntegrationAgent {
 }
 
 export async function destroyIntegrationApp(ctx: IntegrationContext | undefined) {
-  (global as { __dmAuth?: unknown }).__dmAuth = undefined;
+  await closeSecurityMiddlewareClients();
   if (ctx?.app) await ctx.app.close();
 }
