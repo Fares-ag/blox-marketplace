@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
 import { IsEmail, IsNumber, IsString, Min } from 'class-validator';
 import { CurrentUser, Public, Roles } from '../auth/guards';
@@ -23,8 +23,15 @@ export class QuotesController {
 
   @Roles(UserRole.dealer_agent)
   @Get('dealer/quotes')
-  list(@CurrentUser() user: User) {
-    return this.quotes.listForDealer(user);
+  list(
+    @CurrentUser() user: User,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return this.quotes.listForDealer(user, {
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
   }
 
   @Roles(UserRole.dealer_agent)

@@ -2,31 +2,57 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ListingStatus, User, UserRole } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertRowsUpdated } from '../applications/guarded-transitions';
 import { normalizeEmail, resolveQuoteGate } from './quote-pricing';
 
 function quoteStatus(quote: {
   expiresAt: Date;
   usedAt: Date | null;
   revokedAt: Date | null;
+  expiredAt?: Date | null;
 }): 'active' | 'used' | 'expired' | 'revoked' {
   if (quote.revokedAt) return 'revoked';
   if (quote.usedAt) return 'used';
-  if (quote.expiresAt.getTime() <= Date.now()) return 'expired';
+  if (quote.expiredAt || quote.expiresAt.getTime() <= Date.now()) return 'expired';
   return 'active';
 }
 
 @Injectable()
 export class QuotesService {
+  private readonly logger = new Logger(QuotesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
+
+  /**
+   * Persists expiry for quotes past expiresAt. Safe to run repeatedly;
+   * redemption still checks computed expiry as a fallback.
+   */
+  async expirePastQuotes(): Promise<{ expired: number }> {
+    const now = new Date();
+    const result = await this.prisma.dealerQuote.updateMany({
+      where: {
+        expiresAt: { lte: now },
+        expiredAt: null,
+        usedAt: null,
+        revokedAt: null,
+      },
+      data: { expiredAt: now },
+    });
+    if (result.count > 0) {
+      this.logger.log(`Marked ${result.count} dealer quote(s) expired`);
+    }
+    return { expired: result.count };
+  }
 
   private marketplaceUrl(token: string): string {
     const base =
@@ -121,32 +147,43 @@ export class QuotesService {
     };
   }
 
-  async listForDealer(user: User) {
+  async listForDealer(user: User, query: { limit?: number; offset?: number } = {}) {
     this.assertDealer(user);
-    const rows = await this.prisma.dealerQuote.findMany({
-      where: { companyId: user.companyId! },
-      include: {
-        product: { select: { make: true, model: true, modelYear: true, slug: true } },
-        createdBy: { select: { name: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const take = Math.min(Math.max(query.limit ?? 50, 1), 100);
+    const skip = Math.max(query.offset ?? 0, 0);
+    const where = { companyId: user.companyId! };
+    const [rows, total] = await Promise.all([
+      this.prisma.dealerQuote.findMany({
+        where,
+        include: {
+          product: { select: { make: true, model: true, modelYear: true, slug: true } },
+          createdBy: { select: { name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.dealerQuote.count({ where }),
+    ]);
 
-    return rows.map((q) => ({
-      id: q.id,
-      token: q.token,
-      url: this.marketplaceUrl(q.token),
-      customerEmail: q.customerEmail,
-      negotiatedPrice: Number(q.negotiatedPrice),
-      listPriceSnapshot: Number(q.listPriceSnapshot),
-      expiresAt: q.expiresAt.toISOString(),
-      usedAt: q.usedAt?.toISOString() ?? null,
-      revokedAt: q.revokedAt?.toISOString() ?? null,
-      createdAt: q.createdAt.toISOString(),
-      status: quoteStatus(q),
-      product: q.product,
-      createdBy: q.createdBy,
-    }));
+    return {
+      total,
+      items: rows.map((q) => ({
+        id: q.id,
+        token: q.token,
+        url: this.marketplaceUrl(q.token),
+        customerEmail: q.customerEmail,
+        negotiatedPrice: Number(q.negotiatedPrice),
+        listPriceSnapshot: Number(q.listPriceSnapshot),
+        expiresAt: q.expiresAt.toISOString(),
+        usedAt: q.usedAt?.toISOString() ?? null,
+        revokedAt: q.revokedAt?.toISOString() ?? null,
+        createdAt: q.createdAt.toISOString(),
+        status: quoteStatus(q),
+        product: q.product,
+        createdBy: q.createdBy,
+      })),
+    };
   }
 
   async revoke(user: User, id: string) {
@@ -158,10 +195,21 @@ export class QuotesService {
     if (quote.usedAt) throw new BadRequestException('quote_already_used');
     if (quote.revokedAt) return { id: quote.id, status: 'revoked' as const };
 
-    await this.prisma.dealerQuote.update({
-      where: { id },
+    const revoked = await this.prisma.dealerQuote.updateMany({
+      where: {
+        id,
+        companyId: user.companyId!,
+        usedAt: null,
+        revokedAt: null,
+      },
       data: { revokedAt: new Date() },
     });
+    if (revoked.count === 0) {
+      const fresh = await this.prisma.dealerQuote.findUnique({ where: { id } });
+      if (fresh?.revokedAt) return { id: fresh.id, status: 'revoked' as const };
+      if (fresh?.usedAt) throw new BadRequestException('quote_already_used');
+      assertRowsUpdated(0, 'stale_transition');
+    }
     return { id: quote.id, status: 'revoked' as const };
   }
 

@@ -25,7 +25,7 @@ const RULES: TransitionRule[] = [
   // contract_under_review → pending_finance_activation edge above remains valid
   // for offers with no down payment. The customer pays offline; ops records it.
   { from: 'contract_under_review', to: 'down_payment_required', actors: ['credit', 'admin'] },
-  { from: 'down_payment_required', to: 'down_payment_submitted', actors: ['credit', 'finance', 'admin'] },
+  { from: 'down_payment_required', to: 'down_payment_submitted', actors: ['credit', 'admin'] },
   { from: 'down_payment_required', to: 'rejected', actors: ['credit', 'admin'], reasonRequired: true },
   { from: 'down_payment_submitted', to: 'pending_finance_activation', actors: ['credit', 'finance', 'admin'] },
   { from: 'down_payment_submitted', to: 'down_payment_required', actors: ['credit', 'finance', 'admin'], reasonRequired: true },

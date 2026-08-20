@@ -5,6 +5,7 @@ import {
   DocumentMeta,
   apiFetch,
   MoneyText,
+  buildPricingSnapshot,
   formatQar,
   getAppLocale,
   labelTransmission,
@@ -15,16 +16,14 @@ import { MarketplaceNav } from '../components/MarketplaceNav';
 
 function estimateMonthly(p: ProductDetailResponse['product'], offer: ProductDetailResponse['offer']) {
   if (!p || !offer) return null;
-  const downPct = Number(offer.min_down_payment_pct);
-  const down = (p.price * downPct) / 100;
-  const principal = Math.max(p.price - down, 0);
   const opts = offer.tenure_options || [36];
-  const tenure = opts.includes(36) ? 36 : opts[0];
-  const r = offer.annual_rent_rate / 100 / 12;
-  const n = tenure;
-  if (r === 0) return Math.round(principal / n);
-  const f = Math.pow(1 + r, n);
-  return Math.round((principal * r * f) / (f - 1));
+  const tenureMonths = opts.includes(36) ? 36 : opts[0];
+  return buildPricingSnapshot({
+    listPrice: p.price,
+    annualRatePercent: offer.annual_rent_rate,
+    minDownPaymentPct: Number(offer.min_down_payment_pct),
+    tenureMonths,
+  }).monthly;
 }
 
 export function ComparePage() {

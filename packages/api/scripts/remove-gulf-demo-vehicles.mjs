@@ -38,7 +38,6 @@ async function main() {
 
   if (appIds.length) {
     await prisma.paymentSchedule.deleteMany({ where: { applicationId: { in: appIds } } });
-    await prisma.applicationDocument.deleteMany({ where: { applicationId: { in: appIds } } });
     await prisma.dealerQuote.deleteMany({ where: { usedByApplicationId: { in: appIds } } });
     await prisma.application.deleteMany({ where: { id: { in: appIds } } });
     console.log(`Deleted ${appIds.length} related application(s)`);

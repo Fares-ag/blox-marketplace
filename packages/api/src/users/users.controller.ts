@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Param,
   Patch,
+  Query,
 } from '@nestjs/common';
 import { OfficerScope, User, UserRole } from '@prisma/client';
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
@@ -33,20 +34,28 @@ export class UsersController {
 
   @Roles(UserRole.admin, UserRole.super_admin)
   @Get()
-  list() {
-    return this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        companyId: true,
-        isActive: true,
-        emailVerified: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async list(@Query('limit') limit?: number, @Query('offset') offset?: number) {
+    const take = Math.min(Math.max(limit ?? 50, 1), 100);
+    const skip = Math.max(offset ?? 0, 0);
+    const [items, total] = await Promise.all([
+      this.prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          companyId: true,
+          isActive: true,
+          emailVerified: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.user.count(),
+    ]);
+    return { total, items };
   }
 
   /**

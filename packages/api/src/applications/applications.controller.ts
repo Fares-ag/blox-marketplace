@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -15,6 +16,7 @@ import { Type } from 'class-transformer';
 import { Response } from 'express';
 import { CurrentUser, Roles } from '../auth/guards';
 import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
+import { multerUploadOptions } from '../common/multer-options';
 import { ComplianceService } from '../compliance/compliance.service';
 import { ApplicationsService } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
@@ -71,8 +73,15 @@ export class ApplicationsController {
 
   @Roles(UserRole.customer)
   @Get('applications/mine')
-  mine(@CurrentUser() user: User) {
-    return this.apps.listMine(user);
+  mine(
+    @CurrentUser() user: User,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return this.apps.listMine(user, {
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
   }
 
   @Roles(UserRole.customer)
@@ -110,7 +119,7 @@ export class ApplicationsController {
 
   @Roles(UserRole.customer)
   @Post('applications/:id/documents')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
   uploadDoc(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -147,7 +156,7 @@ export class ApplicationsController {
 
   @Roles(UserRole.customer)
   @Post('applications/:id/contract/signed')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
   uploadSignedContract(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -158,7 +167,7 @@ export class ApplicationsController {
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
   @Post('ops/applications/:id/contract/signed')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
   uploadSignedContractOps(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -169,8 +178,15 @@ export class ApplicationsController {
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.finance_officer)
   @Get('ops/applications')
-  queue(@CurrentUser() user: User) {
-    return this.apps.opsQueue(user);
+  queue(
+    @CurrentUser() user: User,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return this.apps.opsQueue(user, {
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.finance_officer)
@@ -213,7 +229,14 @@ export class ApplicationsController {
 
   @Roles(UserRole.dealer_agent)
   @Get('dealer/applications')
-  dealerLeads(@CurrentUser() user: User) {
-    return this.apps.dealerLeads(user);
+  dealerLeads(
+    @CurrentUser() user: User,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return this.apps.dealerLeads(user, {
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
   }
 }

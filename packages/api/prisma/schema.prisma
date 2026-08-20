@@ -107,6 +107,20 @@ enum PaymentTransactionStatus {
   failed
 }
 
+enum PaymentEventType {
+  down_payment
+  installment
+  waive
+  adjustment
+  reversal
+}
+
+enum EmailOutboxStatus {
+  pending
+  sent
+  failed
+}
+
 enum ComplianceCheckStatus {
   pass
   fail
@@ -132,8 +146,15 @@ model User {
   qid          String?
   isActive     Boolean      @default(true)
 
+  /// Better Auth two-factor plugin
+  twoFactorEnabled    Boolean   @default(false)
+  /// Privileged-role password sign-in lockout (separate from 2FA verification lockout)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
   sessions  Session[]
   accounts  Account[]
+  twoFactor TwoFactor?
 
   applications         Application[]         @relation("CustomerApplications")
   uploadedDocuments    ApplicationDocument[]
@@ -143,6 +164,7 @@ model User {
   financeCompanies     FinanceOfficerCompany[]
   agentApplications    Application[]         @relation("AgentApplications")
   createdQuotes        DealerQuote[]         @relation("QuoteCreator")
+  paymentEvents        PaymentEvent[]
   complianceChecks     ComplianceCheck[]     @relation("ComplianceVerifier")
 
   @@map("users")
@@ -192,6 +214,21 @@ model Verification {
   @@map("verifications")
 }
 
+/// Better Auth TOTP / backup-code storage (`two-factor` plugin)
+model TwoFactor {
+  id                      String    @id @default(cuid())
+  secret                  String
+  backupCodes             String
+  userId                  String    @unique
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean   @default(true)
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@map("twoFactor")
+}
+
 model Company {
   id                  String        @id @default(cuid())
   name                String
@@ -203,9 +240,10 @@ model Company {
   contactEmail        String?
   contactPhone        String?
   address             String?
-  allowDirectActivate Boolean       @default(false)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  allowDirectActivate         Boolean       @default(false)
+  separationOfDutiesEnabled   Boolean       @default(true)
+  createdAt                   DateTime      @default(now())
+  updatedAt                   DateTime      @updatedAt
 
   users            User[]
   products         Product[]
@@ -354,6 +392,8 @@ model Application {
   zohoLeadId         String?
   zohoSyncedAt       DateTime?
   zohoSyncError      String?
+  zohoSyncAttempts   Int               @default(0)
+  zohoNextRetryAt    DateTime?
   pricingSnapshot    Json
   status             ApplicationStatus @default(draft)
   installmentPlan    Json?
@@ -375,6 +415,7 @@ model Application {
   documents         ApplicationDocument[]
   paymentSchedules  PaymentSchedule[]
   paymentTransactions PaymentTransaction[]
+  paymentEvents     PaymentEvent[]
   redeemedQuote     DealerQuote?      @relation("QuoteRedemption")
   complianceChecks  ComplianceCheck[]
 
@@ -453,25 +494,30 @@ model ActivityLog {
 }
 
 model PaymentSchedule {
-  id               String         @id @default(cuid())
-  applicationId    String
-  application      Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  sequence         Int
-  dueDate          DateTime       @db.Date
-  amount           Decimal        @db.Decimal(12, 2)
-  paidAmount       Decimal        @default(0) @db.Decimal(12, 2)
-  remainingAmount  Decimal        @db.Decimal(12, 2)
-  status           ScheduleStatus @default(pending)
-  paymentMethod    String?
-  paymentReference String?
-  paidAt           DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                        String         @id @default(cuid())
+  applicationId             String
+  application               Application    @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  sequence                  Int
+  dueDate                   DateTime       @db.Date
+  amount                    Decimal        @db.Decimal(12, 2)
+  paidAmount                Decimal        @default(0) @db.Decimal(12, 2)
+  remainingAmount           Decimal        @db.Decimal(12, 2)
+  status                    ScheduleStatus @default(pending)
+  paymentMethod             String?
+  paymentReference          String?
+  paidAt                    DateTime?
+  pendingWaiveReason        String?
+  pendingWaiveRequestedById String?
+  pendingWaiveRequestedAt   DateTime?
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
 
-  transactions PaymentTransaction[]
+  transactions  PaymentTransaction[]
+  paymentEvents PaymentEvent[]
 
   @@unique([applicationId, sequence])
   @@index([applicationId, status])
+  @@index([status, dueDate])
   @@map("payment_schedules")
 }
 
@@ -484,15 +530,40 @@ model PaymentTransaction {
   currency         String                   @default("QAR")
   status           PaymentTransactionStatus @default(pending)
   applicationId    String
-  application      Application              @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application      Application              @relation(fields: [applicationId], references: [id], onDelete: Restrict)
   scheduleId       String?
   schedule         PaymentSchedule?         @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   rawPayloadRef    String?
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
 
+  paymentEvents PaymentEvent[]
+
   @@index([applicationId, status])
   @@map("payment_transactions")
+}
+
+/// Append-only payment ledger — never updated after insert.
+model PaymentEvent {
+  id            String              @id @default(cuid())
+  applicationId String
+  application   Application         @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  scheduleId    String?
+  schedule      PaymentSchedule?    @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  transactionId String?
+  transaction   PaymentTransaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  type          PaymentEventType
+  amount        Decimal             @db.Decimal(12, 2)
+  currency      String              @default("QAR")
+  actorUserId   String?
+  actor         User?               @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  reason        String?
+  metadata      Json?
+  createdAt     DateTime            @default(now())
+
+  @@index([applicationId, createdAt])
+  @@index([scheduleId, createdAt])
+  @@map("payment_events")
 }
 
 model DealerQuote {
@@ -514,9 +585,29 @@ model DealerQuote {
   usedByApplicationId String?   @unique
   usedByApplication   Application? @relation("QuoteRedemption", fields: [usedByApplicationId], references: [id])
   revokedAt           DateTime?
+  expiredAt           DateTime?
   createdAt           DateTime  @default(now())
 
   @@index([companyId, createdAt])
+  @@index([expiresAt, expiredAt])
   @@index([productId])
   @@map("dealer_quotes")
+}
+
+/// Durable outbound email queue — immediate send with retry/backoff for failures.
+model EmailOutbox {
+  id            String            @id @default(cuid())
+  to            String
+  subject       String
+  template      String
+  payload       Json
+  status        EmailOutboxStatus @default(pending)
+  attempts      Int               @default(0)
+  lastError     String?
+  nextAttemptAt DateTime?
+  createdAt     DateTime          @default(now())
+  sentAt        DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@map("email_outbox")
 }

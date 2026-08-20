@@ -12,9 +12,6 @@ import {
 import { useCompareStore } from '../lib/compare-store';
 import { toDialDigits } from './ListingCtaPanel';
 
-const FALLBACK_IMG =
-  'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=800&q=60';
-
 export function ListingCard({
   product,
   variant = 'row',
@@ -42,6 +39,7 @@ export function ListingCard({
       )}`
     : null;
   const detailHref = `/vehicles/${product.slug}`;
+  const hasPhoto = Boolean(product.primary_image);
 
   function onCompareClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -64,9 +62,14 @@ export function ListingCard({
         aria-label={listingTitle}
       />
       <div
-        className="dm-listing-card__media"
-        style={{ backgroundImage: `url(${product.primary_image || FALLBACK_IMG})` }}
+        className={`dm-listing-card__media${hasPhoto ? '' : ' dm-listing-card__media--no-photo'}`}
+        style={hasPhoto ? { backgroundImage: `url(${product.primary_image})` } : undefined}
       >
+        {!hasPhoto && (
+          <span className="dm-listing-card__no-photo" aria-hidden>
+            {t('detail.noPhotos')}
+          </span>
+        )}
         {isNew && <span className="dm-listing-card__new-ribbon">{labelCondition('new', t)}</span>}
       </div>
 
@@ -201,6 +204,22 @@ export function ListingCard({
           background: center / cover no-repeat var(--dm-surface-muted);
           min-height: 118px;
           align-self: stretch;
+        }
+        .dm-listing-card__media--no-photo {
+          display: grid;
+          place-items: center;
+          background: var(--dm-surface-muted);
+        }
+        .dm-listing-card__no-photo {
+          padding: 8px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          text-align: center;
+          color: var(--dm-slate-600);
+          line-height: 1.35;
+          max-width: 90%;
         }
         .dm-listing-card__new-ribbon {
           position: absolute;

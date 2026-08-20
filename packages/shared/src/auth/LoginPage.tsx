@@ -1,6 +1,7 @@
-import { FormEvent, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { FormEvent, useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { trackProductEvent } from '../analytics/track';
 import { bloxMeta } from '../config/blox-tokens';
 import { BloxLogo } from '../components/BloxLogo';
 import { getApiBase } from '../lib/api';
@@ -59,6 +60,13 @@ export function LoginPage({
       );
       return;
     }
+    if (result.twoFactorRequired) {
+      const next = returnUrl
+        ? `/auth/two-factor?returnUrl=${returnUrl}`
+        : `/auth/two-factor?returnUrl=${encodeURIComponent(homePath)}`;
+      navigate(next);
+      return;
+    }
     navigate(returnUrl ? decodeURIComponent(returnUrl) : homePath);
   }
 
@@ -73,7 +81,11 @@ export function LoginPage({
 
           {(reason || (user && reason)) && (
             <div className="dm-auth-banner" role="status">
-              {reason && <p>{reasonCopy[reason] ?? reason}</p>}
+              {reason === 'session_expired' ? (
+                <p>{t('auth.sessionExpired')}</p>
+              ) : reason ? (
+                <p>{reasonCopy[reason] ?? reason}</p>
+              ) : null}
               {user && reason && (
                 <p className="dm-auth-banner__session">
                   Signed in as <strong>{user.email}</strong> ({user.role}).{' '}
@@ -167,6 +179,7 @@ export function RegisterPage({
       setError('Password must be at least 8 characters.');
       return;
     }
+    trackProductEvent('signup_started', { source: 'marketplace' });
     const result = await signUp(email.trim(), password, name.trim());
     if (result.error) {
       setError(result.error);
@@ -436,6 +449,124 @@ export function ResetPasswordPage({
               </button>
             </form>
           )}
+        </div>
+      </main>
+      <AuthPageStyles />
+    </div>
+  );
+}
+
+interface VerifyEmailPageProps {
+  portalLabel?: string;
+  homePath?: string;
+  brandName?: string;
+  tagline?: string;
+}
+
+/** Gate for authenticated users who still need to verify their inbox. */
+export function VerifyEmailPage({
+  portalLabel = 'Account verification',
+  homePath = '/app/dashboard',
+  brandName = bloxMeta.name,
+  tagline = bloxMeta.tagline,
+}: VerifyEmailPageProps) {
+  const { t } = useTranslation();
+  const { user, initialized, init, loading, refreshProfile } = useAuthStore();
+  const [params] = useSearchParams();
+  const returnUrl = params.get('returnUrl');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void init();
+  }, [init]);
+
+  async function checkVerified() {
+    await refreshProfile();
+  }
+
+  if (!initialized || loading) {
+    return (
+      <div style={{ padding: 48, fontFamily: 'var(--dm-font-ui)', color: 'var(--dm-slate-600)' }}>
+        Loading…
+      </div>
+    );
+  }
+
+  if (!user) {
+    const loginReturn = returnUrl ? `?returnUrl=${returnUrl}` : '';
+    return <Navigate to={`/auth/login${loginReturn}`} replace />;
+  }
+
+  if (user.email_verified) {
+    return <Navigate to={returnUrl ? decodeURIComponent(returnUrl) : homePath} replace />;
+  }
+
+  async function resendVerification() {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`${getApiBase()}/api/auth/send-verification-email`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user!.email,
+          callbackURL: `${window.location.origin}/auth/login`,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        setError(data.message ?? t('auth.verifyEmailResendFailed'));
+        return;
+      }
+      setSent(true);
+    } catch {
+      setError(t('auth.verifyEmailResendFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="dm-auth-layout">
+      <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel={portalLabel} />
+      <main className="dm-auth-card">
+        <div className="dm-auth-card__inner">
+          <p className="dm-auth-card__eyebrow">{portalLabel}</p>
+          <h1>{t('auth.verifyEmailTitle')}</h1>
+          <p className="dm-auth-card__lead">
+            {t('auth.verifyEmailLead', { email: user.email })}
+          </p>
+          {sent ? (
+            <div className="dm-auth-banner" role="status">
+              <p>{t('auth.verifyEmailSent')}</p>
+            </div>
+          ) : (
+            <>
+              {error && <p className="dm-auth-error">{error}</p>}
+              <button
+                type="button"
+                className="dm-btn-cta dm-auth-submit"
+                disabled={busy}
+                onClick={() => void resendVerification()}
+              >
+                {busy ? t('auth.verifyEmailSending') : t('auth.verifyEmailResend')}
+              </button>
+              <button
+                type="button"
+                className="dm-auth-linkbtn"
+                style={{ marginTop: 14, display: 'block' }}
+                onClick={() => void checkVerified()}
+              >
+                {t('auth.verifyEmailContinue')}
+              </button>
+            </>
+          )}
+          <p className="dm-auth-foot">
+            <Link to="/auth/login">{t('auth.verifyEmailBackToSignIn')}</Link>
+          </p>
         </div>
       </main>
       <AuthPageStyles />

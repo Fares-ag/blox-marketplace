@@ -4,23 +4,38 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApplicationStatus,
   ListingStatus,
+  PaymentEventType,
   Prisma,
   User,
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { ComplianceService } from '../compliance/compliance.service';
 import { StorageService } from '../storage/storage.service';
 import {
   assertOpsTransitionAllowed,
   opsTransitionRequiresReason,
 } from './application-transitions';
-import { buildContractPdf } from './contract-pdf';
+import {
+  buildContractAmortizationSchedule,
+  buildContractPdf,
+  resolveFinancedTotal,
+  verifySignedContractReferencesOriginal,
+} from './contract-pdf';
+import {
+  assertDownPaymentSatisfied,
+  requiredDownPaymentAmount,
+  sumDownPaymentRecorded,
+} from './down-payment';
 import { buildScheduleDrafts } from './payment-schedules';
+import { assertCompanyScope, assertCompanyScopeForRead } from './company-scope';
+import { transitionApplication } from './guarded-transitions';
 
 const BLOCKING: ApplicationStatus[] = [
   'draft',
@@ -37,8 +52,23 @@ const BLOCKING: ApplicationStatus[] = [
 
 const OPS_ROLES: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
 
+const DOWN_PAYMENT_ROLES: UserRole[] = [
+  UserRole.credit_officer,
+  UserRole.finance_officer,
+  UserRole.admin,
+  UserRole.super_admin,
+];
+
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+function expectedContractContentSha256(contractData: unknown): string | null {
+  if (!contractData || typeof contractData !== 'object' || Array.isArray(contractData)) {
+    return null;
+  }
+  const hash = (contractData as Record<string, unknown>).generatedContentSha256;
+  return typeof hash === 'string' && /^[a-f0-9]{64}$/.test(hash) ? hash : null;
 }
 
 @Injectable()
@@ -46,12 +76,20 @@ export class ApplicationsLifecycleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
+    private readonly analytics: AnalyticsService,
     private readonly storage: StorageService,
     private readonly compliance: ComplianceService,
+    private readonly config: ConfigService,
   ) {}
 
   private assertOps(user: User) {
     if (!OPS_ROLES.includes(user.role)) {
+      throw new ForbiddenException('forbidden_role');
+    }
+  }
+
+  private assertDownPaymentRole(user: User) {
+    if (!DOWN_PAYMENT_ROLES.includes(user.role)) {
       throw new ForbiddenException('forbidden_role');
     }
   }
@@ -63,9 +101,12 @@ export class ApplicationsLifecycleService {
       include: {
         product: { select: { make: true, model: true, modelYear: true } },
         company: { select: { name: true } },
+        financePartner: { select: { name: true } },
+        offer: { include: { financePartner: { select: { name: true } } } },
       },
     });
     if (!app) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, app.companyId);
     if (app.status !== 'under_review') {
       throw new BadRequestException('invalid_status_transition');
     }
@@ -73,6 +114,13 @@ export class ApplicationsLifecycleService {
 
     const snap = app.customerSnapshot as Record<string, unknown>;
     const pricing = app.pricingSnapshot as Record<string, unknown>;
+    const approvedAt = new Date();
+    const lenderName =
+      app.financePartner?.name ??
+      app.offer?.financePartner?.name ??
+      this.config.get<string>('CONTRACT_LENDER_NAME') ??
+      'Blox Finance';
+    const schedule = buildContractAmortizationSchedule(pricing, approvedAt);
     const contractData = {
       applicationId: app.id,
       customer: snap,
@@ -83,12 +131,14 @@ export class ApplicationsLifecycleService {
         year: app.product.modelYear,
       },
       dealer: app.company.name,
-      approvedAt: new Date().toISOString(),
-      lenderName: 'DriveMarket Financing (placeholder)',
+      approvedAt: approvedAt.toISOString(),
+      lenderName,
+      schedule,
     };
 
-    const pdf = await buildContractPdf({
+    const { buffer: pdf, contentSha256 } = await buildContractPdf({
       applicationId: app.id,
+      approvedAt: approvedAt.toISOString(),
       customerName: String(snap.full_name ?? ''),
       customerEmail: app.customerEmail,
       customerPhone: String(snap.phone ?? ''),
@@ -97,9 +147,13 @@ export class ApplicationsLifecycleService {
       dealerName: app.company.name,
       listPrice: Number(pricing.list_price ?? 0),
       downPayment: Number(pricing.down_payment ?? 0),
+      downPaymentPct: Number(pricing.down_payment_pct ?? 0),
       monthly: Number(pricing.monthly ?? 0),
       tenor: Number(pricing.tenor ?? pricing.tenure ?? 0),
       annualRate: Number(pricing.rate ?? 0),
+      financedTotal: resolveFinancedTotal(pricing),
+      lenderName,
+      schedule,
     });
 
     const contractPdfPath = await this.storage.storeContractPdf(app.id, pdf);
@@ -109,7 +163,10 @@ export class ApplicationsLifecycleService {
       data: {
         status: 'contract_signing_required',
         contractGenerated: true,
-        contractData: asJson(contractData),
+        contractData: asJson({
+          ...contractData,
+          generatedContentSha256: contentSha256,
+        }),
         contractPdfPath,
       },
     });
@@ -129,16 +186,39 @@ export class ApplicationsLifecycleService {
       `/app/applications/${id}`,
     );
 
+    this.analytics.track('approval', {
+      application_id: id,
+      from_status: 'under_review',
+      to_status: 'contract_signing_required',
+      actor_role: user.role,
+    });
+
     return updated;
   }
 
   async downloadContract(user: User, id: string) {
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException();
-    this.assertCanView(user, app);
+    await this.assertCanView(user, app);
     if (!app.contractPdfPath) throw new NotFoundException();
     const file = await this.storage.readContract(app.contractPdfPath);
     return { ...file, filename: 'financing-contract.pdf' };
+  }
+
+  private async assertSignedContractMatchesGenerated(
+    app: {
+      id: string;
+      contractData: unknown;
+    },
+    file: Express.Multer.File,
+  ) {
+    const expectedHash = expectedContractContentSha256(app.contractData);
+    if (!expectedHash) {
+      throw new BadRequestException('contract_not_fingerprinted');
+    }
+    if (!(await verifySignedContractReferencesOriginal(file.buffer, expectedHash, app.id))) {
+      throw new BadRequestException('contract_hash_mismatch');
+    }
   }
 
   async submitSignedContract(user: User, id: string, file: Express.Multer.File) {
@@ -150,6 +230,7 @@ export class ApplicationsLifecycleService {
     }
 
     this.storage.assertSignedContractFile(file);
+    await this.assertSignedContractMatchesGenerated(app, file);
     const signedContractPath = await this.storage.uploadSignedContract(file, id);
 
     const updated = await this.prisma.application.update({
@@ -181,11 +262,13 @@ export class ApplicationsLifecycleService {
     this.assertOps(user);
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, app.companyId);
     if (app.status !== 'contract_signing_required') {
       throw new BadRequestException('invalid_status_transition');
     }
 
     this.storage.assertSignedContractFile(file);
+    await this.assertSignedContractMatchesGenerated(app, file);
     const signedContractPath = await this.storage.uploadSignedContract(file, id);
 
     const updated = await this.prisma.application.update({
@@ -224,6 +307,7 @@ export class ApplicationsLifecycleService {
     }
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, app.companyId);
 
     try {
       assertOpsTransitionAllowed(app.status, toStatus, user.role);
@@ -277,15 +361,96 @@ export class ApplicationsLifecycleService {
             : 'Application update';
     await this.activity.notify(app.customerUserId, notifyTitle, reason, `/app/applications/${id}`);
 
+    if (toStatus === 'rejected') {
+      this.analytics.track('rejection', {
+        application_id: id,
+        from_status: app.status,
+        actor_role: user.role,
+      });
+    } else if (toStatus === 'pending_finance_activation') {
+      this.analytics.track('approval', {
+        application_id: id,
+        from_status: app.status,
+        to_status: toStatus,
+        actor_role: user.role,
+      });
+    }
+
     return updated;
   }
 
   async recordDownPayment(
-    _user: User,
-    _id: string,
-    _body: { amount: number; method?: string; reference?: string; paidAt?: string },
+    user: User,
+    id: string,
+    body: { amount: number; method?: string; reference?: string; paidAt?: string },
   ) {
-    throw new BadRequestException('down_payment_not_implemented');
+    this.assertDownPaymentRole(user);
+    if (!Number.isFinite(body.amount) || body.amount <= 0) {
+      throw new BadRequestException('validation_failed');
+    }
+
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+      select: { id: true, status: true, companyId: true, customerUserId: true },
+    });
+    if (!app) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, app.companyId);
+
+    if (app.status !== ApplicationStatus.down_payment_required) {
+      throw new BadRequestException('invalid_status_transition');
+    }
+
+    const amount = new Prisma.Decimal(String(body.amount));
+    const paidAtRaw = body.paidAt?.trim();
+    const paidAt = paidAtRaw ? new Date(paidAtRaw) : null;
+    if (paidAtRaw && (!paidAt || Number.isNaN(paidAt.getTime()))) {
+      throw new BadRequestException('validation_failed');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.paymentEvent.create({
+        data: {
+          applicationId: id,
+          type: PaymentEventType.down_payment,
+          amount,
+          currency: 'QAR',
+          actorUserId: user.id,
+          metadata: asJson({
+            method: body.method?.trim() ?? null,
+            reference: body.reference?.trim() ?? null,
+            paidAt: paidAt?.toISOString() ?? null,
+          }),
+        },
+      });
+
+      await transitionApplication(tx, id, ApplicationStatus.down_payment_required, {
+        status: ApplicationStatus.down_payment_submitted,
+      });
+
+      return tx.application.findUniqueOrThrow({ where: { id } });
+    });
+
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: id,
+      action: 'down_payment_recorded',
+      fromValue: ApplicationStatus.down_payment_required,
+      toValue: ApplicationStatus.down_payment_submitted,
+      metadata: {
+        amount: amount.toNumber(),
+        method: body.method ?? null,
+        reference: body.reference ?? null,
+      },
+    });
+    await this.activity.notify(
+      app.customerUserId,
+      'Down payment recorded',
+      'Your down payment receipt was recorded and is pending confirmation.',
+      `/app/applications/${id}`,
+    );
+
+    return updated;
   }
 
   async activate(user: User, id: string, opts?: { direct?: boolean }) {
@@ -302,6 +467,7 @@ export class ApplicationsLifecycleService {
       },
     });
     if (!app) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, app.companyId);
 
     if (app.status === 'active') {
       return app;
@@ -314,11 +480,22 @@ export class ApplicationsLifecycleService {
       if (!app.company.allowDirectActivate) {
         throw new BadRequestException('direct_activate_disabled');
       }
+      await this.compliance.assertPassedForApproval(id);
+      if (!app.contractGenerated || !app.contractPdfPath) {
+        throw new BadRequestException('contract_not_generated');
+      }
+      if (!app.signedContractPath) {
+        throw new BadRequestException('signed_contract_required');
+      }
     } else if (app.status !== 'pending_finance_activation') {
       throw new BadRequestException('invalid_status_transition');
     }
 
     const pricing = app.pricingSnapshot as Record<string, unknown>;
+    const requiredDown = requiredDownPaymentAmount(pricing);
+    const recordedDown = await sumDownPaymentRecorded(this.prisma, id);
+    assertDownPaymentSatisfied(requiredDown, recordedDown);
+
     const scheduleDrafts = buildScheduleDrafts(pricing);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -391,7 +568,7 @@ export class ApplicationsLifecycleService {
     }
   }
 
-  private assertCanView(user: User, app: { customerUserId: string; companyId: string }) {
+  private async assertCanView(user: User, app: { customerUserId: string; companyId: string }) {
     if (user.role === UserRole.customer && app.customerUserId === user.id) return;
     if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return;
     const ops: UserRole[] = [
@@ -400,7 +577,10 @@ export class ApplicationsLifecycleService {
       UserRole.admin,
       UserRole.super_admin,
     ];
-    if (ops.includes(user.role)) return;
+    if (ops.includes(user.role)) {
+      await assertCompanyScopeForRead(this.prisma, user, app.companyId);
+      return;
+    }
     throw new ForbiddenException('forbidden_role');
   }
 }

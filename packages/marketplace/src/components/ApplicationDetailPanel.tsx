@@ -143,6 +143,27 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     onError: (e: Error) => setActionError(e.message),
   });
 
+  const payInstallment = useMutation({
+    mutationFn: (scheduleId: string) =>
+      apiFetch<{ redirect_url?: string }>(
+        `/api/applications/${app.id}/schedules/${scheduleId}/skipcash`,
+        { method: 'POST' },
+      ),
+    onSuccess: (res) => {
+      const redirectUrl = typeof res.redirect_url === 'string' ? res.redirect_url.trim() : '';
+      if (!redirectUrl) {
+        setActionError(
+          t('application.payInstallmentMissingRedirect', {
+            defaultValue: 'Payment could not be started. Please try again.',
+          }),
+        );
+        return;
+      }
+      window.location.href = redirectUrl;
+    },
+    onError: (e: Error) => setActionError(e.message),
+  });
+
   async function onUpload(e: FormEvent<HTMLFormElement>, category: (typeof UPLOAD_CATEGORIES)[number]) {
     e.preventDefault();
     setUploadError(null);
@@ -302,6 +323,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       {app.status === 'active' && (app.paymentSchedules?.length ?? 0) > 0 && (
         <section className="dm-app-detail__section">
           <h3>{t('application.schedulesTitle', { defaultValue: 'Payment schedule' })}</h3>
+          {actionError && <p className="dm-app-detail__error">{actionError}</p>}
           <ul className="dm-app-detail__doc-list">
             {app.paymentSchedules!.map((s) => (
               <li key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -313,19 +335,15 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
                     type="button"
                     className="dm-app-detail__upload-btn"
                     style={{ width: 'auto', padding: '0 12px' }}
-                    onClick={async () => {
-                      try {
-                        const res = await apiFetch<{ redirect_url: string }>(
-                          `/api/applications/${app.id}/schedules/${s.id}/skipcash`,
-                          { method: 'POST' },
-                        );
-                        window.location.href = res.redirect_url;
-                      } catch (e) {
-                        setActionError((e as Error).message);
-                      }
+                    disabled={payInstallment.isPending}
+                    onClick={() => {
+                      setActionError(null);
+                      payInstallment.mutate(s.id);
                     }}
                   >
-                    {t('application.payInstallment', { defaultValue: 'Pay online' })}
+                    {payInstallment.isPending && payInstallment.variables === s.id
+                      ? t('application.startingPayment', { defaultValue: 'Starting payment…' })
+                      : t('application.payInstallment', { defaultValue: 'Pay online' })}
                   </button>
                 ) : null}
               </li>

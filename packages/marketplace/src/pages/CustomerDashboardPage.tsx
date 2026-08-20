@@ -8,6 +8,8 @@ import {
   formatQar,
   getAppLocale,
   useAuthStore,
+  applicationMarketplacePillVariant,
+  applicationStatusLabel,
   type ProductDetailResponse,
   type ProductListResponse,
 } from '@drivemarket/shared';
@@ -53,13 +55,6 @@ const ACTIVE_STATUSES = new Set([
   'active',
 ]);
 
-function statusVariant(status: string) {
-  if (status === 'active' || status === 'completed') return 'approved';
-  if (status === 'rejected' || status === 'submission_cancelled') return 'rejected';
-  if (status === 'resubmission_required' || status === 'draft') return 'action';
-  return 'pending';
-}
-
 export function CustomerDashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -70,7 +65,8 @@ export function CustomerDashboardPage() {
 
   const apps = useQuery({
     queryKey: ['my-apps'],
-    queryFn: () => apiFetch<MyApplication[]>('/api/applications/mine'),
+    queryFn: () =>
+      apiFetch<{ total: number; items: MyApplication[] }>('/api/applications/mine?limit=100'),
   });
 
   const blocking = useQuery({
@@ -90,7 +86,7 @@ export function CustomerDashboardPage() {
     })),
   });
 
-  const list = apps.data ?? [];
+  const list = apps.data?.items ?? [];
   const spotlight =
     list.find((a) => a.id === blocking.data?.applicationId) ??
     list.find((a) => ACTIVE_STATUSES.has(a.status)) ??
@@ -203,7 +199,7 @@ export function CustomerDashboardPage() {
               {spotlight && (
                 <article className="dm-dash__spotlight">
                   <div className="dm-dash__spotlight-top">
-                    <span className={`dm-status-pill dm-status-pill--${statusVariant(spotlight.status)}`}>
+                    <span className={`dm-status-pill dm-status-pill--${applicationMarketplacePillVariant(spotlight.status)}`}>
                       {t(`application.status.${spotlight.status}`, { defaultValue: spotlight.status })}
                     </span>
                     <time dateTime={spotlight.createdAt}>
@@ -269,7 +265,7 @@ export function CustomerDashboardPage() {
                           <span className="dm-dash__app-row-title">
                             {a.product.make} {a.product.model}
                           </span>
-                          <span className={`dm-status-pill dm-status-pill--${statusVariant(a.status)}`}>
+                          <span className={`dm-status-pill dm-status-pill--${applicationMarketplacePillVariant(a.status)}`}>
                             {t(`application.status.${a.status}`, { defaultValue: a.status })}
                           </span>
                         </Link>

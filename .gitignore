@@ -15,5 +15,6 @@ cookies.txt
 signin.json
 signin-out.txt
 packages/api/.uploads
+packages/api/.test-database-url
 .vercel
 .env*

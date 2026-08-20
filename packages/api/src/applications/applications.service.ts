@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import path from 'node:path';
 import {
   ApplicationStatus,
   ListingStatus,
@@ -13,6 +14,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { StorageService } from '../storage/storage.service';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
 import { shouldSyncStatusToCrm } from '../integrations/zoho/zoho-sync-policy';
@@ -50,6 +52,7 @@ export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
+    private readonly analytics: AnalyticsService,
     private readonly storage: StorageService,
     private readonly lifecycle: ApplicationsLifecycleService,
     private readonly zoho: ZohoCrmService,
@@ -187,6 +190,12 @@ export class ApplicationsService {
       toValue: 'draft',
     });
 
+    this.analytics.track('application_started', {
+      application_id: app.id,
+      product_id: app.productId,
+      company_id: app.companyId,
+    });
+
     return app;
   }
 
@@ -237,17 +246,33 @@ export class ApplicationsService {
     await this.notifyOpsOnSubmit(app.companyId, id);
     void this.maybeSyncZoho(id, user.id);
 
+    this.analytics.track('application_submitted', {
+      application_id: id,
+      product_id: app.productId,
+      company_id: app.companyId,
+      is_resubmit: fromStatus === ApplicationStatus.resubmission_required,
+    });
+
     return updated;
   }
 
-  async listMine(user: User) {
-    return this.prisma.application.findMany({
-      where: { customerUserId: user.id },
-      include: {
-        product: { select: { make: true, model: true, modelYear: true, slug: true, price: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async listMine(user: User, query: { limit?: number; offset?: number } = {}) {
+    const take = Math.min(Math.max(query.limit ?? 50, 1), 100);
+    const skip = Math.max(query.offset ?? 0, 0);
+    const where = { customerUserId: user.id };
+    const [items, total] = await Promise.all([
+      this.prisma.application.findMany({
+        where,
+        include: {
+          product: { select: { make: true, model: true, modelYear: true, slug: true, price: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.application.count({ where }),
+    ]);
+    return { total, items };
   }
 
   async getOne(user: User, id: string) {
@@ -268,7 +293,7 @@ export class ApplicationsService {
     return { ...app, product: safeProduct };
   }
 
-  async opsQueue(user: User) {
+  async opsQueue(user: User, query: { limit?: number; offset?: number } = {}) {
     const allowed: UserRole[] = [
       UserRole.credit_officer,
       UserRole.admin,
@@ -279,45 +304,63 @@ export class ApplicationsService {
       throw new ForbiddenException('forbidden_role');
     }
 
+    const take = Math.min(Math.max(query.limit ?? 50, 1), 200);
+    const skip = Math.max(query.offset ?? 0, 0);
     const companyFilter = await opsCompanyFilter(this.prisma, user);
+    const where = {
+      status: {
+        in: [
+          'under_review',
+          'resubmission_required',
+          'contract_signing_required',
+          'contracts_submitted',
+          'contract_under_review',
+          'down_payment_required',
+          'down_payment_submitted',
+          'pending_finance_activation',
+        ] as ApplicationStatus[],
+      },
+      ...(companyFilter ? { companyId: { in: companyFilter } } : {}),
+    };
 
-    return this.prisma.application.findMany({
-      where: {
-        status: {
-          in: [
-            'under_review',
-            'resubmission_required',
-            'contract_signing_required',
-            'contracts_submitted',
-            'contract_under_review',
-            'down_payment_required',
-            'down_payment_submitted',
-            'pending_finance_activation',
-          ],
+    const [items, total] = await Promise.all([
+      this.prisma.application.findMany({
+        where,
+        include: {
+          product: { select: { make: true, model: true, modelYear: true, slug: true } },
+          company: { select: { name: true } },
+          customer: { select: { name: true, email: true } },
         },
-        ...(companyFilter ? { companyId: { in: companyFilter } } : {}),
-      },
-      include: {
-        product: { select: { make: true, model: true, modelYear: true, slug: true } },
-        company: { select: { name: true } },
-        customer: { select: { name: true, email: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+        orderBy: { createdAt: 'asc' },
+        take,
+        skip,
+      }),
+      this.prisma.application.count({ where }),
+    ]);
+    return { total, items };
   }
 
-  async dealerLeads(user: User) {
+  async dealerLeads(user: User, query: { limit?: number; offset?: number } = {}) {
     if (user.role !== UserRole.dealer_agent || !user.companyId) {
       throw new ForbiddenException('forbidden_role');
     }
-    return this.prisma.application.findMany({
-      where: { companyId: user.companyId },
-      include: {
-        product: { select: { make: true, model: true, modelYear: true, slug: true } },
-        customer: { select: { name: true, email: true, phone: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const take = Math.min(Math.max(query.limit ?? 50, 1), 100);
+    const skip = Math.max(query.offset ?? 0, 0);
+    const where = { companyId: user.companyId };
+    const [items, total] = await Promise.all([
+      this.prisma.application.findMany({
+        where,
+        include: {
+          product: { select: { make: true, model: true, modelYear: true, slug: true } },
+          customer: { select: { name: true, email: true, phone: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.application.count({ where }),
+    ]);
+    return { total, items };
   }
 
   async transition(user: User, id: string, toStatus: ApplicationStatus, reason?: string) {
@@ -354,6 +397,14 @@ export class ApplicationsService {
     });
 
     void this.maybeSyncZoho(id, user.id);
+
+    this.analytics.track('application_submitted', {
+      application_id: id,
+      product_id: app.productId,
+      company_id: app.companyId,
+      is_resubmit: true,
+    });
+
     return updated;
   }
 
@@ -414,7 +465,7 @@ export class ApplicationsService {
 
     this.storage.assertKycFile(file);
     const key = await this.storage.uploadKyc(file, id, category);
-    return this.prisma.applicationDocument.create({
+    const doc = await this.prisma.applicationDocument.create({
       data: {
         applicationId: id,
         category,
@@ -423,6 +474,14 @@ export class ApplicationsService {
         uploadedById: user.id,
       },
     });
+
+    this.analytics.track('document_uploaded', {
+      application_id: id,
+      category,
+      mime_type: file.mimetype,
+    });
+
+    return doc;
   }
 
   async downloadDocument(user: User, appId: string, docId: string) {
@@ -436,7 +495,8 @@ export class ApplicationsService {
     if (!doc) throw new NotFoundException();
 
     const file = await this.storage.readKyc(doc.storagePath);
-    const filename = doc.storagePath.split('/').pop() ?? `${doc.category}.pdf`;
+    const ext = path.extname(doc.storagePath) || '.pdf';
+    const filename = `${doc.category}${ext}`;
     return { ...file, filename };
   }
 

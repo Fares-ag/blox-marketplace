@@ -14,8 +14,20 @@
     "skipLibCheck": true,
     "strict": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@drivemarket/shared/pricing": [
+        "../shared/src/lib/pricing.ts"
+      ]
+    }
   },
-  "include": ["src/**/*", "prisma/seed.ts", "prisma/seed-chery.ts", "prisma/seed-finance-partners.ts"],
-  "exclude": ["src/**/*.spec.ts"]
+  "include": [
+    "src/**/*",
+    "prisma/seed.ts",
+    "prisma/seed-chery.ts",
+    "prisma/seed-finance-partners.ts"
+  ],
+  "exclude": [
+    "src/**/*.spec.ts"
+  ]
 }

@@ -48,9 +48,15 @@ export class PaymentsController {
   }
 
   @Roles(UserRole.admin, UserRole.super_admin)
-  @Post('ops/payment-schedules/:id/waive')
-  waive(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: WaiveDto) {
-    return this.payments.waiveSchedule(user, id, dto.reason);
+  @Post('ops/payment-schedules/:id/waive/request')
+  requestWaive(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: WaiveDto) {
+    return this.payments.requestWaiveSchedule(user, id, dto.reason);
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Post('ops/payment-schedules/:id/waive/confirm')
+  confirmWaive(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.payments.confirmWaiveSchedule(user, id);
   }
 
   @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)

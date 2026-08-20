@@ -1,7 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { ApplicationStatus } from '@drivemarket/shared';
-import { MoneyText, formatQar, getAppLocale } from '@drivemarket/shared';
+import {
+  MoneyText,
+  formatQar,
+  getAppLocale,
+  applicationMarketplacePillVariant,
+  applicationStatusLabel,
+} from '@drivemarket/shared';
 
 const TIMELINE_STEPS: ApplicationStatus[] = [
   'under_review',
@@ -20,13 +26,6 @@ function statusIndex(status: string): number {
   if (status === 'rejected' || status === 'submission_cancelled') return -1;
   const idx = TIMELINE_STEPS.indexOf(status as ApplicationStatus);
   return idx >= 0 ? idx : 0;
-}
-
-function statusVariant(status: string): string {
-  if (status === 'active' || status === 'completed') return 'approved';
-  if (status === 'rejected' || status === 'submission_cancelled') return 'rejected';
-  if (status === 'resubmission_required') return 'pending';
-  return 'pending';
 }
 
 export function ApplicationStatusView({
@@ -53,8 +52,8 @@ export function ApplicationStatusView({
   return (
     <div className="dm-app-status">
       <div className="dm-app-status__header">
-        <span className={`dm-status-pill dm-status-pill--${statusVariant(app.status)}`}>
-          {t(`application.status.${app.status}`, { defaultValue: app.status })}
+        <span className={`dm-status-pill dm-status-pill--${applicationMarketplacePillVariant(app.status)}`}>
+          {t(`application.status.${app.status}`, { defaultValue: applicationStatusLabel(app.status) })}
         </span>
         {app.createdAt && (
           <span className="dm-app-status__date">

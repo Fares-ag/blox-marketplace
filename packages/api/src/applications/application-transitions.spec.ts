@@ -34,14 +34,14 @@ describe('application-transitions', () => {
     ).toThrow('invalid_status_transition');
   });
 
-  // P0-6 regression: down-payment states must be reachable.
   it('allows the down-payment collection path', () => {
     expect(() =>
       assertOpsTransitionAllowed('contract_under_review', 'down_payment_required', UserRole.credit_officer),
     ).not.toThrow();
+    expect(findTransitionRule('down_payment_required', 'down_payment_submitted')).toBeDefined();
     expect(() =>
       assertOpsTransitionAllowed('down_payment_required', 'down_payment_submitted', UserRole.finance_officer),
-    ).not.toThrow();
+    ).toThrow('invalid_status_transition');
     expect(() =>
       assertOpsTransitionAllowed('down_payment_submitted', 'pending_finance_activation', UserRole.finance_officer),
     ).not.toThrow();

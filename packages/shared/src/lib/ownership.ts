@@ -1,3 +1,9 @@
+import {
+  principalAmountsFromPricingSnapshot,
+  principalCollectedFromInstallment,
+  roundMoney,
+} from './pricing';
+
 export type OwnershipMilestoneKind =
   | 'first_payment'
   | 'quarter'
@@ -10,7 +16,18 @@ export type OwnershipScheduleInput = {
   sequence: number;
   dueDate: string;
   amount: number | string;
+  paid_amount?: number | string;
+  paidAmount?: number | string;
   status: string;
+};
+
+export type PaymentLedgerEventInput = {
+  type: 'installment' | 'down_payment' | 'reversal' | 'waive';
+  amount: number | string;
+  schedule_id?: string | null;
+  scheduleId?: string | null;
+  principal_amount?: number | string;
+  principalAmount?: number | string;
 };
 
 export type OwnershipMilestone = {
@@ -47,6 +64,21 @@ function num(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function schedulePaidAmount(schedule: OwnershipScheduleInput): number {
+  return num(schedule.paidAmount ?? schedule.paid_amount);
+}
+
+function eventPrincipalAmount(event: PaymentLedgerEventInput): number | null {
+  const raw = event.principalAmount ?? event.principal_amount;
+  if (raw == null) return null;
+  const parsed = num(raw, Number.NaN);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function eventScheduleId(event: PaymentLedgerEventInput): string | null {
+  return event.scheduleId ?? event.schedule_id ?? null;
+}
+
 function milestoneKindForProgress(pct: number, index: number): OwnershipMilestoneKind {
   if (pct >= 100) return 'full_owner';
   if (pct >= 95) return 'almost_there';
@@ -65,73 +97,171 @@ function paymentStatusForSchedule(status: string, dueDate: string): OwnershipMil
   return 'scheduled';
 }
 
-function calculateOwnershipAtPayment(
-  vehiclePrice: number,
-  downPayment: number,
-  totalPayments: number,
-  paymentIndex: number,
-): { customerOwnership: number; bloxOwnership: number } {
-  const loanAmount = Math.max(vehiclePrice - downPayment, 0);
-  const principalPerMonth = totalPayments > 0 ? loanAmount / totalPayments : 0;
-  const customerOwnership = Math.min(downPayment + principalPerMonth * (paymentIndex + 1), vehiclePrice);
-  const bloxOwnership = Math.max(vehiclePrice - customerOwnership, 0);
-  return { customerOwnership, bloxOwnership };
+function ownershipPct(vehiclePrice: number, ownershipAmount: number): number {
+  if (vehiclePrice <= 0) return 0;
+  return Math.min(100, roundMoney((ownershipAmount / vehiclePrice) * 100));
+}
+
+function sumCollectedPrincipalFromEvents(
+  paymentEvents: PaymentLedgerEventInput[],
+  schedules: Array<OwnershipScheduleInput & { id?: string }>,
+  principalBySequence: number[],
+): number {
+  const scheduleById = new Map(
+    schedules.filter((s) => s.id).map((s) => [s.id as string, s]),
+  );
+  let collected = 0;
+
+  for (const event of paymentEvents) {
+    const amount = num(event.amount);
+    if (amount <= 0) continue;
+
+    if (event.type === 'installment') {
+      const explicitPrincipal = eventPrincipalAmount(event);
+      if (explicitPrincipal != null) {
+        collected += explicitPrincipal;
+        continue;
+      }
+
+      const scheduleId = eventScheduleId(event);
+      const schedule = scheduleId ? scheduleById.get(scheduleId) : undefined;
+      if (!schedule) continue;
+
+      const scheduledPrincipal = principalBySequence[schedule.sequence - 1] ?? 0;
+      collected += principalCollectedFromInstallment(
+        amount,
+        num(schedule.amount),
+        scheduledPrincipal,
+      );
+      continue;
+    }
+
+    if (event.type === 'reversal') {
+      const explicitPrincipal = eventPrincipalAmount(event);
+      if (explicitPrincipal != null) {
+        collected -= explicitPrincipal;
+        continue;
+      }
+
+      const scheduleId = eventScheduleId(event);
+      const schedule = scheduleId ? scheduleById.get(scheduleId) : undefined;
+      if (!schedule) continue;
+
+      const scheduledPrincipal = principalBySequence[schedule.sequence - 1] ?? 0;
+      collected -= principalCollectedFromInstallment(
+        amount,
+        num(schedule.amount),
+        scheduledPrincipal,
+      );
+    }
+  }
+
+  return Math.max(0, roundMoney(collected));
+}
+
+function sumCollectedPrincipalFromSchedules(
+  schedules: OwnershipScheduleInput[],
+  principalBySequence: number[],
+): number {
+  let collected = 0;
+
+  for (const schedule of schedules) {
+    const paidAmount = schedulePaidAmount(schedule);
+    if (paidAmount <= 0) continue;
+
+    const scheduledPrincipal = principalBySequence[schedule.sequence - 1] ?? 0;
+    collected += principalCollectedFromInstallment(
+      paidAmount,
+      num(schedule.amount),
+      scheduledPrincipal,
+    );
+  }
+
+  return roundMoney(collected);
+}
+
+function resolveDownPaymentEquity(
+  pricingSnapshot: Record<string, unknown> | null | undefined,
+  paymentEvents?: PaymentLedgerEventInput[] | null,
+): number {
+  if (paymentEvents?.length) {
+    let recorded = 0;
+    for (const event of paymentEvents) {
+      if (event.type !== 'down_payment') continue;
+      recorded += num(event.amount);
+    }
+    if (recorded > 0) {
+      return roundMoney(recorded);
+    }
+  }
+  return roundMoney(num(pricingSnapshot?.down_payment));
 }
 
 export function calculateOwnershipTimeline(
   pricingSnapshot?: Record<string, unknown> | null,
   paymentSchedules?: Array<OwnershipScheduleInput & { id?: string }> | null,
+  paymentEvents?: PaymentLedgerEventInput[] | null,
 ): OwnershipTimeline {
-  const vehiclePrice = num(pricingSnapshot?.list_price);
-  const downPayment = num(pricingSnapshot?.down_payment);
+  const vehiclePrice = roundMoney(num(pricingSnapshot?.list_price));
+  const downPayment = resolveDownPaymentEquity(pricingSnapshot, paymentEvents);
   const schedules = [...(paymentSchedules ?? [])].sort((a, b) => a.sequence - b.sequence);
   const totalPayments = schedules.length;
   const completedPayments = schedules.filter((s) => s.status === 'paid').length;
-  const paidAmount = schedules
-    .filter((s) => s.status === 'paid')
-    .reduce((sum, s) => sum + num(s.amount), 0);
-  const _principal = Math.max(vehiclePrice - downPayment, 0);
-  const currentOwnershipAmount = downPayment + paidAmount;
-  const currentOwnership =
-    vehiclePrice > 0 ? Math.min(100, (currentOwnershipAmount / vehiclePrice) * 100) : 0;
+
+  const principalBySequence = pricingSnapshot
+    ? principalAmountsFromPricingSnapshot(pricingSnapshot)
+    : (() => {
+        const loan = Math.max(vehiclePrice - downPayment, 0);
+        if (schedules.length <= 0 || loan <= 0) return [] as number[];
+        const linear = roundMoney(loan / schedules.length);
+        return schedules.map((_, index) =>
+          index === schedules.length - 1
+            ? roundMoney(loan - linear * (schedules.length - 1))
+            : linear,
+        );
+      })();
+
+  const installmentPrincipalCollected = paymentEvents?.length
+    ? sumCollectedPrincipalFromEvents(paymentEvents, schedules, principalBySequence)
+    : sumCollectedPrincipalFromSchedules(schedules, principalBySequence);
+
+  const currentOwnershipAmount = roundMoney(downPayment + installmentPrincipalCollected);
+  const currentOwnership = ownershipPct(vehiclePrice, currentOwnershipAmount);
   const progressPercentage = currentOwnership;
 
   const hasOverdue = schedules.some(
     (s) => s.status === 'overdue' || (s.status !== 'paid' && new Date(s.dueDate) < new Date()),
   );
 
-  const milestones: OwnershipMilestone[] = schedules.map((s, index) => {
-    const { customerOwnership, bloxOwnership } = calculateOwnershipAtPayment(
-      vehiclePrice,
-      downPayment,
-      totalPayments,
-      index,
-    );
-    const ownershipPercentage =
-      vehiclePrice > 0 ? Math.round((customerOwnership / vehiclePrice) * 10000) / 100 : 0;
+  let cumulativePrincipal = 0;
+  const milestones: OwnershipMilestone[] = schedules.map((schedule, index) => {
+    const scheduledPrincipal = principalBySequence[schedule.sequence - 1] ?? 0;
+    cumulativePrincipal = roundMoney(cumulativePrincipal + scheduledPrincipal);
+    const ownershipAmount = roundMoney(downPayment + cumulativePrincipal);
+    const ownershipPercentage = ownershipPct(vehiclePrice, ownershipAmount);
     const kind = milestoneKindForProgress(ownershipPercentage, index);
-    const paymentStatus = paymentStatusForSchedule(s.status, s.dueDate);
-    const amount = num(s.amount);
+    const paymentStatus = paymentStatusForSchedule(schedule.status, schedule.dueDate);
+    const amount = num(schedule.amount);
+    const profitShare = roundMoney(Math.max(amount - scheduledPrincipal, 0));
 
     return {
-      sequence: s.sequence,
+      sequence: schedule.sequence,
       milestone: kind,
       labelKey:
         kind === 'first_payment' && index === 0
           ? 'ownership.paymentNumber'
           : milestoneBadgeKey(kind),
       paymentStatus,
-      date: s.dueDate,
-      dueDate: s.dueDate,
+      date: schedule.dueDate,
+      dueDate: schedule.dueDate,
       amount,
       ownershipPercentage,
-      ownershipAmount: Math.round(customerOwnership * 100) / 100,
-      customerShare: amount,
-      bloxShare: Math.round(bloxOwnership * 100) / 100,
+      ownershipAmount,
+      customerShare: roundMoney(scheduledPrincipal),
+      bloxShare: profitShare,
     };
   });
 
-  const _lastPaid = [...schedules].reverse().find((s) => s.status === 'paid');
   const lastSchedule = schedules[schedules.length - 1];
   const estimatedCompletionDate = lastSchedule?.dueDate ?? null;
   const projected = totalPayments > 0 && completedPayments < totalPayments;

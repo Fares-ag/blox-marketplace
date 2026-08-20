@@ -29,6 +29,7 @@ import {
   Min,
 } from 'class-validator';
 import { CurrentUser, OptionalSessionGuard, Public, Roles } from '../auth/guards';
+import { multerUploadOptions } from '../common/multer-options';
 import { ProductsService } from './products.service';
 
 class CreateProductDto {
@@ -138,8 +139,15 @@ export class ProductsController {
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
   @Get('dealer/inventory')
-  inventory(@CurrentUser() user: User) {
-    return this.products.listDealerInventory(user);
+  inventory(
+    @CurrentUser() user: User,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return this.products.listDealerInventory(user, {
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined,
+    });
   }
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
@@ -156,7 +164,7 @@ export class ProductsController {
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
   @Post('dealer/inventory/:id/images')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
   uploadImage(
     @CurrentUser() user: User,
     @Param('id') id: string,

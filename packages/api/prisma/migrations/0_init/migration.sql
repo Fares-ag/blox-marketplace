@@ -1,5 +1,6 @@
--- Baseline migration: matches prisma/schema.prisma as deployed via `prisma db push`.
--- For an existing database, mark as applied once:  npx prisma migrate resolve --applied 0_init
+-- Baseline migration: historical schema snapshot.
+-- Follow-up migrations reconcile drift with prisma/schema.prisma (payment_transactions, draft default, ledger).
+-- For an existing database created via db push, mark as applied once: npx prisma migrate resolve --applied 0_init
 
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('customer', 'dealer_agent', 'credit_officer', 'finance_officer', 'admin', 'super_admin');

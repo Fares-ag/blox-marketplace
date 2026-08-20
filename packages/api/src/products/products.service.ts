@@ -16,9 +16,12 @@ import {
   VehicleCondition,
 } from '@prisma/client';
 import slugify from 'slugify';
+import { estimateMonthlyPayment, roundMoney } from '@drivemarket/shared/pricing';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
 import { StorageService } from '../storage/storage.service';
+import { parseTenureOptions } from '../quotes/quote-pricing';
+import { assertDefaultOfferForCompany } from './product-offer';
 
 export type ProductInputDto = {
   make: string;
@@ -159,23 +162,22 @@ export class ProductsService {
     } | null,
   ): number | null {
     if (!offer) return null;
-    const tenureRaw = offer.tenureOptions;
-    const tenureOptions = Array.isArray(tenureRaw)
-      ? tenureRaw.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)
-      : [36];
+    const tenureOptions = parseTenureOptions(offer.tenureOptions);
     const tenure = tenureOptions.includes(36)
       ? 36
       : (tenureOptions[Math.floor(tenureOptions.length / 2)] ?? tenureOptions[0] ?? 36);
     const downPct = Number(offer.minDownPaymentPct);
-    const down = (price * downPct) / 100;
-    const principal = Math.max(price - down, 0);
-    const n = tenure;
-    if (n <= 0) return 0;
-    const r = Number(offer.annualRentRate) / 100 / 12;
-    if (r === 0) return Math.round(principal / n);
-    const factor = Math.pow(1 + r, n);
-    return Math.round((principal * r * factor) / (factor - 1));
+    const downPayment = roundMoney((price * downPct) / 100);
+    return estimateMonthlyPayment({
+      price,
+      downPayment,
+      annualRatePercent: Number(offer.annualRentRate),
+      tenureMonths: tenure,
+    });
   }
+
+  /** Caps distinct make/model pairs returned for marketplace filter facets. */
+  private static readonly FACET_ROW_CAP = 2_000;
 
   async listFacetOptions() {
     const rows = await this.prisma.product.findMany({
@@ -186,6 +188,7 @@ export class ProductsService {
       select: { make: true, model: true },
       distinct: ['make', 'model'],
       orderBy: [{ make: 'asc' }, { model: 'asc' }],
+      take: ProductsService.FACET_ROW_CAP,
     });
 
     const makes = [...new Set(rows.map((r) => r.make))].sort((a, b) => a.localeCompare(b));
@@ -275,15 +278,24 @@ export class ProductsService {
     return { available: false, reason: 'listing_not_available' };
   }
 
-  async listDealerInventory(user: User) {
+  async listDealerInventory(user: User, query: { limit?: number; offset?: number } = {}) {
     if (user.role !== UserRole.dealer_agent || !user.companyId) {
       throw new ForbiddenException('forbidden_role');
     }
-    return this.prisma.product.findMany({
-      where: { companyId: user.companyId },
-      include: { images: { orderBy: { sortOrder: 'asc' } } },
-      orderBy: { updatedAt: 'desc' },
-    });
+    const take = Math.min(Math.max(query.limit ?? 50, 1), 100);
+    const skip = Math.max(query.offset ?? 0, 0);
+    const where = { companyId: user.companyId };
+    const [items, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 } },
+        orderBy: { updatedAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+    return { total, items };
   }
 
   async create(user: User, dto: ProductInputDto) {
@@ -295,6 +307,10 @@ export class ProductsService {
     const companyId = user.companyId!;
     const id = randomUUID();
     const slug = this.buildSlug(dto, id);
+
+    if (dto.defaultOfferId) {
+      await assertDefaultOfferForCompany(this.prisma, companyId, dto.defaultOfferId);
+    }
 
     return this.prisma.product.create({
       data: {
@@ -327,6 +343,9 @@ export class ProductsService {
 
   async update(user: User, id: string, dto: Partial<ProductInputDto>) {
     const product = await this.requireDealerProduct(user, id);
+    if (dto.defaultOfferId) {
+      await assertDefaultOfferForCompany(this.prisma, product.companyId, dto.defaultOfferId);
+    }
     return this.prisma.product.update({
       where: { id: product.id },
       data: {

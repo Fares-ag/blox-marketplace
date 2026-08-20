@@ -1,5 +1,19 @@
 import type { ApplicationStatus, ListingStatus } from '../types/domain';
 
+export type OpsPillVariant =
+  | 'active'
+  | 'published'
+  | 'paid'
+  | 'approved'
+  | 'pending'
+  | 'draft'
+  | 'rejected'
+  | 'expired'
+  | 'reserved'
+  | 'sold';
+
+export type MarketplacePillVariant = 'approved' | 'pending' | 'rejected' | 'action';
+
 export const applicationStatusStyles: Record<
   ApplicationStatus,
   { bg: string; color: string }
@@ -26,3 +40,72 @@ export const listingStatusStyles: Record<ListingStatus, { bg: string; color: str
   sold: { bg: 'var(--dm-slate-200)', color: 'var(--dm-ink)' },
   archived: { bg: 'var(--dm-surface-muted)', color: 'var(--dm-slate-600)' },
 };
+
+const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  draft: 'Draft',
+  under_review: 'Under review',
+  resubmission_required: 'Resubmission required',
+  contract_signing_required: 'Contract signing required',
+  contracts_submitted: 'Contracts submitted',
+  contract_under_review: 'Contract under review',
+  down_payment_required: 'Down payment required',
+  down_payment_submitted: 'Down payment submitted',
+  pending_finance_activation: 'Pending activation',
+  active: 'Active',
+  completed: 'Completed',
+  rejected: 'Rejected',
+  submission_cancelled: 'Cancelled',
+};
+
+const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
+  draft: 'Draft',
+  published: 'Published',
+  reserved: 'Reserved',
+  sold: 'Sold',
+  archived: 'Archived',
+};
+
+/** Canonical human-readable application status label. */
+export function applicationStatusLabel(status: string): string {
+  return (
+    APPLICATION_STATUS_LABELS[status as ApplicationStatus] ??
+    status.replace(/_/g, ' ')
+  );
+}
+
+/** Canonical human-readable listing status label. */
+export function listingStatusLabel(status: string): string {
+  return LISTING_STATUS_LABELS[status as ListingStatus] ?? status.replace(/_/g, ' ');
+}
+
+/** Ops portal pill variant for financing application statuses. */
+export function applicationOpsPillVariant(status: string): OpsPillVariant {
+  if (status === 'active' || status === 'completed') return 'approved';
+  if (status === 'rejected' || status === 'submission_cancelled') return 'rejected';
+  return 'pending';
+}
+
+/** Marketplace customer-facing pill variant for application statuses. */
+export function applicationMarketplacePillVariant(status: string): MarketplacePillVariant {
+  if (status === 'active' || status === 'completed') return 'approved';
+  if (status === 'rejected' || status === 'submission_cancelled') return 'rejected';
+  if (status === 'resubmission_required' || status === 'draft') return 'action';
+  return 'pending';
+}
+
+/** Ops portal pill variant for inventory listing statuses. */
+export function listingOpsPillVariant(status: string): OpsPillVariant {
+  if (status === 'published') return 'published';
+  if (status === 'draft') return 'draft';
+  if (status === 'reserved') return 'reserved';
+  if (status === 'sold') return 'sold';
+  return 'pending';
+}
+
+/** Ops portal pill variant for installment schedule statuses. */
+export function scheduleOpsPillVariant(status: string): OpsPillVariant {
+  if (status === 'paid') return 'approved';
+  if (status === 'overdue') return 'rejected';
+  if (status === 'waived') return 'draft';
+  return 'pending';
+}

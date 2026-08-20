@@ -9,19 +9,42 @@ import {
   labelTransmission,
 } from '@drivemarket/shared';
 
-const FALLBACKS = [
-  'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1600&q=70',
-  'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1600&q=70',
-  'https://images.unsplash.com/photo-1542362567-b07e54358753?auto=format&fit=crop&w=1600&q=70',
-  'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1600&q=70',
-];
-
 export function ImageGallery({ images }: { images: { storage_path: string; alt_text?: string | null }[] }) {
   const { t } = useTranslation();
-  const list =
-    images.length > 0
-      ? images
-      : FALLBACKS.map((url, i) => ({ storage_path: url, alt_text: `Vehicle photo ${i + 1}` }));
+
+  if (images.length === 0) {
+    return (
+      <div
+        className="dm-carousel dm-carousel--empty"
+        role="img"
+        aria-label={t('detail.noPhotos')}
+      >
+        <div className="dm-carousel__empty">
+          <span>{t('detail.noPhotos')}</span>
+        </div>
+        <style>{`
+          .dm-carousel--empty { width: 100%; }
+          .dm-carousel__empty {
+            display: grid;
+            place-items: center;
+            aspect-ratio: 16 / 9;
+            border-radius: 16px;
+            background: var(--dm-surface-muted);
+            border: 1px dashed var(--dm-slate-200);
+            color: var(--dm-slate-600);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            text-align: center;
+            padding: 24px;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  const list = images;
   const [active, setActive] = useState(0);
   const count = list.length;
 

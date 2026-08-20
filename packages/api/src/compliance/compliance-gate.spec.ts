@@ -1,7 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApplicationStatus, ComplianceCheckStatus, UserRole } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ActivityService } from '../common/activity.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { ApplicationsLifecycleService } from '../applications/applications-lifecycle.service';
@@ -75,9 +77,11 @@ describe('ApplicationsLifecycleService.approveWithContract compliance gate', () 
     pricingSnapshot: {
       list_price: 100_000,
       down_payment: 20_000,
+      down_payment_pct: 20,
       monthly: 2500,
       tenor: 36,
       rate: 5,
+      financed_total: 90_000,
     },
     product: { make: 'Toyota', model: 'Camry', modelYear: 2024 },
     company: { name: 'Demo Dealer' },
@@ -86,12 +90,15 @@ describe('ApplicationsLifecycleService.approveWithContract compliance gate', () 
   function buildService(
     prisma: Partial<PrismaService>,
     compliance: Partial<ComplianceService>,
+    storage: Partial<StorageService> = { storeContractPdf: vi.fn(), readContract: vi.fn() },
   ) {
     return new ApplicationsLifecycleService(
       prisma as PrismaService,
       { log: vi.fn(), notify: vi.fn() } as unknown as ActivityService,
-      { storeContractPdf: vi.fn(), readContract: vi.fn() } as unknown as StorageService,
+      { track: vi.fn() } as unknown as AnalyticsService,
+      storage as StorageService,
       compliance as ComplianceService,
+      { get: vi.fn() } as unknown as ConfigService,
     );
   }
 
@@ -136,15 +143,131 @@ describe('ApplicationsLifecycleService.approveWithContract compliance gate', () 
     const storage = {
       storeContractPdf: vi.fn().mockResolvedValue('contracts/app-1.pdf'),
     };
-    const service = new ApplicationsLifecycleService(
-      prisma as PrismaService,
-      { log: vi.fn(), notify: vi.fn() } as unknown as ActivityService,
-      storage as unknown as StorageService,
-      compliance as ComplianceService,
-    );
+    const service = buildService(prisma, compliance, storage);
 
     const result = await service.approveWithContract(opsUser, 'app-1');
     expect(compliance.assertPassedForApproval).toHaveBeenCalledWith('app-1');
     expect(result.status).toBe(ApplicationStatus.contract_signing_required);
+  });
+});
+
+describe('ApplicationsLifecycleService.activate direct-activate compliance gate', () => {
+  const opsUser = {
+    id: 'ops-1',
+    role: UserRole.admin,
+    companyId: 'co-1',
+  } as never;
+
+  const directApp = {
+    id: 'app-1',
+    status: ApplicationStatus.under_review,
+    companyId: 'co-1',
+    productId: 'prod-1',
+    customerUserId: 'cust-1',
+    pricingSnapshot: {
+      list_price: 100_000,
+      down_payment: 0,
+      down_payment_pct: 0,
+      monthly: 2500,
+      tenor: 36,
+    },
+    paymentSchedules: [],
+    company: { allowDirectActivate: true },
+    contractGenerated: true,
+    contractPdfPath: 'app-1/generated/contract.pdf',
+    signedContractPath: 'app-1/signed/contract.pdf',
+  };
+
+  function buildService(
+    prisma: Partial<PrismaService>,
+    compliance: Partial<ComplianceService>,
+  ) {
+    return new ApplicationsLifecycleService(
+      prisma as PrismaService,
+      { log: vi.fn(), notify: vi.fn() } as unknown as ActivityService,
+      { track: vi.fn() } as unknown as AnalyticsService,
+      {} as StorageService,
+      compliance as ComplianceService,
+      { get: vi.fn() } as unknown as ConfigService,
+    );
+  }
+
+  it('blocks direct activate when compliance has not passed', async () => {
+    const compliance = {
+      assertPassedForApproval: vi
+        .fn()
+        .mockRejectedValue(new BadRequestException('compliance_check_required')),
+    };
+    const prisma = {
+      application: { findUnique: vi.fn().mockResolvedValue(directApp) },
+    };
+    const service = buildService(prisma, compliance);
+
+    await expect(service.activate(opsUser, 'app-1', { direct: true })).rejects.toMatchObject({
+      message: 'compliance_check_required',
+    });
+    expect(compliance.assertPassedForApproval).toHaveBeenCalledWith('app-1');
+  });
+
+  it('blocks direct activate when no generated contract is on file', async () => {
+    const compliance = {
+      assertPassedForApproval: vi.fn().mockResolvedValue(undefined),
+    };
+    const prisma = {
+      application: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...directApp,
+          contractGenerated: false,
+          contractPdfPath: null,
+        }),
+      },
+    };
+    const service = buildService(prisma, compliance);
+
+    await expect(service.activate(opsUser, 'app-1', { direct: true })).rejects.toMatchObject({
+      message: 'contract_not_generated',
+    });
+  });
+
+  it('blocks direct activate when signed contract is missing', async () => {
+    const compliance = {
+      assertPassedForApproval: vi.fn().mockResolvedValue(undefined),
+    };
+    const prisma = {
+      application: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...directApp,
+          signedContractPath: null,
+        }),
+      },
+    };
+    const service = buildService(prisma, compliance);
+
+    await expect(service.activate(opsUser, 'app-1', { direct: true })).rejects.toMatchObject({
+      message: 'signed_contract_required',
+    });
+  });
+
+  it('proceeds on direct activate when compliance and contract artifacts exist', async () => {
+    const compliance = {
+      assertPassedForApproval: vi.fn().mockResolvedValue(undefined),
+    };
+    const activated = { ...directApp, status: ApplicationStatus.active };
+    const prisma = {
+      application: { findUnique: vi.fn().mockResolvedValue(directApp) },
+      paymentEvent: { findMany: vi.fn().mockResolvedValue([]) },
+      $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          paymentSchedule: { createMany: vi.fn() },
+          application: { update: vi.fn().mockResolvedValue(activated) },
+          product: { update: vi.fn() },
+        }),
+      ),
+    };
+    const service = buildService(prisma, compliance);
+
+    const result = await service.activate(opsUser, 'app-1', { direct: true });
+    expect(compliance.assertPassedForApproval).toHaveBeenCalledWith('app-1');
+    expect(result.status).toBe(ApplicationStatus.active);
   });
 });

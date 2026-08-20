@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { Public } from '../auth/guards';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -12,19 +12,28 @@ export class OffersController {
    */
   @Public()
   @Get()
-  list() {
-    return this.prisma.offer.findMany({
-      where: { status: 'active' },
-      select: {
-        id: true,
-        name: true,
-        annualRentRate: true,
-        tenureOptions: true,
-        minDownPaymentPct: true,
-        isDefault: true,
-        financePartnerId: true,
-      },
-      orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-    });
+  async list(@Query('limit') limit?: number, @Query('offset') offset?: number) {
+    const take = Math.min(Math.max(limit ?? 50, 1), 100);
+    const skip = Math.max(offset ?? 0, 0);
+    const where = { status: 'active' as const };
+    const [items, total] = await Promise.all([
+      this.prisma.offer.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          annualRentRate: true,
+          tenureOptions: true,
+          minDownPaymentPct: true,
+          isDefault: true,
+          financePartnerId: true,
+        },
+        orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+        take,
+        skip,
+      }),
+      this.prisma.offer.count({ where }),
+    ]);
+    return { total, items };
   }
 }

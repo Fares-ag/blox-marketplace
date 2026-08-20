@@ -1,14 +1,39 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
+  NotImplementedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, ScheduleStatus, User, UserRole } from '@prisma/client';
+import {
+  ApplicationStatus,
+  Prisma,
+  PaymentEventType,
+  ScheduleStatus,
+  User,
+  UserRole,
+} from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import {
+  principalAmountsFromPricingSnapshot,
+  principalCollectedFromInstallment,
+} from '@drivemarket/shared/pricing';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
+import { AnalyticsService } from '../analytics/analytics.service';
+import { SYSTEM_ACTOR, SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
+import { assertCompanyScope, opsCompanyFilter } from '../applications/company-scope';
+import { assertRowsUpdated, transitionApplication } from '../applications/guarded-transitions';
+import {
+  assertDualControlWaive,
+  assertSeparationOfDutiesForApplication,
+  resolveSeparationOfDutiesEnabled,
+} from '../applications/separation-of-duties';
+import { computeScheduleAmountsFromEvents } from './payment-ledger';
 
 const PAYMENT_ROLES: UserRole[] = [
   UserRole.finance_officer,
@@ -23,6 +48,8 @@ const VIEW_ROLES: UserRole[] = [
   UserRole.super_admin,
 ];
 
+const WAIVE_ROLES: UserRole[] = [UserRole.admin, UserRole.super_admin];
+
 /**
  * P0-6: installment servicing. Payments happen offline (bank transfer / card at
  * dealer); finance officers record them here. Recording is transactional and
@@ -31,11 +58,33 @@ const VIEW_ROLES: UserRole[] = [
  */
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
+    private readonly analytics: AnalyticsService,
     private readonly config: ConfigService,
   ) {}
+
+  private isSkipCashSandbox(): boolean {
+    const flag = this.config.get<string>('SKIPCASH_SANDBOX');
+    return flag === 'true' || flag === '1';
+  }
+
+  private assertWaiveRole(user: User) {
+    if (!WAIVE_ROLES.includes(user.role)) {
+      throw new ForbiddenException('forbidden_role');
+    }
+  }
+
+  private async resolveSodEnabled(companyId: string): Promise<boolean> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { separationOfDutiesEnabled: true },
+    });
+    return resolveSeparationOfDutiesEnabled(this.config, company?.separationOfDutiesEnabled);
+  }
 
   private assertPaymentRole(user: User) {
     if (!PAYMENT_ROLES.includes(user.role)) {
@@ -52,11 +101,17 @@ export class PaymentsService {
     }
     const take = Math.min(Math.max(query.limit ?? 50, 1), 200);
     const skip = Math.max(query.offset ?? 0, 0);
-    const where: Prisma.PaymentScheduleWhereInput = {
-      ...(query.status ? { status: query.status } : {}),
+    const companyFilter = await opsCompanyFilter(this.prisma, user);
+    const baseWhere: Prisma.PaymentScheduleWhereInput = {
       ...(query.applicationId ? { applicationId: query.applicationId } : {}),
+      ...(companyFilter ? { application: { companyId: { in: companyFilter } } } : {}),
     };
-    const [items, total] = await Promise.all([
+    const where: Prisma.PaymentScheduleWhereInput = {
+      ...baseWhere,
+      ...(query.status ? { status: query.status } : {}),
+    };
+    const today = startOfTodayUtc();
+    const [items, total, pending, overdueStored, pendingPastDue, paid] = await Promise.all([
       this.prisma.paymentSchedule.findMany({
         where,
         include: {
@@ -76,10 +131,26 @@ export class PaymentsService {
         skip,
       }),
       this.prisma.paymentSchedule.count({ where }),
+      this.prisma.paymentSchedule.count({
+        where: { ...baseWhere, status: ScheduleStatus.pending, dueDate: { gte: today } },
+      }),
+      this.prisma.paymentSchedule.count({
+        where: { ...baseWhere, status: ScheduleStatus.overdue },
+      }),
+      this.prisma.paymentSchedule.count({
+        where: { ...baseWhere, status: ScheduleStatus.pending, dueDate: { lt: today } },
+      }),
+      this.prisma.paymentSchedule.count({
+        where: { ...baseWhere, status: ScheduleStatus.paid },
+      }),
     ]);
-    const today = startOfTodayUtc();
     return {
       total,
+      summary: {
+        pending,
+        overdue: overdueStored + pendingPastDue,
+        paid,
+      },
       items: items.map((s) => ({
         id: s.id,
         application_id: s.applicationId,
@@ -114,71 +185,47 @@ export class PaymentsService {
   ) {
     this.assertPaymentRole(user);
 
+    const schedule = await this.prisma.paymentSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { application: { select: { id: true, status: true, customerUserId: true, companyId: true } } },
+    });
+    if (!schedule) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, schedule.application.companyId);
+
+    const sodEnabled = await this.resolveSodEnabled(schedule.application.companyId);
+    await assertSeparationOfDutiesForApplication(
+      this.prisma,
+      user.id,
+      schedule.application.id,
+      sodEnabled,
+    );
+
     const result = await this.prisma.$transaction(async (tx) => {
-      const schedule = await tx.paymentSchedule.findUnique({
-        where: { id: scheduleId },
-        include: { application: { select: { id: true, status: true, customerUserId: true } } },
+      const locked = await lockScheduleForUpdate(tx, scheduleId);
+      if (!locked) throw new NotFoundException();
+
+      const application = await tx.application.findUnique({
+        where: { id: locked.applicationId },
+        select: {
+          id: true,
+          status: true,
+          customerUserId: true,
+          companyId: true,
+          pricingSnapshot: true,
+        },
       });
-      if (!schedule) throw new NotFoundException();
-      if (schedule.application.status !== 'active') {
+      if (!application) throw new NotFoundException();
+      if (application.status !== 'active') {
         throw new BadRequestException('application_not_active');
       }
       if (
-        schedule.status === ScheduleStatus.paid ||
-        schedule.status === ScheduleStatus.waived
+        locked.status === ScheduleStatus.paid ||
+        locked.status === ScheduleStatus.waived
       ) {
         throw new BadRequestException('schedule_already_settled');
       }
 
-      const remaining = Number(schedule.remainingAmount);
-      const amount = body.amount ?? remaining;
-      if (!Number.isFinite(amount) || amount <= 0) {
-        throw new BadRequestException('validation_failed');
-      }
-      if (amount > remaining + 0.005) {
-        throw new BadRequestException('amount_exceeds_remaining');
-      }
-
-      const newPaid = Number(schedule.paidAmount) + amount;
-      const newRemaining = Math.max(remaining - amount, 0);
-      const fullyPaid = newRemaining < 0.005;
-
-      const updated = await tx.paymentSchedule.update({
-        where: { id: scheduleId },
-        data: {
-          paidAmount: new Prisma.Decimal(newPaid.toFixed(2)),
-          remainingAmount: new Prisma.Decimal(newRemaining.toFixed(2)),
-          status: fullyPaid ? ScheduleStatus.paid : schedule.status,
-          paymentMethod: body.method ?? schedule.paymentMethod,
-          paymentReference: body.reference ?? schedule.paymentReference,
-          paidAt: fullyPaid ? new Date() : schedule.paidAt,
-        },
-      });
-
-      let applicationCompleted = false;
-      if (fullyPaid) {
-        const unsettled = await tx.paymentSchedule.count({
-          where: {
-            applicationId: schedule.applicationId,
-            status: { in: [ScheduleStatus.pending, ScheduleStatus.overdue] },
-          },
-        });
-        if (unsettled === 0) {
-          await tx.application.update({
-            where: { id: schedule.applicationId },
-            data: { status: 'completed', completedAt: new Date() },
-          });
-          applicationCompleted = true;
-        }
-      }
-
-      return {
-        updated,
-        applicationCompleted,
-        applicationId: schedule.applicationId,
-        customerUserId: schedule.application.customerUserId,
-        amount,
-      };
+      return applyPaymentInTransaction(tx, user, locked, application, body);
     });
 
     await this.activity.log({
@@ -189,7 +236,7 @@ export class PaymentsService {
       toValue: result.updated.status,
       metadata: {
         applicationId: result.applicationId,
-        amount: result.amount,
+        amount: result.amount.toFixed(2),
         method: body.method ?? null,
         reference: body.reference ?? null,
       },
@@ -213,56 +260,131 @@ export class PaymentsService {
       );
     }
 
+    this.analytics.track('payment_completed', {
+      application_id: result.applicationId,
+      schedule_id: scheduleId,
+      amount: result.amount.toNumber(),
+      method: body.method ?? 'manual',
+    });
+
     return {
       schedule: serializeSchedule(result.updated),
       application_completed: result.applicationCompleted,
     };
   }
 
-  async waiveSchedule(user: User, scheduleId: string, reason?: string) {
-    const waiveRoles: UserRole[] = [UserRole.admin, UserRole.super_admin];
-    if (!waiveRoles.includes(user.role)) {
-      throw new ForbiddenException('forbidden_role');
-    }
+  async requestWaiveSchedule(user: User, scheduleId: string, reason?: string) {
+    this.assertWaiveRole(user);
     if (!reason?.trim()) throw new BadRequestException('validation_failed');
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const schedule = await tx.paymentSchedule.findUnique({
-        where: { id: scheduleId },
-        include: { application: { select: { id: true, status: true, customerUserId: true } } },
-      });
-      if (!schedule) throw new NotFoundException();
+    const schedule = await this.prisma.paymentSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { application: { select: { id: true, status: true, companyId: true } } },
+    });
+    if (!schedule) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, schedule.application.companyId);
+
+    const sodEnabled = await this.resolveSodEnabled(schedule.application.companyId);
+    await assertSeparationOfDutiesForApplication(
+      this.prisma,
+      user.id,
+      schedule.application.id,
+      sodEnabled,
+    );
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const locked = await lockScheduleForUpdate(tx, scheduleId);
+      if (!locked) throw new NotFoundException();
+
       if (
-        schedule.status === ScheduleStatus.paid ||
-        schedule.status === ScheduleStatus.waived
+        locked.status === ScheduleStatus.paid ||
+        locked.status === ScheduleStatus.waived
       ) {
         throw new BadRequestException('schedule_already_settled');
       }
-
-      const updated = await tx.paymentSchedule.update({
-        where: { id: scheduleId },
-        data: {
-          status: ScheduleStatus.waived,
-          remainingAmount: new Prisma.Decimal(0),
-        },
-      });
-
-      let applicationCompleted = false;
-      const unsettled = await tx.paymentSchedule.count({
-        where: {
-          applicationId: schedule.applicationId,
-          status: { in: [ScheduleStatus.pending, ScheduleStatus.overdue] },
-        },
-      });
-      if (unsettled === 0 && schedule.application.status === 'active') {
-        await tx.application.update({
-          where: { id: schedule.applicationId },
-          data: { status: 'completed', completedAt: new Date() },
-        });
-        applicationCompleted = true;
+      if (locked.pendingWaiveRequestedById) {
+        throw new BadRequestException('waive_already_pending');
       }
 
-      return { updated, applicationCompleted, applicationId: schedule.applicationId };
+      return tx.paymentSchedule.update({
+        where: { id: scheduleId },
+        data: {
+          pendingWaiveReason: reason.trim(),
+          pendingWaiveRequestedById: user.id,
+          pendingWaiveRequestedAt: new Date(),
+        },
+      });
+    });
+
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'payment_schedule',
+      entityId: scheduleId,
+      action: 'payment_waive_requested',
+      metadata: {
+        applicationId: schedule.application.id,
+        reason: reason.trim(),
+        requestedById: user.id,
+      },
+    });
+
+    return { schedule: serializeSchedule(updated) };
+  }
+
+  async confirmWaiveSchedule(user: User, scheduleId: string) {
+    this.assertWaiveRole(user);
+
+    const schedule = await this.prisma.paymentSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { application: { select: { id: true, status: true, customerUserId: true, companyId: true } } },
+    });
+    if (!schedule) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, schedule.application.companyId);
+
+    const sodEnabled = await this.resolveSodEnabled(schedule.application.companyId);
+    await assertSeparationOfDutiesForApplication(
+      this.prisma,
+      user.id,
+      schedule.application.id,
+      sodEnabled,
+    );
+
+    assertDualControlWaive(user.id, schedule.pendingWaiveRequestedById);
+
+    const waiveReason = schedule.pendingWaiveReason?.trim();
+    if (!waiveReason) throw new BadRequestException('waive_not_requested');
+
+    const requestedById = schedule.pendingWaiveRequestedById!;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const locked = await lockScheduleForUpdate(tx, scheduleId);
+      if (!locked) throw new NotFoundException();
+
+      if (!locked.pendingWaiveRequestedById || !locked.pendingWaiveReason?.trim()) {
+        throw new BadRequestException('waive_not_requested');
+      }
+      assertDualControlWaive(user.id, locked.pendingWaiveRequestedById);
+
+      const application = await tx.application.findUnique({
+        where: { id: locked.applicationId },
+        select: {
+          id: true,
+          status: true,
+          customerUserId: true,
+          companyId: true,
+          pricingSnapshot: true,
+        },
+      });
+      if (!application) throw new NotFoundException();
+
+      return applyWaiveInTransaction(
+        tx,
+        user,
+        locked,
+        application,
+        locked.pendingWaiveReason.trim(),
+        requestedById,
+      );
     });
 
     await this.activity.log({
@@ -271,7 +393,12 @@ export class PaymentsService {
       entityId: scheduleId,
       action: 'payment_waived',
       toValue: 'waived',
-      metadata: { applicationId: result.applicationId, reason },
+      metadata: {
+        applicationId: result.applicationId,
+        reason: waiveReason,
+        requestedById,
+        confirmedById: user.id,
+      },
     });
 
     return {
@@ -282,10 +409,9 @@ export class PaymentsService {
 
   /**
    * Persists overdue status for schedules past due. Safe to run repeatedly;
-   * call from an external scheduler (e.g. Railway cron) or the ops UI.
+   * invoked by cron or the ops UI via {@link markOverdue}.
    */
-  async markOverdue(user: User) {
-    this.assertPaymentRole(user);
+  async markOverdueSystem(): Promise<{ marked_overdue: number }> {
     const today = startOfTodayUtc();
     const result = await this.prisma.paymentSchedule.updateMany({
       where: { status: ScheduleStatus.pending, dueDate: { lt: today } },
@@ -293,7 +419,7 @@ export class PaymentsService {
     });
     if (result.count > 0) {
       await this.activity.log({
-        actorUserId: user.id,
+        actorUserId: SYSTEM_ACTOR_USER_ID,
         entityType: 'payment_schedule',
         entityId: 'bulk',
         action: 'overdue_sweep',
@@ -301,6 +427,12 @@ export class PaymentsService {
       });
     }
     return { marked_overdue: result.count };
+  }
+
+  /** Finance-role entry point; delegates to {@link markOverdueSystem}. */
+  async markOverdue(user: User) {
+    this.assertPaymentRole(user);
+    return this.markOverdueSystem();
   }
 
   /** Sandbox SkipCash: create pending transaction and return redirect URL. */
@@ -328,7 +460,7 @@ export class PaymentsService {
     }
 
     const idempotencyKey = `skipcash:${scheduleId}:${randomUUID()}`;
-    const amount = Number(schedule.remainingAmount);
+    const amount = schedule.remainingAmount;
 
     const txn = await this.prisma.paymentTransaction.create({
       data: {
@@ -348,10 +480,17 @@ export class PaymentsService {
     const returnUrl = `${marketplace.replace(/\/$/, '')}/app/applications/${applicationId}?skipcash_key=${encodeURIComponent(idempotencyKey)}`;
     const redirectUrl = returnUrl;
 
+    this.analytics.track('payment_started', {
+      application_id: applicationId,
+      schedule_id: scheduleId,
+      amount: amount.toNumber(),
+      gateway: 'skipcash',
+    });
+
     return {
       transaction_id: txn.id,
       idempotency_key: idempotencyKey,
-      amount,
+      amount: amount.toNumber(),
       currency: 'QAR',
       redirect_url: redirectUrl,
       sandbox: true,
@@ -359,13 +498,33 @@ export class PaymentsService {
   }
 
   /**
-   * Idempotent completion for SkipCash verify/webhook (sandbox uses idempotency key).
+   * Production completion path — requires verified gateway payment id.
+   * Client-supplied idempotency keys are never accepted as proof of payment.
+   */
+  async verifyAndComplete(_gatewayPaymentId: string) {
+    // TODO: HTTP call to SkipCash gateway to verify payment status for gatewayPaymentId.
+    throw new NotImplementedException('skipcash_verify_not_implemented');
+  }
+
+  /**
+   * Client return URL handler. In production, payment completion must go through
+   * verifyAndComplete after gateway verification — not this endpoint.
    */
   async completeSkipCashPayment(idempotencyKey: string, gatewayPaymentId?: string) {
+    if (!this.isSkipCashSandbox()) {
+      throw new HttpException({ error: 'gateway_verification_required' }, HttpStatus.FORBIDDEN);
+    }
+
+    this.logger.warn(
+      `SkipCash SANDBOX completion for idempotency key ${idempotencyKey} — payment NOT verified against gateway`,
+    );
+    return this.sandboxCompleteSkipCashPayment(idempotencyKey, gatewayPaymentId);
+  }
+
+  /** Local/dev only — simulates gateway-confirmed payment without verification. */
+  private async sandboxCompleteSkipCashPayment(idempotencyKey: string, gatewayPaymentId?: string) {
     const txn = await this.prisma.paymentTransaction.findFirst({
-      where: {
-        OR: [{ idempotencyKey }, { id: idempotencyKey }],
-      },
+      where: { idempotencyKey },
     });
     if (!txn) throw new NotFoundException();
     if (txn.status === 'completed') {
@@ -373,27 +532,340 @@ export class PaymentsService {
     }
     if (!txn.scheduleId) throw new BadRequestException('validation_failed');
 
-    await this.prisma.paymentTransaction.update({
-      where: { id: txn.id },
-      data: {
-        status: 'completed',
-        gatewayPaymentId: gatewayPaymentId ?? txn.id,
+    const systemUser = SYSTEM_ACTOR;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const completed = await tx.paymentTransaction.updateMany({
+        where: { id: txn.id, status: 'pending' },
+        data: {
+          status: 'completed',
+          gatewayPaymentId: gatewayPaymentId ?? txn.id,
+        },
+      });
+      assertRowsUpdated(completed.count, 'stale_transition');
+
+      const locked = await lockScheduleForUpdate(tx, txn.scheduleId!);
+      if (!locked) throw new NotFoundException();
+
+      const application = await tx.application.findUnique({
+        where: { id: locked.applicationId },
+        select: {
+          id: true,
+          status: true,
+          customerUserId: true,
+          companyId: true,
+          pricingSnapshot: true,
+        },
+      });
+      if (!application) throw new NotFoundException();
+
+      return applyPaymentInTransaction(tx, systemUser, locked, application, {
+        amount: txn.amount,
+        method: 'skipcash',
+        reference: gatewayPaymentId ?? txn.id,
+      });
+    });
+
+    await this.activity.log({
+      actorUserId: systemUser.id,
+      entityType: 'payment_schedule',
+      entityId: txn.scheduleId,
+      action: 'payment_recorded',
+      toValue: result.updated.status,
+      metadata: {
+        applicationId: result.applicationId,
+        amount: result.amount.toFixed(2),
+        method: 'skipcash',
+        reference: gatewayPaymentId ?? txn.id,
+        skipcash: true,
       },
     });
 
-    const result = await this.recordPayment(
-      { id: 'system', role: UserRole.super_admin } as User,
-      txn.scheduleId,
-      { amount: Number(txn.amount), method: 'skipcash', reference: gatewayPaymentId ?? txn.id },
-    );
+    if (result.applicationCompleted) {
+      await this.activity.log({
+        actorUserId: systemUser.id,
+        entityType: 'application',
+        entityId: result.applicationId,
+        action: 'status_transition',
+        fromValue: 'active',
+        toValue: 'completed',
+        metadata: { trigger: 'final_installment_paid', skipcash: true },
+      });
+      await this.activity.notify(
+        result.customerUserId,
+        'Congratulations — you own your vehicle!',
+        'Your final installment is recorded. Your financing is complete.',
+        `/app/applications/${result.applicationId}`,
+      );
+    }
 
-    return { transaction_id: txn.id, ...result, already_completed: false };
+    this.analytics.track('payment_completed', {
+      application_id: result.applicationId,
+      schedule_id: txn.scheduleId!,
+      amount: result.amount.toNumber(),
+      method: 'skipcash',
+      gateway: 'skipcash',
+    });
+
+    return {
+      transaction_id: txn.id,
+      schedule: serializeSchedule(result.updated),
+      application_completed: result.applicationCompleted,
+      already_completed: false,
+    };
   }
 }
 
 function startOfTodayUtc(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+const ZERO = new Prisma.Decimal(0);
+
+type LockedScheduleRow = {
+  id: string;
+  applicationId: string;
+  sequence: number;
+  dueDate: Date;
+  amount: Prisma.Decimal;
+  paidAmount: Prisma.Decimal;
+  remainingAmount: Prisma.Decimal;
+  status: ScheduleStatus;
+  paymentMethod: string | null;
+  paymentReference: string | null;
+  paidAt: Date | null;
+  pendingWaiveReason: string | null;
+  pendingWaiveRequestedById: string | null;
+  pendingWaiveRequestedAt: Date | null;
+};
+
+type LockedApplicationRow = {
+  id: string;
+  status: ApplicationStatus;
+  customerUserId: string;
+  companyId: string;
+  pricingSnapshot: Prisma.JsonValue;
+};
+
+/** Row-level lock — serializes concurrent payments against the same schedule. */
+async function lockScheduleForUpdate(
+  tx: Prisma.TransactionClient,
+  scheduleId: string,
+): Promise<LockedScheduleRow | null> {
+  const rows = await tx.$queryRaw<LockedScheduleRow[]>`
+    SELECT
+      id,
+      "applicationId",
+      sequence,
+      "dueDate",
+      amount,
+      "paidAmount",
+      "remainingAmount",
+      status,
+      "paymentMethod",
+      "paymentReference",
+      "paidAt",
+      "pendingWaiveReason",
+      "pendingWaiveRequestedById",
+      "pendingWaiveRequestedAt"
+    FROM payment_schedules
+    WHERE id = ${scheduleId}
+    FOR UPDATE
+  `;
+  return rows[0] ?? null;
+}
+
+async function applyWaiveInTransaction(
+  tx: Prisma.TransactionClient,
+  user: User,
+  locked: LockedScheduleRow,
+  application: LockedApplicationRow,
+  reason: string,
+  requestedById: string,
+) {
+  if (
+    locked.status === ScheduleStatus.paid ||
+    locked.status === ScheduleStatus.waived
+  ) {
+    throw new BadRequestException('schedule_already_settled');
+  }
+
+  const forgiven = locked.remainingAmount;
+
+  await tx.paymentEvent.create({
+    data: {
+      applicationId: locked.applicationId,
+      scheduleId: locked.id,
+      type: PaymentEventType.waive,
+      amount: forgiven,
+      currency: 'QAR',
+      actorUserId: user.id,
+      reason,
+      metadata: { requestedById, confirmedById: user.id },
+    },
+  });
+
+  const ledger = await computeScheduleAmountsFromEvents(tx, locked.id, locked.amount);
+
+  const updated = await tx.paymentSchedule.update({
+    where: { id: locked.id },
+    data: {
+      paidAmount: ledger.paidAmount,
+      remainingAmount: ledger.remainingAmount,
+      status: ScheduleStatus.waived,
+      pendingWaiveReason: null,
+      pendingWaiveRequestedById: null,
+      pendingWaiveRequestedAt: null,
+    },
+  });
+
+  assertLedgerMatchesCache(ledger, updated);
+
+  let applicationCompleted = false;
+  const unsettled = await tx.paymentSchedule.count({
+    where: {
+      applicationId: locked.applicationId,
+      status: { in: [ScheduleStatus.pending, ScheduleStatus.overdue] },
+    },
+  });
+  if (unsettled === 0 && application.status === 'active') {
+    await transitionApplication(tx, locked.applicationId, ApplicationStatus.active, {
+      status: ApplicationStatus.completed,
+      completedAt: new Date(),
+    });
+    applicationCompleted = true;
+  }
+
+  return {
+    updated,
+    applicationCompleted,
+    applicationId: locked.applicationId,
+    customerUserId: application.customerUserId,
+  };
+}
+
+async function applyPaymentInTransaction(
+  tx: Prisma.TransactionClient,
+  user: User,
+  locked: LockedScheduleRow,
+  application: LockedApplicationRow,
+  body: { amount?: number | Prisma.Decimal; method?: string; reference?: string },
+) {
+  if (application.status !== 'active') {
+    throw new BadRequestException('application_not_active');
+  }
+  if (
+    locked.status === ScheduleStatus.paid ||
+    locked.status === ScheduleStatus.waived
+  ) {
+    throw new BadRequestException('schedule_already_settled');
+  }
+
+  const remaining = locked.remainingAmount;
+  const payAmount =
+    body.amount != null
+      ? body.amount instanceof Prisma.Decimal
+        ? body.amount
+        : new Prisma.Decimal(String(body.amount))
+      : remaining;
+  if (payAmount.lte(0)) {
+    throw new BadRequestException('validation_failed');
+  }
+  if (payAmount.gt(remaining)) {
+    throw new BadRequestException('amount_exceeds_remaining');
+  }
+
+  const pricingSnapshot =
+    application.pricingSnapshot != null &&
+    typeof application.pricingSnapshot === 'object' &&
+    !Array.isArray(application.pricingSnapshot)
+      ? (application.pricingSnapshot as Record<string, unknown>)
+      : null;
+  const scheduledPrincipal = pricingSnapshot
+    ? (principalAmountsFromPricingSnapshot(pricingSnapshot)[locked.sequence - 1] ?? 0)
+    : 0;
+  const principalAmount = pricingSnapshot
+    ? principalCollectedFromInstallment(
+        payAmount.toNumber(),
+        locked.amount.toNumber(),
+        scheduledPrincipal,
+      )
+    : payAmount.toNumber();
+
+  await tx.paymentEvent.create({
+    data: {
+      applicationId: locked.applicationId,
+      scheduleId: locked.id,
+      type: PaymentEventType.installment,
+      amount: payAmount,
+      currency: 'QAR',
+      actorUserId: user.id,
+      metadata: {
+        method: body.method ?? null,
+        reference: body.reference ?? null,
+        principalAmount,
+      },
+    },
+  });
+
+  const ledger = await computeScheduleAmountsFromEvents(tx, locked.id, locked.amount);
+  const fullyPaid = ledger.remainingAmount.lte(0);
+
+  const updated = await tx.paymentSchedule.update({
+    where: { id: locked.id },
+    data: {
+      paidAmount: ledger.paidAmount,
+      remainingAmount: ledger.remainingAmount,
+      status: fullyPaid ? ScheduleStatus.paid : locked.status,
+      paymentMethod: body.method ?? locked.paymentMethod,
+      paymentReference: body.reference ?? locked.paymentReference,
+      paidAt: fullyPaid ? new Date() : locked.paidAt,
+    },
+  });
+
+  assertLedgerMatchesCache(ledger, updated);
+
+  let applicationCompleted = false;
+  if (fullyPaid) {
+    const unsettled = await tx.paymentSchedule.count({
+      where: {
+        applicationId: locked.applicationId,
+        status: { in: [ScheduleStatus.pending, ScheduleStatus.overdue] },
+      },
+    });
+    if (unsettled === 0) {
+      await transitionApplication(tx, locked.applicationId, ApplicationStatus.active, {
+        status: ApplicationStatus.completed,
+        completedAt: new Date(),
+      });
+      applicationCompleted = true;
+    }
+  }
+
+  return {
+    updated,
+    applicationCompleted,
+    applicationId: locked.applicationId,
+    customerUserId: application.customerUserId,
+    amount: payAmount,
+  };
+}
+
+function decimalEq(a: Prisma.Decimal, b: Prisma.Decimal): boolean {
+  return a.toFixed(2) === b.toFixed(2);
+}
+
+function assertLedgerMatchesCache(
+  ledger: { paidAmount: Prisma.Decimal; remainingAmount: Prisma.Decimal },
+  cache: { paidAmount: Prisma.Decimal; remainingAmount: Prisma.Decimal },
+): void {
+  if (!decimalEq(ledger.paidAmount, cache.paidAmount)) {
+    throw new BadRequestException('ledger_cache_mismatch');
+  }
+  if (!decimalEq(ledger.remainingAmount, cache.remainingAmount)) {
+    throw new BadRequestException('ledger_cache_mismatch');
+  }
 }
 
 function serializeSchedule(s: {
@@ -408,6 +880,9 @@ function serializeSchedule(s: {
   paymentMethod: string | null;
   paymentReference: string | null;
   paidAt: Date | null;
+  pendingWaiveReason?: string | null;
+  pendingWaiveRequestedById?: string | null;
+  pendingWaiveRequestedAt?: Date | null;
 }) {
   return {
     id: s.id,
@@ -421,5 +896,8 @@ function serializeSchedule(s: {
     payment_method: s.paymentMethod,
     payment_reference: s.paymentReference,
     paid_at: s.paidAt?.toISOString() ?? null,
+    pending_waive_reason: s.pendingWaiveReason ?? null,
+    pending_waive_requested_by_id: s.pendingWaiveRequestedById ?? null,
+    pending_waive_requested_at: s.pendingWaiveRequestedAt?.toISOString() ?? null,
   };
 }

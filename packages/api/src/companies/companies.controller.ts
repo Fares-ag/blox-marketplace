@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Public, Roles } from '../auth/guards';
@@ -22,30 +22,40 @@ export class CompaniesController {
 
   @Public()
   @Get()
-  listPublic() {
-    return this.prisma.company.findMany({
-      where: { status: 'active' },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        logoUrl: true,
-        _count: {
-          select: {
-            products: { where: { listingStatus: 'published' } },
+  async listPublic(@Query('limit') limit?: number, @Query('offset') offset?: number) {
+    const take = Math.min(Math.max(limit ?? 50, 1), 100);
+    const skip = Math.max(offset ?? 0, 0);
+    const where = { status: 'active' as const };
+    const [rows, total] = await Promise.all([
+      this.prisma.company.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          logoUrl: true,
+          _count: {
+            select: {
+              products: { where: { listingStatus: 'published' } },
+            },
           },
         },
-      },
-      orderBy: { name: 'asc' },
-    }).then((rows) =>
-      rows.map((c) => ({
+        orderBy: { name: 'asc' },
+        take,
+        skip,
+      }),
+      this.prisma.company.count({ where }),
+    ]);
+    return {
+      total,
+      items: rows.map((c) => ({
         id: c.id,
         name: c.name,
         code: c.code,
         logo_url: c.logoUrl,
         published_count: c._count.products,
       })),
-    );
+    };
   }
 
   @Public()
@@ -81,8 +91,14 @@ export class CompaniesController {
 
   @Roles(UserRole.admin, UserRole.super_admin)
   @Get('all')
-  listAll() {
-    return this.prisma.company.findMany({ orderBy: { createdAt: 'desc' } });
+  async listAll(@Query('limit') limit?: number, @Query('offset') offset?: number) {
+    const take = Math.min(Math.max(limit ?? 50, 1), 100);
+    const skip = Math.max(offset ?? 0, 0);
+    const [items, total] = await Promise.all([
+      this.prisma.company.findMany({ orderBy: { createdAt: 'desc' }, take, skip }),
+      this.prisma.company.count(),
+    ]);
+    return { total, items };
   }
 
   @Roles(UserRole.admin, UserRole.super_admin)

@@ -63,7 +63,7 @@ export function ListingCtaPanel({
 
       {monthlyEstimate != null && monthlyEstimate > 0 && (
         <p className="dm-cta-panel__monthly">
-          {t('detail.estMonthly')}: <MoneyText>{formatQar(Math.round(monthlyEstimate), true, locale)}</MoneyText>
+          {t('detail.estMonthly')}: <MoneyText>{formatQar(monthlyEstimate, true, locale)}</MoneyText>
         </p>
       )}
 
@@ -280,7 +280,7 @@ export function MobileStickyApplyBar({
         <MoneyText className="dm-mobile-apply-bar__price">{formatQar(price, false, locale)}</MoneyText>
         {monthlyEstimate != null && monthlyEstimate > 0 && (
           <span className="dm-mobile-apply-bar__monthly">
-            {t('detail.estMonthly')}: {formatQar(Math.round(monthlyEstimate), true, locale)}
+            {t('detail.estMonthly')}: {formatQar(monthlyEstimate, true, locale)}
           </span>
         )}
       </div>

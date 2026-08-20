@@ -117,6 +117,8 @@ export class ZohoCrmService {
           zohoLeadId: leadId,
           zohoSyncedAt: new Date(),
           zohoSyncError: null,
+          zohoSyncAttempts: 0,
+          zohoNextRetryAt: null,
         },
       });
 
@@ -153,9 +155,20 @@ export class ZohoCrmService {
     actorUserId?: string,
   ): Promise<void> {
     try {
+      const current = await this.prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { zohoSyncAttempts: true },
+      });
+      const attempts = (current?.zohoSyncAttempts ?? 0) + 1;
+      const backoffMinutes = Math.min(Math.pow(2, attempts) * 5, 24 * 60);
+
       await this.prisma.application.update({
         where: { id: applicationId },
-        data: { zohoSyncError: message.slice(0, 500) },
+        data: {
+          zohoSyncError: message.slice(0, 500),
+          zohoSyncAttempts: attempts,
+          zohoNextRetryAt: new Date(Date.now() + backoffMinutes * 60_000),
+        },
       });
     } catch {
       /* application may have been deleted; the log below still records it */

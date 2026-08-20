@@ -61,6 +61,28 @@ export interface ProductListResponse {
   items: ProductCard[];
 }
 
+export interface PaginatedResponse<T> {
+  total: number;
+  items: T[];
+}
+
+export interface PublicCompanyListResponse {
+  total: number;
+  items: PublicCompany[];
+}
+
+export interface ScheduleSummary {
+  pending: number;
+  overdue: number;
+  paid: number;
+}
+
+export interface ScheduleListResponse<T = Record<string, unknown>> {
+  total: number;
+  summary: ScheduleSummary;
+  items: T[];
+}
+
 export interface ProductDetailResponse {
   available: boolean;
   availability?: 'available' | 'pending_financing';
@@ -120,6 +142,10 @@ export interface DmUser {
   phone: string | null;
   qid: string | null;
   is_active: boolean;
+  email_verified: boolean;
+  two_factor_enabled: boolean;
+  mfa_required: boolean;
+  mfa_setup_required: boolean;
 }
 
 export interface Company {
