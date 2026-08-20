@@ -1,41 +1,34 @@
-import { StrictMode, useEffect, useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import {
-  QueryClient,
-  QueryClientProvider,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AuthGuard,
   LoginPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  TwoFactorLoginPage,
+  MfaSetupPage,
   BloxShell,
-  bloxThemeWithBrand,
-  useAuthStore,
   apiFetch,
+  buildPaginationQuery,
+  paginationWindow,
+  type ScheduleListResponse,
   OpsPageHeader,
   OpsStatusPill,
   OpsDataTable,
   OpsStatCard,
   OpsEmptyState,
-  ScrollToTop,
   type BloxNavItem,
-  type OpsPillVariant,
-  initAppSentry,
+  scheduleOpsPillVariant,
+  applicationOpsPillVariant,
+  useOpsLabels,
+  mountPortalApp,
 } from '@drivemarket/shared';
-
-initAppSentry('finance');
-
-const queryClient = new QueryClient();
-const nav: BloxNavItem[] = [
-  { to: '/', label: 'Schedules', icon: 'finance' },
-  { to: '/applications', label: 'Applications', icon: 'apps' },
-];
+import '@drivemarket/shared/styles/global.scss';
 
 type ScheduleRow = {
   id: string;
@@ -55,38 +48,44 @@ type ScheduleRow = {
   payment_reference: string | null;
 };
 
-function scheduleVariant(status: string): OpsPillVariant {
-  if (status === 'paid') return 'approved';
-  if (status === 'overdue') return 'rejected';
-  return 'pending';
-}
-
 function SchedulesPage() {
+  const { t, scheduleStatus } = useOpsLabels();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(0);
   const [payTarget, setPayTarget] = useState<ScheduleRow | null>(null);
+  const [payAmount, setPayAmount] = useState<number>(0);
   const [reference, setReference] = useState('');
   const [method, setMethod] = useState('bank_transfer');
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const query = statusFilter ? `&status=${statusFilter}` : '';
+  useEffect(() => {
+    setPage(0);
+  }, [statusFilter]);
+
+  const statusQuery = statusFilter ? `&status=${statusFilter}` : '';
   const { data, error, isLoading } = useQuery({
-    queryKey: ['schedules', statusFilter],
+    queryKey: ['schedules', statusFilter, page],
     queryFn: () =>
-      apiFetch<{ total: number; items: ScheduleRow[] }>(
-        `/api/ops/payment-schedules?limit=100${query}`,
+      apiFetch<ScheduleListResponse<ScheduleRow>>(
+        `/api/ops/payment-schedules?${buildPaginationQuery(page)}${statusQuery}`,
       ),
   });
 
   const pay = useMutation({
-    mutationFn: (payload: { id: string; method: string; reference: string }) =>
+    mutationFn: (payload: { id: string; method: string; reference: string; amount: number }) =>
       apiFetch(`/api/ops/payment-schedules/${payload.id}/pay`, {
         method: 'POST',
-        body: JSON.stringify({ method: payload.method, reference: payload.reference || undefined }),
+        body: JSON.stringify({
+          method: payload.method,
+          reference: payload.reference || undefined,
+          amount: payload.amount,
+        }),
       }),
     onSuccess: () => {
       setPayTarget(null);
       setReference('');
+      setPayAmount(0);
       setActionError(null);
       void qc.invalidateQueries({ queryKey: ['schedules'] });
     },
@@ -104,49 +103,64 @@ function SchedulesPage() {
   });
 
   const items = data?.items ?? [];
-  const pending = items.filter((r) => r.effective_status === 'pending').length;
-  const overdue = items.filter((r) => r.effective_status === 'overdue').length;
-  const paid = items.filter((r) => r.status === 'paid').length;
+  const summary = data?.summary;
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
 
   return (
     <div className="blox-page">
       <OpsPageHeader
-        title="Payment schedules"
-        subtitle="Record installments and capture settlement references"
+        title={t('ops.finance.schedulesTitle')}
+        subtitle={t('ops.finance.schedulesSubtitle')}
         actions={
           <button
             type="button"
             className="blox-btn blox-btn--secondary"
             disabled={sweep.isPending}
             onClick={() => sweep.mutate()}
-            title="Persist overdue status for schedules past their due date"
+            title={t('ops.finance.schedulesSubtitle')}
           >
-            {sweep.isPending ? 'Sweeping…' : 'Run overdue sweep'}
+            {sweep.isPending ? t('ops.finance.sweeping') : t('ops.finance.runOverdueSweep')}
           </button>
         }
       />
       {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
       {actionError && <p style={{ color: 'var(--blox-danger)' }}>{actionError}</p>}
       <div className="blox-stat-grid">
-        <OpsStatCard label="Pending" value={String(pending)} />
-        <OpsStatCard label="Overdue" value={String(overdue)} />
-        <OpsStatCard label="Paid (loaded)" value={String(paid)} />
+        <OpsStatCard label={t('ops.finance.pending')} value={String(summary?.pending ?? '—')} />
+        <OpsStatCard label={t('ops.scheduleStatus.overdue')} value={String(summary?.overdue ?? '—')} />
+        <OpsStatCard label={t('ops.finance.paid')} value={String(summary?.paid ?? '—')} />
       </div>
       <div className="blox-filter-bar">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Status filter">
-          <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="overdue">Overdue</option>
-          <option value="paid">Paid</option>
-          <option value="waived">Waived</option>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label={t('ops.col.status')}>
+          <option value="">{t('ops.finance.allStatuses')}</option>
+          <option value="pending">{t('ops.scheduleStatus.pending')}</option>
+          <option value="overdue">{t('ops.scheduleStatus.overdue')}</option>
+          <option value="paid">{t('ops.scheduleStatus.paid')}</option>
+          <option value="waived">{t('ops.scheduleStatus.waived')}</option>
         </select>
       </div>
       <OpsDataTable
-        columns={['Customer', 'Vehicle', 'Seq', 'Due', 'Amount', 'Remaining', 'Status', '']}
+        columns={[
+          t('ops.col.customer'),
+          t('ops.col.vehicle'),
+          t('ops.col.seq'),
+          t('ops.col.due'),
+          t('ops.col.amount'),
+          t('ops.col.remaining'),
+          t('ops.col.status'),
+          '',
+        ]}
+        pagination={{
+          from,
+          to,
+          total,
+          onPrev: () => setPage((p) => Math.max(0, p - 1)),
+          onNext: () => setPage((p) => p + 1),
+        }}
         empty={
           <OpsEmptyState
-            title={isLoading ? 'Loading…' : 'No schedules'}
-            body={isLoading ? '' : 'Activated financings will populate installment schedules here.'}
+            title={isLoading ? t('ops.common.loading') : t('ops.finance.noSchedules')}
+            body={isLoading ? '' : t('ops.finance.noSchedulesBody')}
           />
         }
         rows={items.map((r) => [
@@ -156,7 +170,7 @@ function SchedulesPage() {
           r.due_date,
           <span key="a" className="blox-money">QAR {r.amount.toLocaleString()}</span>,
           <span key="r" className="blox-money">QAR {r.remaining_amount.toLocaleString()}</span>,
-          <OpsStatusPill key="s" label={r.effective_status} variant={scheduleVariant(r.effective_status)} />,
+          <OpsStatusPill key="s" label={scheduleStatus(r.effective_status)} variant={scheduleOpsPillVariant(r.effective_status)} />,
           r.effective_status === 'pending' || r.effective_status === 'overdue' ? (
             <button
               key="b"
@@ -165,9 +179,12 @@ function SchedulesPage() {
               onClick={() => {
                 setActionError(null);
                 setPayTarget(r);
+                setPayAmount(r.remaining_amount);
+                setReference('');
+                setMethod('bank_transfer');
               }}
             >
-              Record payment
+              {t('ops.finance.recordPayment')}
             </button>
           ) : (
             <span key="b" style={{ fontSize: '0.75rem', opacity: 0.7 }}>{r.payment_reference ?? ''}</span>
@@ -183,6 +200,17 @@ function SchedulesPage() {
           <p style={{ fontSize: '0.8125rem', margin: '4px 0 12px' }}>
             {payTarget.customer_name ?? payTarget.customer_email} · {payTarget.vehicle}
           </p>
+          <label style={{ display: 'grid', gap: 6, fontSize: '0.8125rem', fontWeight: 600, marginBottom: 10 }}>
+            Payment amount (QAR)
+            <input
+              type="number"
+              min={0.01}
+              max={payTarget.remaining_amount}
+              step={0.01}
+              value={payAmount}
+              onChange={(e) => setPayAmount(Number(e.target.value))}
+            />
+          </label>
           <label style={{ display: 'grid', gap: 6, fontSize: '0.8125rem', fontWeight: 600, marginBottom: 10 }}>
             Method
             <select value={method} onChange={(e) => setMethod(e.target.value)}>
@@ -204,10 +232,21 @@ function SchedulesPage() {
             <button
               type="button"
               className="blox-btn blox-btn--primary"
-              disabled={pay.isPending}
-              onClick={() => pay.mutate({ id: payTarget.id, method, reference })}
+              disabled={pay.isPending || payAmount <= 0 || payAmount > payTarget.remaining_amount}
+              onClick={() => {
+                const customer = payTarget.customer_name ?? payTarget.customer_email;
+                const methodLabel = method.replace(/_/g, ' ');
+                if (
+                  !window.confirm(
+                    `Record QAR ${payAmount.toLocaleString()} payment (${methodLabel}) for ${customer} · installment ${payTarget.sequence} on ${payTarget.vehicle}?`,
+                  )
+                ) {
+                  return;
+                }
+                pay.mutate({ id: payTarget.id, method, reference, amount: payAmount });
+              }}
             >
-              {pay.isPending ? 'Recording…' : 'Confirm full payment'}
+              {pay.isPending ? 'Recording…' : 'Confirm payment'}
             </button>
             <button type="button" className="blox-btn blox-btn--ghost" onClick={() => setPayTarget(null)}>
               Cancel
@@ -219,28 +258,27 @@ function SchedulesPage() {
   );
 }
 
-function appVariant(status: string): OpsPillVariant {
-  if (status === 'active' || status === 'completed') return 'approved';
-  if (status === 'rejected') return 'rejected';
-  return 'pending';
-}
-
 function ApplicationsPage() {
+  const { t, applicationStatus } = useOpsLabels();
   const qc = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
   const { data, error } = useQuery({
-    queryKey: ['fin-apps'],
+    queryKey: ['fin-apps', page],
     queryFn: () =>
-      apiFetch<
-        Array<{
+      apiFetch<{
+        total: number;
+        items: Array<{
           id: string;
           status: string;
           customer: { name: string; email: string };
           product: { make: string; model: string; modelYear: number };
           company: { name: string };
-        }>
-      >('/api/ops/applications'),
+        }>;
+      }>(`/api/ops/applications?${buildPaginationQuery(page)}`),
   });
+  const items = data?.items ?? [];
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
 
   const transition = useMutation({
     mutationFn: (payload: { id: string; toStatus: string; reason?: string }) =>
@@ -258,26 +296,43 @@ function ApplicationsPage() {
   return (
     <div className="blox-page">
       <OpsPageHeader
-        title="Applications"
-        subtitle="Down-payment confirmation and activation queue (activation itself is done by credit/admin)"
+        title={t('ops.finance.nav.applications')}
+        subtitle={t('ops.finance.schedulesSubtitle')}
       />
       {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
       {actionError && <p style={{ color: 'var(--blox-danger)' }}>{actionError}</p>}
       <OpsDataTable
-        columns={['Customer', 'Vehicle', 'Dealer', 'Status', '']}
-        empty={<OpsEmptyState title="Queue clear" body="No applications in servicing states." />}
-        rows={(data ?? []).map((a) => [
+        columns={[
+          t('ops.col.customer'),
+          t('ops.col.vehicle'),
+          t('ops.col.dealer'),
+          t('ops.col.status'),
+          '',
+        ]}
+        pagination={{
+          from,
+          to,
+          total,
+          onPrev: () => setPage((p) => Math.max(0, p - 1)),
+          onNext: () => setPage((p) => p + 1),
+        }}
+        empty={<OpsEmptyState title={t('ops.common.queueClear')} body={t('ops.common.noResults')} />}
+        rows={items.map((a) => [
           a.customer.name,
           `${a.product.make} ${a.product.model}`,
           a.company.name,
-          <OpsStatusPill key="s" label={a.status} variant={appVariant(a.status)} />,
+          <OpsStatusPill key="s" label={applicationStatus(a.status)} variant={applicationOpsPillVariant(a.status)} />,
           a.status === 'down_payment_required' ? (
             <button
               key="b"
               type="button"
               className="blox-btn blox-btn--primary"
               disabled={transition.isPending}
-              onClick={() => transition.mutate({ id: a.id, toStatus: 'down_payment_submitted' })}
+              onClick={() => {
+                const label = `${a.customer.name} · ${a.product.make} ${a.product.model}`;
+                if (!window.confirm(`Mark down payment received for ${label}?`)) return;
+                transition.mutate({ id: a.id, toStatus: 'down_payment_submitted' });
+              }}
             >
               Down payment received
             </button>
@@ -287,7 +342,15 @@ function ApplicationsPage() {
               type="button"
               className="blox-btn blox-btn--primary"
               disabled={transition.isPending}
-              onClick={() => transition.mutate({ id: a.id, toStatus: 'pending_finance_activation' })}
+              onClick={() => {
+                const label = `${a.customer.name} · ${a.product.make} ${a.product.model}`;
+                if (
+                  !window.confirm(`Confirm down payment and queue activation for ${label}?`)
+                ) {
+                  return;
+                }
+                transition.mutate({ id: a.id, toStatus: 'pending_finance_activation' });
+              }}
             >
               Confirm &amp; queue activation
             </button>
@@ -299,20 +362,30 @@ function ApplicationsPage() {
 }
 
 function App() {
-  const init = useAuthStore((s) => s.init);
-  useEffect(() => {
-    void init();
-  }, [init]);
+  const { t } = useOpsLabels();
+  const navItems = useMemo<BloxNavItem[]>(
+    () => [
+      { to: '/', label: t('ops.finance.nav.schedules'), icon: 'finance' },
+      { to: '/applications', label: t('ops.finance.nav.applications'), icon: 'apps' },
+    ],
+    [t],
+  );
+
   return (
     <Routes>
       <Route path="/auth/login" element={<LoginPage portalLabel="Blox Finance" homePath="/" />} />
       <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
       <Route
+        path="/auth/two-factor"
+        element={<TwoFactorLoginPage portalLabel="Blox Finance" homePath="/" />}
+      />
+      <Route path="/auth/mfa-setup" element={<MfaSetupPage portalLabel="Blox Finance" homePath="/" />} />
+      <Route
         path="/*"
         element={
           <AuthGuard allowedRole="finance_officer" reasonParam="not_finance">
-            <BloxShell title="Finance" nav={nav}>
+            <BloxShell title="Finance" nav={navItems}>
               <Routes>
                 <Route path="/" element={<SchedulesPage />} />
                 <Route path="/applications" element={<ApplicationsPage />} />
@@ -326,16 +399,4 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={bloxThemeWithBrand}>
-        <CssBaseline />
-        <BrowserRouter>
-          <ScrollToTop />
-          <App />
-        </BrowserRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
-  </StrictMode>,
-);
+mountPortalApp({ sentryApp: 'finance', authBootstrap: true, root: <App /> });

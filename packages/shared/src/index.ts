@@ -1,11 +1,24 @@
 export { brandTokens, brandMeta, cssVarNames } from './config/brand-tokens';
-export { dmTheme, dmThemeWithBrand } from './config/theme';
 export { bloxTokens, bloxMeta } from './config/blox-tokens';
-export { bloxTheme, bloxThemeWithBrand } from './config/blox-theme';
-export { applicationStatusStyles, listingStatusStyles } from './config/status-styles';
-export { apiFetch, ApiError, getApiBase } from './lib/api';
+export { applicationStatusStyles, listingStatusStyles, applicationStatusLabel, listingStatusLabel, applicationOpsPillVariant, applicationMarketplacePillVariant, listingOpsPillVariant, scheduleOpsPillVariant, type OpsPillVariant, type MarketplacePillVariant } from './config/status-styles';
+export { apiFetch, ApiError, getApiBase, assertApiBaseConfigured, registerUnauthorizedHandler, resetUnauthorizedLatch, DEFAULT_PAGE_SIZE, buildPaginationQuery, paginationWindow } from './lib/api';
+export { createQueryClient } from './lib/query-client';
+export { mountPortalApp, AuthBootstrap } from './lib/app-bootstrap';
 export { initAppSentry } from './lib/sentry';
 export { formatQar, formatPercent } from './lib/format';
+export {
+  buildInstallmentAmounts,
+  buildPricingSnapshot,
+  buildPrincipalAmounts,
+  estimateMonthlyPayment,
+  financedTotal,
+  principalAmountsFromPricingSnapshot,
+  principalCollectedFromInstallment,
+  sumInstallmentAmounts,
+  type MonthlyPaymentInput,
+  type PricingInput,
+  type PricingSnapshot,
+} from './lib/pricing';
 export {
   labelTransmission,
   labelDrivetrain,
@@ -14,9 +27,6 @@ export {
   formatCardFacets,
   hasWarranty,
 } from './lib/product-labels';
-export { default as i18n, setAppLocale, getAppLocale, applyDocumentLocale } from './i18n';
-export type { AppLocale } from './i18n';
-export { estimateMonthlyPayment } from './lib/calculator';
 export {
   calculateOwnershipTimeline,
   filterKeyMilestones,
@@ -24,6 +34,7 @@ export {
   type OwnershipMilestoneKind,
   type OwnershipScheduleInput,
   type OwnershipTimeline,
+  type PaymentLedgerEventInput,
 } from './lib/ownership';
 export type {
   UserRole,
@@ -38,6 +49,10 @@ export type {
   ProductCard,
   ProductDetail,
   ProductListResponse,
+  PaginatedResponse,
+  PublicCompanyListResponse,
+  ScheduleListResponse,
+  ScheduleSummary,
   ProductDetailResponse,
   PublicCompany,
   DmUser,
@@ -46,7 +61,16 @@ export type {
 export { NON_BLOCKING_APPLICATION_STATUSES } from './types/domain';
 export { useAuthStore, roleAllowed } from './auth/auth-store';
 export { AuthGuard, GuestGuard } from './auth/AuthGuard';
-export { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from './auth/LoginPage';
+export { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from './auth/LoginPage';
+export { TwoFactorLoginPage, MfaSetupPage, SecuritySettingsPanel } from './auth/MfaPages';
+export { isMfaRequiredRole, MFA_REQUIRED_ROLES } from './auth/privileged-roles';
+export {
+  PRODUCT_ANALYTICS_EVENTS,
+  sanitizeAnalyticsProps,
+  type ProductAnalyticsEvent,
+  type ProductAnalyticsProps,
+} from './analytics/events';
+export { trackProductEvent } from './analytics/track';
 export { MoneyText, MarketplaceTopNav, OpsShell } from './components/ui';
 export {
   OpsPageHeader,
@@ -59,7 +83,14 @@ export {
   OpsGhostButton,
 } from './components/ops-ui';
 export { ScrollToTop } from './components/ScrollToTop';
-export type { OpsPillVariant } from './components/ops-ui';
 export { BloxShell } from './components/BloxShell';
 export type { BloxNavItem } from './components/BloxShell';
 export { DocumentMeta } from './components/DocumentMeta';
+export {
+  getAppLocale,
+  setAppLocale,
+  applyDocumentLocale,
+  type AppLocale,
+} from './i18n';
+export { default as i18n } from './i18n';
+export { useOpsLabels } from './i18n/use-ops-labels';

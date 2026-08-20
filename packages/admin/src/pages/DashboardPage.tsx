@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
-import { apiFetch, bloxTokens } from '@drivemarket/shared';
+import { apiFetch, bloxTokens, SecuritySettingsPanel, useOpsLabels } from '@drivemarket/shared';
 import { PageHeader, StatCard } from '../components/ui';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -17,6 +17,7 @@ type Metrics = {
 };
 
 export function DashboardPage() {
+  const { t, applicationStatus } = useOpsLabels();
   const { data, error } = useQuery({
     queryKey: ['admin-metrics'],
     queryFn: () => apiFetch<Metrics>('/api/ops/metrics'),
@@ -34,7 +35,7 @@ export function DashboardPage() {
   const overdue = data?.schedules_overdue ?? 0;
 
   const chartData = {
-    labels: ['On track', 'Overdue'],
+    labels: [t('ops.admin.pendingOnSchedule'), t('ops.admin.overdue')],
     datasets: [
       {
         data: [settledOrOnTrack, overdue],
@@ -47,19 +48,27 @@ export function DashboardPage() {
 
   return (
     <div className="blox-page">
-      <PageHeader title="Dashboard" subtitle="Live platform overview" />
+      <PageHeader title={t('ops.admin.dashboardTitle')} subtitle={t('ops.admin.dashboardSubtitle')} />
       {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
 
       <div className="blox-stat-grid">
-        <StatCard label="Customers" value={String(data?.customers_total ?? '—')} delta={`${data?.users_total ?? 0} total users`} />
-        <StatCard label="Active dealers" value={String(data?.companies_active ?? '—')} />
-        <StatCard label="Published vehicles" value={String(data?.products_published ?? '—')} />
-        <StatCard label="Applications in review" value={String(inReview)} delta={`${active} active · ${completed} completed`} />
+        <StatCard
+          label={t('ops.admin.customers')}
+          value={String(data?.customers_total ?? '—')}
+          delta={t('ops.admin.totalUsers', { count: data?.users_total ?? 0 })}
+        />
+        <StatCard label={t('ops.admin.activeDealers')} value={String(data?.companies_active ?? '—')} />
+        <StatCard label={t('ops.admin.publishedVehicles')} value={String(data?.products_published ?? '—')} />
+        <StatCard
+          label={t('ops.admin.appsInReview')}
+          value={String(inReview)}
+          delta={t('ops.admin.activeCompleted', { active, completed })}
+        />
       </div>
 
       <div className="blox-chart-row">
         <section className="blox-panel">
-          <h2 className="blox-panel__title">Installments — on track vs overdue</h2>
+          <h2 className="blox-panel__title">{t('ops.admin.installmentsChart')}</h2>
           <div style={{ maxWidth: 280, margin: '0 auto' }}>
             <Doughnut
               data={chartData}
@@ -74,17 +83,17 @@ export function DashboardPage() {
           <div className="blox-chart-legend">
             <div className="blox-chart-legend__item">
               <span className="blox-chart-legend__dot" style={{ background: bloxTokens.emerald }} />
-              Pending on schedule — {settledOrOnTrack}
+              {t('ops.admin.pendingOnSchedule')} — {settledOrOnTrack}
             </div>
             <div className="blox-chart-legend__item">
               <span className="blox-chart-legend__dot" style={{ background: bloxTokens.slate }} />
-              Overdue — {overdue}
+              {t('ops.admin.overdue')} — {overdue}
             </div>
           </div>
         </section>
 
         <section className="blox-panel">
-          <h2 className="blox-panel__title">Applications by status</h2>
+          <h2 className="blox-panel__title">{t('ops.admin.appsByStatus')}</h2>
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {Object.entries(byStatus)
               .sort(([, a], [, b]) => b - a)
@@ -93,18 +102,19 @@ export function DashboardPage() {
                   key={status}
                   style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}
                 >
-                  <span style={{ color: 'var(--blox-slate)' }}>{status.replaceAll('_', ' ')}</span>
+                  <span style={{ color: 'var(--blox-slate)' }}>{applicationStatus(status)}</span>
                   <span className="blox-money">{count}</span>
                 </div>
               ))}
             {Object.keys(byStatus).length === 0 && (
               <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--blox-slate)' }}>
-                No applications yet.
+                {t('ops.admin.noAppsYet')}
               </p>
             )}
           </div>
         </section>
       </div>
+      <SecuritySettingsPanel />
     </div>
   );
 }

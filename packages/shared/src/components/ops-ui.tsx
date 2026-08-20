@@ -1,4 +1,8 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { OpsPillVariant } from '../config/status-styles';
+
+export type { OpsPillVariant };
 
 export function OpsPageHeader({
   title,
@@ -37,18 +41,6 @@ export function OpsStatCard({
     </article>
   );
 }
-
-export type OpsPillVariant =
-  | 'active'
-  | 'published'
-  | 'paid'
-  | 'approved'
-  | 'pending'
-  | 'draft'
-  | 'rejected'
-  | 'expired'
-  | 'reserved'
-  | 'sold';
 
 export function OpsStatusPill({ label, variant }: { label: string; variant: OpsPillVariant }) {
   return <span className={`blox-pill blox-pill--${variant}`}>{label}</span>;
@@ -128,9 +120,17 @@ export function OpsDataTable({
 }: {
   columns: string[];
   rows: ReactNode[][];
-  pagination?: { from: number; to: number; total: number };
+  pagination?: {
+    from: number;
+    to: number;
+    total: number;
+    onPrev?: () => void;
+    onNext?: () => void;
+  };
   empty?: ReactNode;
 }) {
+  const { t } = useTranslation();
+
   if (rows.length === 0 && empty) {
     return <>{empty}</>;
   }
@@ -145,14 +145,28 @@ export function OpsDataTable({
   const paginationBlock = pagination ? (
     <div className="blox-pagination">
       <span>
-        Showing {pagination.from}–{pagination.to} of {pagination.total}
+        {t('ops.pagination.showing', {
+          from: pagination.from,
+          to: pagination.to,
+          total: pagination.total,
+        })}
       </span>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button type="button" className="blox-btn blox-btn--ghost">
-          Previous
+        <button
+          type="button"
+          className="blox-btn blox-btn--ghost"
+          disabled={!pagination.onPrev || pagination.from <= 1}
+          onClick={pagination.onPrev}
+        >
+          {t('ops.pagination.previous')}
         </button>
-        <button type="button" className="blox-btn blox-btn--ghost">
-          Next
+        <button
+          type="button"
+          className="blox-btn blox-btn--ghost"
+          disabled={!pagination.onNext || pagination.to >= pagination.total}
+          onClick={pagination.onNext}
+        >
+          {t('ops.pagination.next')}
         </button>
       </div>
     </div>

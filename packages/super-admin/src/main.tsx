@@ -1,42 +1,32 @@
-import { StrictMode, useEffect, useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import {
-  QueryClient,
-  QueryClientProvider,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AuthGuard,
   LoginPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  TwoFactorLoginPage,
+  MfaSetupPage,
   BloxShell,
-  bloxThemeWithBrand,
   useAuthStore,
   apiFetch,
+  buildPaginationQuery,
+  paginationWindow,
   OpsPageHeader,
   OpsStatusPill,
   OpsDataTable,
   OpsStatCard,
   OpsEmptyState,
-  ScrollToTop,
   type BloxNavItem,
-  initAppSentry,
+  useOpsLabels,
+  mountPortalApp,
 } from '@drivemarket/shared';
-
-initAppSentry('ops');
-
-const queryClient = new QueryClient();
-const nav: BloxNavItem[] = [
-  { to: '/', label: 'Users', icon: 'users' },
-  { to: '/companies', label: 'Companies', icon: 'company' },
-  { to: '/activity-logs', label: 'Activity logs', icon: 'logs' },
-  { to: '/system', label: 'System', icon: 'system' },
-];
+import '@drivemarket/shared/styles/global.scss';
 
 type UserRow = {
   id: string;
@@ -58,15 +48,20 @@ const ASSIGNABLE_ROLES = [
 ];
 
 function UsersPage() {
+  const { t } = useOpsLabels();
   const qc = useQueryClient();
   const me = useAuthStore((s) => s.user);
   const [actionError, setActionError] = useState<string | null>(null);
   const [roleEdit, setRoleEdit] = useState<{ id: string; role: string } | null>(null);
+  const [page, setPage] = useState(0);
 
   const { data, error } = useQuery({
-    queryKey: ['sa-users'],
-    queryFn: () => apiFetch<UserRow[]>('/api/users'),
+    queryKey: ['sa-users', page],
+    queryFn: () =>
+      apiFetch<{ total: number; items: UserRow[] }>(`/api/users?${buildPaginationQuery(page)}`),
   });
+  const users = data?.items ?? [];
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
 
   const update = useMutation({
     mutationFn: (payload: { id: string; body: Record<string, unknown> }) =>
@@ -84,13 +79,20 @@ function UsersPage() {
 
   return (
     <div className="blox-page">
-      <OpsPageHeader title="Users & roles" subtitle="Suspend accounts and assign roles" />
+      <OpsPageHeader title={t('ops.superAdmin.usersTitle')} subtitle={t('ops.superAdmin.usersSubtitle')} />
       {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
       {actionError && <p style={{ color: 'var(--blox-danger)' }}>{actionError}</p>}
       <OpsDataTable
-        columns={['Email', 'Name', 'Role', 'Status', '']}
-        empty={<OpsEmptyState title="No users" body="" />}
-        rows={(data ?? []).map((u) => [
+        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), t('ops.col.status'), '']}
+        pagination={{
+          from,
+          to,
+          total,
+          onPrev: () => setPage((p) => Math.max(0, p - 1)),
+          onNext: () => setPage((p) => p + 1),
+        }}
+        empty={<OpsEmptyState title={t('ops.superAdmin.noUsers')} body="" />}
+        rows={users.map((u) => [
           u.email,
           u.name,
           roleEdit?.id === u.id ? (
@@ -110,9 +112,23 @@ function UsersPage() {
                 className="blox-btn blox-btn--primary"
                 style={{ padding: '2px 10px' }}
                 disabled={update.isPending}
-                onClick={() => update.mutate({ id: u.id, body: { role: roleEdit.role } })}
+                onClick={() => {
+                  const current = users.find((row) => row.id === u.id);
+                  if (
+                    !window.confirm(
+                      t('ops.superAdmin.roleChangeConfirm', {
+                        email: u.email,
+                        from: current?.role ?? u.role,
+                        to: roleEdit.role,
+                      }),
+                    )
+                  ) {
+                    return;
+                  }
+                  update.mutate({ id: u.id, body: { role: roleEdit.role } });
+                }}
               >
-                Save
+                {t('ops.common.save')}
               </button>
               <button
                 type="button"
@@ -120,7 +136,7 @@ function UsersPage() {
                 style={{ padding: '2px 10px' }}
                 onClick={() => setRoleEdit(null)}
               >
-                Cancel
+                {t('ops.common.cancel')}
               </button>
             </span>
           ) : (
@@ -133,14 +149,14 @@ function UsersPage() {
                   style={{ padding: '2px 8px', fontSize: '0.7rem' }}
                   onClick={() => setRoleEdit({ id: u.id, role: u.role })}
                 >
-                  Change
+                  {t('ops.common.change')}
                 </button>
               )}
             </span>
           ),
           <OpsStatusPill
             key="s"
-            label={u.isActive ? 'active' : 'suspended'}
+            label={u.isActive ? t('ops.superAdmin.active') : t('ops.superAdmin.suspended')}
             variant={u.isActive ? 'approved' : 'rejected'}
           />,
           u.id !== me?.id ? (
@@ -149,12 +165,24 @@ function UsersPage() {
               type="button"
               className={`blox-btn ${u.isActive ? 'blox-btn--danger' : 'blox-btn--primary'}`}
               disabled={update.isPending}
-              onClick={() => update.mutate({ id: u.id, body: { isActive: !u.isActive } })}
+              onClick={() => {
+                const action = u.isActive ? t('ops.common.suspend') : t('ops.common.reactivate');
+                if (
+                  !window.confirm(
+                    u.isActive
+                      ? t('ops.superAdmin.suspendConfirm', { email: u.email })
+                      : t('ops.superAdmin.reactivateConfirm', { email: u.email }),
+                  )
+                ) {
+                  return;
+                }
+                update.mutate({ id: u.id, body: { isActive: !u.isActive } });
+              }}
             >
-              {u.isActive ? 'Suspend' : 'Reactivate'}
+              {update.isPending ? t('ops.common.saving') : u.isActive ? t('ops.common.suspend') : t('ops.common.reactivate')}
             </button>
           ) : (
-            <span key="b" style={{ fontSize: '0.75rem', opacity: 0.6 }}>you</span>
+            <span key="b" style={{ fontSize: '0.75rem', opacity: 0.6 }}>{t('ops.common.you')}</span>
           ),
         ])}
       />
@@ -167,21 +195,25 @@ function CompaniesPage() {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const { data, error } = useQuery({
-    queryKey: ['sa-companies'],
+    queryKey: ['sa-companies', page],
     queryFn: () =>
-      apiFetch<
-        Array<{
+      apiFetch<{
+        total: number;
+        items: Array<{
           id: string;
           name: string;
           code: string | null;
           status: string;
           allowDirectActivate: boolean;
           canPay: boolean;
-        }>
-      >('/api/companies/all'),
+        }>;
+      }>(`/api/companies/all?${buildPaginationQuery(page)}`),
   });
+  const companies = data?.items ?? [];
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
 
   const updateCompany = useMutation({
     mutationFn: (payload: { id: string; body: Record<string, boolean> }) =>
@@ -235,8 +267,15 @@ function CompaniesPage() {
       </section>
       <OpsDataTable
         columns={['Name', 'Code', 'Status', 'Direct activate', 'SkipCash pay']}
+        pagination={{
+          from,
+          to,
+          total,
+          onPrev: () => setPage((p) => Math.max(0, p - 1)),
+          onNext: () => setPage((p) => p + 1),
+        }}
         empty={<OpsEmptyState title="No companies" body="" />}
-        rows={(data ?? []).map((c) => [
+        rows={companies.map((c) => [
           c.name,
           c.code ?? '—',
           <OpsStatusPill key="s" label={c.status} variant={c.status === 'active' ? 'approved' : 'draft'} />,
@@ -245,12 +284,19 @@ function CompaniesPage() {
             type="button"
             className="blox-btn blox-btn--ghost"
             disabled={updateCompany.isPending}
-            onClick={() =>
+            onClick={() => {
+              const next = !c.allowDirectActivate;
+              const action = next ? 'Enable' : 'Disable';
+              if (
+                !window.confirm(`${action} direct activate for ${c.name}${c.code ? ` (${c.code})` : ''}?`)
+              ) {
+                return;
+              }
               updateCompany.mutate({
                 id: c.id,
-                body: { allowDirectActivate: !c.allowDirectActivate },
-              })
-            }
+                body: { allowDirectActivate: next },
+              });
+            }}
           >
             {c.allowDirectActivate ? 'Enabled' : 'Off'}
           </button>,
@@ -259,12 +305,19 @@ function CompaniesPage() {
             type="button"
             className="blox-btn blox-btn--ghost"
             disabled={updateCompany.isPending}
-            onClick={() =>
+            onClick={() => {
+              const next = !c.canPay;
+              const action = next ? 'Enable' : 'Disable';
+              if (
+                !window.confirm(`${action} SkipCash pay for ${c.name}${c.code ? ` (${c.code})` : ''}?`)
+              ) {
+                return;
+              }
               updateCompany.mutate({
                 id: c.id,
-                body: { canPay: !c.canPay },
-              })
-            }
+                body: { canPay: next },
+              });
+            }}
           >
             {c.canPay ? 'Enabled' : 'Off'}
           </button>,
@@ -275,8 +328,9 @@ function CompaniesPage() {
 }
 
 function ActivityLogsPage() {
+  const [page, setPage] = useState(0);
   const { data, error } = useQuery({
-    queryKey: ['sa-logs'],
+    queryKey: ['sa-logs', page],
     queryFn: () =>
       apiFetch<{
         total: number;
@@ -290,14 +344,22 @@ function ActivityLogsPage() {
           to_value: string | null;
           created_at: string;
         }>;
-      }>('/api/ops/activity-logs?limit=100'),
+      }>(`/api/ops/activity-logs?${buildPaginationQuery(page)}`),
   });
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
   return (
     <div className="blox-page">
       <OpsPageHeader title="Activity logs" subtitle="Audit trail across ops actions" />
       {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
       <OpsDataTable
         columns={['When', 'Actor', 'Action', 'Entity', 'Change']}
+        pagination={{
+          from,
+          to,
+          total,
+          onPrev: () => setPage((p) => Math.max(0, p - 1)),
+          onNext: () => setPage((p) => p + 1),
+        }}
         empty={<OpsEmptyState title="No activity yet" body="Actions across the platform appear here." />}
         rows={(data?.items ?? []).map((l) => [
           new Date(l.created_at).toLocaleString(),
@@ -364,15 +426,30 @@ function SystemPage() {
 }
 
 function App() {
-  const init = useAuthStore((s) => s.init);
-  useEffect(() => {
-    void init();
-  }, [init]);
+  const { t } = useOpsLabels();
+  const nav = useMemo<BloxNavItem[]>(
+    () => [
+      { to: '/', label: t('ops.superAdmin.nav.users'), icon: 'users' },
+      { to: '/companies', label: t('ops.superAdmin.nav.companies'), icon: 'company' },
+      { to: '/activity-logs', label: t('ops.superAdmin.nav.activityLogs'), icon: 'logs' },
+      { to: '/system', label: t('ops.superAdmin.nav.system'), icon: 'system' },
+    ],
+    [t],
+  );
+
   return (
     <Routes>
       <Route path="/auth/login" element={<LoginPage portalLabel="Blox Super Admin" homePath="/" />} />
       <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+      <Route
+        path="/auth/two-factor"
+        element={<TwoFactorLoginPage portalLabel="Blox Super Admin" homePath="/" />}
+      />
+      <Route
+        path="/auth/mfa-setup"
+        element={<MfaSetupPage portalLabel="Blox Super Admin" homePath="/" />}
+      />
       <Route
         path="/*"
         element={
@@ -393,16 +470,4 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={bloxThemeWithBrand}>
-        <CssBaseline />
-        <BrowserRouter>
-          <ScrollToTop />
-          <App />
-        </BrowserRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
-  </StrictMode>,
-);
+mountPortalApp({ sentryApp: 'ops', authBootstrap: true, root: <App /> });

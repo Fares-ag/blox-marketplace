@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../auth/auth-store';
+import { getAppLocale, setAppLocale, type AppLocale } from '../i18n';
 import '../styles/blox-ops.scss';
 import { BloxLogo } from './BloxLogo';
 
@@ -107,6 +109,8 @@ export function BloxShell({ title, nav, children, homePaths = ['/'] }: BloxShell
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
+  const { t } = useTranslation();
+  const locale = getAppLocale();
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
@@ -138,13 +142,13 @@ export function BloxShell({ title, nav, children, homePaths = ['/'] }: BloxShell
         onClick={() => setNavOpen((v) => !v)}
       >
         <span className="blox-shell__menu-icon" aria-hidden />
-        Menu
+        {t('ops.shell.menu')}
       </button>
       {navOpen && (
         <button
           type="button"
           className="blox-shell__backdrop"
-          aria-label="Close menu"
+          aria-label={t('ops.shell.closeMenu')}
           onClick={() => setNavOpen(false)}
         />
       )}
@@ -173,12 +177,28 @@ export function BloxShell({ title, nav, children, homePaths = ['/'] }: BloxShell
           ))}
         </nav>
         <div className="blox-shell__user">
+          <div className="blox-shell__locale">
+            <button
+              type="button"
+              className={locale === 'en' ? 'is-active' : undefined}
+              onClick={() => setAppLocale('en' as AppLocale)}
+            >
+              {t('nav.localeEn')}
+            </button>
+            <button
+              type="button"
+              className={locale === 'ar' ? 'is-active' : undefined}
+              onClick={() => setAppLocale('ar' as AppLocale)}
+            >
+              {t('nav.localeAr')}
+            </button>
+          </div>
           <div className="blox-shell__user-meta">
             <span className="blox-shell__user-email">{user?.email ?? '—'}</span>
             {user?.role && <span className="blox-shell__role">{user.role.replace(/_/g, ' ')}</span>}
           </div>
           <button type="button" onClick={() => void signOut()}>
-            Sign out
+            {t('ops.shell.signOut')}
           </button>
         </div>
       </aside>

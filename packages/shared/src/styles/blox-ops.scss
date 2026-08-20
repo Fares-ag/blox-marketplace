@@ -266,6 +266,31 @@ $bp-content-ultra: 2560px;
     gap: 10px;
   }
 
+  &__locale {
+    display: inline-flex;
+    gap: 4px;
+    align-self: flex-start;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    padding: 2px;
+
+    button {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.85);
+      font-family: var(--blox-font-ui);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 999px;
+
+      &.is-active {
+        background: rgba(0, 207, 162, 0.35);
+        color: #fff;
+      }
+    }
+  }
+
   &__user-meta {
     display: flex;
     flex-direction: column;

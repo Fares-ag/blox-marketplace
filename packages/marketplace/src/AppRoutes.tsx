@@ -9,16 +9,21 @@ import {
   RegisterPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  VerifyEmailPage,
   MoneyText,
   DocumentMeta,
   apiFetch,
   bloxMeta,
-  estimateMonthlyPayment,
+  buildPricingSnapshot,
   formatQar,
   getAppLocale,
+  applicationMarketplacePillVariant,
+  applicationStatusLabel,
+  trackProductEvent,
   type ProductDetailResponse,
   type ProductListResponse,
   type PublicCompany,
+  type PublicCompanyListResponse,
 } from '@drivemarket/shared';
 import { ListingCard } from './components/ListingCard';
 import {
@@ -156,7 +161,7 @@ function VehiclesPage() {
 
   const dealers = useQuery({
     queryKey: ['companies-public'],
-    queryFn: () => apiFetch<PublicCompany[]>('/api/companies'),
+    queryFn: () => apiFetch<PublicCompanyListResponse>('/api/companies?limit=100'),
   });
 
   const { data, isLoading, error, isFetching } = useQuery({
@@ -209,10 +214,10 @@ function VehiclesPage() {
         </div>
       </div>
       <div className="blox-browse-layout">
-        <FacetPanel dealers={dealers.data ?? []} className="dm-facet-sidebar" />
+        <FacetPanel dealers={dealers.data?.items ?? []} className="dm-facet-sidebar" />
         <div>
           <div className="dm-browse-toolbar">
-            <FacetMobileTrigger dealers={dealers.data ?? []} open={facetOpen} onOpenChange={setFacetOpen} />
+            <FacetMobileTrigger dealers={dealers.data?.items ?? []} open={facetOpen} onOpenChange={setFacetOpen} />
             <label className="dm-browse-sort">
               <span>{t('vehicles.sort')}</span>
               <select value={browse.sort} onChange={(e) => onSortChange(e.target.value as BrowseSort)}>
@@ -314,13 +319,13 @@ function VehicleDetailPage() {
 
   const monthly = useMemo(() => {
     if (!product || !offer) return 0;
-    const down = (product.price * downPct) / 100;
-    return estimateMonthlyPayment({
-      price: product.price,
-      downPayment: down,
+    return buildPricingSnapshot({
+      listPrice: product.price,
       annualRatePercent: offer.annual_rent_rate,
+      minDownPaymentPct: Number(offer.min_down_payment_pct ?? 10),
       tenureMonths: tenure,
-    });
+      downPaymentPct: downPct,
+    }).monthly;
   }, [product, offer, downPct, tenure]);
 
   if (isLoading) return <p style={{ padding: 48 }}>{t('vehicles.loading')}</p>;
@@ -440,7 +445,7 @@ function DealersDirectoryPage() {
   const { t } = useTranslation();
   const { data, isLoading } = useQuery({
     queryKey: ['companies-public'],
-    queryFn: () => apiFetch<PublicCompany[]>('/api/companies'),
+    queryFn: () => apiFetch<PublicCompanyListResponse>('/api/companies?limit=100'),
   });
 
   return (
@@ -455,9 +460,9 @@ function DealersDirectoryPage() {
       </div>
       <div style={{ width: '100%', margin: 0, padding: '24px 32px', boxSizing: 'border-box' }}>
         {isLoading && <p>{t('vehicles.loading')}</p>}
-        {!isLoading && !data?.length && <p style={{ color: 'var(--dm-slate-600)' }}>{t('dealers.empty')}</p>}
+        {!isLoading && !data?.items?.length && <p style={{ color: 'var(--dm-slate-600)' }}>{t('dealers.empty')}</p>}
         <div style={{ display: 'grid', gap: 16 }}>
-          {data?.filter((d) => (d.published_count ?? 0) > 0).map((d) => (
+          {data?.items?.filter((d) => (d.published_count ?? 0) > 0).map((d) => (
             <Link
               key={d.id}
               to={d.code ? `/dealers/${d.code}` : '/vehicles'}
@@ -576,26 +581,34 @@ function ApplyWizardPage() {
 
   const monthlyPreview = useMemo(() => {
     if (!product || !offer) return 0;
-    const down = (product.price * downPct) / 100;
-    return estimateMonthlyPayment({
-      price: product.price,
-      downPayment: down,
+    return buildPricingSnapshot({
+      listPrice: product.price,
       annualRatePercent: offer.annual_rent_rate,
+      minDownPaymentPct: Number(offer.min_down_payment_pct ?? 10),
       tenureMonths: tenure,
-    });
+      downPaymentPct: downPct,
+    }).monthly;
   }, [product, offer, downPct, tenure]);
+
+  useEffect(() => {
+    if (!product?.id) return;
+    trackProductEvent('application_started', {
+      product_id: product.id,
+      company_id: product.company_id,
+      source: 'wizard_open',
+    });
+  }, [product?.id, product?.company_id]);
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (!product || !offer) throw new Error('listing_not_available');
       const minDown = Number(offer.min_down_payment_pct ?? 0);
-      const safeDownPct = Math.max(downPct, minDown);
-      const down = (product.price * safeDownPct) / 100;
-      const monthly = estimateMonthlyPayment({
-        price: product.price,
-        downPayment: down,
+      const pricingSnapshot = buildPricingSnapshot({
+        listPrice: product.price,
         annualRatePercent: offer.annual_rent_rate,
+        minDownPaymentPct: minDown,
         tenureMonths: tenure,
+        downPaymentPct: Math.max(downPct, minDown),
       });
       return apiFetch<{ id: string }>('/api/applications', {
         method: 'POST',
@@ -610,14 +623,7 @@ function ApplyWizardPage() {
             employment,
             income: Number(income) || 0,
           },
-          pricingSnapshot: {
-            list_price: product.price,
-            down_payment: down,
-            down_payment_pct: safeDownPct,
-            tenor: tenure,
-            rate: offer.annual_rent_rate,
-            monthly: Math.round(monthly),
-          },
+          pricingSnapshot,
         }),
       });
     },
@@ -628,7 +634,7 @@ function ApplyWizardPage() {
     onError: (e: Error) => {
       const msg = e.message;
       if (msg.includes('blocking_application') || msg.includes('409')) {
-        setError('You already have an active application. Finish or withdraw it before applying again.');
+        setError(t('application.blockingApplication'));
         return;
       }
       setError(msg);
@@ -697,26 +703,30 @@ function ApplyWizardPage() {
             </label>
             <p style={{ margin: 0, fontSize: 14 }}>
               {t('detail.estMonthly')}:{' '}
-              <MoneyText>{formatQar(Math.round(monthlyPreview), true, locale)}</MoneyText>
+              <MoneyText>{formatQar(monthlyPreview, true, locale)}</MoneyText>
             </p>
           </div>
         )}
         <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12, marginTop: 24 }}>
-          {(['Full name', 'Phone', 'QID', 'Employment', 'Monthly income (QAR)'] as const).map((label, i) => {
-            const setters = [setFullName, setPhone, setQid, setEmployment, setIncome];
-            const values = [fullName, phone, qid, employment, income];
-            return (
-              <label key={label} style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
-                {label}
-                <input
-                  required={i < 3}
-                  value={values[i]}
-                  onChange={(e) => setters[i](e.target.value)}
-                  style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)' }}
-                />
-              </label>
-            );
-          })}
+          {(
+            [
+              { labelKey: 'apply.fullName', value: fullName, setter: setFullName, required: true },
+              { labelKey: 'apply.phone', value: phone, setter: setPhone, required: true },
+              { labelKey: 'apply.qid', value: qid, setter: setQid, required: true },
+              { labelKey: 'apply.employment', value: employment, setter: setEmployment, required: false },
+              { labelKey: 'apply.monthlyIncome', value: income, setter: setIncome, required: false },
+            ] as const
+          ).map(({ labelKey, value, setter, required }) => (
+            <label key={labelKey} style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
+              {t(labelKey)}
+              <input
+                required={required}
+                value={value}
+                onChange={(e) => setter(e.target.value)}
+                style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)' }}
+              />
+            </label>
+          ))}
           {error && <p style={{ color: 'var(--dm-danger)' }}>{error}</p>}
           <button type="submit" className="dm-btn-cta" disabled={mutation.isPending}>
             {mutation.isPending ? t('vehicles.loading') : t('detail.apply')}
@@ -733,21 +743,17 @@ function ApplicationsListPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['my-apps'],
     queryFn: () =>
-      apiFetch<
-        Array<{
+      apiFetch<{
+        total: number;
+        items: Array<{
           id: string;
           status: string;
           createdAt: string;
           product: { make: string; model: string; modelYear: number; slug: string };
-        }>
-      >('/api/applications/mine'),
+        }>;
+      }>('/api/applications/mine?limit=100'),
   });
-
-  function statusVariant(status: string) {
-    if (status === 'active' || status === 'completed') return 'approved';
-    if (status === 'rejected' || status === 'submission_cancelled') return 'rejected';
-    return 'pending';
-  }
+  const apps = data?.items ?? [];
 
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
@@ -757,14 +763,14 @@ function ApplicationsListPage() {
       <div style={{ padding: 32, maxWidth: 800, margin: '0 auto' }}>
         <h1 style={{ fontFamily: 'var(--dm-font-display)' }}>{t('application.title')}</h1>
         {isLoading && <p>{t('vehicles.loading')}</p>}
-        {!isLoading && !data?.length && (
+        {!isLoading && !apps.length && (
           <p style={{ color: 'var(--dm-slate-600)' }}>
             {t('application.empty')}{' '}
             <Link to="/vehicles">{t('application.browse')}</Link>
           </p>
         )}
         <ul className="dm-app-list" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
-          {data?.map((a) => (
+          {apps.map((a) => (
             <li key={a.id}>
               <Link to={`/app/applications/${a.id}`} className="dm-app-list__item">
                 <div>
@@ -776,8 +782,8 @@ function ApplicationsListPage() {
                     {new Date(a.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-QA' : 'en-QA')}
                   </div>
                 </div>
-                <span className={`dm-status-pill dm-status-pill--${statusVariant(a.status)}`}>
-                  {t(`application.status.${a.status}`, { defaultValue: a.status })}
+                <span className={`dm-status-pill dm-status-pill--${applicationMarketplacePillVariant(a.status)}`}>
+                  {t(`application.status.${a.status}`, { defaultValue: applicationStatusLabel(a.status) })}
                 </span>
               </Link>
             </li>
@@ -835,9 +841,9 @@ function QuoteRedeemPage() {
       <div className="dm-home">
         <MarketplaceNav />
         <div style={{ padding: 32, maxWidth: 640, margin: '0 auto' }}>
-          <h1>Quote unavailable</h1>
-          <p>This special price link is expired, used, or not assigned to your account.</p>
-          <Link to="/vehicles">Browse vehicles</Link>
+          <h1>{t('quote.unavailableTitle')}</h1>
+          <p>{t('quote.unavailableBody')}</p>
+          <Link to="/vehicles">{t('quote.browse')}</Link>
         </div>
       </div>
     );
@@ -848,13 +854,13 @@ function QuoteRedeemPage() {
     <div className="dm-home">
       <MarketplaceNav />
       <div style={{ padding: 32, maxWidth: 640, margin: '0 auto' }}>
-        <h1>Special price for you</h1>
+        <h1>{t('quote.title')}</h1>
         <p>
           {product.make} {product.model} {product.modelYear ?? ''}
         </p>
         {data.negotiatedPrice != null && (
           <p>
-            Negotiated price: <MoneyText>{formatQar(data.negotiatedPrice, false, getAppLocale())}</MoneyText>
+            {t('quote.negotiatedPrice')}: <MoneyText>{formatQar(data.negotiatedPrice, false, getAppLocale())}</MoneyText>
           </p>
         )}
         <Link
@@ -862,7 +868,7 @@ function QuoteRedeemPage() {
           to={`/app/applications/new?product=${product.slug}&quote=${token}`}
           style={{ display: 'inline-block', marginTop: 16 }}
         >
-          Continue to apply
+          {t('quote.continueApply')}
         </Link>
       </div>
     </div>
@@ -941,11 +947,15 @@ export function AppRoutes() {
       />
       <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/app/dashboard" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><CustomerDashboardPage /></AuthGuard>} />
-      <Route path="/app/notifications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><NotificationsPage /></AuthGuard>} />
-      <Route path="/app/applications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><ApplicationsListPage /></AuthGuard>} />
-      <Route path="/app/applications/new" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><ApplyWizardPage /></AuthGuard>} />
-      <Route path="/app/applications/:id" element={<AuthGuard allowedRole="customer" reasonParam="not_customer"><ApplicationDetailPage /></AuthGuard>} />
+      <Route
+        path="/auth/verify-email"
+        element={<VerifyEmailPage portalLabel="Customer marketplace" homePath="/app/dashboard" />}
+      />
+      <Route path="/app/dashboard" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><CustomerDashboardPage /></AuthGuard>} />
+      <Route path="/app/notifications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><NotificationsPage /></AuthGuard>} />
+      <Route path="/app/applications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplicationsListPage /></AuthGuard>} />
+      <Route path="/app/applications/new" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplyWizardPage /></AuthGuard>} />
+      <Route path="/app/applications/:id" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplicationDetailPage /></AuthGuard>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

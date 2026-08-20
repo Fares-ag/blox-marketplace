@@ -1,33 +1,26 @@
-import { StrictMode, useEffect, useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes, Link, useParams } from 'react-router-dom';
-import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { useEffect, useMemo, useState } from 'react';
+import { Navigate, Route, Routes, Link, useParams } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AuthGuard,
   LoginPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  TwoFactorLoginPage,
+  MfaSetupPage,
   BloxShell,
-  bloxThemeWithBrand,
-  useAuthStore,
   apiFetch,
+  buildPaginationQuery,
+  paginationWindow,
   getApiBase,
-  ScrollToTop,
-  initAppSentry,
+  applicationOpsPillVariant,
+  useOpsLabels,
+  mountPortalApp,
+  type BloxNavItem,
 } from '@drivemarket/shared';
+import '@drivemarket/shared/styles/global.scss';
 
-initAppSentry('credit');
-
-const queryClient = new QueryClient();
-const nav = [
-  { to: '/', label: 'Queue', icon: 'queue' as const },
-  { to: '/applications', label: 'Applications', icon: 'apps' as const },
-  { to: '/zoho-failures', label: 'Zoho failures', icon: 'logs' as const },
-];
-
-type AppDetail = {
-  id: string;
+type AppDetail = {  id: string;
   status: string;
   customerSnapshot?: Record<string, unknown>;
   pricingSnapshot?: Record<string, unknown>;
@@ -35,79 +28,202 @@ type AppDetail = {
   resubmissionComment?: string | null;
   product?: { make: string; model: string; modelYear?: number };
   company?: { name: string };
-  customer?: { name: string; email: string };
+  customer?: { name: string; email: string; phone?: string | null };
+  offer?: { name: string; annualRentRate?: number | string };
   documents?: Array<{ id: string; category: string; createdAt: string }>;
 };
 
-function statusVariant(status: string) {
-  if (status === 'active' || status === 'completed') return 'approved';
-  if (status === 'rejected') return 'rejected';
-  if (status === 'resubmission_required') return 'pending';
-  return 'pending';
+function snapshotText(value: unknown): string {
+  if (value == null || value === '') return '—';
+  return String(value);
+}
+
+function snapshotMoney(value: unknown): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '—';
+  return `QAR ${amount.toLocaleString()}`;
+}
+
+function snapshotPercent(value: unknown): string {
+  const rate = Number(value);
+  if (!Number.isFinite(rate)) return '—';
+  return `${rate}%`;
+}
+
+function snapshotTenure(pricing: Record<string, unknown>): string {
+  const months = Number(pricing.tenor ?? pricing.tenure);
+  if (!Number.isFinite(months) || months <= 0) return '—';
+  return `${months} months`;
+}
+
+function ApplicantPlanSection({ data }: { data: AppDetail }) {
+  const { t } = useOpsLabels();
+  const customer = data.customerSnapshot ?? {};
+  const pricing = data.pricingSnapshot ?? {};
+  const rowStyle = { display: 'grid', gridTemplateColumns: '9rem 1fr', gap: 8, fontSize: '0.875rem' } as const;
+  const labelStyle = { color: 'var(--blox-muted, #5b6b73)', fontWeight: 600 } as const;
+
+  return (
+    <section className="blox-panel">
+      <h2 className="blox-panel__title">{t('ops.credit.applicantPlan')}</h2>      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: '20px 32px',
+        }}
+      >
+        <div>
+          <h3 style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.75 }}>
+            {t('ops.credit.applicant')}
+          </h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.fullName')}</span>              <span>{snapshotText(customer.full_name ?? data.customer?.name)}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.phone')}</span>
+              <span>{snapshotText(customer.phone ?? data.customer?.phone)}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.qid')}</span>
+              <span>{snapshotText(customer.qid)}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.employment')}</span>
+              <span>{snapshotText(customer.employment)}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.statedIncome')}</span>              <span>{snapshotMoney(customer.income)}</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3 style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.75 }}>
+            {t('ops.credit.planTerms')}
+          </h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.vehiclePrice')}</span>
+              <span>{snapshotMoney(pricing.list_price)}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.offer')}</span>
+              <span>{snapshotText(data.offer?.name)}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.annualRate')}</span>
+              <span>{snapshotPercent(pricing.rate ?? data.offer?.annualRentRate)}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.tenure')}</span>
+              <span>{snapshotTenure(pricing)}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.downPayment')}</span>              <span>
+                {snapshotMoney(pricing.down_payment)}
+                {Number.isFinite(Number(pricing.down_payment_pct))
+                  ? ` (${Number(pricing.down_payment_pct)}%)`
+                  : ''}
+              </span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.credit.monthlyInstallment')}</span>              <span className="blox-money">{snapshotMoney(pricing.monthly)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function Queue() {
-  const { data, error } = useQuery({
-    queryKey: ['ops-apps'],
+  const { t, applicationStatus, pagination: pagLabel } = useOpsLabels();
+  const [page, setPage] = useState(0);  const { data, error } = useQuery({
+    queryKey: ['ops-apps', page],
     queryFn: () =>
-      apiFetch<
-        Array<{
+      apiFetch<{
+        total: number;
+        items: Array<{
           id: string;
           status: string;
           customer: { name: string; email: string };
           product: { make: string; model: string };
           company: { name: string };
-        }>
-      >('/api/ops/applications'),
+        }>;
+      }>(`/api/ops/applications?${buildPaginationQuery(page)}`),
   });
+  const items = data?.items ?? [];
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
   return (
     <div className="blox-page">
       <header className="blox-page-header">
         <div>
-          <h1>Credit queue</h1>
-          <p className="blox-page-header__subtitle">Applications awaiting underwriting review</p>
+          <h1>{t('ops.credit.queueTitle')}</h1>
+          <p className="blox-page-header__subtitle">{t('ops.credit.queueSubtitle')}</p>
         </div>
       </header>
       {error && <p style={{ color: '#b42318' }}>{(error as Error).message}</p>}
-      {!data?.length ? (
-        <p className="blox-empty">Queue clear.</p>
+      {!items.length ? (
+        <p className="blox-empty">{t('ops.common.queueClear')}</p>
       ) : (
-        <div className="blox-table-wrap">
-          <table className="blox-table">
-            <thead>
-              <tr>
-                <th>Vehicle</th>
-                <th>Customer</th>
-                <th>Dealer</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    <Link to={`/applications/${a.id}`}>
-                      {a.product.make} {a.product.model}
-                    </Link>
-                  </td>
-                  <td>{a.customer.name}</td>
-                  <td>{a.company.name}</td>
-                  <td>
-                    <span className={`blox-pill blox-pill--${statusVariant(a.status)}`}>{a.status}</span>
-                  </td>
+        <>
+          <div className="blox-table-wrap">
+            <table className="blox-table">
+              <thead>
+                <tr>
+                  <th>{t('ops.col.vehicle')}</th>
+                  <th>{t('ops.col.customer')}</th>
+                  <th>{t('ops.col.dealer')}</th>
+                  <th>{t('ops.col.status')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+              </thead>
+              <tbody>
+                {items.map((a) => (
+                  <tr key={a.id}>
+                    <td>
+                      <Link to={`/applications/${a.id}`}>
+                        {a.product.make} {a.product.model}
+                      </Link>
+                    </td>
+                    <td>{a.customer.name}</td>
+                    <td>{a.company.name}</td>
+                    <td>
+                      <span className={`blox-pill blox-pill--${applicationOpsPillVariant(a.status)}`}>{applicationStatus(a.status)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="blox-pagination" style={{ marginTop: 12 }}>
+            <span>{pagLabel(from, to, total)}</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost"
+                disabled={from <= 1}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                {t('ops.pagination.previous')}
+              </button>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost"
+                disabled={to >= total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                {t('ops.pagination.next')}
+              </button>
+            </div>
+          </div>
+        </>
+      )}    </div>
   );
 }
 
 function Detail() {
-  const { id } = useParams();
-  const qc = useQueryClient();
+  const { t, applicationStatus } = useOpsLabels();
+  const { id } = useParams();  const qc = useQueryClient();
   const [reason, setReason] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const { data } = useQuery({
@@ -149,19 +265,23 @@ function Detail() {
   });
 
   const status = data?.status ?? '';
+  const busy = transition.isPending || approveContract.isPending || activate.isPending;
+  const detailLabel = data
+    ? `${data.product?.make} ${data.product?.model} · ${data.customer?.name}`
+    : '';
 
   return (
     <div className="blox-page">
       <header className="blox-page-header">
         <div>
-          <h1>Application review</h1>
+          <h1>{t('ops.credit.reviewTitle')}</h1>
           <p className="blox-page-header__subtitle">
             {data?.product?.make} {data?.product?.model} · {data?.customer?.name}
           </p>
         </div>
         <div className="blox-page-header__actions">
           <Link className="blox-btn blox-btn--ghost" to="/">
-            Back to queue
+            {t('ops.common.backToQueue')}
           </Link>
         </div>
       </header>
@@ -169,17 +289,19 @@ function Detail() {
       {data && (
         <>
           <section className="blox-panel">
-            <h2 className="blox-panel__title">Summary</h2>
+            <h2 className="blox-panel__title">{t('ops.credit.summary')}</h2>
             <p>
-              Status: <span className={`blox-pill blox-pill--${statusVariant(status)}`}>{status}</span>
+              {t('ops.credit.summaryStatus')}:{' '}
+              <span className={`blox-pill blox-pill--${applicationOpsPillVariant(status)}`}>{applicationStatus(status)}</span>
             </p>
-            <p>Dealer: {data.company?.name}</p>
-            <p>Customer email: {data.customer?.email}</p>
+            <p>{t('ops.credit.summaryDealer')}: {data.company?.name}</p>
+            <p>{t('ops.credit.summaryCustomerEmail')}: {data.customer?.email}</p>
           </section>
+          <ApplicantPlanSection data={data} />
 
           {(data.documents?.length ?? 0) > 0 && (
             <section className="blox-panel">
-              <h2 className="blox-panel__title">KYC documents</h2>
+              <h2 className="blox-panel__title">{t('ops.credit.kycDocuments')}</h2>
               <ul>
                 {data.documents!.map((doc) => (
                   <li key={doc.id}>
@@ -189,7 +311,7 @@ function Detail() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      View
+                      {t('ops.common.view')}
                     </a>
                   </li>
                 ))}
@@ -198,30 +320,30 @@ function Detail() {
           )}
 
           <section className="blox-panel" style={{ maxWidth: 560 }}>
-            <h2 className="blox-panel__title">Actions</h2>
+            <h2 className="blox-panel__title">{t('ops.credit.actions')}</h2>
             {actionError && <p style={{ color: '#b42318' }}>{actionError}</p>}
             <label style={{ display: 'grid', gap: 6, fontSize: '0.875rem', fontWeight: 600 }}>
-              Reason (required for reject / resubmission)
+              {t('ops.credit.reasonForReject')}
               <input value={reason} onChange={(e) => setReason(e.target.value)} />
-            </label>
-            <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
+            </label>            <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
               {status === 'under_review' && (
                 <button
                   type="button"
                   className="blox-btn blox-btn--primary"
-                  disabled={approveContract.isPending}
+                  disabled={busy}
                   onClick={() => approveContract.mutate()}
                 >
-                  Approve & send contract
+                  {approveContract.isPending ? t('ops.common.sending') : t('ops.credit.approveSendContract')}
                 </button>
               )}
               {status === 'contracts_submitted' && (
                 <button
                   type="button"
                   className="blox-btn blox-btn--secondary"
+                  disabled={busy}
                   onClick={() => transition.mutate('contract_under_review')}
                 >
-                  Start contract review
+                  {t('ops.credit.startContractReview')}
                 </button>
               )}
               {status === 'contract_under_review' && (
@@ -229,16 +351,18 @@ function Detail() {
                   <button
                     type="button"
                     className="blox-btn blox-btn--secondary"
+                    disabled={busy}
                     onClick={() => transition.mutate('pending_finance_activation')}
                   >
-                    Approve contract
+                    {t('ops.credit.approveContract')}
                   </button>
                   <button
                     type="button"
                     className="blox-btn blox-btn--ghost"
+                    disabled={busy}
                     onClick={() => transition.mutate('down_payment_required')}
                   >
-                    Require down payment
+                    {t('ops.credit.requireDownPayment')}
                   </button>
                 </>
               )}
@@ -246,20 +370,26 @@ function Detail() {
                 <button
                   type="button"
                   className="blox-btn blox-btn--primary"
-                  disabled={activate.isPending}
-                  onClick={() => activate.mutate(false)}
+                  disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm(t('ops.credit.activateConfirm', { label: detailLabel }))) return;
+                    activate.mutate(false);
+                  }}
                 >
-                  Activate financing
+                  {activate.isPending ? t('ops.common.activating') : t('ops.credit.activateFinancing')}
                 </button>
               )}
               {status === 'under_review' && (
                 <button
                   type="button"
                   className="blox-btn blox-btn--ghost"
-                  disabled={activate.isPending}
-                  onClick={() => activate.mutate(true)}
+                  disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm(t('ops.credit.directActivateConfirm', { label: detailLabel }))) return;
+                    activate.mutate(true);
+                  }}
                 >
-                  Direct activate
+                  {activate.isPending ? t('ops.common.activating') : t('ops.credit.directActivate')}
                 </button>
               )}
               {['under_review', 'resubmission_required', 'contract_signing_required'].includes(status) && (
@@ -267,20 +397,24 @@ function Detail() {
                   <button
                     type="button"
                     className="blox-btn blox-btn--secondary"
+                    disabled={busy}
                     onClick={() => transition.mutate('resubmission_required')}
                   >
-                    Request resubmission
+                    {t('ops.credit.requestResubmission')}
                   </button>
                   <button
                     type="button"
                     className="blox-btn blox-btn--danger"
-                    onClick={() => transition.mutate('rejected')}
+                    disabled={busy}
+                    onClick={() => {
+                      if (!window.confirm(t('ops.credit.rejectConfirm', { label: detailLabel }))) return;
+                      transition.mutate('rejected');
+                    }}
                   >
-                    Reject
+                    {t('ops.common.reject')}
                   </button>
                 </>
-              )}
-            </div>
+              )}            </div>
           </section>
         </>
       )}
@@ -289,8 +423,8 @@ function Detail() {
 }
 
 function ZohoFailuresPage() {
-  const { data, error } = useQuery({
-    queryKey: ['zoho-failures'],
+  const { t, applicationStatus } = useOpsLabels();
+  const { data, error } = useQuery({    queryKey: ['zoho-failures'],
     queryFn: () =>
       apiFetch<
         Array<{
@@ -307,22 +441,22 @@ function ZohoFailuresPage() {
     <div className="blox-page">
       <header className="blox-page-header">
         <div>
-          <h1>Zoho sync failures</h1>
-          <p className="blox-page-header__subtitle">Applications that failed CRM export</p>
+          <h1>{t('ops.credit.zohoTitle')}</h1>
+          <p className="blox-page-header__subtitle">{t('ops.credit.zohoSubtitle')}</p>
         </div>
       </header>
       {error && <p style={{ color: '#b42318' }}>{(error as Error).message}</p>}
       {!data?.length ? (
-        <p className="blox-empty">No CRM failures.</p>
+        <p className="blox-empty">{t('ops.credit.zohoEmpty')}</p>
       ) : (
         <div className="blox-table-wrap">
           <table className="blox-table">
             <thead>
               <tr>
-                <th>Application</th>
-                <th>Customer</th>
-                <th>Status</th>
-                <th>Error</th>
+                <th>{t('ops.col.application')}</th>
+                <th>{t('ops.col.customer')}</th>
+                <th>{t('ops.col.status')}</th>
+                <th>{t('ops.col.error')}</th>
               </tr>
             </thead>
             <tbody>
@@ -332,28 +466,37 @@ function ZohoFailuresPage() {
                     <Link to={`/applications/${row.application_id}`}>{row.application_id.slice(0, 8)}…</Link>
                   </td>
                   <td>{row.customer_email}</td>
-                  <td>{row.status}</td>
+                  <td>{applicationStatus(row.status)}</td>
                   <td>{row.error ?? row.reason}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
-    </div>
+      )}    </div>
   );
 }
 
 function App() {
-  const init = useAuthStore((s) => s.init);
-  useEffect(() => {
-    void init();
-  }, [init]);
-  return (
-    <Routes>
+  const { t } = useOpsLabels();
+  const nav = useMemo<BloxNavItem[]>(
+    () => [
+      { to: '/', label: t('ops.credit.nav.queue'), icon: 'queue' },
+      { to: '/applications', label: t('ops.credit.nav.applications'), icon: 'apps' },
+      { to: '/zoho-failures', label: t('ops.credit.nav.zohoFailures'), icon: 'logs' },
+    ],
+    [t],
+  );
+
+  return (    <Routes>
       <Route path="/auth/login" element={<LoginPage portalLabel="Blox Credit" homePath="/" />} />
       <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+      <Route
+        path="/auth/two-factor"
+        element={<TwoFactorLoginPage portalLabel="Blox Credit" homePath="/" />}
+      />
+      <Route path="/auth/mfa-setup" element={<MfaSetupPage portalLabel="Blox Credit" homePath="/" />} />
       <Route
         path="/*"
         element={
@@ -374,16 +517,4 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={bloxThemeWithBrand}>
-        <CssBaseline />
-        <BrowserRouter>
-          <ScrollToTop />
-          <App />
-        </BrowserRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
-  </StrictMode>,
-);
+mountPortalApp({ sentryApp: 'credit', authBootstrap: true, root: <App /> });

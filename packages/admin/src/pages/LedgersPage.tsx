@@ -1,20 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, OpsEmptyState } from '@drivemarket/shared';
-import { DataTable, PageHeader, StatusPill, type PillVariant } from '../components/ui';
-
-function scheduleVariant(status: string): PillVariant {
-  if (status === 'paid') return 'approved';
-  if (status === 'overdue') return 'rejected';
-  if (status === 'waived') return 'draft';
-  return 'pending';
-}
+import {
+  apiFetch,
+  OpsEmptyState,
+  buildPaginationQuery,
+  paginationWindow,
+  scheduleOpsPillVariant,
+} from '@drivemarket/shared';
+import { DataTable, PageHeader, StatusPill } from '../components/ui';
 
 /** Real installment ledger (replaces the former mocked transactions view). */
 export function LedgersPage() {
   const [status, setStatus] = useState('');
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    setPage(0);
+  }, [status]);
   const { data, error } = useQuery({
-    queryKey: ['admin-schedules', status],
+    queryKey: ['admin-schedules', status, page],
     queryFn: () =>
       apiFetch<{
         total: number;
@@ -32,8 +35,9 @@ export function LedgersPage() {
           effective_status: string;
           payment_reference: string | null;
         }>;
-      }>(`/api/ops/payment-schedules?limit=100${status ? `&status=${status}` : ''}`),
+      }>(`/api/ops/payment-schedules?${buildPaginationQuery(page)}${status ? `&status=${status}` : ''}`),
   });
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
 
   return (
     <div className="blox-page">
@@ -53,6 +57,13 @@ export function LedgersPage() {
       </div>
       <DataTable
         columns={['Customer', 'Vehicle', 'Dealer', 'Seq', 'Due', 'Amount', 'Status', 'Reference']}
+        pagination={{
+          from,
+          to,
+          total,
+          onPrev: () => setPage((p) => Math.max(0, p - 1)),
+          onNext: () => setPage((p) => p + 1),
+        }}
         empty={
           <OpsEmptyState
             title="No installments"
@@ -66,7 +77,7 @@ export function LedgersPage() {
           String(r.sequence),
           r.due_date,
           <span key="a" className="blox-money">QAR {r.amount.toLocaleString()}</span>,
-          <StatusPill key="s" label={r.effective_status} variant={scheduleVariant(r.effective_status)} />,
+          <StatusPill key="s" label={r.effective_status} variant={scheduleOpsPillVariant(r.effective_status)} />,
           r.payment_reference ?? '—',
         ])}
       />
