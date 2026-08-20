@@ -10,7 +10,7 @@
     "./pricing": {
       "types": "./src/lib/pricing.ts",
       "import": "./src/lib/pricing.ts",
-      "require": "./dist/lib/pricing.js",
+      "require": "./dist/lib/pricing.cjs",
       "default": "./src/lib/pricing.ts"
     },
     "./styles/global.scss": "./src/styles/global.scss",
@@ -21,7 +21,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build:pricing": "tsc -p tsconfig.pricing.json",
+    "build:pricing": "tsc -p tsconfig.pricing.json && node -e \"require('node:fs').renameSync('dist/lib/pricing.js','dist/lib/pricing.cjs')\"",
     "test": "vitest run",
     "lint": "eslint ."
   },
