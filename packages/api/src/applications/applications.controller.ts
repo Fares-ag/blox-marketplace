@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -11,15 +13,22 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
-import { IsBoolean, IsDateString, IsEnum, IsNumber, IsObject, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsIn, IsNumber, IsObject, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Response } from 'express';
 import { CurrentUser, Roles } from '../auth/guards';
 import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
+import { IDEMPOTENCY_KEY_HEADER, IDEMPOTENCY_SCOPES } from '../common/idempotency.constants';
+import { IdempotencyService } from '../common/idempotency.service';
 import { multerUploadOptions } from '../common/multer-options';
 import { ComplianceService } from '../compliance/compliance.service';
 import { ApplicationsService } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
+import {
+  REQUIRED_APPLICATION_DOC_CATEGORIES,
+  type RequiredDocCategory,
+} from './application-documents';
+import { PaginationQueryDto } from '../common/pagination.dto';
 
 class CustomerSnapshotDto {
   @IsString() full_name!: string;
@@ -57,12 +66,22 @@ class RecordDownPaymentDto {
   @IsOptional() @IsDateString() paidAt?: string;
 }
 
+class CancelApplicationDto {
+  @IsOptional() @IsString() reason?: string;
+}
+
+class UploadDocumentDto {
+  @IsIn(REQUIRED_APPLICATION_DOC_CATEGORIES)
+  category!: RequiredDocCategory;
+}
+
 @Controller()
 export class ApplicationsController {
   constructor(
     private readonly apps: ApplicationsService,
     private readonly lifecycle: ApplicationsLifecycleService,
     private readonly compliance: ComplianceService,
+    private readonly idempotency: IdempotencyService,
   ) {}
 
   @Roles(UserRole.customer)
@@ -73,21 +92,23 @@ export class ApplicationsController {
 
   @Roles(UserRole.customer)
   @Get('applications/mine')
-  mine(
-    @CurrentUser() user: User,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-  ) {
-    return this.apps.listMine(user, {
-      limit: limit != null ? Number(limit) : undefined,
-      offset: offset != null ? Number(offset) : undefined,
-    });
+  mine(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+    return this.apps.listMine(user, query);
   }
 
   @Roles(UserRole.customer)
   @Post('applications')
-  create(@CurrentUser() user: User, @Body() dto: CreateApplicationDto) {
-    return this.apps.create(user, dto);
+  create(
+    @CurrentUser() user: User,
+    @Body() dto: CreateApplicationDto,
+    @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
+  ) {
+    return this.idempotency.run({
+      userId: user.id,
+      scope: IDEMPOTENCY_SCOPES.applicationCreate,
+      idempotencyKey,
+      handler: () => this.apps.create(user, dto),
+    });
   }
 
   @Get('applications/:id')
@@ -96,25 +117,28 @@ export class ApplicationsController {
   }
 
   @Roles(UserRole.customer)
+  @HttpCode(200)
   @Post('applications/:id/submit')
   submit(@CurrentUser() user: User, @Param('id') id: string) {
     return this.apps.submit(user, id);
   }
 
   @Roles(UserRole.customer)
+  @HttpCode(200)
   @Post('applications/:id/resubmit')
   resubmit(@CurrentUser() user: User, @Param('id') id: string) {
     return this.apps.resubmit(user, id);
   }
 
   @Roles(UserRole.customer)
+  @HttpCode(200)
   @Post('applications/:id/cancel')
   cancel(
     @CurrentUser() user: User,
     @Param('id') id: string,
-    @Body() body: { reason?: string },
+    @Body() dto: CancelApplicationDto,
   ) {
-    return this.apps.cancel(user, id, body.reason);
+    return this.apps.cancel(user, id, dto.reason);
   }
 
   @Roles(UserRole.customer)
@@ -123,10 +147,10 @@ export class ApplicationsController {
   uploadDoc(
     @CurrentUser() user: User,
     @Param('id') id: string,
-    @Body('category') category: 'qid' | 'salary' | 'bank' | 'other',
+    @Body() dto: UploadDocumentDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.apps.uploadDoc(user, id, category || 'other', file);
+    return this.apps.uploadDoc(user, id, dto.category, file);
   }
 
   @Get('applications/:id/documents/:docId/file')
@@ -155,6 +179,7 @@ export class ApplicationsController {
   }
 
   @Roles(UserRole.customer)
+  @HttpCode(200)
   @Post('applications/:id/contract/signed')
   @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
   uploadSignedContract(
@@ -166,6 +191,7 @@ export class ApplicationsController {
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/applications/:id/contract/signed')
   @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
   uploadSignedContractOps(
@@ -178,18 +204,12 @@ export class ApplicationsController {
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.finance_officer)
   @Get('ops/applications')
-  queue(
-    @CurrentUser() user: User,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-  ) {
-    return this.apps.opsQueue(user, {
-      limit: limit != null ? Number(limit) : undefined,
-      offset: offset != null ? Number(offset) : undefined,
-    });
+  queue(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+    return this.apps.opsQueue(user, query);
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.finance_officer)
+  @HttpCode(200)
   @Post('ops/applications/:id/transition')
   transition(
     @CurrentUser() user: User,
@@ -200,43 +220,46 @@ export class ApplicationsController {
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/applications/:id/compliance-check')
   runComplianceCheck(@CurrentUser() user: User, @Param('id') id: string) {
     return this.compliance.runCheck(user, id);
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/applications/:id/approve-contract')
   approveContract(@CurrentUser() user: User, @Param('id') id: string) {
     return this.lifecycle.approveWithContract(user, id);
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/applications/:id/activate')
   activate(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: ActivateDto) {
     return this.lifecycle.activate(user, id, { direct: dto.direct });
   }
 
   @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/applications/:id/down-payment')
   recordDownPayment(
     @CurrentUser() user: User,
     @Param('id') id: string,
     @Body() dto: RecordDownPaymentDto,
+    @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
   ) {
-    return this.lifecycle.recordDownPayment(user, id, dto);
+    return this.idempotency.run({
+      userId: user.id,
+      scope: IDEMPOTENCY_SCOPES.opsDownPayment(id),
+      idempotencyKey,
+      handler: () => this.lifecycle.recordDownPayment(user, id, dto),
+    });
   }
 
   @Roles(UserRole.dealer_agent)
   @Get('dealer/applications')
-  dealerLeads(
-    @CurrentUser() user: User,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-  ) {
-    return this.apps.dealerLeads(user, {
-      limit: limit != null ? Number(limit) : undefined,
-      offset: offset != null ? Number(offset) : undefined,
-    });
+  dealerLeads(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+    return this.apps.dealerLeads(user, query);
   }
 }

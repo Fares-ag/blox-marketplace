@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response } from 'express';
@@ -8,6 +8,7 @@ import { createAuth } from './auth/auth';
 import { resolveApiPort } from './auth/auth-config';
 import { applySecurityMiddleware } from './common/security-middleware';
 import { applyRequestIdMiddleware, RequestIdLogger } from './common/request-id';
+import { applyMulterErrorMiddleware } from './common/multer-error.middleware';
 import { PrismaService } from './prisma/prisma.service';
 import { MailService } from './mail/mail.service';
 import { initApiSentry } from './observability/sentry';
@@ -51,30 +52,22 @@ async function bootstrap() {
   const multer = require('multer');
   expressApp.use(express.json({ limit: '10mb' }));
   expressApp.use(express.urlencoded({ extended: true }));
-  expressApp.use(
-    (
-      err: Error & { code?: string },
-      _req: Request,
-      res: Response,
-      next: (error?: Error) => void,
-    ) => {
-      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-        res.status(413).json({ message: 'file_too_large', statusCode: 413 });
-        return;
-      }
-      next(err);
-    },
-  );
+  applyMulterErrorMiddleware(expressApp, multer);
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
     }),
   );
 
   app.setGlobalPrefix('api', { exclude: [] });
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
 
   app.useLogger(new RequestIdLogger());
 
