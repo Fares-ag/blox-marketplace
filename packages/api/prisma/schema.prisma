@@ -396,7 +396,6 @@ model Application {
   zohoNextRetryAt    DateTime?
   pricingSnapshot    Json
   status             ApplicationStatus @default(draft)
-  installmentPlan    Json?
   contractGenerated  Boolean           @default(false)
   contractData       Json?
   contractPdfPath    String?

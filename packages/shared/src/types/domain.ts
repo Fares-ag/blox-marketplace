@@ -222,7 +222,6 @@ export interface ApplicationDetail extends ApplicationListItem {
   company_id?: string;
   offer_id?: string;
   finance_partner_id?: string | null;
-  installment_plan?: unknown;
   status_reason?: string | null;
   completed_at?: string | null;
   updated_at?: string;

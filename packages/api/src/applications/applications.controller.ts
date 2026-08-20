@@ -46,7 +46,6 @@ class CreateApplicationDto {
   @Type(() => CustomerSnapshotDto)
   customerSnapshot!: CustomerSnapshotDto;
   @IsObject() pricingSnapshot!: Record<string, unknown>;
-  @IsOptional() @IsObject() installmentPlan?: Record<string, unknown>;
   @IsOptional() @IsString() quoteToken?: string;
 }
 
