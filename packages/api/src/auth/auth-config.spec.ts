@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   INSECURE_AUTH_SECRET,
+  isMfaEnforcementActive,
   resolveApiPort,
   resolveAuthSecret,
   resolveCookieDomain,
+  resolveMfaEnforcement,
+  resolvePrivilegedLoginLockout,
+  resolveSessionCookieCacheMaxAge,
 } from './auth-config';
 
 function mockConfig(values: Record<string, string | undefined>) {
@@ -73,6 +77,29 @@ describe('resolveCookieDomain', () => {
   });
 });
 
+describe('resolveSessionCookieCacheMaxAge', () => {
+  it('defaults to 300 seconds', () => {
+    expect(resolveSessionCookieCacheMaxAge(mockConfig({}) as never)).toBe(300);
+  });
+
+  it('parses SESSION_COOKIE_CACHE_MAX_AGE_SEC', () => {
+    expect(
+      resolveSessionCookieCacheMaxAge(
+        mockConfig({ SESSION_COOKIE_CACHE_MAX_AGE_SEC: '60' }) as never,
+      ),
+    ).toBe(60);
+  });
+});
+
+describe('resolvePrivilegedLoginLockout', () => {
+  it('uses secure defaults', () => {
+    expect(resolvePrivilegedLoginLockout(mockConfig({}) as never)).toEqual({
+      maxFailedAttempts: 5,
+      lockoutDurationSeconds: 900,
+    });
+  });
+});
+
 describe('resolveApiPort', () => {
   const originalPort = process.env.PORT;
 
@@ -90,5 +117,59 @@ describe('resolveApiPort', () => {
     delete process.env.PORT;
     expect(resolveApiPort(mockConfig({ API_PORT: '4000' }) as never)).toBe(4000);
     expect(resolveApiPort(mockConfig({}) as never)).toBe(3010);
+  });
+});
+
+describe('resolveMfaEnforcement', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it('defaults to enforced in production', () => {
+    process.env.NODE_ENV = 'production';
+    expect(resolveMfaEnforcement(mockConfig({}) as never).enforced).toBe(true);
+  });
+
+  it('defaults to disabled outside production', () => {
+    process.env.NODE_ENV = 'development';
+    expect(resolveMfaEnforcement(mockConfig({}) as never).enforced).toBe(false);
+  });
+
+  it('honours MFA_ENFORCE override and MFA_GRACE_UNTIL', () => {
+    process.env.NODE_ENV = 'production';
+    const cfg = resolveMfaEnforcement(
+      mockConfig({ MFA_ENFORCE: 'false', MFA_GRACE_UNTIL: '2030-01-01T00:00:00.000Z' }) as never,
+    );
+    expect(cfg.enforced).toBe(false);
+    expect(cfg.graceUntil?.toISOString()).toBe('2030-01-01T00:00:00.000Z');
+  });
+
+  it('throws on invalid MFA_GRACE_UNTIL', () => {
+    expect(() =>
+      resolveMfaEnforcement(mockConfig({ MFA_GRACE_UNTIL: 'not-a-date' }) as never),
+    ).toThrow(/MFA_GRACE_UNTIL/);
+  });
+});
+
+describe('isMfaEnforcementActive', () => {
+  it('is inactive during grace period', () => {
+    expect(
+      isMfaEnforcementActive(
+        { enforced: true, graceUntil: new Date('2030-01-01T00:00:00.000Z') },
+        new Date('2026-01-01T00:00:00.000Z'),
+      ),
+    ).toBe(false);
+  });
+
+  it('is active after grace period expires', () => {
+    expect(
+      isMfaEnforcementActive(
+        { enforced: true, graceUntil: new Date('2020-01-01T00:00:00.000Z') },
+        new Date('2026-01-01T00:00:00.000Z'),
+      ),
+    ).toBe(true);
   });
 });

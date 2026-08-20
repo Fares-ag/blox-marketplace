@@ -7,18 +7,25 @@ import {
   SetMetadata,
   createParamDecorator,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import type { User, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { DmAuth } from './auth';
 import { fromNodeHeaders } from 'better-auth/node';
+import { isMfaEnforcementActive, resolveMfaEnforcement } from './auth-config';
+import { isMfaRequiredRole } from './privileged-roles';
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
 
 export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+
+/** Routes exempt from MFA enforcement (e.g. profile read during TOTP setup). */
+export const MFA_EXEMPT_KEY = 'mfaExempt';
+export const MfaExempt = () => SetMetadata(MFA_EXEMPT_KEY, true);
 
 export type AuthRequest = Request & { user?: User };
 
@@ -32,10 +39,15 @@ export class SessionAuthGuard implements CanActivate {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
+    private readonly config: ConfigService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    const mfaExempt = this.reflector.getAllAndOverride<boolean>(MFA_EXEMPT_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -66,6 +78,16 @@ export class SessionAuthGuard implements CanActivate {
     if (roles?.length && !roles.includes(req.user.role)) {
       throw new ForbiddenException('forbidden_role');
     }
+
+    if (
+      !mfaExempt &&
+      isMfaEnforcementActive(resolveMfaEnforcement(this.config)) &&
+      isMfaRequiredRole(req.user.role) &&
+      !req.user.twoFactorEnabled
+    ) {
+      throw new ForbiddenException('mfa_required');
+    }
+
     return true;
   }
 }

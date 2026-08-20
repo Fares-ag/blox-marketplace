@@ -1,4 +1,6 @@
 import type { ConfigService } from '@nestjs/config';
+import type { LoginLockoutConfig } from './login-lockout';
+import { DEFAULT_LOGIN_LOCKOUT } from './login-lockout';
 
 /** Hard-coded fallback in auth.ts — must never be used in production. */
 export const INSECURE_AUTH_SECRET = 'dev-secret-change-me';
@@ -77,4 +79,82 @@ export function resolveRequireEmailVerification(config: ConfigService): boolean 
 export function resolveCookieDomain(config: ConfigService): string | undefined {
   const domain = config.get<string>('COOKIE_DOMAIN')?.trim();
   return domain || undefined;
+}
+
+/**
+ * Better Auth session cookie cache TTL (seconds).
+ *
+ * This cache only affects how often Better Auth re-reads the session row from
+ * Postgres — it does NOT affect authorization in this API, because
+ * `SessionAuthGuard` always reloads the `User` row from the database.
+ *
+ * Default: 300 (5 minutes). Set lower in production if you want faster session
+ * revocation propagation without paying a DB read on every request.
+ */
+export function resolveSessionCookieCacheMaxAge(config: ConfigService): number {
+  const raw = config.get<string>('SESSION_COOKIE_CACHE_MAX_AGE_SEC')?.trim();
+  if (!raw) return 300;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error('SESSION_COOKIE_CACHE_MAX_AGE_SEC must be a non-negative number.');
+  }
+  return Math.floor(parsed);
+}
+
+/** Password sign-in lockout for privileged ops roles (admin/credit/finance). */
+export function resolvePrivilegedLoginLockout(config: ConfigService): LoginLockoutConfig {
+  const maxRaw = config.get<string>('PRIVILEGED_LOGIN_MAX_ATTEMPTS')?.trim();
+  const durationRaw = config.get<string>('PRIVILEGED_LOGIN_LOCKOUT_SEC')?.trim();
+
+  const maxFailedAttempts = maxRaw ? Number(maxRaw) : DEFAULT_LOGIN_LOCKOUT.maxFailedAttempts;
+  const lockoutDurationSeconds = durationRaw
+    ? Number(durationRaw)
+    : DEFAULT_LOGIN_LOCKOUT.lockoutDurationSeconds;
+
+  if (!Number.isFinite(maxFailedAttempts) || maxFailedAttempts < 1) {
+    throw new Error('PRIVILEGED_LOGIN_MAX_ATTEMPTS must be a positive number.');
+  }
+  if (!Number.isFinite(lockoutDurationSeconds) || lockoutDurationSeconds < 60) {
+    throw new Error('PRIVILEGED_LOGIN_LOCKOUT_SEC must be at least 60.');
+  }
+
+  return {
+    maxFailedAttempts: Math.floor(maxFailedAttempts),
+    lockoutDurationSeconds: Math.floor(lockoutDurationSeconds),
+  };
+}
+
+export type MfaEnforcementConfig = {
+  enforced: boolean;
+  graceUntil: Date | null;
+};
+
+/**
+ * Whether privileged ops roles must have TOTP enabled before using protected API routes.
+ * Defaults to enforced in production; optional MFA_GRACE_UNTIL ISO date delays enforcement.
+ */
+export function resolveMfaEnforcement(config: ConfigService): MfaEnforcementConfig {
+  const raw = config.get<string>('MFA_ENFORCE')?.trim().toLowerCase();
+  let enforced: boolean;
+  if (raw === 'true' || raw === '1') enforced = true;
+  else if (raw === 'false' || raw === '0') enforced = false;
+  else enforced = process.env.NODE_ENV === 'production';
+
+  const graceRaw = config.get<string>('MFA_GRACE_UNTIL')?.trim();
+  if (!graceRaw) return { enforced, graceUntil: null };
+
+  const graceUntil = new Date(graceRaw);
+  if (Number.isNaN(graceUntil.getTime())) {
+    throw new Error('MFA_GRACE_UNTIL must be a valid ISO date.');
+  }
+  return { enforced, graceUntil };
+}
+
+export function isMfaEnforcementActive(
+  config: MfaEnforcementConfig,
+  now: Date = new Date(),
+): boolean {
+  if (!config.enforced) return false;
+  if (config.graceUntil && now < config.graceUntil) return false;
+  return true;
 }

@@ -1,9 +1,10 @@
-import { Controller, Get, Patch, Body } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Post, HttpCode } from '@nestjs/common';
 import { IsOptional, IsString, Matches } from 'class-validator';
 import type { User } from '@prisma/client';
 import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
-import { CurrentUser } from './guards';
+import { CurrentUser, MfaExempt } from './guards';
 import { PrismaService } from '../prisma/prisma.service';
+import { isMfaRequiredRole } from './privileged-roles';
 
 class UpdateProfileDto {
   @IsOptional()
@@ -21,6 +22,7 @@ class UpdateProfileDto {
 }
 
 @Controller('me')
+@MfaExempt()
 export class MeController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -42,7 +44,16 @@ export class MeController {
     return this.toPublic(updated);
   }
 
+  /** Revoke every active session for the signed-in user (logout all devices). */
+  @Post('sessions/revoke-all')
+  @HttpCode(200)
+  async revokeAllSessions(@CurrentUser() user: User) {
+    await this.prisma.session.deleteMany({ where: { userId: user.id } });
+    return { status: true };
+  }
+
   private toPublic(user: User) {
+    const mfaRequired = isMfaRequiredRole(user.role);
     return {
       id: user.id,
       email: user.email,
@@ -55,6 +66,9 @@ export class MeController {
       qid: user.qid,
       email_verified: user.emailVerified,
       is_active: user.isActive,
+      two_factor_enabled: user.twoFactorEnabled,
+      mfa_required: mfaRequired,
+      mfa_setup_required: mfaRequired && !user.twoFactorEnabled,
     };
   }
 }
