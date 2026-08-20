@@ -1,9 +1,10 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
+  Inject,
   Injectable,
   UnauthorizedException,
-  ForbiddenException,
   SetMetadata,
   createParamDecorator,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import type { Request } from 'express';
 import type { User, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { DmAuth } from './auth';
+import { AUTH_INSTANCE } from './auth.constants';
 import { fromNodeHeaders } from 'better-auth/node';
 import { isMfaEnforcementActive, resolveMfaEnforcement } from './auth-config';
 import { isMfaRequiredRole } from './privileged-roles';
@@ -40,6 +42,7 @@ export class SessionAuthGuard implements CanActivate {
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
     private readonly config: ConfigService,
+    @Inject(AUTH_INSTANCE) private readonly auth: DmAuth,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -53,12 +56,7 @@ export class SessionAuthGuard implements CanActivate {
     ]);
 
     const req = context.switchToHttp().getRequest<AuthRequest>();
-    const auth = (global as { __dmAuth?: DmAuth }).__dmAuth;
-    if (!auth) {
-      throw new UnauthorizedException('Auth not initialized');
-    }
-
-    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+    const session = await this.auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (session?.user) {
       const user = await this.prisma.user.findUnique({ where: { id: session.user.id } });
       if (user?.isActive) {
@@ -94,14 +92,15 @@ export class SessionAuthGuard implements CanActivate {
 
 @Injectable()
 export class OptionalSessionGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(AUTH_INSTANCE) private readonly auth: DmAuth,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<AuthRequest>();
-    const auth = (global as { __dmAuth?: DmAuth }).__dmAuth;
-    if (!auth) return true;
     try {
-      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      const session = await this.auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
       if (session?.user) {
         const user = await this.prisma.user.findUnique({ where: { id: session.user.id } });
         if (user?.isActive) req.user = user;

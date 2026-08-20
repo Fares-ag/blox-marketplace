@@ -8,14 +8,20 @@ function mockConfig(values: Record<string, string | undefined>) {
   return { get: (key: string) => values[key] };
 }
 
+function mockAuth(sessionUserId: string) {
+  return {
+    api: {
+      getSession: vi.fn().mockResolvedValue({ user: { id: sessionUserId } }),
+    },
+  };
+}
+
 describe('SessionAuthGuard MFA enforcement', () => {
   const originalNodeEnv = process.env.NODE_ENV;
-  const originalAuth = (global as { __dmAuth?: unknown }).__dmAuth;
 
   afterEach(() => {
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = originalNodeEnv;
-    (global as { __dmAuth?: unknown }).__dmAuth = originalAuth;
   });
 
   it('blocks privileged roles without TOTP when enforcement is active', async () => {
@@ -27,13 +33,6 @@ describe('SessionAuthGuard MFA enforcement', () => {
       twoFactorEnabled: false,
     };
 
-    (global as { __dmAuth?: { api: { getSession: () => Promise<{ user: { id: string } }> } } })
-      .__dmAuth = {
-      api: {
-        getSession: vi.fn().mockResolvedValue({ user: { id: user.id } }),
-      },
-    };
-
     const prisma = {
       user: { findUnique: vi.fn().mockResolvedValue(user) },
     };
@@ -41,6 +40,7 @@ describe('SessionAuthGuard MFA enforcement', () => {
       prisma as never,
       new Reflector(),
       mockConfig({}) as never,
+      mockAuth(user.id) as never,
     );
 
     const context = {
@@ -64,13 +64,6 @@ describe('SessionAuthGuard MFA enforcement', () => {
       twoFactorEnabled: false,
     };
 
-    (global as { __dmAuth?: { api: { getSession: () => Promise<{ user: { id: string } }> } } })
-      .__dmAuth = {
-      api: {
-        getSession: vi.fn().mockResolvedValue({ user: { id: user.id } }),
-      },
-    };
-
     const reflector = new Reflector();
     vi.spyOn(reflector, 'getAllAndOverride').mockImplementation((key: string) => {
       if (key === 'mfaExempt') return true;
@@ -84,6 +77,7 @@ describe('SessionAuthGuard MFA enforcement', () => {
       prisma as never,
       reflector,
       mockConfig({}) as never,
+      mockAuth(user.id) as never,
     );
 
     const context = {
