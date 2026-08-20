@@ -7,7 +7,12 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./pricing": "./src/lib/pricing.ts",
+    "./pricing": {
+      "types": "./src/lib/pricing.ts",
+      "import": "./src/lib/pricing.ts",
+      "require": "./dist/lib/pricing.js",
+      "default": "./src/lib/pricing.ts"
+    },
     "./styles/global.scss": "./src/styles/global.scss",
     "./styles/blox-ops.scss": "./src/styles/blox-ops.scss",
     "./i18n": "./src/i18n/index.ts",
@@ -16,6 +21,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build:pricing": "tsc -p tsconfig.pricing.json",
     "test": "vitest run",
     "lint": "eslint ."
   },

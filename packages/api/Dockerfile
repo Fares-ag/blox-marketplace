@@ -13,6 +13,8 @@ COPY packages/shared ./packages/shared
 COPY packages/api ./packages/api
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/api/node_modules ./packages/api/node_modules
+WORKDIR /app/packages/shared
+RUN npm run build:pricing
 WORKDIR /app/packages/api
 RUN npx prisma generate
 RUN npm run build
