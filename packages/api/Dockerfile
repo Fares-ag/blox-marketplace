@@ -28,4 +28,4 @@ COPY --from=build /app/packages/api/package.json ./packages/api/package.json
 COPY --from=build /app/packages/api/node_modules ./packages/api/node_modules
 WORKDIR /app/packages/api
 EXPOSE 3010
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/api/src/main.js"]
