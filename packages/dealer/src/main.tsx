@@ -1,79 +1,81 @@
-import { StrictMode, useEffect, useState, FormEvent } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes, Link, useParams, useNavigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { useEffect, useMemo, useState, FormEvent } from 'react';
+import { Navigate, Route, Routes, Link, useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AuthGuard,
   LoginPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
   BloxShell,
-  bloxThemeWithBrand,
-  useAuthStore,
   apiFetch,
+  buildPaginationQuery,
+  paginationWindow,
   formatQar,
   MoneyText,
-  initAppSentry,
+  listingOpsPillVariant,
+  applicationOpsPillVariant,
+  OpsEmptyState,
+  useOpsLabels,
+  mountPortalApp,
+  type BloxNavItem,
 } from '@drivemarket/shared';
+import '@drivemarket/shared/styles/global.scss';
 
-initAppSentry('dealer');
-
-const queryClient = new QueryClient();
-
-const nav = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/inventory', label: 'Inventory' },
-  { to: '/quotes', label: 'Quotes' },
-  { to: '/applications', label: 'Applications' },
-  { to: '/company', label: 'Company' },
-];
-
-function statusVariant(status: string) {
-  if (status === 'published') return 'published';
-  if (status === 'draft') return 'draft';
-  if (status === 'reserved') return 'reserved';
-  if (status === 'sold') return 'sold';
-  return 'pending';
-}
+type CompanyProfile = {
+  name: string;
+  code: string | null;
+  status: string;
+  logoUrl: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  address: string | null;
+  branding: Record<string, unknown> | null;
+};
 
 function Dashboard() {
+  const { t } = useOpsLabels();
   const { data } = useQuery({
-    queryKey: ['dealer-inventory'],
-    queryFn: () => apiFetch<Array<{ listingStatus: string }>>('/api/dealer/inventory'),
+    queryKey: ['dealer-inventory', 'dashboard'],
+    queryFn: () =>
+      apiFetch<{ total: number; items: Array<{ listingStatus: string }> }>(
+        '/api/dealer/inventory?limit=100&offset=0',
+      ),
   });
+  const items = data?.items ?? [];
   const counts = {
-    draft: data?.filter((p) => p.listingStatus === 'draft').length ?? 0,
-    published: data?.filter((p) => p.listingStatus === 'published').length ?? 0,
-    reserved: data?.filter((p) => p.listingStatus === 'reserved').length ?? 0,
-    sold: data?.filter((p) => p.listingStatus === 'sold').length ?? 0,
+    draft: items.filter((p) => p.listingStatus === 'draft').length,
+    published: items.filter((p) => p.listingStatus === 'published').length,
+    reserved: items.filter((p) => p.listingStatus === 'reserved').length,
+    sold: items.filter((p) => p.listingStatus === 'sold').length,
   };
   return (
     <div className="blox-page">
       <header className="blox-page-header">
         <div>
-          <h1>Dealer dashboard</h1>
-          <p className="blox-page-header__subtitle">Inventory snapshot for your showroom</p>
+          <h1>{t('ops.dealer.dashboardTitle')}</h1>
+          <p className="blox-page-header__subtitle">{t('ops.dealer.dashboardSubtitle')}</p>
         </div>
         <div className="blox-page-header__actions">
           <Link className="blox-btn blox-btn--primary" to="/inventory/new">
-            Create listing
+            {t('ops.dealer.createListing')}
           </Link>
         </div>
       </header>
       <div className="blox-stat-grid">
         <article className="blox-stat-card">
-          <p className="blox-stat-card__label">Draft</p>
+          <p className="blox-stat-card__label">{t('ops.listingStatus.draft')}</p>
           <p className="blox-stat-card__value blox-money">{counts.draft}</p>
         </article>
         <article className="blox-stat-card">
-          <p className="blox-stat-card__label">Published</p>
+          <p className="blox-stat-card__label">{t('ops.listingStatus.published')}</p>
           <p className="blox-stat-card__value blox-money">{counts.published}</p>
         </article>
         <article className="blox-stat-card">
-          <p className="blox-stat-card__label">Reserved</p>
+          <p className="blox-stat-card__label">{t('ops.listingStatus.reserved')}</p>
           <p className="blox-stat-card__value blox-money">{counts.reserved}</p>
         </article>
         <article className="blox-stat-card">
-          <p className="blox-stat-card__label">Sold</p>
+          <p className="blox-stat-card__label">{t('ops.listingStatus.sold')}</p>
           <p className="blox-stat-card__value blox-money">{counts.sold}</p>
         </article>
       </div>
@@ -82,71 +84,99 @@ function Dashboard() {
 }
 
 function InventoryList() {
+  const { t, listingStatus, pagination: pagLabel } = useOpsLabels();
+  const [page, setPage] = useState(0);
   const { data, error } = useQuery({
-    queryKey: ['dealer-inventory'],
+    queryKey: ['dealer-inventory', page],
     queryFn: () =>
-      apiFetch<
-        Array<{
+      apiFetch<{
+        total: number;
+        items: Array<{
           id: string;
           make: string;
           model: string;
           modelYear: number;
           price: string | number;
           listingStatus: string;
-        }>
-      >('/api/dealer/inventory'),
+        }>;
+      }>(`/api/dealer/inventory?${buildPaginationQuery(page)}`),
   });
+  const items = data?.items ?? [];
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
   return (
     <div className="blox-page">
       <header className="blox-page-header">
         <div>
-          <h1>Inventory</h1>
-          <p className="blox-page-header__subtitle">Manage listings for your dealership</p>
+          <h1>{t('ops.dealer.inventoryTitle')}</h1>
+          <p className="blox-page-header__subtitle">{t('ops.dealer.inventorySubtitle')}</p>
         </div>
         <div className="blox-page-header__actions">
           <Link className="blox-btn blox-btn--primary" to="/inventory/new">
-            New listing
+            {t('ops.dealer.newListing')}
           </Link>
         </div>
       </header>
       {error && <p style={{ color: 'var(--blox-ink)' }}>{(error as Error).message}</p>}
-      {!data?.length ? (
-        <p className="blox-empty">No listings yet.</p>
+      {!items.length ? (
+        <p className="blox-empty">{t('ops.dealer.noListings')}</p>
       ) : (
-        <div className="blox-table-wrap">
-          <table className="blox-table">
-            <thead>
-              <tr>
-                <th>Vehicle</th>
-                <th>Year</th>
-                <th>Price</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <Link to={`/inventory/${p.id}`}>
-                      {p.make} {p.model}
-                    </Link>
-                  </td>
-                  <td>{p.modelYear}</td>
-                  <td>
-                    <span className="blox-money">
-                      <MoneyText>{formatQar(Number(p.price))}</MoneyText>
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`blox-pill blox-pill--${statusVariant(p.listingStatus)}`}>
-                      {p.listingStatus}
-                    </span>
-                  </td>
+        <>
+          <div className="blox-table-wrap">
+            <table className="blox-table">
+              <thead>
+                <tr>
+                  <th>{t('ops.col.vehicle')}</th>
+                  <th>{t('ops.col.year')}</th>
+                  <th>{t('ops.col.price')}</th>
+                  <th>{t('ops.col.status')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {items.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <Link to={`/inventory/${p.id}`}>
+                        {p.make} {p.model}
+                      </Link>
+                    </td>
+                    <td>{p.modelYear}</td>
+                    <td>
+                      <span className="blox-money">
+                        <MoneyText>{formatQar(Number(p.price))}</MoneyText>
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`blox-pill blox-pill--${listingOpsPillVariant(p.listingStatus)}`}>
+                        {listingStatus(p.listingStatus)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="blox-pagination" style={{ marginTop: 12 }}>
+            <span>{pagLabel(from, to, total)}</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost"
+                disabled={from <= 1}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                {t('ops.pagination.previous')}
+              </button>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost"
+                disabled={to >= total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                {t('ops.pagination.next')}
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -177,14 +207,26 @@ function InventoryEditor() {
   const [error, setError] = useState<string | null>(null);
 
   const existing = useQuery({
-    queryKey: ['dealer-inventory'],
-    queryFn: () => apiFetch<Array<Record<string, unknown>>>('/api/dealer/inventory'),
+    queryKey: ['dealer-inventory-item', id],
+    queryFn: async () => {
+      let offset = 0;
+      const limit = 100;
+      while (true) {
+        const page = await apiFetch<{ total: number; items: Array<Record<string, unknown>> }>(
+          `/api/dealer/inventory?limit=${limit}&offset=${offset}`,
+        );
+        const row = page.items.find((p) => p.id === id);
+        if (row) return row;
+        if (offset + limit >= page.total) return null;
+        offset += limit;
+      }
+    },
     enabled: !isNew,
   });
 
   useEffect(() => {
     if (isNew || !existing.data) return;
-    const row = existing.data.find((p) => p.id === id);
+    const row = existing.data;
     if (!row) return;
     setMake(String(row.make ?? ''));
     setModel(String(row.model ?? ''));
@@ -256,6 +298,8 @@ function InventoryEditor() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['dealer-inventory'] }),
     onError: (e: Error) => setError(e.message),
   });
+
+  const inventoryBusy = save.isPending || publish.isPending || unpublish.isPending;
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -380,8 +424,8 @@ function InventoryEditor() {
           Finance eligible
         </label>
         {error && <p style={{ color: '#b42318', margin: 0 }}>{error}</p>}
-        <button type="submit" className="blox-btn blox-btn--primary">
-          Save
+        <button type="submit" className="blox-btn blox-btn--primary" disabled={inventoryBusy}>
+          {save.isPending ? 'Saving…' : 'Save'}
         </button>
       </form>
       {!isNew && (
@@ -391,11 +435,23 @@ function InventoryEditor() {
             Upload image
             <input type="file" accept="image/*" onChange={onUpload} />
           </label>
-          <button type="button" className="blox-btn blox-btn--secondary" style={{ marginTop: 12 }} onClick={() => publish.mutate()}>
-            Publish
+          <button
+            type="button"
+            className="blox-btn blox-btn--secondary"
+            style={{ marginTop: 12 }}
+            disabled={inventoryBusy}
+            onClick={() => publish.mutate()}
+          >
+            {publish.isPending ? 'Publishing…' : 'Publish'}
           </button>
-          <button type="button" className="blox-btn blox-btn--ghost" style={{ marginTop: 12, marginLeft: 8 }} onClick={() => unpublish.mutate()}>
-            Unpublish
+          <button
+            type="button"
+            className="blox-btn blox-btn--ghost"
+            style={{ marginTop: 12, marginLeft: 8 }}
+            disabled={inventoryBusy}
+            onClick={() => unpublish.mutate()}
+          >
+            {unpublish.isPending ? 'Unpublishing…' : 'Unpublish'}
           </button>
           {error && error.includes('listing_has_active_financing') && (
             <p style={{ color: '#b42318', marginTop: 8 }}>
@@ -413,6 +469,7 @@ function QuotesPage() {
   const [productId, setProductId] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [negotiatedPrice, setNegotiatedPrice] = useState(90000);
+  const [page, setPage] = useState(0);
   const [expiresAt, setExpiresAt] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
@@ -422,25 +479,27 @@ function QuotesPage() {
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
 
   const inventory = useQuery({
-    queryKey: ['dealer-inventory'],
+    queryKey: ['dealer-inventory', 'quotes'],
     queryFn: () =>
-      apiFetch<
-        Array<{
+      apiFetch<{
+        total: number;
+        items: Array<{
           id: string;
           make: string;
           model: string;
           modelYear: number;
           price: string | number;
           listingStatus: string;
-        }>
-      >('/api/dealer/inventory'),
+        }>;
+      }>('/api/dealer/inventory?limit=100&offset=0'),
   });
 
   const quotes = useQuery({
-    queryKey: ['dealer-quotes'],
+    queryKey: ['dealer-quotes', page],
     queryFn: () =>
-      apiFetch<
-        Array<{
+      apiFetch<{
+        total: number;
+        items: Array<{
           id: string;
           url: string;
           customerEmail: string;
@@ -449,9 +508,11 @@ function QuotesPage() {
           expiresAt: string;
           status: string;
           product: { make: string; model: string; modelYear: number };
-        }>
-      >('/api/dealer/quotes'),
+        }>;
+      }>(`/api/dealer/quotes?${buildPaginationQuery(page)}`),
   });
+  const quoteItems = quotes.data?.items ?? [];
+  const { from, to, total } = paginationWindow(quotes.data?.total ?? 0, page);
 
   const createQuote = useMutation({
     mutationFn: () =>
@@ -478,7 +539,7 @@ function QuotesPage() {
     onError: (e: Error) => setError(e.message),
   });
 
-  const published = (inventory.data ?? []).filter((p) => p.listingStatus === 'published');
+  const published = (inventory.data?.items ?? []).filter((p) => p.listingStatus === 'published');
 
   function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -553,132 +614,285 @@ function QuotesPage() {
         </form>
       </section>
 
-      {!quotes.data?.length ? (
+      {!quoteItems.length ? (
         <p className="blox-empty">No quotes yet.</p>
       ) : (
-        <div className="blox-table-wrap">
-          <table className="blox-table">
-            <thead>
-              <tr>
-                <th>Vehicle</th>
-                <th>Customer</th>
-                <th>Price</th>
-                <th>Status</th>
-                <th>Link</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {quotes.data.map((q) => (
-                <tr key={q.id}>
-                  <td>
-                    {q.product.make} {q.product.model} {q.product.modelYear}
-                  </td>
-                  <td>{q.customerEmail}</td>
-                  <td>
-                    <span className="blox-money">
-                      <MoneyText>{formatQar(q.negotiatedPrice)}</MoneyText>
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`blox-pill blox-pill--${q.status === 'active' ? 'published' : 'draft'}`}>
-                      {q.status}
-                    </span>
-                  </td>
-                  <td>
-                    <a href={q.url} target="_blank" rel="noreferrer">
-                      Open
-                    </a>
-                  </td>
-                  <td>
-                    {q.status === 'active' && (
-                      <button
-                        type="button"
-                        className="blox-btn blox-btn--ghost"
-                        onClick={() => revoke.mutate(q.id)}
-                      >
-                        Revoke
-                      </button>
-                    )}
-                  </td>
+        <>
+          <div className="blox-table-wrap">
+            <table className="blox-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Customer</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                  <th>Link</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {quoteItems.map((q) => (
+                  <tr key={q.id}>
+                    <td>
+                      {q.product.make} {q.product.model} {q.product.modelYear}
+                    </td>
+                    <td>{q.customerEmail}</td>
+                    <td>
+                      <span className="blox-money">
+                        <MoneyText>{formatQar(q.negotiatedPrice)}</MoneyText>
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`blox-pill blox-pill--${q.status === 'active' ? 'published' : 'draft'}`}>
+                        {q.status}
+                      </span>
+                    </td>
+                    <td>
+                      <a href={q.url} target="_blank" rel="noreferrer">
+                        Open
+                      </a>
+                    </td>
+                    <td>
+                      {q.status === 'active' && (
+                        <button
+                          type="button"
+                          className="blox-btn blox-btn--ghost"
+                          disabled={revoke.isPending}
+                          onClick={() => revoke.mutate(q.id)}
+                        >
+                          {revoke.isPending ? 'Revoking…' : 'Revoke'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="blox-pagination" style={{ marginTop: 12 }}>
+            <span>
+              Showing {from}–{to} of {total}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost"
+                disabled={from <= 1}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost"
+                disabled={to >= total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
 }
 
 function Applications() {
+  const { t, applicationStatus, pagination: pagLabel } = useOpsLabels();
+  const [page, setPage] = useState(0);
   const { data } = useQuery({
-    queryKey: ['dealer-apps'],
+    queryKey: ['dealer-apps', page],
     queryFn: () =>
-      apiFetch<
-        Array<{
+      apiFetch<{
+        total: number;
+        items: Array<{
           id: string;
           status: string;
           product: { make: string; model: string };
           customer: { name: string; email: string };
-        }>
-      >('/api/dealer/applications'),
+        }>;
+      }>(`/api/dealer/applications?${buildPaginationQuery(page)}`),
   });
+  const items = data?.items ?? [];
+  const { from, to, total } = paginationWindow(data?.total ?? 0, page);
   return (
     <div className="blox-page">
       <header className="blox-page-header">
         <div>
-          <h1>Applications</h1>
-          <p className="blox-page-header__subtitle">Read-only financing status on your stock</p>
+          <h1>{t('ops.dealer.applicationsTitle')}</h1>
+          <p className="blox-page-header__subtitle">{t('ops.dealer.applicationsSubtitle')}</p>
         </div>
       </header>
-      {!data?.length ? (
-        <p className="blox-empty">No applications yet.</p>
+      {!items.length ? (
+        <p className="blox-empty">{t('ops.common.noResults')}</p>
       ) : (
-        <ul className="blox-list">
-          {data.map((a) => (
-            <li key={a.id}>
-              {a.product.make} {a.product.model} — {a.customer.name} ({a.customer.email}) —{' '}
-              <span className={`blox-pill blox-pill--${statusVariant(a.status)}`}>{a.status}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="blox-list">
+            {items.map((a) => (
+              <li key={a.id}>
+                {a.product.make} {a.product.model} — {a.customer.name} ({a.customer.email}) —{' '}
+                <span className={`blox-pill blox-pill--${applicationOpsPillVariant(a.status)}`}>{applicationStatus(a.status)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="blox-pagination" style={{ marginTop: 12 }}>
+            <span>
+              Showing {from}–{to} of {total}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost"
+                disabled={from <= 1}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost"
+                disabled={to >= total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
 }
 
 function CompanyPage() {
-  const { data } = useQuery({
+  const { t } = useOpsLabels();
+  const { data, isLoading } = useQuery({
     queryKey: ['company-mine'],
-    queryFn: () => apiFetch('/api/companies/mine'),
+    queryFn: () => apiFetch<CompanyProfile | null>('/api/companies/mine'),
   });
+  const branding = (data?.branding ?? {}) as Record<string, string>;
+  const rowStyle = { display: 'grid', gridTemplateColumns: '10rem 1fr', gap: 8, fontSize: '0.875rem' } as const;
+  const labelStyle = { color: 'var(--blox-muted, #5b6b73)', fontWeight: 600 } as const;
+
   return (
     <div className="blox-page">
       <header className="blox-page-header">
         <div>
-          <h1>Company</h1>
-          <p className="blox-page-header__subtitle">Your dealership profile</p>
+          <h1>{t('ops.dealer.companyTitle')}</h1>
+          <p className="blox-page-header__subtitle">{t('ops.dealer.companySubtitle')}</p>
         </div>
       </header>
-      <section className="blox-panel">
-        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.875rem' }}>
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      </section>
+      {isLoading && <p>{t('ops.common.loading')}</p>}
+      {!isLoading && !data && (
+        <OpsEmptyState title={t('ops.dealer.companyEmpty')} />
+      )}
+      {data && (
+        <section className="blox-panel">
+          {data.logoUrl && (
+            <img
+              src={data.logoUrl}
+              alt={data.name}
+              style={{ maxHeight: 72, maxWidth: 200, objectFit: 'contain', marginBottom: 20 }}
+            />
+          )}
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.dealer.companyName')}</span>
+              <span>{data.name}</span>
+            </div>
+            {data.code && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>{t('ops.dealer.companyCode')}</span>
+                <span>{data.code}</span>
+              </div>
+            )}
+            <div style={rowStyle}>
+              <span style={labelStyle}>{t('ops.dealer.companyStatus')}</span>
+              <span>{data.status}</span>
+            </div>
+            {data.contactPhone && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>{t('ops.dealer.companyPhone')}</span>
+                <span>{data.contactPhone}</span>
+              </div>
+            )}
+            {data.contactEmail && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>{t('ops.dealer.companyEmail')}</span>
+                <span>{data.contactEmail}</span>
+              </div>
+            )}
+            {data.address && (
+              <div style={rowStyle}>
+                <span style={labelStyle}>{t('ops.dealer.companyAddress')}</span>
+                <span>{data.address}</span>
+              </div>
+            )}
+            {(branding.primary || branding.accent) && (
+              <>
+                <h3 style={{ margin: '16px 0 8px', fontSize: '0.875rem' }}>{t('ops.dealer.companyBranding')}</h3>
+                {branding.primary && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>{t('ops.dealer.brandingPrimary')}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 4,
+                          background: branding.primary,
+                          border: '1px solid var(--blox-border)',
+                        }}
+                      />
+                      {branding.primary}
+                    </span>
+                  </div>
+                )}
+                {branding.accent && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>{t('ops.dealer.brandingAccent')}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 4,
+                          background: branding.accent,
+                          border: '1px solid var(--blox-border)',
+                        }}
+                      />
+                      {branding.accent}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
 function App() {
-  const init = useAuthStore((s) => s.init);
-  useEffect(() => {
-    void init();
-  }, [init]);
+  const { t } = useOpsLabels();
+  const nav = useMemo<BloxNavItem[]>(
+    () => [
+      { to: '/', label: t('ops.dealer.nav.dashboard'), icon: 'home' },
+      { to: '/inventory', label: t('ops.dealer.nav.inventory'), icon: 'inventory' },
+      { to: '/quotes', label: t('ops.dealer.nav.quotes'), icon: 'quotes' },
+      { to: '/applications', label: t('ops.dealer.nav.applications'), icon: 'apps' },
+      { to: '/company', label: t('ops.dealer.nav.company'), icon: 'company' },
+    ],
+    [t],
+  );
 
   return (
     <Routes>
       <Route path="/auth/login" element={<LoginPage portalLabel="Blox Dealer" homePath="/" />} />
+      <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
       <Route
         path="/*"
         element={
@@ -702,15 +916,4 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={bloxThemeWithBrand}>
-        <CssBaseline />
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
-  </StrictMode>,
-);
+mountPortalApp({ sentryApp: 'dealer', authBootstrap: true, root: <App /> });
