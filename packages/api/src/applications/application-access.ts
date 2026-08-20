@@ -1,0 +1,38 @@
+import { ApplicationStatus, User, UserRole } from '@prisma/client';
+import { ForbiddenException } from '@nestjs/common';
+import type { PrismaService } from '../prisma/prisma.service';
+import { assertCompanyScopeForRead } from './company-scope';
+
+/** Statuses that block a customer from starting another application on the same product. */
+export const BLOCKING_APPLICATION_STATUSES: ApplicationStatus[] = [
+  'draft',
+  'under_review',
+  'resubmission_required',
+  'contract_signing_required',
+  'contracts_submitted',
+  'contract_under_review',
+  'down_payment_required',
+  'down_payment_submitted',
+  'pending_finance_activation',
+  'active',
+];
+
+export async function assertApplicationCanView(
+  prisma: PrismaService,
+  user: User,
+  app: { customerUserId: string; companyId: string },
+): Promise<void> {
+  if (user.role === UserRole.customer && app.customerUserId === user.id) return;
+  if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return;
+  const ops: UserRole[] = [
+    UserRole.credit_officer,
+    UserRole.finance_officer,
+    UserRole.admin,
+    UserRole.super_admin,
+  ];
+  if (ops.includes(user.role)) {
+    await assertCompanyScopeForRead(prisma, user, app.companyId);
+    return;
+  }
+  throw new ForbiddenException('forbidden_role');
+}

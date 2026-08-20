@@ -24,9 +24,12 @@ import {
   assertOfferMatchesProduct,
 } from './application-pricing';
 import { hasAllRequiredDocuments } from './application-documents';
+import {
+  assertApplicationCanView,
+  BLOCKING_APPLICATION_STATUSES,
+} from './application-access';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 import {
-  assertCompanyScopeForRead,
   opsCompanyFilter,
 } from './company-scope';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
@@ -40,19 +43,6 @@ import {
   toOpsApplicationQueueItemDto,
   type ApplicationAudience,
 } from './application-response.dto';
-
-const BLOCKING: ApplicationStatus[] = [
-  'draft',
-  'under_review',
-  'resubmission_required',
-  'contract_signing_required',
-  'contracts_submitted',
-  'contract_under_review',
-  'down_payment_required',
-  'down_payment_submitted',
-  'pending_finance_activation',
-  'active',
-];
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
@@ -71,7 +61,7 @@ export class ApplicationsService {
 
   async hasBlocking(userId: string) {
     const found = await this.prisma.application.findFirst({
-      where: { customerUserId: userId, status: { in: BLOCKING } },
+      where: { customerUserId: userId, status: { in: BLOCKING_APPLICATION_STATUSES } },
       select: { id: true },
     });
     return toApplicationBlockingDto({ blocking: !!found, applicationId: found?.id ?? null });
@@ -90,7 +80,6 @@ export class ApplicationsService {
         income?: number;
       };
       pricingSnapshot: Record<string, unknown>;
-      installmentPlan?: Record<string, unknown>;
       quoteToken?: string;
     },
   ) {
@@ -162,7 +151,6 @@ export class ApplicationsService {
           financePartnerId: offer.financePartnerId,
           leadSource,
           pricingSnapshot: asJson(pricingSnapshot),
-          installmentPlan: dto.installmentPlan ? asJson(dto.installmentPlan) : undefined,
           status: ApplicationStatus.draft,
         },
       });
@@ -298,7 +286,7 @@ export class ApplicationsService {
       },
     });
     if (!app) throw new NotFoundException();
-    await this.assertCanView(user, app);
+    await assertApplicationCanView(this.prisma, user, app);
     return mapApplicationDto(app, this.audienceForUser(user, app));
   }
 
@@ -434,7 +422,7 @@ export class ApplicationsService {
           where: {
             productId: app.productId,
             id: { not: id },
-            status: { in: BLOCKING },
+            status: { in: BLOCKING_APPLICATION_STATUSES },
           },
         });
         if (!stillBlocking) {
@@ -494,7 +482,7 @@ export class ApplicationsService {
   async downloadDocument(user: User, appId: string, docId: string) {
     const app = await this.prisma.application.findUnique({ where: { id: appId } });
     if (!app) throw new NotFoundException();
-    await this.assertCanView(user, app);
+    await assertApplicationCanView(this.prisma, user, app);
 
     const doc = await this.prisma.applicationDocument.findFirst({
       where: { id: docId, applicationId: appId },
@@ -554,21 +542,5 @@ export class ApplicationsService {
     if (ops.includes(user.role)) return 'ops';
     if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return 'dealer';
     return 'customer';
-  }
-
-  private async assertCanView(user: User, app: { customerUserId: string; companyId: string }) {
-    if (user.role === UserRole.customer && app.customerUserId === user.id) return;
-    if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return;
-    const ops: UserRole[] = [
-      UserRole.credit_officer,
-      UserRole.finance_officer,
-      UserRole.admin,
-      UserRole.super_admin,
-    ];
-    if (ops.includes(user.role)) {
-      await assertCompanyScopeForRead(this.prisma, user, app.companyId);
-      return;
-    }
-    throw new ForbiddenException('forbidden_role');
   }
 }

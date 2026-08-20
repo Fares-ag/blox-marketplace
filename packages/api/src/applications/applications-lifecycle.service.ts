@@ -34,21 +34,10 @@ import {
   sumDownPaymentRecorded,
 } from './down-payment';
 import { buildScheduleDrafts } from './payment-schedules';
-import { assertCompanyScope, assertCompanyScopeForRead } from './company-scope';
+import { assertCompanyScope } from './company-scope';
+import { assertApplicationCanView, BLOCKING_APPLICATION_STATUSES } from './application-access';
 import { transitionApplication } from './guarded-transitions';
-
-const BLOCKING: ApplicationStatus[] = [
-  'draft',
-  'under_review',
-  'resubmission_required',
-  'contract_signing_required',
-  'contracts_submitted',
-  'contract_under_review',
-  'down_payment_required',
-  'down_payment_submitted',
-  'pending_finance_activation',
-  'active',
-];
+import { toApplicationDto, toOpsApplicationDto } from './application-response.dto';
 
 const OPS_ROLES: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
 
@@ -193,13 +182,13 @@ export class ApplicationsLifecycleService {
       actor_role: user.role,
     });
 
-    return updated;
+    return toOpsApplicationDto(updated);
   }
 
   async downloadContract(user: User, id: string) {
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException();
-    await this.assertCanView(user, app);
+    await assertApplicationCanView(this.prisma, user, app);
     if (!app.contractPdfPath) throw new NotFoundException();
     const file = await this.storage.readContract(app.contractPdfPath);
     return { ...file, filename: 'financing-contract.pdf' };
@@ -250,7 +239,7 @@ export class ApplicationsLifecycleService {
       toValue: 'contracts_submitted',
     });
 
-    return updated;
+    return toApplicationDto(updated);
   }
 
   /**
@@ -295,7 +284,7 @@ export class ApplicationsLifecycleService {
       `/app/applications/${id}`,
     );
 
-    return updated;
+    return toOpsApplicationDto(updated);
   }
 
   async opsTransition(user: User, id: string, toStatus: ApplicationStatus, reason?: string) {
@@ -376,7 +365,7 @@ export class ApplicationsLifecycleService {
       });
     }
 
-    return updated;
+    return toOpsApplicationDto(updated);
   }
 
   async recordDownPayment(
@@ -450,7 +439,7 @@ export class ApplicationsLifecycleService {
       `/app/applications/${id}`,
     );
 
-    return updated;
+    return toOpsApplicationDto(updated);
   }
 
   async activate(user: User, id: string, opts?: { direct?: boolean }) {
@@ -463,16 +452,16 @@ export class ApplicationsLifecycleService {
       where: { id },
       include: {
         company: { select: { allowDirectActivate: true } },
-        paymentSchedules: { select: { id: true }, take: 1 },
       },
     });
     if (!app) throw new NotFoundException();
     await assertCompanyScope(this.prisma, user, app.companyId);
 
     if (app.status === 'active') {
-      return app;
+      return toOpsApplicationDto(app);
     }
 
+    let expectedFromStatus: ApplicationStatus;
     if (opts?.direct) {
       if (app.status !== 'under_review') {
         throw new BadRequestException('invalid_status_transition');
@@ -487,8 +476,12 @@ export class ApplicationsLifecycleService {
       if (!app.signedContractPath) {
         throw new BadRequestException('signed_contract_required');
       }
-    } else if (app.status !== 'pending_finance_activation') {
-      throw new BadRequestException('invalid_status_transition');
+      expectedFromStatus = ApplicationStatus.under_review;
+    } else {
+      if (app.status !== 'pending_finance_activation') {
+        throw new BadRequestException('invalid_status_transition');
+      }
+      expectedFromStatus = ApplicationStatus.pending_finance_activation;
     }
 
     const pricing = app.pricingSnapshot as Record<string, unknown>;
@@ -499,7 +492,13 @@ export class ApplicationsLifecycleService {
     const scheduleDrafts = buildScheduleDrafts(pricing);
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      if (app.paymentSchedules.length === 0) {
+      await tx.$queryRaw`SELECT id FROM applications WHERE id = ${id} FOR UPDATE`;
+
+      const existingScheduleCount = await tx.paymentSchedule.count({
+        where: { applicationId: id },
+      });
+
+      if (existingScheduleCount === 0) {
         await tx.paymentSchedule.createMany({
           data: scheduleDrafts.map((s) => ({
             applicationId: id,
@@ -513,12 +512,9 @@ export class ApplicationsLifecycleService {
         });
       }
 
-      const next = await tx.application.update({
-        where: { id },
-        data: {
-          status: 'active',
-          activatedAt: new Date(),
-        },
+      await transitionApplication(tx, id, expectedFromStatus, {
+        status: ApplicationStatus.active,
+        activatedAt: new Date(),
       });
 
       await tx.product.update({
@@ -526,7 +522,7 @@ export class ApplicationsLifecycleService {
         data: { listingStatus: ListingStatus.sold },
       });
 
-      return next;
+      return tx.application.findUniqueOrThrow({ where: { id } });
     });
 
     await this.activity.log({
@@ -545,7 +541,7 @@ export class ApplicationsLifecycleService {
       `/app/applications/${id}`,
     );
 
-    return updated;
+    return toOpsApplicationDto(updated);
   }
 
   private async unreserveIfNeeded(
@@ -557,7 +553,7 @@ export class ApplicationsLifecycleService {
       where: {
         productId,
         id: { not: excludeAppId },
-        status: { in: BLOCKING },
+        status: { in: BLOCKING_APPLICATION_STATUSES },
       },
     });
     if (!stillBlocking) {
@@ -566,21 +562,5 @@ export class ApplicationsLifecycleService {
         data: { listingStatus: ListingStatus.published },
       });
     }
-  }
-
-  private async assertCanView(user: User, app: { customerUserId: string; companyId: string }) {
-    if (user.role === UserRole.customer && app.customerUserId === user.id) return;
-    if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return;
-    const ops: UserRole[] = [
-      UserRole.credit_officer,
-      UserRole.finance_officer,
-      UserRole.admin,
-      UserRole.super_admin,
-    ];
-    if (ops.includes(user.role)) {
-      await assertCompanyScopeForRead(this.prisma, user, app.companyId);
-      return;
-    }
-    throw new ForbiddenException('forbidden_role');
   }
 }
