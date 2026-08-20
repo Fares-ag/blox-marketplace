@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
-import { ApplicationStatus, UserRole } from '@prisma/client';
-import { Roles } from '../auth/guards';
+import { ApplicationStatus, User, UserRole } from '@prisma/client';
+import { CurrentUser, Roles } from '../auth/guards';
+import { opsCompanyFilter } from '../applications/company-scope';
 import { seedFinancePartners } from '../../prisma/seed-finance-partners';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -30,7 +31,7 @@ export class OpsController {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Roles(UserRole.admin, UserRole.super_admin, UserRole.finance_officer, UserRole.credit_officer)
+  @Roles(UserRole.admin, UserRole.super_admin)
   @Get('metrics')
   async metrics() {
     const [
@@ -141,7 +142,10 @@ export class OpsController {
    */
   @Roles(UserRole.admin, UserRole.super_admin, UserRole.credit_officer)
   @Get('zoho/failures')
-  async zohoFailures() {
+  async zohoFailures(@CurrentUser() user: User) {
+    const companyIds = await opsCompanyFilter(this.prisma, user);
+    const companyWhere = companyIds ? { companyId: { in: companyIds } } : {};
+
     const selection = {
       id: true,
       status: true,
@@ -155,7 +159,7 @@ export class OpsController {
 
     const [failed, neverSynced] = await Promise.all([
       this.prisma.application.findMany({
-        where: { zohoSyncError: { not: null } },
+        where: { zohoSyncError: { not: null }, ...companyWhere },
         select: selection,
         orderBy: { updatedAt: 'desc' },
         take: 100,
@@ -165,6 +169,7 @@ export class OpsController {
           zohoLeadId: null,
           status: { in: OpsController.EXPECTED_CRM_SYNC_STATUSES },
           financePartner: { crmAdapter: 'zoho' },
+          ...companyWhere,
         },
         select: selection,
         orderBy: { updatedAt: 'desc' },
