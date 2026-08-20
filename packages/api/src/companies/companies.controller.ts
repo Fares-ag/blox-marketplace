@@ -2,7 +2,9 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { User, UserRole } from '@prisma/client';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Public, Roles } from '../auth/guards';
+import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { toAdminCompanyDto, toDealerCompanyDto } from './company-response.dto';
 
 class CreateCompanyDto {
   @IsString() name!: string;
@@ -22,9 +24,8 @@ export class CompaniesController {
 
   @Public()
   @Get()
-  async listPublic(@Query('limit') limit?: number, @Query('offset') offset?: number) {
-    const take = Math.min(Math.max(limit ?? 50, 1), 100);
-    const skip = Math.max(offset ?? 0, 0);
+  async listPublic(@Query() query: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const where = { status: 'active' as const };
     const [rows, total] = await Promise.all([
       this.prisma.company.findMany({
@@ -41,21 +42,23 @@ export class CompaniesController {
           },
         },
         orderBy: { name: 'asc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.company.count({ where }),
     ]);
-    return {
-      total,
-      items: rows.map((c) => ({
+    return toPaginatedResponse(
+      rows.map((c) => ({
         id: c.id,
         name: c.name,
         code: c.code,
         logo_url: c.logoUrl,
         published_count: c._count.products,
       })),
-    };
+      total,
+      limit,
+      offset,
+    );
   }
 
   @Public()
@@ -91,14 +94,13 @@ export class CompaniesController {
 
   @Roles(UserRole.admin, UserRole.super_admin)
   @Get('all')
-  async listAll(@Query('limit') limit?: number, @Query('offset') offset?: number) {
-    const take = Math.min(Math.max(limit ?? 50, 1), 100);
-    const skip = Math.max(offset ?? 0, 0);
+  async listAll(@Query() query: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const [items, total] = await Promise.all([
-      this.prisma.company.findMany({ orderBy: { createdAt: 'desc' }, take, skip }),
+      this.prisma.company.findMany({ orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       this.prisma.company.count(),
     ]);
-    return { total, items };
+    return toPaginatedResponse(items.map((item) => toAdminCompanyDto(item)), total, limit, offset);
   }
 
   @Roles(UserRole.admin, UserRole.super_admin)
@@ -118,13 +120,13 @@ export class CompaniesController {
         data: { role: UserRole.dealer_agent, companyId: company.id },
       });
     }
-    return company;
+    return toAdminCompanyDto(company);
   }
 
   @Roles(UserRole.admin, UserRole.super_admin)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateCompanyDto) {
-    return this.prisma.company.update({
+  async update(@Param('id') id: string, @Body() dto: UpdateCompanyDto) {
+    const company = await this.prisma.company.update({
       where: { id },
       data: {
         ...(dto.allowDirectActivate !== undefined
@@ -133,12 +135,14 @@ export class CompaniesController {
         ...(dto.canPay !== undefined ? { canPay: dto.canPay } : {}),
       },
     });
+    return toAdminCompanyDto(company);
   }
 
   @Roles(UserRole.dealer_agent)
   @Get('mine')
-  mine(@CurrentUser() user: User) {
+  async mine(@CurrentUser() user: User) {
     if (!user.companyId) return null;
-    return this.prisma.company.findUnique({ where: { id: user.companyId } });
+    const company = await this.prisma.company.findUnique({ where: { id: user.companyId } });
+    return company ? toDealerCompanyDto(company) : null;
   }
 }

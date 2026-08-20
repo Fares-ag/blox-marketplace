@@ -22,16 +22,16 @@ const cookie = (signIn.headers.getSetCookie?.() ?? [])
   .map((c) => c.split(';')[0])
   .join('; ');
 
-const seed = await fetch(`${base}/api/ops/seed-finance-partners`, {
+const seed = await fetch(`${base}/api/v1/ops/seed-finance-partners`, {
   method: 'POST',
   headers: { Cookie: cookie, Origin: origin },
 });
 
 console.log('seed-finance-partners', seed.status, await seed.text());
 
-const partners = await fetch(`${base}/api/finance-partners`);
+const partners = await fetch(`${base}/api/v1/finance-partners`);
 const data = await partners.json();
-console.log('finance-partners total', Array.isArray(data) ? data.length : 'invalid');
-if (Array.isArray(data)) {
-  console.log('partners', data.map((p) => `${p.name} (${p.code})`).join(', '));
+console.log('finance-partners total', data?.total ?? 'invalid');
+if (Array.isArray(data?.items)) {
+  console.log('partners', data.items.map((p) => `${p.name} (${p.code})`).join(', '));
 }

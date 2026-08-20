@@ -1,17 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '@drivemarket/shared';
+import { apiFetch, type NotificationItem, type PaginatedResponse } from '@drivemarket/shared';
 import { MarketplaceNav } from '../components/MarketplaceNav';
 
-type NotificationRow = {
-  id: string;
-  title: string;
-  body: string;
-  linkPath: string | null;
-  readAt: string | null;
-  createdAt: string;
-};
+type NotificationRow = NotificationItem;
 
 export function NotificationsPage() {
   const { t } = useTranslation();
@@ -19,8 +12,9 @@ export function NotificationsPage() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['notifications'],
-    queryFn: () => apiFetch<NotificationRow[]>('/api/notifications'),
+    queryFn: () => apiFetch<PaginatedResponse<NotificationRow>>('/api/notifications'),
   });
+  const items = data?.items ?? [];
 
   const markRead = useMutation({
     mutationFn: (id: string) =>
@@ -47,42 +41,42 @@ export function NotificationsPage() {
         {isLoading && <p>{t('vehicles.loading')}</p>}
         {error && <p style={{ color: 'var(--dm-danger)' }}>{(error as Error).message}</p>}
 
-        {!isLoading && !data?.length && (
+        {!isLoading && !items.length && (
           <p style={{ color: 'var(--dm-slate-600)' }}>
             {t('notifications.empty', { defaultValue: 'No notifications yet.' })}
           </p>
         )}
 
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
-          {(data ?? []).map((n) => (
+          {items.map((n) => (
             <li
               key={n.id}
               style={{
                 padding: 16,
                 borderRadius: 12,
                 border: '1px solid var(--dm-slate-200)',
-                background: n.readAt ? 'var(--dm-surface)' : 'var(--dm-steel-soft)',
+                background: n.read_at ? 'var(--dm-surface)' : 'var(--dm-steel-soft)',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <strong>{n.title}</strong>
                 <span style={{ fontSize: 13, color: 'var(--dm-slate-600)' }}>
-                  {new Date(n.createdAt).toLocaleString()}
+                  {new Date(n.created_at).toLocaleString()}
                 </span>
               </div>
               <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.5 }}>{n.body}</p>
               <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                {n.linkPath && (
+                {n.link_path && (
                   <Link
-                    to={n.linkPath}
+                    to={n.link_path}
                     onClick={() => {
-                      if (!n.readAt) markRead.mutate(n.id);
+                      if (!n.read_at) markRead.mutate(n.id);
                     }}
                   >
                     {t('notifications.view', { defaultValue: 'View' })}
                   </Link>
                 )}
-                {!n.readAt && (
+                {!n.read_at && (
                   <button
                     type="button"
                     className="dm-btn-ghost"

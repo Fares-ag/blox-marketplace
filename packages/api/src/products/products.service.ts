@@ -19,9 +19,14 @@ import slugify from 'slugify';
 import { estimateMonthlyPayment, roundMoney } from '@drivemarket/shared/pricing';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
+import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
 import { StorageService } from '../storage/storage.service';
 import { parseTenureOptions } from '../quotes/quote-pricing';
 import { assertDefaultOfferForCompany } from './product-offer';
+import {
+  toDealerInventoryDto,
+  toDealerProductImageDto,
+} from './dealer-inventory.dto';
 
 export type ProductInputDto = {
   make: string;
@@ -113,8 +118,10 @@ export class ProductsService {
         : {}),
     };
 
-    const take = Math.min(Math.max(query.limit ?? 24, 1), 100);
-    const skip = Math.max(query.offset ?? 0, 0);
+    const { limit, offset } = resolvePagination(
+      { limit: query.limit, offset: query.offset },
+      { defaultLimit: 24, maxLimit: 100 },
+    );
 
     const orderBy: Prisma.ProductOrderByWithRelationInput[] = (() => {
       switch (query.sort) {
@@ -141,16 +148,18 @@ export class ProductsService {
           defaultOffer: true,
         },
         orderBy,
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.product.count({ where }),
     ]);
 
-    return {
+    return toPaginatedResponse(
+      items.map((p) => this.toPublicCard(p)),
       total,
-      items: items.map((p) => this.toPublicCard(p)),
-    };
+      limit,
+      offset,
+    );
   }
 
   private estimateMonthlyFromOffer(
@@ -278,24 +287,23 @@ export class ProductsService {
     return { available: false, reason: 'listing_not_available' };
   }
 
-  async listDealerInventory(user: User, query: { limit?: number; offset?: number } = {}) {
+  async listDealerInventory(user: User, query: PaginationQueryDto = {}) {
     if (user.role !== UserRole.dealer_agent || !user.companyId) {
       throw new ForbiddenException('forbidden_role');
     }
-    const take = Math.min(Math.max(query.limit ?? 50, 1), 100);
-    const skip = Math.max(query.offset ?? 0, 0);
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const where = { companyId: user.companyId };
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
         include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 } },
         orderBy: { updatedAt: 'desc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.product.count({ where }),
     ]);
-    return { total, items };
+    return toPaginatedResponse(items.map((item) => toDealerInventoryDto(item)), total, limit, offset);
   }
 
   async create(user: User, dto: ProductInputDto) {
@@ -312,7 +320,7 @@ export class ProductsService {
       await assertDefaultOfferForCompany(this.prisma, companyId, dto.defaultOfferId);
     }
 
-    return this.prisma.product.create({
+    const created = await this.prisma.product.create({
       data: {
         id,
         companyId,
@@ -339,6 +347,7 @@ export class ProductsService {
         listingStatus: ListingStatus.draft,
       },
     });
+    return toDealerInventoryDto(created);
   }
 
   async update(user: User, id: string, dto: Partial<ProductInputDto>) {
@@ -346,7 +355,7 @@ export class ProductsService {
     if (dto.defaultOfferId) {
       await assertDefaultOfferForCompany(this.prisma, product.companyId, dto.defaultOfferId);
     }
-    return this.prisma.product.update({
+    const updated = await this.prisma.product.update({
       where: { id: product.id },
       data: {
         make: dto.make,
@@ -370,6 +379,7 @@ export class ProductsService {
         defaultOfferId: dto.defaultOfferId,
       },
     });
+    return toDealerInventoryDto(updated);
   }
 
   async addImage(user: User, productId: string, file: Express.Multer.File) {
@@ -377,7 +387,7 @@ export class ProductsService {
     this.storage.assertImage(file);
     const url = await this.storage.uploadListingImage(file, product.companyId, product.id);
     const count = await this.prisma.productImage.count({ where: { productId } });
-    return this.prisma.productImage.create({
+    const image = await this.prisma.productImage.create({
       data: {
         productId,
         storagePath: url,
@@ -385,6 +395,7 @@ export class ProductsService {
         altText: `${product.make} ${product.model}`,
       },
     });
+    return toDealerProductImageDto(image);
   }
 
   async publish(user: User, productId: string) {
@@ -421,7 +432,7 @@ export class ProductsService {
       fromValue: product.listingStatus,
       toValue: 'published',
     });
-    return updated;
+    return toDealerInventoryDto(updated);
   }
 
   async unpublish(user: User, productId: string) {
@@ -446,7 +457,7 @@ export class ProductsService {
       fromValue: product.listingStatus,
       toValue: 'draft',
     });
-    return updated;
+    return toDealerInventoryDto(updated);
   }
 
   buildSlug(dto: Pick<ProductInputDto, 'make' | 'model' | 'trim' | 'modelYear' | 'color' | 'transmission' | 'bodyType'>, id: string) {

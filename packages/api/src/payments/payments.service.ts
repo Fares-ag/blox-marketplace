@@ -1,8 +1,6 @@
 import {
   BadRequestException,
   ForbiddenException,
-  HttpException,
-  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -17,12 +15,13 @@ import {
   User,
   UserRole,
 } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
 import {
   principalAmountsFromPricingSnapshot,
   principalCollectedFromInstallment,
 } from '@drivemarket/shared/pricing';
 import { PrismaService } from '../prisma/prisma.service';
+import { isUniqueConstraintError } from '../common/prisma-errors';
+import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
 import { ActivityService } from '../common/activity.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { SYSTEM_ACTOR, SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
@@ -34,6 +33,7 @@ import {
   resolveSeparationOfDutiesEnabled,
 } from '../applications/separation-of-duties';
 import { computeScheduleAmountsFromEvents } from './payment-ledger';
+import { toPaymentScheduleDto, toPaymentTransactionDto } from './payment-response.dto';
 
 const PAYMENT_ROLES: UserRole[] = [
   UserRole.finance_officer,
@@ -49,6 +49,8 @@ const VIEW_ROLES: UserRole[] = [
 ];
 
 const WAIVE_ROLES: UserRole[] = [UserRole.admin, UserRole.super_admin];
+
+const DEFAULT_SKIPCASH_OPEN_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * P0-6: installment servicing. Payments happen offline (bank transfer / card at
@@ -94,13 +96,12 @@ export class PaymentsService {
 
   async listSchedules(
     user: User,
-    query: { status?: ScheduleStatus; applicationId?: string; limit?: number; offset?: number },
+    query: PaginationQueryDto & { status?: ScheduleStatus; applicationId?: string },
   ) {
     if (!VIEW_ROLES.includes(user.role)) {
       throw new ForbiddenException('forbidden_role');
     }
-    const take = Math.min(Math.max(query.limit ?? 50, 1), 200);
-    const skip = Math.max(query.offset ?? 0, 0);
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
     const companyFilter = await opsCompanyFilter(this.prisma, user);
     const baseWhere: Prisma.PaymentScheduleWhereInput = {
       ...(query.applicationId ? { applicationId: query.applicationId } : {}),
@@ -127,8 +128,8 @@ export class PaymentsService {
           },
         },
         orderBy: [{ dueDate: 'asc' }, { sequence: 'asc' }],
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.paymentSchedule.count({ where }),
       this.prisma.paymentSchedule.count({
@@ -146,6 +147,8 @@ export class PaymentsService {
     ]);
     return {
       total,
+      limit,
+      offset,
       summary: {
         pending,
         overdue: overdueStored + pendingPastDue,
@@ -268,7 +271,7 @@ export class PaymentsService {
     });
 
     return {
-      schedule: serializeSchedule(result.updated),
+      schedule: toPaymentScheduleDto(result.updated),
       application_completed: result.applicationCompleted,
     };
   }
@@ -328,7 +331,7 @@ export class PaymentsService {
       },
     });
 
-    return { schedule: serializeSchedule(updated) };
+    return { schedule: toPaymentScheduleDto(updated) };
   }
 
   async confirmWaiveSchedule(user: User, scheduleId: string) {
@@ -402,7 +405,7 @@ export class PaymentsService {
     });
 
     return {
-      schedule: serializeSchedule(result.updated),
+      schedule: toPaymentScheduleDto(result.updated),
       application_completed: result.applicationCompleted,
     };
   }
@@ -459,40 +462,89 @@ export class PaymentsService {
       throw new BadRequestException('schedule_already_settled');
     }
 
-    const idempotencyKey = `skipcash:${scheduleId}:${randomUUID()}`;
+    const windowMs = this.skipCashOpenWindowMs();
+    const windowStart = new Date(Date.now() - windowMs);
+
+    const existingPending = await this.prisma.paymentTransaction.findFirst({
+      where: {
+        scheduleId,
+        gateway: 'skipcash',
+        status: 'pending',
+        createdAt: { gte: windowStart },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existingPending) {
+      return this.serializeSkipCashPayment(existingPending, applicationId);
+    }
+
+    const windowBucket = Math.floor(Date.now() / windowMs);
+    const idempotencyKey = `skipcash:${scheduleId}:${windowBucket}`;
     const amount = schedule.remainingAmount;
 
-    const txn = await this.prisma.paymentTransaction.create({
-      data: {
-        gateway: 'skipcash',
-        idempotencyKey,
-        amount,
-        applicationId,
-        scheduleId,
-        status: 'pending',
-      },
-    });
+    try {
+      const txn = await this.prisma.paymentTransaction.create({
+        data: {
+          gateway: 'skipcash',
+          idempotencyKey,
+          amount,
+          applicationId,
+          scheduleId,
+          status: 'pending',
+        },
+      });
 
+      this.analytics.track('payment_started', {
+        application_id: applicationId,
+        schedule_id: scheduleId,
+        amount: amount.toNumber(),
+        gateway: 'skipcash',
+      });
+
+      return this.serializeSkipCashPayment(txn, applicationId);
+    } catch (err) {
+      if (!isUniqueConstraintError(err)) throw err;
+
+      const txn =
+        (await this.prisma.paymentTransaction.findUnique({ where: { idempotencyKey } })) ??
+        (await this.prisma.paymentTransaction.findFirst({
+          where: {
+            scheduleId,
+            gateway: 'skipcash',
+            status: 'pending',
+            createdAt: { gte: windowStart },
+          },
+          orderBy: { createdAt: 'desc' },
+        }));
+      if (txn) {
+        return this.serializeSkipCashPayment(txn, applicationId);
+      }
+      throw err;
+    }
+  }
+
+  private skipCashOpenWindowMs(): number {
+    const raw = this.config.get<string>('SKIPCASH_OPEN_WINDOW_MS');
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_SKIPCASH_OPEN_WINDOW_MS;
+  }
+
+  private serializeSkipCashPayment(
+    txn: { id: string; idempotencyKey: string; amount: Prisma.Decimal },
+    applicationId: string,
+  ) {
     const marketplace =
       this.config.get<string>('MARKETPLACE_URL') ??
       this.config.get<string>('VITE_MARKETPLACE_URL') ??
       'http://localhost:5173';
-    const returnUrl = `${marketplace.replace(/\/$/, '')}/app/applications/${applicationId}?skipcash_key=${encodeURIComponent(idempotencyKey)}`;
-    const redirectUrl = returnUrl;
-
-    this.analytics.track('payment_started', {
-      application_id: applicationId,
-      schedule_id: scheduleId,
-      amount: amount.toNumber(),
-      gateway: 'skipcash',
-    });
+    const returnUrl = `${marketplace.replace(/\/$/, '')}/app/applications/${applicationId}?skipcash_key=${encodeURIComponent(txn.idempotencyKey)}`;
 
     return {
       transaction_id: txn.id,
-      idempotency_key: idempotencyKey,
-      amount: amount.toNumber(),
+      idempotency_key: txn.idempotencyKey,
+      amount: txn.amount.toNumber(),
       currency: 'QAR',
-      redirect_url: redirectUrl,
+      redirect_url: returnUrl,
       sandbox: true,
     };
   }
@@ -512,7 +564,7 @@ export class PaymentsService {
    */
   async completeSkipCashPayment(idempotencyKey: string, gatewayPaymentId?: string) {
     if (!this.isSkipCashSandbox()) {
-      throw new HttpException({ error: 'gateway_verification_required' }, HttpStatus.FORBIDDEN);
+      throw new ForbiddenException('gateway_verification_required');
     }
 
     this.logger.warn(
@@ -528,7 +580,7 @@ export class PaymentsService {
     });
     if (!txn) throw new NotFoundException();
     if (txn.status === 'completed') {
-      return { transaction: txn, already_completed: true };
+      return { transaction: toPaymentTransactionDto(txn), already_completed: true };
     }
     if (!txn.scheduleId) throw new BadRequestException('validation_failed');
 
@@ -609,7 +661,7 @@ export class PaymentsService {
 
     return {
       transaction_id: txn.id,
-      schedule: serializeSchedule(result.updated),
+      schedule: toPaymentScheduleDto(result.updated),
       application_completed: result.applicationCompleted,
       already_completed: false,
     };
@@ -866,38 +918,4 @@ function assertLedgerMatchesCache(
   if (!decimalEq(ledger.remainingAmount, cache.remainingAmount)) {
     throw new BadRequestException('ledger_cache_mismatch');
   }
-}
-
-function serializeSchedule(s: {
-  id: string;
-  applicationId: string;
-  sequence: number;
-  dueDate: Date;
-  amount: Prisma.Decimal;
-  paidAmount: Prisma.Decimal;
-  remainingAmount: Prisma.Decimal;
-  status: ScheduleStatus;
-  paymentMethod: string | null;
-  paymentReference: string | null;
-  paidAt: Date | null;
-  pendingWaiveReason?: string | null;
-  pendingWaiveRequestedById?: string | null;
-  pendingWaiveRequestedAt?: Date | null;
-}) {
-  return {
-    id: s.id,
-    application_id: s.applicationId,
-    sequence: s.sequence,
-    due_date: s.dueDate.toISOString().slice(0, 10),
-    amount: Number(s.amount),
-    paid_amount: Number(s.paidAmount),
-    remaining_amount: Number(s.remainingAmount),
-    status: s.status,
-    payment_method: s.paymentMethod,
-    payment_reference: s.paymentReference,
-    paid_at: s.paidAt?.toISOString() ?? null,
-    pending_waive_reason: s.pendingWaiveReason ?? null,
-    pending_waive_requested_by_id: s.pendingWaiveRequestedById ?? null,
-    pending_waive_requested_at: s.pendingWaiveRequestedAt?.toISOString() ?? null,
-  };
 }

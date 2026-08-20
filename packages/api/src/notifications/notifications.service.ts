@@ -1,17 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { User } from '@prisma/client';
+import { toPaginatedResponse, resolvePagination, PaginationQueryDto } from '../common/pagination.dto';
+import { toNotificationDto } from './notification-response.dto';
 
 @Injectable()
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listForUser(user: User, limit = 50) {
-    return this.prisma.notification.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(Math.max(limit, 1), 100),
-    });
+  async listForUser(user: User, query: PaginationQueryDto = {}) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
+    const where = { userId: user.id };
+    const [rows, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.notification.count({ where }),
+    ]);
+    return toPaginatedResponse(
+      rows.map((row) => toNotificationDto(row)),
+      total,
+      limit,
+      offset,
+    );
   }
 
   async markRead(user: User, id: string) {

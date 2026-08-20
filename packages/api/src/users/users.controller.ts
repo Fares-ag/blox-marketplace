@@ -14,6 +14,8 @@ import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Roles } from '../auth/guards';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
+import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
+import { toAdminUserListResponse, toAdminUserUpdateDto } from './user-response.dto';
 
 class UpdateUserDto {
   @IsOptional() @IsBoolean() isActive?: boolean;
@@ -34,9 +36,8 @@ export class UsersController {
 
   @Roles(UserRole.admin, UserRole.super_admin)
   @Get()
-  async list(@Query('limit') limit?: number, @Query('offset') offset?: number) {
-    const take = Math.min(Math.max(limit ?? 50, 1), 100);
-    const skip = Math.max(offset ?? 0, 0);
+  async list(@Query() query: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
         select: {
@@ -50,12 +51,12 @@ export class UsersController {
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.user.count(),
     ]);
-    return { total, items };
+    return toAdminUserListResponse(items, total, limit, offset);
   }
 
   /**
@@ -128,13 +129,6 @@ export class UsersController {
       },
     });
 
-    return {
-      id: updated.id,
-      email: updated.email,
-      name: updated.name,
-      role: updated.role,
-      companyId: updated.companyId,
-      isActive: updated.isActive,
-    };
+    return toAdminUserUpdateDto(updated);
   }
 }

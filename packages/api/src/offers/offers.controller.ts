@@ -1,6 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { Public } from '../auth/guards';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
+import { toPublicOfferDto } from '../common/offer-response.dto';
 
 @Controller('offers')
 export class OffersController {
@@ -12,9 +14,8 @@ export class OffersController {
    */
   @Public()
   @Get()
-  async list(@Query('limit') limit?: number, @Query('offset') offset?: number) {
-    const take = Math.min(Math.max(limit ?? 50, 1), 100);
-    const skip = Math.max(offset ?? 0, 0);
+  async list(@Query() query: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const where = { status: 'active' as const };
     const [items, total] = await Promise.all([
       this.prisma.offer.findMany({
@@ -29,11 +30,11 @@ export class OffersController {
           financePartnerId: true,
         },
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.offer.count({ where }),
     ]);
-    return { total, items };
+    return toPaginatedResponse(items.map((item) => toPublicOfferDto(item)), total, limit, offset);
   }
 }

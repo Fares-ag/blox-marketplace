@@ -9,8 +9,15 @@ import { ConfigService } from '@nestjs/config';
 import { ListingStatus, User, UserRole } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
 import { assertRowsUpdated } from '../applications/guarded-transitions';
 import { normalizeEmail, resolveQuoteGate } from './quote-pricing';
+import {
+  toDealerQuoteDto,
+  toDealerQuoteListItemDto,
+  toPublicQuoteResolveDto,
+  toQuoteRevokeDto,
+} from './quote-response.dto';
 
 function quoteStatus(quote: {
   expiresAt: Date;
@@ -134,23 +141,22 @@ export class QuotesService {
       },
     });
 
-    return {
+    return toDealerQuoteDto({
       id: quote.id,
       token: quote.token,
       url: this.marketplaceUrl(quote.token),
       customerEmail: quote.customerEmail,
-      negotiatedPrice: Number(quote.negotiatedPrice),
-      listPriceSnapshot: Number(quote.listPriceSnapshot),
+      negotiatedPrice: quote.negotiatedPrice,
+      listPriceSnapshot: quote.listPriceSnapshot,
       expiresAt: quote.expiresAt.toISOString(),
       status: quoteStatus(quote),
       product: quote.product,
-    };
+    });
   }
 
-  async listForDealer(user: User, query: { limit?: number; offset?: number } = {}) {
+  async listForDealer(user: User, query: PaginationQueryDto = {}) {
     this.assertDealer(user);
-    const take = Math.min(Math.max(query.limit ?? 50, 1), 100);
-    const skip = Math.max(query.offset ?? 0, 0);
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const where = { companyId: user.companyId! };
     const [rows, total] = await Promise.all([
       this.prisma.dealerQuote.findMany({
@@ -160,30 +166,34 @@ export class QuotesService {
           createdBy: { select: { name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.dealerQuote.count({ where }),
     ]);
 
-    return {
+    return toPaginatedResponse(
+      rows.map((q) =>
+        toDealerQuoteListItemDto({
+          id: q.id,
+          token: q.token,
+          url: this.marketplaceUrl(q.token),
+          customerEmail: q.customerEmail,
+          negotiatedPrice: q.negotiatedPrice,
+          listPriceSnapshot: q.listPriceSnapshot,
+          expiresAt: q.expiresAt.toISOString(),
+          usedAt: q.usedAt?.toISOString() ?? null,
+          revokedAt: q.revokedAt?.toISOString() ?? null,
+          createdAt: q.createdAt.toISOString(),
+          status: quoteStatus(q),
+          product: q.product,
+          createdBy: q.createdBy,
+        }),
+      ),
       total,
-      items: rows.map((q) => ({
-        id: q.id,
-        token: q.token,
-        url: this.marketplaceUrl(q.token),
-        customerEmail: q.customerEmail,
-        negotiatedPrice: Number(q.negotiatedPrice),
-        listPriceSnapshot: Number(q.listPriceSnapshot),
-        expiresAt: q.expiresAt.toISOString(),
-        usedAt: q.usedAt?.toISOString() ?? null,
-        revokedAt: q.revokedAt?.toISOString() ?? null,
-        createdAt: q.createdAt.toISOString(),
-        status: quoteStatus(q),
-        product: q.product,
-        createdBy: q.createdBy,
-      })),
-    };
+      limit,
+      offset,
+    );
   }
 
   async revoke(user: User, id: string) {
@@ -193,7 +203,7 @@ export class QuotesService {
       throw new NotFoundException();
     }
     if (quote.usedAt) throw new BadRequestException('quote_already_used');
-    if (quote.revokedAt) return { id: quote.id, status: 'revoked' as const };
+    if (quote.revokedAt) return toQuoteRevokeDto({ id: quote.id, status: 'revoked' });
 
     const revoked = await this.prisma.dealerQuote.updateMany({
       where: {
@@ -206,11 +216,11 @@ export class QuotesService {
     });
     if (revoked.count === 0) {
       const fresh = await this.prisma.dealerQuote.findUnique({ where: { id } });
-      if (fresh?.revokedAt) return { id: fresh.id, status: 'revoked' as const };
+      if (fresh?.revokedAt) return toQuoteRevokeDto({ id: fresh.id, status: 'revoked' });
       if (fresh?.usedAt) throw new BadRequestException('quote_already_used');
       assertRowsUpdated(0, 'stale_transition');
     }
-    return { id: quote.id, status: 'revoked' as const };
+    return toQuoteRevokeDto({ id: quote.id, status: 'revoked' });
   }
 
   async resolveByToken(token: string, viewer?: User | null) {
@@ -232,7 +242,8 @@ export class QuotesService {
 
     const gate = resolveQuoteGate(quote, viewer);
     const product = quote.product;
-    const base = {
+
+    return toPublicQuoteResolveDto({
       gate,
       token: quote.token,
       expiresAt: quote.expiresAt.toISOString(),
@@ -258,24 +269,20 @@ export class QuotesService {
         code: product.company.code,
         logoUrl: product.company.logoUrl,
       },
-    };
-
-    if (gate !== 'active') {
-      return base;
-    }
-
-    return {
-      ...base,
-      negotiatedPrice: Number(quote.negotiatedPrice),
-      listPriceSnapshot: Number(quote.listPriceSnapshot),
-      offer: {
-        id: quote.offer.id,
-        name: quote.offer.name,
-        annual_rent_rate: Number(quote.offer.annualRentRate),
-        tenure_options: quote.offer.tenureOptions,
-        min_down_payment_pct: Number(quote.offer.minDownPaymentPct),
-      },
-    };
+      ...(gate === 'active'
+        ? {
+            negotiatedPrice: Number(quote.negotiatedPrice),
+            listPriceSnapshot: Number(quote.listPriceSnapshot),
+            offer: {
+              id: quote.offer.id,
+              name: quote.offer.name,
+              annualRentRate: quote.offer.annualRentRate,
+              tenureOptions: quote.offer.tenureOptions,
+              minDownPaymentPct: quote.offer.minDownPaymentPct,
+            },
+          }
+        : {}),
+    });
   }
 }
 

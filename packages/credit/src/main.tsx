@@ -16,22 +16,13 @@ import {
   applicationOpsPillVariant,
   useOpsLabels,
   mountPortalApp,
+  type ApplicationDetail,
   type BloxNavItem,
+  type PaginatedResponse,
 } from '@drivemarket/shared';
 import '@drivemarket/shared/styles/global.scss';
 
-type AppDetail = {  id: string;
-  status: string;
-  customerSnapshot?: Record<string, unknown>;
-  pricingSnapshot?: Record<string, unknown>;
-  rejectionReason?: string | null;
-  resubmissionComment?: string | null;
-  product?: { make: string; model: string; modelYear?: number };
-  company?: { name: string };
-  customer?: { name: string; email: string; phone?: string | null };
-  offer?: { name: string; annualRentRate?: number | string };
-  documents?: Array<{ id: string; category: string; createdAt: string }>;
-};
+type AppDetail = ApplicationDetail;
 
 function snapshotText(value: unknown): string {
   if (value == null || value === '') return '—';
@@ -58,8 +49,8 @@ function snapshotTenure(pricing: Record<string, unknown>): string {
 
 function ApplicantPlanSection({ data }: { data: AppDetail }) {
   const { t } = useOpsLabels();
-  const customer = data.customerSnapshot ?? {};
-  const pricing = data.pricingSnapshot ?? {};
+  const customer = data.customer_snapshot ?? {};
+  const pricing = data.pricing_snapshot ?? {};
   const rowStyle = { display: 'grid', gridTemplateColumns: '9rem 1fr', gap: 8, fontSize: '0.875rem' } as const;
   const labelStyle = { color: 'var(--blox-muted, #5b6b73)', fontWeight: 600 } as const;
 
@@ -112,7 +103,7 @@ function ApplicantPlanSection({ data }: { data: AppDetail }) {
             </div>
             <div style={rowStyle}>
               <span style={labelStyle}>{t('ops.credit.annualRate')}</span>
-              <span>{snapshotPercent(pricing.rate ?? data.offer?.annualRentRate)}</span>
+              <span>{snapshotPercent(pricing.rate ?? data.offer?.annual_rent_rate)}</span>
             </div>
             <div style={rowStyle}>
               <span style={labelStyle}>{t('ops.credit.tenure')}</span>
@@ -307,7 +298,7 @@ function Detail() {
                   <li key={doc.id}>
                     {doc.category}{' '}
                     <a
-                      href={`${getApiBase()}/api/applications/${id}/documents/${doc.id}/file`}
+                      href={`${getApiBase()}/applications/${id}/documents/${doc.id}/file`}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -424,10 +415,11 @@ function Detail() {
 
 function ZohoFailuresPage() {
   const { t, applicationStatus } = useOpsLabels();
-  const { data, error } = useQuery({    queryKey: ['zoho-failures'],
+  const { data, error } = useQuery({
+    queryKey: ['zoho-failures'],
     queryFn: () =>
       apiFetch<
-        Array<{
+        PaginatedResponse<{
           application_id: string;
           reason: string;
           status: string;
@@ -436,6 +428,7 @@ function ZohoFailuresPage() {
         }>
       >('/api/ops/zoho/failures'),
   });
+  const items = data?.items ?? [];
 
   return (
     <div className="blox-page">
@@ -446,7 +439,7 @@ function ZohoFailuresPage() {
         </div>
       </header>
       {error && <p style={{ color: '#b42318' }}>{(error as Error).message}</p>}
-      {!data?.length ? (
+      {!items.length ? (
         <p className="blox-empty">{t('ops.credit.zohoEmpty')}</p>
       ) : (
         <div className="blox-table-wrap">
@@ -460,7 +453,7 @@ function ZohoFailuresPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((row) => (
+              {items.map((row) => (
                 <tr key={row.application_id}>
                   <td>
                     <Link to={`/applications/${row.application_id}`}>{row.application_id.slice(0, 8)}…</Link>

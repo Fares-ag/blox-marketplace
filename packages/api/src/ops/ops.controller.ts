@@ -1,9 +1,19 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
+import { IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Roles } from '../auth/guards';
 import { opsCompanyFilter } from '../applications/company-scope';
+import {
+  PaginationQueryDto,
+  resolvePagination,
+  toPaginatedResponse,
+} from '../common/pagination.dto';
 import { seedFinancePartners } from '../../prisma/seed-finance-partners';
 import { PrismaService } from '../prisma/prisma.service';
+
+class ActivityLogsQueryDto extends PaginationQueryDto {
+  @IsOptional() @IsString() entityType?: string;
+}
 
 /**
  * Read-model endpoints backing the admin / super-admin / finance consoles
@@ -66,27 +76,21 @@ export class OpsController {
 
   @Roles(UserRole.admin, UserRole.super_admin)
   @Get('activity-logs')
-  async activityLogs(
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-    @Query('entityType') entityType?: string,
-  ) {
-    const take = Math.min(Math.max(Number(limit ?? 50), 1), 200);
-    const skip = Math.max(Number(offset ?? 0), 0);
-    const where = entityType ? { entityType } : {};
+  async activityLogs(@Query() query: ActivityLogsQueryDto) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
+    const where = query.entityType ? { entityType: query.entityType } : {};
     const [items, total] = await Promise.all([
       this.prisma.activityLog.findMany({
         where,
         include: { actor: { select: { email: true, name: true, role: true } } },
         orderBy: { createdAt: 'desc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.activityLog.count({ where }),
     ]);
-    return {
-      total,
-      items: items.map((l) => ({
+    return toPaginatedResponse(
+      items.map((l) => ({
         id: l.id,
         actor_email: l.actor?.email ?? null,
         actor_role: l.actor?.role ?? null,
@@ -98,26 +102,27 @@ export class OpsController {
         metadata: l.metadata,
         created_at: l.createdAt.toISOString(),
       })),
-    };
+      total,
+      limit,
+      offset,
+    );
   }
 
   @Roles(UserRole.admin, UserRole.super_admin)
   @Get('products')
-  async products(@Query('limit') limit?: number, @Query('offset') offset?: number) {
-    const take = Math.min(Math.max(Number(limit ?? 50), 1), 200);
-    const skip = Math.max(Number(offset ?? 0), 0);
+  async products(@Query() query: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         include: { company: { select: { name: true, code: true } } },
         orderBy: { updatedAt: 'desc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.product.count(),
     ]);
-    return {
-      total,
-      items: items.map((p) => ({
+    return toPaginatedResponse(
+      items.map((p) => ({
         id: p.id,
         slug: p.slug,
         make: p.make,
@@ -129,7 +134,10 @@ export class OpsController {
         company_code: p.company.code,
         updated_at: p.updatedAt.toISOString(),
       })),
-    };
+      total,
+      limit,
+      offset,
+    );
   }
 
   /**
@@ -142,7 +150,8 @@ export class OpsController {
    */
   @Roles(UserRole.admin, UserRole.super_admin, UserRole.credit_officer)
   @Get('zoho/failures')
-  async zohoFailures(@CurrentUser() user: User) {
+  async zohoFailures(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
     const companyIds = await opsCompanyFilter(this.prisma, user);
     const companyWhere = companyIds ? { companyId: { in: companyIds } } : {};
 
@@ -162,7 +171,6 @@ export class OpsController {
         where: { zohoSyncError: { not: null }, ...companyWhere },
         select: selection,
         orderBy: { updatedAt: 'desc' },
-        take: 100,
       }),
       this.prisma.application.findMany({
         where: {
@@ -173,7 +181,6 @@ export class OpsController {
         },
         select: selection,
         orderBy: { updatedAt: 'desc' },
-        take: 100,
       }),
     ]);
 
@@ -183,19 +190,26 @@ export class OpsController {
       ...neverSynced
         .filter((a) => !seen.has(a.id))
         .map((a) => ({ row: a, reason: 'never_synced' as const })),
-    ];
+    ].sort((a, b) => b.row.updatedAt.getTime() - a.row.updatedAt.getTime());
 
-    return rows.map(({ row, reason }) => ({
-      application_id: row.id,
-      reason,
-      status: row.status,
-      customer_email: row.customerEmail,
-      partner: row.financePartner?.name ?? null,
-      zoho_lead_id: row.zohoLeadId,
-      error: row.zohoSyncError,
-      last_synced_at: row.zohoSyncedAt?.toISOString() ?? null,
-      updated_at: row.updatedAt.toISOString(),
-    }));
+    const total = rows.length;
+    const page = rows.slice(offset, offset + limit);
+    return toPaginatedResponse(
+      page.map(({ row, reason }) => ({
+        application_id: row.id,
+        reason,
+        status: row.status,
+        customer_email: row.customerEmail,
+        partner: row.financePartner?.name ?? null,
+        zoho_lead_id: row.zohoLeadId,
+        error: row.zohoSyncError,
+        last_synced_at: row.zohoSyncedAt?.toISOString() ?? null,
+        updated_at: row.updatedAt.toISOString(),
+      })),
+      total,
+      limit,
+      offset,
+    );
   }
 
   @Roles(UserRole.super_admin)

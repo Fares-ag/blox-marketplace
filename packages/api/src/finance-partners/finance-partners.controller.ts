@@ -1,8 +1,12 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { Public } from '../auth/guards';
 import { PrismaService } from '../prisma/prisma.service';
-
-const FINANCE_PARTNER_LIST_CAP = 100;
+import {
+  PaginationQueryDto,
+  resolvePagination,
+  toPaginatedResponse,
+} from '../common/pagination.dto';
+import { toFinancePartnerDto } from './finance-partner-response.dto';
 
 @Controller()
 export class FinancePartnersController {
@@ -10,13 +14,19 @@ export class FinancePartnersController {
 
   @Public()
   @Get('finance-partners')
-  list(@Query('limit') limit?: number) {
-    const take = Math.min(Math.max(limit ?? FINANCE_PARTNER_LIST_CAP, 1), FINANCE_PARTNER_LIST_CAP);
-    return this.prisma.financePartner.findMany({
-      where: { active: true },
-      select: { id: true, code: true, name: true, crmAdapter: true },
-      orderBy: { name: 'asc' },
-      take,
-    });
+  async list(@Query() query: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 100, maxLimit: 100 });
+    const where = { active: true };
+    const [rows, total] = await Promise.all([
+      this.prisma.financePartner.findMany({
+        where,
+        select: { id: true, code: true, name: true, crmAdapter: true },
+        orderBy: { name: 'asc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.financePartner.count({ where }),
+    ]);
+    return toPaginatedResponse(rows.map((row) => toFinancePartnerDto(row)), total, limit, offset);
   }
 }

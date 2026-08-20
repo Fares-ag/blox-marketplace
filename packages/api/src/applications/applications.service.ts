@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
+import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { StorageService } from '../storage/storage.service';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
@@ -29,6 +30,16 @@ import {
   opsCompanyFilter,
 } from './company-scope';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
+import {
+  mapApplicationDto,
+  toApplicationBlockingDto,
+  toApplicationDocumentDto,
+  toApplicationDto,
+  toApplicationListItemDto,
+  toDealerApplicationListItemDto,
+  toOpsApplicationQueueItemDto,
+  type ApplicationAudience,
+} from './application-response.dto';
 
 const BLOCKING: ApplicationStatus[] = [
   'draft',
@@ -63,7 +74,7 @@ export class ApplicationsService {
       where: { customerUserId: userId, status: { in: BLOCKING } },
       select: { id: true },
     });
-    return { blocking: !!found, applicationId: found?.id ?? null };
+    return toApplicationBlockingDto({ blocking: !!found, applicationId: found?.id ?? null });
   }
 
   async create(
@@ -196,7 +207,7 @@ export class ApplicationsService {
       company_id: app.companyId,
     });
 
-    return app;
+    return toApplicationDto(app);
   }
 
   async submit(user: User, id: string) {
@@ -253,12 +264,11 @@ export class ApplicationsService {
       is_resubmit: fromStatus === ApplicationStatus.resubmission_required,
     });
 
-    return updated;
+    return toApplicationDto(updated);
   }
 
-  async listMine(user: User, query: { limit?: number; offset?: number } = {}) {
-    const take = Math.min(Math.max(query.limit ?? 50, 1), 100);
-    const skip = Math.max(query.offset ?? 0, 0);
+  async listMine(user: User, query: PaginationQueryDto = {}) {
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const where = { customerUserId: user.id };
     const [items, total] = await Promise.all([
       this.prisma.application.findMany({
@@ -267,12 +277,12 @@ export class ApplicationsService {
           product: { select: { make: true, model: true, modelYear: true, slug: true, price: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.application.count({ where }),
     ]);
-    return { total, items };
+    return toPaginatedResponse(items.map((item) => toApplicationListItemDto(item)), total, limit, offset);
   }
 
   async getOne(user: User, id: string) {
@@ -289,11 +299,10 @@ export class ApplicationsService {
     });
     if (!app) throw new NotFoundException();
     await this.assertCanView(user, app);
-    const safeProduct = { ...app.product, vin: undefined, chassisNumber: undefined };
-    return { ...app, product: safeProduct };
+    return mapApplicationDto(app, this.audienceForUser(user, app));
   }
 
-  async opsQueue(user: User, query: { limit?: number; offset?: number } = {}) {
+  async opsQueue(user: User, query: PaginationQueryDto = {}) {
     const allowed: UserRole[] = [
       UserRole.credit_officer,
       UserRole.admin,
@@ -304,8 +313,7 @@ export class ApplicationsService {
       throw new ForbiddenException('forbidden_role');
     }
 
-    const take = Math.min(Math.max(query.limit ?? 50, 1), 200);
-    const skip = Math.max(query.offset ?? 0, 0);
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
     const companyFilter = await opsCompanyFilter(this.prisma, user);
     const where = {
       status: {
@@ -332,20 +340,19 @@ export class ApplicationsService {
           customer: { select: { name: true, email: true } },
         },
         orderBy: { createdAt: 'asc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.application.count({ where }),
     ]);
-    return { total, items };
+    return toPaginatedResponse(items.map((item) => toOpsApplicationQueueItemDto(item)), total, limit, offset);
   }
 
-  async dealerLeads(user: User, query: { limit?: number; offset?: number } = {}) {
+  async dealerLeads(user: User, query: PaginationQueryDto = {}) {
     if (user.role !== UserRole.dealer_agent || !user.companyId) {
       throw new ForbiddenException('forbidden_role');
     }
-    const take = Math.min(Math.max(query.limit ?? 50, 1), 100);
-    const skip = Math.max(query.offset ?? 0, 0);
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const where = { companyId: user.companyId };
     const [items, total] = await Promise.all([
       this.prisma.application.findMany({
@@ -355,12 +362,12 @@ export class ApplicationsService {
           customer: { select: { name: true, email: true, phone: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take,
-        skip,
+        take: limit,
+        skip: offset,
       }),
       this.prisma.application.count({ where }),
     ]);
-    return { total, items };
+    return toPaginatedResponse(items.map((item) => toDealerApplicationListItemDto(item)), total, limit, offset);
   }
 
   async transition(user: User, id: string, toStatus: ApplicationStatus, reason?: string) {
@@ -405,7 +412,7 @@ export class ApplicationsService {
       is_resubmit: true,
     });
 
-    return updated;
+    return toApplicationDto(updated);
   }
 
   async cancel(user: User, id: string, reason?: string) {
@@ -448,7 +455,7 @@ export class ApplicationsService {
       action: 'status_transition',
       toValue: 'submission_cancelled',
     });
-    return updated;
+    return toApplicationDto(updated);
   }
 
   async uploadDoc(
@@ -481,7 +488,7 @@ export class ApplicationsService {
       mime_type: file.mimetype,
     });
 
-    return doc;
+    return toApplicationDocumentDto(doc);
   }
 
   async downloadDocument(user: User, appId: string, docId: string) {
@@ -532,6 +539,21 @@ export class ApplicationsService {
     } catch {
       /* logged inside zoho service */
     }
+  }
+
+  private audienceForUser(
+    user: User,
+    app: { customerUserId: string; companyId: string },
+  ): ApplicationAudience {
+    const ops: UserRole[] = [
+      UserRole.credit_officer,
+      UserRole.finance_officer,
+      UserRole.admin,
+      UserRole.super_admin,
+    ];
+    if (ops.includes(user.role)) return 'ops';
+    if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return 'dealer';
+    return 'customer';
   }
 
   private async assertCanView(user: User, app: { customerUserId: string; companyId: string }) {
