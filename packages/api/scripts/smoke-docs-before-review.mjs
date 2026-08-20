@@ -5,7 +5,11 @@
 const BASE = process.env.API_URL ?? 'http://localhost:3010';
 const ORIGIN = process.env.ORIGIN ?? 'http://localhost:5173';
 const PASSWORD = 'Password123!';
-const QA_CUSTOMER = process.env.QA_CUSTOMER_EMAIL ?? 'qa-customer@drivemarket.local';
+const QA_CUSTOMER =
+  process.env.QA_CUSTOMER_EMAIL ??
+  (process.env.API_URL?.includes('localhost')
+    ? 'qa-customer@drivemarket.local'
+    : `qa-smoke-${Date.now()}@drivemarket.local`);
 
 const DOC_CATEGORIES = ['qid', 'salary', 'bank', 'other'];
 const MINIMAL_PDF = Buffer.from(

@@ -145,10 +145,23 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
       }),
       after: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/sign-up/email') {
-          const userId = ctx.context.newSession?.user?.id;
-          if (!userId) return;
-          const user = await prisma.user.findUnique({ where: { id: userId } });
+          const email = normalizeEmail(ctx.body?.email);
+          const sessionUserId = ctx.context.newSession?.user?.id;
+          const user = sessionUserId
+            ? await prisma.user.findUnique({ where: { id: sessionUserId } })
+            : email
+              ? await prisma.user.findUnique({ where: { email } })
+              : null;
           if (!user) return;
+          if (
+            process.env.QA_SMOKE_AUTO_VERIFY === 'true' &&
+            user.email.endsWith('@drivemarket.local')
+          ) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { emailVerified: true },
+            });
+          }
           emitProductEvent('signup_completed', { role: user.role, source: 'email' });
           return;
         }

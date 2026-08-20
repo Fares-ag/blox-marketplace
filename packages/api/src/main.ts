@@ -32,6 +32,10 @@ async function bootstrap() {
 
   const auth = createAuth(prisma, config, mail);
   const expressApp = app.getHttpAdapter().getInstance();
+  // Railway / reverse proxies set X-Forwarded-For; required for rate-limit + Better Auth IP.
+  if (process.env.NODE_ENV === 'production') {
+    expressApp.set('trust proxy', 1);
+  }
   applyRequestIdMiddleware(expressApp);
   applySecurityMiddleware(expressApp, config);
 

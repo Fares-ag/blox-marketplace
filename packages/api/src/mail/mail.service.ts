@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { EmailOutbox, EmailOutboxStatus, Prisma } from '@prisma/client';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolvePostmarkServerToken, sendPostmarkEmail } from './postmark-mail';
 
 export type MailTemplate =
   | 'password_reset'
@@ -53,53 +54,75 @@ type OutboxPayload = {
   [key: string]: unknown;
 };
 
+type MailTransport = 'postmark' | 'smtp' | 'none';
+
 /**
- * SMTP mailer with a durable outbox. Configured via SMTP_HOST / SMTP_PORT /
- * SMTP_USER / SMTP_PASS / SMTP_FROM. Without SMTP_HOST it runs in "log-only"
- * mode for local dev — auth-critical sends throw so callers learn immediately.
+ * Transactional mail with a durable outbox.
  *
- * In production, boot fails when SMTP is not configured because password reset,
- * verification, and walk-in invite flows all require outbound mail.
+ * Production (Railway): use Postmark HTTP API via POSTMARK_SERVER_TOKEN — SMTP
+ * ports are often blocked on PaaS hosts.
+ *
+ * Local dev: omit POSTMARK_SERVER_TOKEN and SMTP_HOST for log-only mode.
  */
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
+  private readonly transport: MailTransport;
   private transporter: Transporter | null = null;
+  private readonly postmarkToken: string | null;
   private readonly from: string;
 
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    const host = this.config.get<string>('SMTP_HOST');
     this.from =
       this.config.get<string>('SMTP_FROM') ?? 'Blox <no-reply@blox.market>';
-    if (host) {
-      this.transporter = nodemailer.createTransport({
-        host,
-        port: Number(this.config.get<string>('SMTP_PORT') ?? 587),
-        secure: this.config.get<string>('SMTP_SECURE') === 'true',
-        auth: this.config.get<string>('SMTP_USER')
-          ? {
-              user: this.config.get<string>('SMTP_USER'),
-              pass: this.config.get<string>('SMTP_PASS'),
-            }
-          : undefined,
-      });
+    this.postmarkToken = resolvePostmarkServerToken(config);
+
+    if (this.postmarkToken) {
+      this.transport = 'postmark';
+      this.logger.log('Mail transport: Postmark HTTP API');
+    } else {
+      const host = this.config.get<string>('SMTP_HOST');
+      if (host) {
+        const port = Number(this.config.get<string>('SMTP_PORT') ?? 587);
+        const secure = this.config.get<string>('SMTP_SECURE') === 'true';
+        this.transporter = nodemailer.createTransport({
+          host,
+          port,
+          secure,
+          requireTLS: !secure && port !== 25,
+          auth: this.config.get<string>('SMTP_USER')
+            ? {
+                user: this.config.get<string>('SMTP_USER'),
+                pass: this.config.get<string>('SMTP_PASS'),
+              }
+            : undefined,
+          connectionTimeout: 15_000,
+          greetingTimeout: 15_000,
+          socketTimeout: 30_000,
+        });
+        this.transport = 'smtp';
+        this.logger.log(`Mail transport: SMTP (${host}:${port})`);
+      } else {
+        this.transport = 'none';
+      }
     }
   }
 
   get enabled(): boolean {
-    return this.transporter !== null;
+    return this.transport !== 'none';
   }
 
   assertProductionReady(_requireEmailVerification?: boolean) {
     void _requireEmailVerification;
     if (process.env.NODE_ENV === 'production' && !this.enabled) {
       throw new Error(
-        'SMTP is not configured but this deployment sends transactional email ' +
+        'Mail is not configured but this deployment sends transactional email ' +
           '(password reset, email verification, walk-in invites). ' +
-          'Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM.',
+          'Set POSTMARK_SERVER_TOKEN (recommended on Railway) or SMTP_HOST, SMTP_PORT, ' +
+          'SMTP_USER, SMTP_PASS, and SMTP_FROM.',
       );
     }
   }
@@ -222,9 +245,9 @@ export class MailService {
         },
       });
 
-      if (!this.transporter) {
+      if (this.transport === 'none') {
         this.logger.warn(
-          `SMTP not configured — mail NOT sent. outbox=${row.id} to=${row.to} subject="${row.subject}"`,
+          `Mail not configured — NOT sent. outbox=${row.id} to=${row.to} subject="${row.subject}"`,
         );
       } else {
         this.logger.error(`Mail send failed outbox=${row.id} to=${row.to}: ${message}`);
@@ -235,28 +258,44 @@ export class MailService {
   }
 
   private async deliver(row: EmailOutbox): Promise<void> {
-    if (!this.transporter) {
-      throw new Error('SMTP not configured');
+    const payload = row.payload as OutboxPayload;
+    const text = payload.text ?? '';
+
+    if (this.postmarkToken) {
+      await sendPostmarkEmail({
+        token: this.postmarkToken,
+        from: this.from,
+        to: row.to,
+        subject: row.subject,
+        text,
+        html: payload.html,
+      });
+      return;
     }
 
-    const payload = row.payload as OutboxPayload;
-    await this.transporter.sendMail({
-      from: this.from,
-      to: row.to,
-      subject: row.subject,
-      text: payload.text ?? '',
-      html: payload.html,
-    });
+    if (this.transporter) {
+      await this.transporter.sendMail({
+        from: this.from,
+        to: row.to,
+        subject: row.subject,
+        text,
+        html: payload.html,
+      });
+      return;
+    }
+
+    throw new Error('Mail transport not configured');
   }
 
   async sendVerificationEmail(to: string, url: string): Promise<void> {
+    // Queue-first: sign-up must not 502 when delivery is slow; outbox worker retries.
     await this.send({
       to,
       subject: 'Verify your Blox email address',
       text: `Welcome to Blox.\n\nVerify your email address to activate your account:\n${url}\n\nIf you did not create this account, ignore this email.`,
       template: 'email_verification',
       payload: { url },
-      authCritical: true,
+      authCritical: false,
     });
   }
 
