@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   BodyType,
   Drivetrain,
@@ -59,8 +58,7 @@ function mapCondition(condition?: string): VehicleCondition {
 }
 
 async function seedCheryListings(companyId: string) {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const jsonPath = path.join(here, '../scripts/chery-elite-motors-import.json');
+  const jsonPath = path.join(process.cwd(), 'scripts/chery-elite-motors-import.json');
   const raw = readFileSync(jsonPath, 'utf8').replace(/^\uFEFF/, '');
   const listings = JSON.parse(raw) as CheryListing[];
 
