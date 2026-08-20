@@ -1,6 +1,25 @@
-const API_BASE = () =>
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ||
-  'http://localhost:3010';
+const LOCAL_API_FALLBACK = 'http://localhost:3010';
+
+function resolveApiBase(): string {
+  const configured = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
+  if (configured) return configured;
+  if (import.meta.env.DEV) return LOCAL_API_FALLBACK;
+  throw new Error(
+    'VITE_API_URL is required in production builds. Configure it in the deployment environment.',
+  );
+}
+
+let cachedApiBase: string | null = null;
+
+const API_BASE = () => {
+  if (!cachedApiBase) cachedApiBase = resolveApiBase();
+  return cachedApiBase;
+};
+
+/** Fail fast at app startup when a prod build has no API URL configured. */
+export function assertApiBaseConfigured(): void {
+  void API_BASE();
+}
 
 export class ApiError extends Error {
   constructor(
@@ -11,6 +30,25 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+let onUnauthorized: (() => void) | null = null;
+let handlingUnauthorized = false;
+
+/** Registered once by the auth store — clears session and redirects on 401. */
+export function registerUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler;
+}
+
+/** Reset after handler early-return (e.g. already on /auth/*) so later 401s are handled. */
+export function resetUnauthorizedLatch() {
+  handlingUnauthorized = false;
+}
+
+function triggerUnauthorized() {
+  if (handlingUnauthorized || !onUnauthorized) return;
+  handlingUnauthorized = true;
+  onUnauthorized();
 }
 
 export async function apiFetch<T = unknown>(
@@ -41,6 +79,9 @@ export async function apiFetch<T = unknown>(
     } catch {
       /* ignore */
     }
+    if (res.status === 401) {
+      triggerUnauthorized();
+    }
     throw new ApiError(message, res.status, code);
   }
 
@@ -52,14 +93,14 @@ export function getApiBase() {
   return API_BASE();
 }
 
-declare global {
-  interface ImportMetaEnv {
-    readonly VITE_API_URL: string;
-    readonly VITE_APP_URL: string;
-    readonly VITE_SENTRY_DSN?: string;
-    readonly VITE_MARKETPLACE_NAME?: string;
-  }
-  interface ImportMeta {
-    readonly env: ImportMetaEnv;
-  }
+export const DEFAULT_PAGE_SIZE = 50;
+
+export function buildPaginationQuery(page: number, pageSize = DEFAULT_PAGE_SIZE): string {
+  return `limit=${pageSize}&offset=${page * pageSize}`;
+}
+
+export function paginationWindow(total: number, page: number, pageSize = DEFAULT_PAGE_SIZE) {
+  const from = total === 0 ? 0 : page * pageSize + 1;
+  const to = Math.min((page + 1) * pageSize, total);
+  return { from, to, total };
 }
