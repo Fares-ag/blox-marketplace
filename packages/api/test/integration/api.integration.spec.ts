@@ -42,13 +42,13 @@ describe('API integration suite', () => {
     it('rejects unauthenticated access, wrong roles, and suspended sessions', async () => {
       const guest = createAgent(ctx);
 
-      const unauth = await guest.get('/api/me');
+      const unauth = await guest.get('/api/v1/me');
       expect(unauth.status).toBe(401);
 
       const customerEmail = await signUpFresh(guest, 'auth-customer');
       const customer = await ctx.prisma.user.findUniqueOrThrow({ where: { email: customerEmail } });
 
-      const wrongRole = await authed(guest).get('/api/ops/applications');
+      const wrongRole = await authed(guest).get('/api/v1/ops/applications');
       expect(wrongRole.status).toBe(403);
 
       await ctx.prisma.user.update({
@@ -56,7 +56,7 @@ describe('API integration suite', () => {
         data: { isActive: false },
       });
 
-      const suspended = await authed(guest).get('/api/me');
+      const suspended = await authed(guest).get('/api/v1/me');
       expect(suspended.status).toBe(401);
     });
   });
@@ -65,6 +65,10 @@ describe('API integration suite', () => {
     it('apply → upload KYC → submit, and blocks cross-customer access', async () => {
       const company = await seedCompany(ctx.prisma, 'Flow Co');
       const offer = await seedOffer(ctx.prisma, company.id);
+      await ctx.prisma.offer.update({
+        where: { id: offer.id },
+        data: { profitRate: 3.5 },
+      });
       const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
 
       const customerAAgent = createAgent(ctx);
@@ -76,7 +80,7 @@ describe('API integration suite', () => {
 
       const pricingSnapshot = buildPricingSnapshot(Number(product.price));
       const createRes = await authed(customerAAgent)
-        .post('/api/applications')
+        .post('/api/v1/applications')
         .send({
           productId: product.id,
           offerId: offer.id,
@@ -94,7 +98,7 @@ describe('API integration suite', () => {
 
       for (const category of ['qid', 'salary', 'bank', 'other'] as const) {
         const upload = await authed(customerAAgent)
-          .post(`/api/applications/${appId}/documents`)
+          .post(`/api/v1/applications/${appId}/documents`)
           .field('category', category)
           .attach('file', Buffer.from('%PDF test'), {
             filename: `${category}.pdf`,
@@ -103,18 +107,18 @@ describe('API integration suite', () => {
         expect(upload.status).toBe(201);
       }
 
-      const submit = await authed(customerAAgent).post(`/api/applications/${appId}/submit`);
-      expect(submit.status).toBe(201);
+      const submit = await authed(customerAAgent).post(`/api/v1/applications/${appId}/submit`);
+      expect(submit.status).toBe(200);
       expect(submit.body.status).toBe('under_review');
 
-      const peekB = await authed(customerBAgent).get(`/api/applications/${appId}`);
+      const peekB = await authed(customerBAgent).get(`/api/v1/applications/${appId}`);
       expect(peekB.status).toBe(403);
 
-      const mutateB = await authed(customerBAgent).post(`/api/applications/${appId}/submit`);
+      const mutateB = await authed(customerBAgent).post(`/api/v1/applications/${appId}/submit`);
       expect(mutateB.status).toBe(403);
 
       const uploadB = await authed(customerBAgent)
-        .post(`/api/applications/${appId}/documents`)
+        .post(`/api/v1/applications/${appId}/documents`)
         .field('category', 'qid')
         .attach('file', Buffer.from('%PDF test'), {
           filename: 'qid.pdf',
@@ -122,9 +126,16 @@ describe('API integration suite', () => {
         });
       expect(uploadB.status).toBe(403);
 
-      const mineA = await authed(customerAAgent).get(`/api/applications/${appId}`);
+      const mineA = await authed(customerAAgent).get(`/api/v1/applications/${appId}`);
       expect(mineA.status).toBe(200);
-      expect(mineA.body.customerUserId ?? mineA.body.customer?.id ?? customerA.id).toBeTruthy();
+      expect(mineA.body.customer_user_id ?? mineA.body.customer?.id ?? customerA.id).toBeTruthy();
+      expect(mineA.body).not.toHaveProperty('profitRate');
+      expect(mineA.body).not.toHaveProperty('contractData');
+      expect(mineA.body).not.toHaveProperty('zohoLeadId');
+      expect(mineA.body).not.toHaveProperty('zohoSyncError');
+      expect(mineA.body.offer).toBeDefined();
+      expect(mineA.body.offer).not.toHaveProperty('profitRate');
+      expect(JSON.stringify(mineA.body)).not.toContain('profitRate');
     });
   });
 
@@ -152,14 +163,14 @@ describe('API integration suite', () => {
       await signIn(creditAgent, creditEmail);
 
       const missingReason = await authed(creditAgent)
-        .post(`/api/ops/applications/${app.id}/transition`)
+        .post(`/api/v1/ops/applications/${app.id}/transition`)
         .send({ toStatus: 'rejected' });
       expect(missingReason.status).toBe(400);
 
       const withReason = await authed(creditAgent)
-        .post(`/api/ops/applications/${app.id}/transition`)
+        .post(`/api/v1/ops/applications/${app.id}/transition`)
         .send({ toStatus: 'rejected', reason: 'Insufficient income documentation' });
-      expect(withReason.status).toBe(201);
+      expect(withReason.status).toBe(200);
       expect(withReason.body.status).toBe('rejected');
     });
 
@@ -226,10 +237,10 @@ describe('API integration suite', () => {
 
       const amount = Number(schedule.remainingAmount);
       const payRes = await authed(financeAgent)
-        .post(`/api/ops/payment-schedules/${schedule.id}/pay`)
+        .post(`/api/v1/ops/payment-schedules/${schedule.id}/pay`)
         .send({ amount, method: 'bank_transfer', reference: 'BANK-001' });
 
-      expect(payRes.status).toBe(201);
+      expect(payRes.status).toBe(200);
       expect(payRes.body.schedule.status).toBe('paid');
       expect(Number(payRes.body.schedule.remaining_amount)).toBe(0);
 

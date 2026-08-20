@@ -66,9 +66,9 @@ describe('down payment (integration)', () => {
     await signIn(creditAgent, creditEmail);
 
     const recordRes = await authed(financeAgent)
-      .post(`/api/ops/applications/${app.id}/down-payment`)
+      .post(`/api/v1/ops/applications/${app.id}/down-payment`)
       .send({ amount: requiredDown, method: 'bank_transfer', reference: 'DP-FULL' });
-    expect(recordRes.status).toBe(201);
+    expect(recordRes.status).toBe(200);
     expect(recordRes.body.status).toBe('down_payment_submitted');
 
     const downPaymentEvents = await ctx.prisma.paymentEvent.findMany({
@@ -78,13 +78,13 @@ describe('down payment (integration)', () => {
     expect(Number(downPaymentEvents[0]?.amount)).toBe(requiredDown);
 
     const queueRes = await authed(creditAgent)
-      .post(`/api/ops/applications/${app.id}/transition`)
+      .post(`/api/v1/ops/applications/${app.id}/transition`)
       .send({ toStatus: 'pending_finance_activation' });
-    expect(queueRes.status).toBe(201);
+    expect(queueRes.status).toBe(200);
     expect(queueRes.body.status).toBe('pending_finance_activation');
 
-    const activateRes = await authed(creditAgent).post(`/api/ops/applications/${app.id}/activate`);
-    expect(activateRes.status).toBe(201);
+    const activateRes = await authed(creditAgent).post(`/api/v1/ops/applications/${app.id}/activate`);
+    expect(activateRes.status).toBe(200);
     expect(activateRes.body.status).toBe('active');
   });
 
@@ -120,18 +120,18 @@ describe('down payment (integration)', () => {
     await signIn(creditAgent, creditEmail);
 
     const recordRes = await authed(financeAgent)
-      .post(`/api/ops/applications/${app.id}/down-payment`)
+      .post(`/api/v1/ops/applications/${app.id}/down-payment`)
       .send({ amount: requiredDown - 1, method: 'bank_transfer', reference: 'DP-SHORT' });
-    expect(recordRes.status).toBe(201);
+    expect(recordRes.status).toBe(200);
     expect(recordRes.body.status).toBe('down_payment_submitted');
 
     const queueRes = await authed(creditAgent)
-      .post(`/api/ops/applications/${app.id}/transition`)
+      .post(`/api/v1/ops/applications/${app.id}/transition`)
       .send({ toStatus: 'pending_finance_activation' });
-    expect(queueRes.status).toBe(201);
+    expect(queueRes.status).toBe(200);
 
-    const activateRes = await authed(creditAgent).post(`/api/ops/applications/${app.id}/activate`);
+    const activateRes = await authed(creditAgent).post(`/api/v1/ops/applications/${app.id}/activate`);
     expect(activateRes.status).toBe(400);
-    expect(activateRes.body.message).toBe('down_payment_incomplete');
+    expect(activateRes.body.error.code).toBe('down_payment_incomplete');
   });
 });

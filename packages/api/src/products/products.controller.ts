@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -30,6 +31,7 @@ import {
 } from 'class-validator';
 import { CurrentUser, OptionalSessionGuard, Public, Roles } from '../auth/guards';
 import { multerUploadOptions } from '../common/multer-options';
+import { PaginationQueryDto } from '../common/pagination.dto';
 import { ProductsService } from './products.service';
 
 class CreateProductDto {
@@ -139,15 +141,8 @@ export class ProductsController {
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
   @Get('dealer/inventory')
-  inventory(
-    @CurrentUser() user: User,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-  ) {
-    return this.products.listDealerInventory(user, {
-      limit: limit != null ? Number(limit) : undefined,
-      offset: offset != null ? Number(offset) : undefined,
-    });
+  inventory(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+    return this.products.listDealerInventory(user, query);
   }
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
@@ -174,12 +169,14 @@ export class ProductsController {
   }
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('dealer/inventory/:id/publish')
   publish(@CurrentUser() user: User, @Param('id') id: string) {
     return this.products.publish(user, id);
   }
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('dealer/inventory/:id/unpublish')
   unpublish(@CurrentUser() user: User, @Param('id') id: string) {
     return this.products.unpublish(user, id);

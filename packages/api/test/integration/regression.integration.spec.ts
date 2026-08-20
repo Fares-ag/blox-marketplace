@@ -71,11 +71,12 @@ describe('regression locks (integration)', () => {
     });
 
     const res = await request(ctx.app.getHttpServer())
-      .post('/api/payments/skipcash/complete')
+      .post('/api/v1/payments/skipcash/complete')
       .send({ idempotency_key: idempotencyKey, gateway_payment_id: 'gw-fake-123' });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe('gateway_verification_required');
+    expect(res.body.error.code).toBe('gateway_verification_required');
+    expect(res.body.error.requestId).toBeTruthy();
 
     const txnAfter = await ctx.prisma.paymentTransaction.findFirstOrThrow({
       where: { idempotencyKey },
@@ -174,45 +175,45 @@ describe('regression locks (integration)', () => {
     await signIn(creditAgent, creditEmail);
 
     const approveB = await authed(creditAgent).post(
-      `/api/ops/applications/${appBReview.id}/approve-contract`,
+      `/api/v1/ops/applications/${appBReview.id}/approve-contract`,
     );
     expect(approveB.status).toBe(403);
 
     const activateB = await authed(creditAgent).post(
-      `/api/ops/applications/${appBActivate.id}/activate`,
+      `/api/v1/ops/applications/${appBActivate.id}/activate`,
     );
     expect(activateB.status).toBe(403);
 
     const transitionB = await authed(creditAgent)
-      .post(`/api/ops/applications/${appBTransition.id}/transition`)
+      .post(`/api/v1/ops/applications/${appBTransition.id}/transition`)
       .send({ toStatus: 'rejected', reason: 'Out of scope regression check' });
     expect(transitionB.status).toBe(403);
 
     const contractB = await authed(creditAgent).get(
-      `/api/applications/${appBContract.id}/contract/file`,
+      `/api/v1/applications/${appBContract.id}/contract/file`,
     );
     expect(contractB.status).toBe(404);
 
     const approveA = await authed(creditAgent).post(
-      `/api/ops/applications/${appAReview.id}/approve-contract`,
+      `/api/v1/ops/applications/${appAReview.id}/approve-contract`,
     );
-    expect(approveA.status).toBe(201);
+    expect(approveA.status).toBe(200);
     expect(approveA.body.status).toBe('contract_signing_required');
 
     const activateA = await authed(creditAgent).post(
-      `/api/ops/applications/${appAActivate.id}/activate`,
+      `/api/v1/ops/applications/${appAActivate.id}/activate`,
     );
-    expect(activateA.status).toBe(201);
+    expect(activateA.status).toBe(200);
     expect(activateA.body.status).toBe('active');
 
     const transitionA = await authed(creditAgent)
-      .post(`/api/ops/applications/${appATransition.id}/transition`)
+      .post(`/api/v1/ops/applications/${appATransition.id}/transition`)
       .send({ toStatus: 'rejected', reason: 'In-scope regression check' });
-    expect(transitionA.status).toBe(201);
+    expect(transitionA.status).toBe(200);
     expect(transitionA.body.status).toBe('rejected');
 
     const contractA = await authed(creditAgent).get(
-      `/api/applications/${appAContract.id}/contract/file`,
+      `/api/v1/applications/${appAContract.id}/contract/file`,
     );
     expect(contractA.status).toBe(200);
     expect(contractA.headers['content-type']).toMatch(/pdf/i);
@@ -253,31 +254,31 @@ describe('regression locks (integration)', () => {
     const financeAgent = createAgent(ctx);
     await signIn(financeAgent, financeEmail);
 
-    const detailB = await authed(financeAgent).get(`/api/applications/${appB.id}`);
+    const detailB = await authed(financeAgent).get(`/api/v1/applications/${appB.id}`);
     expect(detailB.status).toBe(404);
 
     const docFileB = await authed(financeAgent).get(
-      `/api/applications/${appB.id}/documents/${docB.id}/file`,
+      `/api/v1/applications/${appB.id}/documents/${docB.id}/file`,
     );
     expect(docFileB.status).toBe(404);
 
     const payB = await authed(financeAgent)
-      .post(`/api/ops/payment-schedules/${scheduleB.id}/pay`)
+      .post(`/api/v1/ops/payment-schedules/${scheduleB.id}/pay`)
       .send({ method: 'bank_transfer', reference: 'REF-B' });
     expect(payB.status).toBe(403);
 
     const transitionB = await authed(financeAgent)
-      .post(`/api/ops/applications/${appB.id}/transition`)
+      .post(`/api/v1/ops/applications/${appB.id}/transition`)
       .send({ toStatus: 'down_payment_submitted' });
     expect(transitionB.status).toBe(403);
 
-    const detailA = await authed(financeAgent).get(`/api/applications/${appA.id}`);
+    const detailA = await authed(financeAgent).get(`/api/v1/applications/${appA.id}`);
     expect(detailA.status).toBe(200);
     expect(detailA.body.id).toBe(appA.id);
 
     const payA = await authed(financeAgent)
-      .post(`/api/ops/payment-schedules/${scheduleA.id}/pay`)
+      .post(`/api/v1/ops/payment-schedules/${scheduleA.id}/pay`)
       .send({ amount: Number(scheduleA.remainingAmount), method: 'bank_transfer', reference: 'REF-A' });
-    expect(payA.status).toBe(201);
+    expect(payA.status).toBe(200);
   });
 });

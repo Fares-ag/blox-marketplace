@@ -58,15 +58,15 @@ describe('dual-control waive (integration)', () => {
     await signIn(confirmerAgent, confirmerEmail);
 
     const requestRes = await authed(requesterAgent)
-      .post(`/api/ops/payment-schedules/${schedule.id}/waive/request`)
+      .post(`/api/v1/ops/payment-schedules/${schedule.id}/waive/request`)
       .send({ reason: 'Customer hardship — dual-control test' });
-    expect(requestRes.status).toBe(201);
+    expect(requestRes.status).toBe(200);
     expect(requestRes.body.schedule.pending_waive_requested_by_id).toBe(requester.id);
 
     const confirmRes = await authed(confirmerAgent).post(
-      `/api/ops/payment-schedules/${schedule.id}/waive/confirm`,
+      `/api/v1/ops/payment-schedules/${schedule.id}/waive/confirm`,
     );
-    expect(confirmRes.status).toBe(201);
+    expect(confirmRes.status).toBe(200);
     expect(confirmRes.body.schedule.status).toBe('waived');
     expect(confirmRes.body.schedule.paid_amount).toBe(Number(schedule.amount));
     expect(confirmRes.body.schedule.remaining_amount).toBe(0);

@@ -1,7 +1,19 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ScheduleStatus, User, UserRole } from '@prisma/client';
 import { IsEnum, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
 import { CurrentUser, Public, Roles } from '../auth/guards';
+import { IDEMPOTENCY_KEY_HEADER, IDEMPOTENCY_SCOPES } from '../common/idempotency.constants';
+import { IdempotencyService } from '../common/idempotency.service';
+import { PaginationQueryDto } from '../common/pagination.dto';
 import { PaymentsService } from './payments.service';
 
 class RecordPaymentDto {
@@ -14,11 +26,9 @@ class WaiveDto {
   @IsString() reason!: string;
 }
 
-class ListSchedulesQuery {
+class ListSchedulesQuery extends PaginationQueryDto {
   @IsOptional() @IsEnum(ScheduleStatus) status?: ScheduleStatus;
   @IsOptional() @IsString() applicationId?: string;
-  @IsOptional() limit?: number;
-  @IsOptional() offset?: number;
 }
 
 class SkipCashCompleteDto {
@@ -28,38 +38,50 @@ class SkipCashCompleteDto {
 
 @Controller()
 export class PaymentsController {
-  constructor(private readonly payments: PaymentsService) {}
+  constructor(
+    private readonly payments: PaymentsService,
+    private readonly idempotency: IdempotencyService,
+  ) {}
 
   @Roles(UserRole.finance_officer, UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
   @Get('ops/payment-schedules')
   list(@CurrentUser() user: User, @Query() query: ListSchedulesQuery) {
-    return this.payments.listSchedules(user, {
-      status: query.status,
-      applicationId: query.applicationId,
-      limit: query.limit != null ? Number(query.limit) : undefined,
-      offset: query.offset != null ? Number(query.offset) : undefined,
-    });
+    return this.payments.listSchedules(user, query);
   }
 
   @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/payment-schedules/:id/pay')
-  pay(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: RecordPaymentDto) {
-    return this.payments.recordPayment(user, id, dto);
+  pay(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: RecordPaymentDto,
+    @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
+  ) {
+    return this.idempotency.run({
+      userId: user.id,
+      scope: IDEMPOTENCY_SCOPES.opsSchedulePay(id),
+      idempotencyKey,
+      handler: () => this.payments.recordPayment(user, id, dto),
+    });
   }
 
   @Roles(UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/payment-schedules/:id/waive/request')
   requestWaive(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: WaiveDto) {
     return this.payments.requestWaiveSchedule(user, id, dto.reason);
   }
 
   @Roles(UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/payment-schedules/:id/waive/confirm')
   confirmWaive(@CurrentUser() user: User, @Param('id') id: string) {
     return this.payments.confirmWaiveSchedule(user, id);
   }
 
   @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
   @Post('ops/payment-schedules/mark-overdue')
   markOverdue(@CurrentUser() user: User) {
     return this.payments.markOverdue(user);
@@ -71,8 +93,14 @@ export class PaymentsController {
     @CurrentUser() user: User,
     @Param('applicationId') applicationId: string,
     @Param('scheduleId') scheduleId: string,
+    @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
   ) {
-    return this.payments.createSkipCashPayment(user, applicationId, scheduleId);
+    return this.idempotency.run({
+      userId: user.id,
+      scope: IDEMPOTENCY_SCOPES.skipCashCreate(applicationId, scheduleId),
+      idempotencyKey,
+      handler: () => this.payments.createSkipCashPayment(user, applicationId, scheduleId),
+    });
   }
 
   @Public()
