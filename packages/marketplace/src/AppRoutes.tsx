@@ -1,4 +1,4 @@
-import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +13,6 @@ import {
   MoneyText,
   DocumentMeta,
   apiFetch,
-  bloxMeta,
   buildPricingSnapshot,
   formatQar,
   getAppLocale,
@@ -42,100 +41,9 @@ import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ApplicationDetailPanel, type ApplicationDetailData } from './components/ApplicationDetailPanel';
 
-function HomePage() {
-  const { t } = useTranslation();
-  const { data: arrivals } = useQuery({
-    queryKey: ['products', 'new-arrivals'],
-    queryFn: () => apiFetch<ProductListResponse>('/api/products?sort=newest&limit=8'),
-  });
-
-  return (
-    <div className="dm-home">
-      <DocumentMeta title={t('meta.homeTitle')} />
-      <MarketplaceNav />
-      <section className="dm-hero" aria-label="Blox hero">
-        <div className="dm-hero__media" role="img" aria-label="Vehicle on a coastal road at dusk" />
-        <div className="dm-hero__scrim" />
-        <div className="dm-hero__content">
-          <p className="dm-hero__brand">{bloxMeta.name}</p>
-          <h1 className="dm-hero__headline">{t('home.headline')}</h1>
-          <p className="dm-hero__support">{t('home.support')}</p>
-          <div className="dm-hero__ctas">
-            <Link className="dm-btn-cta" to="/vehicles">
-              {t('home.browse')}
-            </Link>
-            <Link className="dm-btn-ghost" to="/help">
-              {t('home.howItWorks')}
-            </Link>
-          </div>
-        </div>
-      </section>
-      {(arrivals?.items.length ?? 0) > 0 && (
-        <section className="dm-new-arrivals">
-          <div className="dm-new-arrivals__head">
-            <div>
-              <h2>{t('home.newArrivals')}</h2>
-              <p>{t('home.newArrivalsBody')}</p>
-            </div>
-            <Link to="/vehicles?sort=newest">{t('home.viewAll')}</Link>
-          </div>
-          <div className="dm-new-arrivals__grid">
-            {arrivals!.items.map((p) => (
-              <ListingCard key={p.id} product={p} />
-            ))}
-          </div>
-        </section>
-      )}
-      <section className="dm-below">
-        <h2>{t('home.readyTitle')}</h2>
-        <p>{t('home.readyBody')}</p>
-        <Link to="/vehicles">{t('home.goSearch')}</Link>
-      </section>
-      <style>{`
-        .dm-hero { position: relative; min-height: 100vh; min-height: 100dvh; display: flex; align-items: flex-end; color: #fff; overflow: hidden; }
-        .dm-hero__media { position: absolute; inset: 0; background: linear-gradient(120deg, rgba(15,63,69,0.25), transparent 45%), url('https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=2400&q=80') center / cover no-repeat; }
-        .dm-hero__scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(15,63,69,0.88) 0%, rgba(22,83,91,0.6) 42%, rgba(22,83,91,0.2) 100%); }
-        .dm-hero__content { position: relative; z-index: 1; max-width: 640px; padding: 120px 24px 72px; animation: dm-fade 200ms var(--dm-ease) both; }
-        .dm-hero__brand { margin: 0 0 12px; font-family: var(--dm-font-display); font-size: clamp(2.75rem, 6vw, 4rem); font-weight: 600; line-height: 1.05; letter-spacing: -0.02em; }
-        .dm-hero__headline { margin: 0 0 16px; font-family: var(--dm-font-display); font-size: clamp(1.75rem, 3.5vw, 2.35rem); font-weight: 600; line-height: 1.15; max-width: 18ch; }
-        .dm-hero__support { margin: 0 0 28px; max-width: 42ch; color: rgba(255,255,255,0.82); font-size: 1.05rem; line-height: 1.5; }
-        .dm-hero__ctas { display: flex; flex-wrap: wrap; gap: 12px; }
-        .dm-below { padding: 64px 24px; max-width: 720px; }
-        .dm-below h2 { font-family: var(--dm-font-display); font-size: 1.75rem; margin: 0 0 12px; }
-        .dm-below p { color: var(--dm-slate-600); line-height: 1.55; }
-        .dm-new-arrivals {
-          padding: 48px 24px 32px;
-          border-top: 1px solid var(--dm-slate-200);
-          background: var(--dm-canvas);
-        }
-        .dm-new-arrivals__head {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 16px;
-          max-width: 1200px;
-          margin: 0 auto 24px;
-        }
-        .dm-new-arrivals__head h2 {
-          margin: 0 0 8px;
-          font-family: var(--dm-font-display);
-          font-size: 1.75rem;
-        }
-        .dm-new-arrivals__head p { margin: 0; color: var(--dm-slate-600); max-width: 42ch; }
-        .dm-new-arrivals__head a { font-weight: 600; color: var(--dm-steel); }
-        .dm-new-arrivals__grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-          gap: 20px;
-          max-width: 1200px;
-          margin: 0 auto;
-        }
-        @keyframes dm-fade { from { opacity: 0; } to { opacity: 1; } }
-        @media (max-width: 640px) { .dm-hero__content { padding: 100px 20px 56px; } .dm-hero__ctas .dm-btn-cta, .dm-hero__ctas .dm-btn-ghost { width: 100%; } }
-      `}</style>
-    </div>
-  );
+function VehiclesBrowseRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: '/', search }} replace />;
 }
 
 function VehiclesPage() {
@@ -336,7 +244,7 @@ function VehicleDetailPage() {
         <MarketplaceNav />
         <h1 style={{ fontFamily: 'var(--dm-font-display)', paddingTop: 64 }}>{t('detail.unavailable')}</h1>
         <p>{t('detail.unavailableBody')}</p>
-        <Link to="/vehicles">{t('detail.back')}</Link>
+        <Link to="/">{t('detail.back')}</Link>
       </div>
     );
   }
@@ -647,7 +555,7 @@ function ApplyWizardPage() {
     mutation.mutate();
   }
 
-  if (!productSlug) return <Navigate to="/vehicles" replace />;
+  if (!productSlug) return <Navigate to="/" replace />;
 
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
@@ -748,8 +656,8 @@ function ApplicationsListPage() {
         items: Array<{
           id: string;
           status: string;
-          createdAt: string;
-          product: { make: string; model: string; modelYear: number; slug: string };
+          created_at: string;
+          product: { make: string; model: string; model_year: number; slug: string };
         }>;
       }>('/api/applications/mine?limit=100'),
   });
@@ -766,7 +674,7 @@ function ApplicationsListPage() {
         {!isLoading && !apps.length && (
           <p style={{ color: 'var(--dm-slate-600)' }}>
             {t('application.empty')}{' '}
-            <Link to="/vehicles">{t('application.browse')}</Link>
+            <Link to="/">{t('application.browse')}</Link>
           </p>
         )}
         <ul className="dm-app-list" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
@@ -776,10 +684,10 @@ function ApplicationsListPage() {
                 <div>
                   <strong>
                     {a.product.make} {a.product.model}
-                    {a.product.modelYear ? ` · ${a.product.modelYear}` : ''}
+                    {a.product.model_year ? ` · ${a.product.model_year}` : ''}
                   </strong>
                   <div style={{ fontSize: 13, color: 'var(--dm-slate-600)', marginTop: 4 }}>
-                    {new Date(a.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-QA' : 'en-QA')}
+                    {new Date(a.created_at).toLocaleDateString(locale === 'ar' ? 'ar-QA' : 'en-QA')}
                   </div>
                 </div>
                 <span className={`dm-status-pill dm-status-pill--${applicationMarketplacePillVariant(a.status)}`}>
@@ -828,9 +736,18 @@ function QuoteRedeemPage() {
     queryFn: () =>
       apiFetch<{
         gate: string;
-        product?: { slug: string; make: string; model: string; modelYear?: number };
-        negotiatedPrice?: number;
-        customerEmailMasked?: string;
+        product?: {
+          slug: string;
+          make: string;
+          model: string;
+          model_year?: number;
+          public_list_price?: number;
+          image_path?: string | null;
+          finance_eligible?: boolean;
+          listing_status?: string;
+        };
+        negotiated_price?: number;
+        customer_email_masked?: string;
       }>(`/api/quotes/${token}`),
     enabled: !!token,
   });
@@ -843,7 +760,7 @@ function QuoteRedeemPage() {
         <div style={{ padding: 32, maxWidth: 640, margin: '0 auto' }}>
           <h1>{t('quote.unavailableTitle')}</h1>
           <p>{t('quote.unavailableBody')}</p>
-          <Link to="/vehicles">{t('quote.browse')}</Link>
+          <Link to="/">{t('quote.browse')}</Link>
         </div>
       </div>
     );
@@ -856,11 +773,11 @@ function QuoteRedeemPage() {
       <div style={{ padding: 32, maxWidth: 640, margin: '0 auto' }}>
         <h1>{t('quote.title')}</h1>
         <p>
-          {product.make} {product.model} {product.modelYear ?? ''}
+          {product.make} {product.model} {product.model_year ?? ''}
         </p>
-        {data.negotiatedPrice != null && (
+        {data.negotiated_price != null && (
           <p>
-            {t('quote.negotiatedPrice')}: <MoneyText>{formatQar(data.negotiatedPrice, false, getAppLocale())}</MoneyText>
+            {t('quote.negotiatedPrice')}: <MoneyText>{formatQar(data.negotiated_price, false, getAppLocale())}</MoneyText>
           </p>
         )}
         <Link
@@ -921,8 +838,8 @@ function ApplicationDetailPage() {
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/vehicles" element={<VehiclesPage />} />
+      <Route path="/" element={<VehiclesPage />} />
+      <Route path="/vehicles" element={<VehiclesBrowseRedirect />} />
       <Route path="/vehicles/:slug" element={<VehicleDetailPage />} />
       <Route path="/dealers" element={<DealersDirectoryPage />} />
       <Route path="/dealers/:code" element={<DealerShowroomPage />} />
@@ -933,7 +850,7 @@ export function AppRoutes() {
         path="/auth/login"
         element={
           <GuestGuard>
-            <LoginPage portalLabel="Customer marketplace" homePath="/app/dashboard" allowSignUp />
+            <LoginPage portalLabel="Customer marketplace" homePath="/app/dashboard" allowSignUp showMarketplaceLink />
           </GuestGuard>
         }
       />

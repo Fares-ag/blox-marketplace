@@ -379,7 +379,7 @@ export function CustomerDashboardPage() {
               </div>
               <div className="dm-dash__arrivals-list">
                 {arrivals!.data!.items.map((p) => (
-                  <ListingCard key={p.id} product={p} variant="row" />
+                  <ListingCard key={p.id} product={p} />
                 ))}
               </div>
             </section>
@@ -741,9 +741,9 @@ export function CustomerDashboardPage() {
         }
         .dm-dash__arrivals .dm-dash__panel-head { margin-bottom: 20px; }
         .dm-dash__arrivals-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          gap: 16px;
         }
         @media (max-width: 900px) {
           .dm-dash__snapshot { grid-template-columns: repeat(2, minmax(0, 1fr)); }

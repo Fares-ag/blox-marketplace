@@ -220,10 +220,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 registerUnauthorizedHandler(() => {
+  const hadSession = useAuthStore.getState().user !== null;
   useAuthStore.setState({ user: null, loading: false, initialized: true });
   if (typeof window === 'undefined') return;
   const { pathname, search } = window.location;
   if (pathname.startsWith('/auth/')) {
+    resetUnauthorizedLatch();
+    return;
+  }
+  // Public marketplace browse — stale cookies must not hijack the landing page.
+  if (!hadSession && !pathname.startsWith('/app/')) {
     resetUnauthorizedLatch();
     return;
   }

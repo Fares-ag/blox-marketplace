@@ -66,23 +66,24 @@ export function MarketplaceTopNav({
     e.preventDefault();
     const trimmed = q.trim();
     setMenuOpen(false);
-    if (location.pathname.startsWith('/vehicles')) {
+    const onBrowse = location.pathname === '/' || location.pathname === '/vehicles';
+    if (onBrowse) {
       const next = new URLSearchParams(searchParams);
       if (trimmed) next.set('q', trimmed);
       else next.delete('q');
       next.delete('offset');
       const qs = next.toString();
-      navigate(`/vehicles${qs ? `?${qs}` : ''}`);
+      navigate(`/${qs ? `?${qs}` : ''}`);
       return;
     }
     const params = new URLSearchParams();
     if (trimmed) params.set('q', trimmed);
-    navigate(`/vehicles${params.toString() ? `?${params}` : ''}`);
+    navigate(`/${params.toString() ? `?${params}` : ''}`);
   }
 
   const navLinks = (
     <>
-      <Link to="/vehicles" onClick={() => setMenuOpen(false)}>{t('nav.vehicles')}</Link>
+      <Link to="/" onClick={() => setMenuOpen(false)}>{t('nav.vehicles')}</Link>
       <Link to="/dealers" onClick={() => setMenuOpen(false)}>{t('nav.dealers')}</Link>
       <Link to="/compare" onClick={() => setMenuOpen(false)}>
         {t('nav.compare')}

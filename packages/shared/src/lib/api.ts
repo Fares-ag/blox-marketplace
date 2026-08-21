@@ -80,7 +80,10 @@ export async function apiFetch<T = unknown>(
       /* ignore */
     }
     if (res.status === 401) {
-      triggerUnauthorized();
+      // /api/me is the session probe — 401 means guest, not "force login".
+      if (path !== '/api/me' && !path.endsWith('/me')) {
+        triggerUnauthorized();
+      }
     }
     throw new ApiError(message, res.status, code);
   }

@@ -57,6 +57,7 @@ export type {
   PublicCompany,
   DmUser,
   Company,
+  NotificationItem,
 } from './types/domain';
 export { NON_BLOCKING_APPLICATION_STATUSES } from './types/domain';
 export { useAuthStore, roleAllowed } from './auth/auth-store';
