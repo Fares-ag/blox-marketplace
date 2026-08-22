@@ -39,8 +39,20 @@ function mapUser(raw: Record<string, unknown>): DmUser {
 async function readAuthError(res: Response): Promise<string> {
   const data = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
   if (data.code === 'ACCOUNT_LOCKED') return data.message ?? 'Account temporarily locked.';
-  return data.message ?? 'Request failed';
+  if (data.code === 'EMAIL_MISMATCH') {
+    return 'Session mismatch. Sign out, sign in again, then resend the verification email.';
+  }
+  if (typeof data.message === 'string' && data.message.trim()) {
+    if (data.message === 'Internal Server Error' && res.status >= 500) {
+      return 'Could not send verification email. Try again in a minute or check your spam folder.';
+    }
+    return data.message;
+  }
+  if (res.status === 429) return 'Too many attempts. Wait a few minutes and try again.';
+  return res.statusText || 'Request failed';
 }
+
+export { readAuthError };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,

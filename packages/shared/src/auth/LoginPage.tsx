@@ -1,11 +1,11 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { trackProductEvent } from '../analytics/track';
 import { bloxMeta } from '../config/blox-tokens';
 import { BloxLogo } from '../components/BloxLogo';
 import { getApiBase } from '../lib/api';
-import { useAuthStore } from './auth-store';
+import { useAuthStore, readAuthError } from './auth-store';
 
 const reasonCopy: Record<string, string> = {
   not_customer: 'This marketplace account area is for customers only. Sign out to continue as another role, or create a customer account.',
@@ -185,7 +185,10 @@ export function RegisterPage({
       setError(result.error);
       return;
     }
-    navigate(returnUrl ? decodeURIComponent(returnUrl) : homePath);
+    const verifyPath = returnUrl
+      ? `/auth/verify-email?returnUrl=${returnUrl}`
+      : '/auth/verify-email';
+    navigate(verifyPath);
   }
 
   return (
@@ -471,16 +474,49 @@ export function VerifyEmailPage({
   tagline = bloxMeta.tagline,
 }: VerifyEmailPageProps) {
   const { t } = useTranslation();
-  const { user, initialized, init, loading, refreshProfile } = useAuthStore();
+  const { user, initialized, init, loading, refreshProfile, signOut } = useAuthStore();
   const [params] = useSearchParams();
   const returnUrl = params.get('returnUrl');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoSentRef = useRef(false);
 
   useEffect(() => {
     void init();
   }, [init]);
+
+  async function resendVerification() {
+    if (!user?.email) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`${getApiBase()}/api/auth/send-verification-email`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email.trim().toLowerCase(),
+          callbackURL: `${window.location.origin}/auth/verify-email`,
+        }),
+      });
+      if (!res.ok) {
+        setError(await readAuthError(res));
+        return;
+      }
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('auth.verifyEmailResendFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!initialized || loading || !user || user.email_verified || autoSentRef.current) return;
+    autoSentRef.current = true;
+    void resendVerification();
+  }, [initialized, loading, user]);
 
   async function checkVerified() {
     await refreshProfile();
@@ -503,32 +539,6 @@ export function VerifyEmailPage({
     return <Navigate to={returnUrl ? decodeURIComponent(returnUrl) : homePath} replace />;
   }
 
-  async function resendVerification() {
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch(`${getApiBase()}/api/auth/send-verification-email`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: user!.email,
-          callbackURL: `${window.location.origin}/auth/login`,
-        }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        setError(data.message ?? t('auth.verifyEmailResendFailed'));
-        return;
-      }
-      setSent(true);
-    } catch {
-      setError(t('auth.verifyEmailResendFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="dm-auth-layout">
       <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel={portalLabel} />
@@ -539,33 +549,40 @@ export function VerifyEmailPage({
           <p className="dm-auth-card__lead">
             {t('auth.verifyEmailLead', { email: user.email })}
           </p>
-          {sent ? (
+          {sent && (
             <div className="dm-auth-banner" role="status">
               <p>{t('auth.verifyEmailSent')}</p>
             </div>
-          ) : (
-            <>
-              {error && <p className="dm-auth-error">{error}</p>}
-              <button
-                type="button"
-                className="dm-btn-cta dm-auth-submit"
-                disabled={busy}
-                onClick={() => void resendVerification()}
-              >
-                {busy ? t('auth.verifyEmailSending') : t('auth.verifyEmailResend')}
-              </button>
-              <button
-                type="button"
-                className="dm-auth-linkbtn"
-                style={{ marginTop: 14, display: 'block' }}
-                onClick={() => void checkVerified()}
-              >
-                {t('auth.verifyEmailContinue')}
-              </button>
-            </>
           )}
+          {error && <p className="dm-auth-error">{error}</p>}
+          <button
+            type="button"
+            className="dm-btn-cta dm-auth-submit"
+            disabled={busy}
+            onClick={() => void resendVerification()}
+          >
+            {busy ? t('auth.verifyEmailSending') : t('auth.verifyEmailResend')}
+          </button>
+          <button
+            type="button"
+            className="dm-auth-linkbtn"
+            style={{ marginTop: 14, display: 'block' }}
+            onClick={() => void checkVerified()}
+          >
+            {t('auth.verifyEmailContinue')}
+          </button>
           <p className="dm-auth-foot">
-            <Link to="/auth/login">{t('auth.verifyEmailBackToSignIn')}</Link>
+            <button
+              type="button"
+              className="dm-auth-linkbtn"
+              onClick={() => {
+                void signOut().then(() => {
+                  window.location.assign('/auth/login');
+                });
+              }}
+            >
+              {t('auth.verifyEmailSignOut')}
+            </button>
           </p>
         </div>
       </main>

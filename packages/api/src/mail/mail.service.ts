@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { EmailOutbox, EmailOutboxStatus, Prisma } from '@prisma/client';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
-import { resolvePostmarkServerToken, sendPostmarkEmail } from './postmark-mail';
+import { resolvePostmarkHttpTimeoutMs, resolvePostmarkServerToken, sendPostmarkEmail } from './postmark-mail';
 
 export type MailTemplate =
   | 'password_reset'
@@ -70,6 +70,7 @@ export class MailService {
   private readonly transport: MailTransport;
   private transporter: Transporter | null = null;
   private readonly postmarkToken: string | null;
+  private readonly postmarkHttpTimeoutMs: number;
   private readonly from: string;
 
   constructor(
@@ -79,6 +80,7 @@ export class MailService {
     this.from =
       this.config.get<string>('SMTP_FROM') ?? 'Blox <no-reply@blox.market>';
     this.postmarkToken = resolvePostmarkServerToken(config);
+    this.postmarkHttpTimeoutMs = resolvePostmarkHttpTimeoutMs(config);
 
     if (this.postmarkToken) {
       this.transport = 'postmark';
@@ -269,6 +271,7 @@ export class MailService {
         subject: row.subject,
         text,
         html: payload.html,
+        timeoutMs: this.postmarkHttpTimeoutMs,
       });
       return;
     }
@@ -288,14 +291,12 @@ export class MailService {
   }
 
   async sendVerificationEmail(to: string, url: string): Promise<void> {
-    // Queue-first: sign-up must not 502 when delivery is slow; outbox worker retries.
     await this.send({
       to,
       subject: 'Verify your Blox email address',
       text: `Welcome to Blox.\n\nVerify your email address to activate your account:\n${url}\n\nIf you did not create this account, ignore this email.`,
       template: 'email_verification',
       payload: { url },
-      authCritical: false,
     });
   }
 

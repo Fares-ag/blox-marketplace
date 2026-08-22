@@ -13,6 +13,18 @@
       "require": "./dist/lib/pricing.cjs",
       "default": "./src/lib/pricing.ts"
     },
+    "./installment-plan": {
+      "types": "./src/lib/installment-plan-server.ts",
+      "import": "./src/lib/installment-plan-server.ts",
+      "require": "./dist/lib/installment-plan.cjs",
+      "default": "./src/lib/installment-plan-server.ts"
+    },
+    "./installment-plan-utils": {
+      "types": "./src/lib/installment-plan-utils.ts",
+      "import": "./src/lib/installment-plan-utils.ts",
+      "require": "./dist/lib/installment-plan.cjs",
+      "default": "./src/lib/installment-plan-utils.ts"
+    },
     "./styles/global.scss": "./src/styles/global.scss",
     "./styles/blox-ops.scss": "./src/styles/blox-ops.scss",
     "./i18n": "./src/i18n/index.ts",
@@ -22,17 +34,28 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:pricing": "tsc -p tsconfig.pricing.json && node -e \"require('node:fs').renameSync('dist/lib/pricing.js','dist/lib/pricing.cjs')\"",
+    "build:installment-plan": "npx --yes esbuild@0.25.0 src/lib/installment-plan-server.ts --bundle --platform=node --format=cjs --outfile=dist/lib/installment-plan.cjs",
     "test": "vitest run",
     "lint": "eslint ."
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.3.1",
+    "@mui/material": "^9.3.1",
+    "@mui/x-date-pickers": "^9.12.0",
     "@sentry/react": "^10.70.0",
     "@tanstack/react-query": "^5.66.0",
+    "chart.js": "^4.5.1",
     "i18next": "^26.3.6",
     "react": "^19.0.0",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.0.0",
+    "react-hook-form": "^7.86.0",
     "react-i18next": "^17.0.11",
     "react-router-dom": "^6.29.0",
+    "react-toastify": "^11.1.0",
+    "yup": "^1.7.1",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

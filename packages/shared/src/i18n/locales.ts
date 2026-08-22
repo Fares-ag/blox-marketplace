@@ -333,7 +333,7 @@ export const en = {
     verifyEmailSent: 'Verification email sent. Check your inbox (and spam folder).',
     verifyEmailResendFailed: 'Could not send verification email. Try again.',
     verifyEmailContinue: 'I verified my email — continue',
-    verifyEmailBackToSignIn: 'Back to sign in',
+    verifyEmailSignOut: 'Wrong email? Sign out',
   },
   dashboard: {
     metaTitle: 'Your dashboard | Blox',
@@ -926,7 +926,7 @@ export const ar: typeof en = {
     verifyEmailSent: 'تم إرسال رسالة التحقق. تحقق من بريدك (ومجلد الرسائل غير المرغوب فيها).',
     verifyEmailResendFailed: 'تعذّر إرسال رسالة التحقق. حاول مرة أخرى.',
     verifyEmailContinue: 'تحققت من بريدي — متابعة',
-    verifyEmailBackToSignIn: 'العودة لتسجيل الدخول',
+    verifyEmailSignOut: 'البريد غير صحيح؟ تسجيل الخروج',
   },
   dashboard: {
     metaTitle: 'لوحة التحكم | Blox',
