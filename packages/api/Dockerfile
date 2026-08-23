@@ -27,6 +27,8 @@ COPY --from=build /app/packages/shared ./packages/shared
 COPY --from=build /app/packages/api/dist ./packages/api/dist
 COPY --from=build /app/packages/api/prisma ./packages/api/prisma
 COPY --from=build /app/packages/api/scripts/chery-elite-motors-import.json ./packages/api/scripts/chery-elite-motors-import.json
+COPY --from=build /app/packages/api/scripts/run-qauto-seed.mjs ./packages/api/scripts/run-qauto-seed.mjs
+COPY --from=build /app/packages/api/assets/qauto-catalog ./packages/api/assets/qauto-catalog
 COPY --from=build /app/packages/api/package.json ./packages/api/package.json
 COPY --from=build /app/packages/api/node_modules ./packages/api/node_modules
 WORKDIR /app/packages/api
