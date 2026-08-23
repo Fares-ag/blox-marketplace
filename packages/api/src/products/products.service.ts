@@ -606,6 +606,7 @@ export class ProductsService {
     financeEligible: boolean;
     warrantyMonths: number | null;
     warrantyNotes: string | null;
+    attributes?: Prisma.JsonValue | null;
     companyId: string;
     publishedAt: Date | null;
     company: { id: string; name: string; code: string | null; logoUrl: string | null };
@@ -636,6 +637,7 @@ export class ProductsService {
       finance_eligible: p.financeEligible,
       warranty_months: p.warrantyMonths,
       warranty_notes: p.warrantyNotes,
+      attributes: Array.isArray(p.attributes) ? p.attributes : [],
       company_id: p.companyId,
       company_name: p.company.name,
       company_code: p.company.code,

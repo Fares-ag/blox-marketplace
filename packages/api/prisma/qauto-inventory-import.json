@@ -1,0 +1,2061 @@
+{
+  "source": {
+    "audi": "20260724000400_import_audi_price_list_skus.sql",
+    "volkswagen": "20260803190000_qauto_brand_dealers_and_vw_inventory.sql",
+    "generated_at": "2026-08-23T07:32:55.989Z"
+  },
+  "listings": [
+    {
+      "id": "audi-a3-sedan-35-tfsi",
+      "make": "Audi",
+      "model": "A3",
+      "trim": "Sedan 35 TFSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "35 TFSI",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 155000,
+      "description": "Audi A3 Sedan 35 TFSI",
+      "image": "/vehicles/audi-a3-sedan-35-tfsi.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "A"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "a3"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-a3-sedan-35-tfsi"
+        }
+      ]
+    },
+    {
+      "id": "audi-s3-sportback",
+      "make": "Audi",
+      "model": "S3",
+      "trim": "Sportback",
+      "year": 2026,
+      "condition": "new",
+      "engine": "S3",
+      "color": "Daytona Grey",
+      "mileage": 0,
+      "price": 255000,
+      "description": "Audi S3 Sportback",
+      "image": "/vehicles/audi-s3-sportback.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sportback"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "S"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "s3"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-s3-sportback"
+        }
+      ]
+    },
+    {
+      "id": "audi-s3-sedan",
+      "make": "Audi",
+      "model": "S3",
+      "trim": "Sedan",
+      "year": 2026,
+      "condition": "new",
+      "engine": "S3",
+      "color": "Daytona Grey",
+      "mileage": 0,
+      "price": 265000,
+      "description": "Audi S3 Sedan",
+      "image": "/vehicles/audi-s3-sedan.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "S"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "s3"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-s3-sedan"
+        }
+      ]
+    },
+    {
+      "id": "audi-rs3-sportback",
+      "make": "Audi",
+      "model": "RS3",
+      "trim": "Sportback",
+      "year": 2026,
+      "condition": "new",
+      "engine": "RS3",
+      "color": "Nardo Grey",
+      "mileage": 0,
+      "price": 335000,
+      "description": "Audi RS3 Sportback",
+      "image": "/vehicles/audi-rs3-sportback.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sportback"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "RS"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "rs3"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-rs3-sportback"
+        }
+      ]
+    },
+    {
+      "id": "audi-rs3-sedan",
+      "make": "Audi",
+      "model": "RS3",
+      "trim": "Sedan",
+      "year": 2026,
+      "condition": "new",
+      "engine": "RS3",
+      "color": "Nardo Grey",
+      "mileage": 0,
+      "price": 345000,
+      "description": "Audi RS3 Sedan",
+      "image": "/vehicles/audi-rs3-sedan.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "RS"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "rs3"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-rs3-sedan"
+        }
+      ]
+    },
+    {
+      "id": "audi-a5-sedan",
+      "make": "Audi",
+      "model": "A5",
+      "trim": "Sedan",
+      "year": 2026,
+      "condition": "new",
+      "engine": "A5",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 235000,
+      "description": "Audi A5 Sedan",
+      "image": "/vehicles/audi-a5-sedan.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "A"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "a5"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-a5-sedan"
+        }
+      ]
+    },
+    {
+      "id": "audi-rs5-avant",
+      "make": "Audi",
+      "model": "RS5",
+      "trim": "Avant",
+      "year": 2026,
+      "condition": "new",
+      "engine": "RS5",
+      "color": "Nardo Grey",
+      "mileage": 0,
+      "price": 450000,
+      "description": "Audi RS5 Avant",
+      "image": "/vehicles/audi-rs5-avant.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Avant"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "RS"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "rs5"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-rs5-avant"
+        }
+      ]
+    },
+    {
+      "id": "audi-rs5-sedan",
+      "make": "Audi",
+      "model": "RS5",
+      "trim": "Sedan",
+      "year": 2026,
+      "condition": "new",
+      "engine": "RS5",
+      "color": "Nardo Grey",
+      "mileage": 0,
+      "price": 480000,
+      "description": "Audi RS5 Sedan",
+      "image": "/vehicles/audi-rs5-sedan.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "RS"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "rs5"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-rs5-sedan"
+        }
+      ]
+    },
+    {
+      "id": "audi-a6",
+      "make": "Audi",
+      "model": "A6",
+      "trim": "Sedan",
+      "year": 2026,
+      "condition": "new",
+      "engine": "A6",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 255000,
+      "description": "Audi A6",
+      "image": "/vehicles/audi-a6.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "A"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "a6"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-a6"
+        }
+      ]
+    },
+    {
+      "id": "audi-a8l-55-tfsi",
+      "make": "Audi",
+      "model": "A8",
+      "trim": "L 55 TFSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "55 TFSI",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 465000,
+      "description": "Audi A8L 55 TFSI",
+      "image": "/vehicles/audi-a8l-55-tfsi.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "A"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "a8"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-a8l-55-tfsi"
+        }
+      ]
+    },
+    {
+      "id": "audi-s8",
+      "make": "Audi",
+      "model": "S8",
+      "trim": "Sedan",
+      "year": 2026,
+      "condition": "new",
+      "engine": "S8",
+      "color": "Daytona Grey",
+      "mileage": 0,
+      "price": 690000,
+      "description": "Audi S8",
+      "image": "/vehicles/audi-s8.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "S"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "s8"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-s8"
+        }
+      ]
+    },
+    {
+      "id": "audi-q2",
+      "make": "Audi",
+      "model": "Q2",
+      "trim": "SUV",
+      "year": 2026,
+      "condition": "new",
+      "engine": "Q2",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 155000,
+      "description": "Audi Q2",
+      "image": "/vehicles/audi-q2.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q2"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q2"
+        }
+      ]
+    },
+    {
+      "id": "audi-q3-suv",
+      "make": "Audi",
+      "model": "Q3",
+      "trim": "SUV",
+      "year": 2026,
+      "condition": "new",
+      "engine": "Q3",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 210000,
+      "description": "Audi Q3 SUV",
+      "image": "/vehicles/audi-q3-suv.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q3"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q3-suv"
+        }
+      ]
+    },
+    {
+      "id": "audi-q3-sportback",
+      "make": "Audi",
+      "model": "Q3",
+      "trim": "Sportback",
+      "year": 2026,
+      "condition": "new",
+      "engine": "Q3",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 240000,
+      "description": "Audi Q3 Sportback",
+      "image": "/vehicles/audi-q3-sportback.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sportback"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q3"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q3-sportback"
+        }
+      ]
+    },
+    {
+      "id": "audi-q5-suv",
+      "make": "Audi",
+      "model": "Q5",
+      "trim": "SUV",
+      "year": 2026,
+      "condition": "new",
+      "engine": "Q5",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 275000,
+      "description": "Audi Q5 SUV",
+      "image": "/vehicles/audi-q5-suv.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q5"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q5-suv"
+        }
+      ]
+    },
+    {
+      "id": "audi-q5-sportback",
+      "make": "Audi",
+      "model": "Q5",
+      "trim": "Sportback",
+      "year": 2026,
+      "condition": "new",
+      "engine": "Q5",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 295000,
+      "description": "Audi Q5 Sportback",
+      "image": "/vehicles/audi-q5-sportback.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sportback"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q5"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q5-sportback"
+        }
+      ]
+    },
+    {
+      "id": "audi-sq5-suv",
+      "make": "Audi",
+      "model": "SQ5",
+      "trim": "SUV",
+      "year": 2026,
+      "condition": "new",
+      "engine": "SQ5",
+      "color": "Daytona Grey",
+      "mileage": 0,
+      "price": 355000,
+      "description": "Audi SQ5 SUV",
+      "image": "/vehicles/audi-sq5-suv.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "SQ"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "sq5"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-sq5-suv"
+        }
+      ]
+    },
+    {
+      "id": "audi-sq5-sportback",
+      "make": "Audi",
+      "model": "SQ5",
+      "trim": "Sportback",
+      "year": 2026,
+      "condition": "new",
+      "engine": "SQ5",
+      "color": "Daytona Grey",
+      "mileage": 0,
+      "price": 365000,
+      "description": "Audi SQ5 Sportback",
+      "image": "/vehicles/audi-sq5-sportback.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sportback"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "SQ"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "sq5"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-sq5-sportback"
+        }
+      ]
+    },
+    {
+      "id": "audi-q6-etron-suv",
+      "make": "Audi",
+      "model": "Q6",
+      "trim": "e-tron SUV",
+      "year": 2026,
+      "condition": "new",
+      "engine": "e-tron",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 355000,
+      "description": "Audi Q6 e-tron SUV",
+      "image": "/vehicles/audi-q6-etron-suv.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q6-etron"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q6-etron-suv"
+        }
+      ]
+    },
+    {
+      "id": "audi-q6-etron-sportback",
+      "make": "Audi",
+      "model": "Q6",
+      "trim": "e-tron Sportback",
+      "year": 2026,
+      "condition": "new",
+      "engine": "e-tron",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 365000,
+      "description": "Audi Q6 e-tron Sportback",
+      "image": "/vehicles/audi-q6-etron-sportback.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sportback"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q6-etron"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q6-etron-sportback"
+        }
+      ]
+    },
+    {
+      "id": "audi-q7-185-kw",
+      "make": "Audi",
+      "model": "Q7",
+      "trim": "185 kW",
+      "year": 2026,
+      "condition": "new",
+      "engine": "185 kW",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 360000,
+      "description": "Audi Q7 185 kW",
+      "image": "/vehicles/audi-q7-185-kw.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q7"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q7-185-kw"
+        }
+      ]
+    },
+    {
+      "id": "audi-q7-250-kw",
+      "make": "Audi",
+      "model": "Q7",
+      "trim": "250 kW",
+      "year": 2026,
+      "condition": "new",
+      "engine": "250 kW",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 420000,
+      "description": "Audi Q7 250 kW",
+      "image": "/vehicles/audi-q7-250-kw.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q7"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q7-250-kw"
+        }
+      ]
+    },
+    {
+      "id": "audi-q8-suv",
+      "make": "Audi",
+      "model": "Q8",
+      "trim": "SUV",
+      "year": 2026,
+      "condition": "new",
+      "engine": "Q8",
+      "color": "Florett Silver",
+      "mileage": 0,
+      "price": 420000,
+      "description": "Audi Q8 SUV",
+      "image": "/vehicles/audi-q8-suv.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "Q"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "q8"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-q8-suv"
+        }
+      ]
+    },
+    {
+      "id": "audi-sq8",
+      "make": "Audi",
+      "model": "SQ8",
+      "trim": "SUV",
+      "year": 2026,
+      "condition": "new",
+      "engine": "SQ8",
+      "color": "Daytona Grey",
+      "mileage": 0,
+      "price": 565000,
+      "description": "Audi SQ8",
+      "image": "/vehicles/audi-sq8.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "SQ"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "sq8"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-sq8"
+        }
+      ]
+    },
+    {
+      "id": "audi-rsq8",
+      "make": "Audi",
+      "model": "RSQ8",
+      "trim": "SUV",
+      "year": 2026,
+      "condition": "new",
+      "engine": "RSQ8",
+      "color": "Nardo Grey",
+      "mileage": 0,
+      "price": 740000,
+      "description": "Audi RS Q8",
+      "image": "/vehicles/audi-rsq8.webp",
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "performance_line",
+          "name": "performance_line",
+          "value": "RSQ"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "rsq8"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "audi-rsq8"
+        }
+      ]
+    },
+    {
+      "id": "vw-amarok-dc-style-2-3-l-tsi-222-kw-4w-dark-gray-metallic-2025",
+      "make": "Volkswagen",
+      "model": "Amarok",
+      "trim": "DC Style 2.3 l TSI 222 KW 4W",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.3 l TSI 222 KW",
+      "color": "Dark Gray Metallic",
+      "mileage": 0,
+      "price": 159900,
+      "description": "Amarok DC Style 2.3 l TSI 222 KW 4W",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "amarok"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-amarok-dc-style-2-3-l-tsi-222-kw-4w-dark-gray-metallic-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "257"
+        }
+      ]
+    },
+    {
+      "id": "vw-caddy-cargo-1-6-l-81-kw-pfi-pure-gray-2026",
+      "make": "Volkswagen",
+      "model": "Caddy",
+      "trim": "Cargo 1.6 l 81 kW PFI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.6 l 81 kW PFI",
+      "color": "Pure Gray",
+      "mileage": 0,
+      "price": 74900,
+      "description": "Caddy Cargo 1.6 l 81 kW PFI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "caddy"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-caddy-cargo-1-6-l-81-kw-pfi-pure-gray-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "257"
+        }
+      ]
+    },
+    {
+      "id": "vw-caddy-cargo-1-6-l-81-kw-pfi-candy-white-2026",
+      "make": "Volkswagen",
+      "model": "Caddy",
+      "trim": "Cargo 1.6 l 81 kW PFI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.6 l 81 kW PFI",
+      "color": "Candy White",
+      "mileage": 0,
+      "price": 74900,
+      "description": "Caddy Cargo 1.6 l 81 kW PFI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "caddy"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-caddy-cargo-1-6-l-81-kw-pfi-candy-white-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-jetta-highline-1-5l-sedan-fwd-pure-white-2026",
+      "make": "Volkswagen",
+      "model": "Jetta",
+      "trim": "Highline 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Pure White",
+      "mileage": 0,
+      "price": 104900,
+      "description": "Jetta Highline 1.5L Sedan FWD 4Doors",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "jetta"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-jetta-highline-1-5l-sedan-fwd-pure-white-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "240"
+        }
+      ]
+    },
+    {
+      "id": "vw-jetta-trendline-1-5l-sedan-fwd-manganese-gray-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Jetta",
+      "trim": "Trendline 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Manganese Gray Metallic",
+      "mileage": 0,
+      "price": 89900,
+      "description": "Jetta Trendline 1.5L Sedan FWD 4Doors",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "jetta"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-jetta-trendline-1-5l-sedan-fwd-manganese-gray-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "3"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-jetta-trendline-1-5l-sedan-fwd-gavial-green-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Jetta",
+      "trim": "Trendline 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Gavial Green Metallic",
+      "mileage": 0,
+      "price": 89900,
+      "description": "Jetta Trendline 1.5L Sedan FWD 4Doors",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "jetta"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-jetta-trendline-1-5l-sedan-fwd-gavial-green-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-jetta-trendline-1-5l-sedan-fwd-shark-blue-2026",
+      "make": "Volkswagen",
+      "model": "Jetta",
+      "trim": "Trendline 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Shark Blue",
+      "mileage": 0,
+      "price": 89900,
+      "description": "Jetta Trendline 1.5L Sedan FWD 4Doors",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "jetta"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-jetta-trendline-1-5l-sedan-fwd-shark-blue-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-passat-a-line-1-5l-sedan-fwd-grenadilla-black-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Passat",
+      "trim": "A-Line 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Grenadilla Black Metallic",
+      "mileage": 0,
+      "price": 104900,
+      "description": "Passat A-Line 1.5L Sedan FWD",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "passat"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-passat-a-line-1-5l-sedan-fwd-grenadilla-black-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "21"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "240"
+        }
+      ]
+    },
+    {
+      "id": "vw-passat-a-line-1-5l-sedan-fwd-bamboo-gray-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Passat",
+      "trim": "A-Line 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Bamboo Gray Metallic",
+      "mileage": 0,
+      "price": 104900,
+      "description": "Passat A-Line 1.5L Sedan FWD",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "passat"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-passat-a-line-1-5l-sedan-fwd-bamboo-gray-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "2"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-passat-a-line-1-5l-sedan-fwd-silver-leaf-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Passat",
+      "trim": "A-Line 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Silver Leaf Metallic",
+      "mileage": 0,
+      "price": 104900,
+      "description": "Passat A-Line 1.5L Sedan FWD",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "passat"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-passat-a-line-1-5l-sedan-fwd-silver-leaf-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-passat-b-line-1-5l-sedan-fwd-deepest-ocean-blue-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Passat",
+      "trim": "B-Line 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Deepest Ocean Blue Metallic",
+      "mileage": 0,
+      "price": 114900,
+      "description": "Passat B-Line 1.5L Sedan FWD",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "passat"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-passat-b-line-1-5l-sedan-fwd-deepest-ocean-blue-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "2"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-passat-b-line-1-5l-sedan-fwd-bamboo-gray-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Passat",
+      "trim": "B-Line 1.5L Sedan FWD",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.5L",
+      "color": "Bamboo Gray Metallic",
+      "mileage": 0,
+      "price": 114900,
+      "description": "Passat B-Line 1.5L Sedan FWD",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "passat"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-passat-b-line-1-5l-sedan-fwd-bamboo-gray-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "4"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-t-roc-life-1-4-l-grenadilla-black-metallic-2026",
+      "make": "Volkswagen",
+      "model": "T-Roc",
+      "trim": "Life 1.4 L",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 L",
+      "color": "Grenadilla Black Metallic",
+      "mileage": 0,
+      "price": 89900,
+      "description": "T-Roc Life 1.4 L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "t-roc"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-t-roc-life-1-4-l-grenadilla-black-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "3"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "286"
+        }
+      ]
+    },
+    {
+      "id": "vw-t-roc-life-1-4-l-pure-white-2026",
+      "make": "Volkswagen",
+      "model": "T-Roc",
+      "trim": "Life 1.4 L",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 L",
+      "color": "Pure White",
+      "mileage": 0,
+      "price": 89900,
+      "description": "T-Roc Life 1.4 L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "t-roc"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-t-roc-life-1-4-l-pure-white-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "4"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "245"
+        }
+      ]
+    },
+    {
+      "id": "vw-t-roc-life-1-4-l-tsi-110-kw-indium-gray-metallic-2025",
+      "make": "Volkswagen",
+      "model": "T-Roc",
+      "trim": "Life 1.4 l TSI 110 kW",
+      "year": 2025,
+      "condition": "new",
+      "engine": "1.4 l TSI 110 kW",
+      "color": "Indium Gray Metallic",
+      "mileage": 0,
+      "price": 89900,
+      "description": "T-Roc Life 1.4 l TSI 110 kW (150 PS) 8-speed automatic",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "t-roc"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-t-roc-life-1-4-l-tsi-110-kw-indium-gray-metallic-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "482"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-comfortline-2-0l-avocado-green-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Comfortline 2.0L",
+      "year": 2026,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Avocado Green Metallic",
+      "mileage": 0,
+      "price": 209900,
+      "description": "Teramont Comfortline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-comfortline-2-0l-avocado-green-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "263"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-comfortline-2-0l-pure-gray-2026",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Comfortline 2.0L",
+      "year": 2026,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Pure Gray",
+      "mileage": 0,
+      "price": 209900,
+      "description": "Teramont Comfortline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-comfortline-2-0l-pure-gray-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "263"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-comfortline-2-0l-avocado-green-metallic-2025",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Comfortline 2.0L",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Avocado Green Metallic",
+      "mileage": 0,
+      "price": 209900,
+      "description": "Teramont Comfortline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-comfortline-2-0l-avocado-green-metallic-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "382"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-comfortline-2-0l-silverbird-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Comfortline 2.0L",
+      "year": 2026,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Silverbird Metallic",
+      "mileage": 0,
+      "price": 209900,
+      "description": "Teramont Comfortline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-comfortline-2-0l-silverbird-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "2"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "263"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-comfortline-2-0l-pure-gray-2025",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Comfortline 2.0L",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Pure Gray",
+      "mileage": 0,
+      "price": 209900,
+      "description": "Teramont Comfortline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-comfortline-2-0l-pure-gray-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "340"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-comfortline-2-0l-platinum-gray-metallic-2025",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Comfortline 2.0L",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Platinum Gray Metallic",
+      "mileage": 0,
+      "price": 209900,
+      "description": "Teramont Comfortline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-comfortline-2-0l-platinum-gray-metallic-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "382"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-r-line-2-0l-platinum-gray-metallic-2025",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "R-Line 2.0L",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Platinum Gray Metallic",
+      "mileage": 0,
+      "price": 259900,
+      "description": "Teramont R-Line 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-r-line-2-0l-platinum-gray-metallic-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "382"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-r-line-2-0l-pure-gray-2025",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "R-Line 2.0L",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Pure Gray",
+      "mileage": 0,
+      "price": 259900,
+      "description": "Teramont R-Line 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-r-line-2-0l-pure-gray-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "382"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-trendline-2-0l-silverbird-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Trendline 2.0L",
+      "year": 2026,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Silverbird Metallic",
+      "mileage": 0,
+      "price": 179900,
+      "description": "Teramont Trendline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-trendline-2-0l-silverbird-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "263"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-trendline-2-0l-pure-gray-2026",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Trendline 2.0L",
+      "year": 2026,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Pure Gray",
+      "mileage": 0,
+      "price": 179900,
+      "description": "Teramont Trendline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-trendline-2-0l-pure-gray-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "2"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "263"
+        }
+      ]
+    },
+    {
+      "id": "vw-teramont-trendline-2-0l-pure-gray-2025",
+      "make": "Volkswagen",
+      "model": "Teramont",
+      "trim": "Trendline 2.0L",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0L",
+      "color": "Pure Gray",
+      "mileage": 0,
+      "price": 179900,
+      "description": "Teramont Trendline 2.0L",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "teramont"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-teramont-trendline-2-0l-pure-gray-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "340"
+        }
+      ]
+    },
+    {
+      "id": "vw-tiguan-elegance-1-4-i-tsi-oyster-silver-metallic-2025",
+      "make": "Volkswagen",
+      "model": "Tiguan",
+      "trim": "Elegance 1.4 I TSI",
+      "year": 2025,
+      "condition": "new",
+      "engine": "1.4 I TSI",
+      "color": "Oyster Silver Metallic",
+      "mileage": 0,
+      "price": 169900,
+      "description": "Tiguan Elegance 1.4 I TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "tiguan"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-tiguan-elegance-1-4-i-tsi-oyster-silver-metallic-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "312"
+        }
+      ]
+    },
+    {
+      "id": "vw-tiguan-life-1-4-i-tsi-pure-white-2026",
+      "make": "Volkswagen",
+      "model": "Tiguan",
+      "trim": "Life 1.4 I TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 I TSI",
+      "color": "Pure White",
+      "mileage": 0,
+      "price": 119900,
+      "description": "Tiguan Life 1.4 I TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "tiguan"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-tiguan-life-1-4-i-tsi-pure-white-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "7"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "214"
+        }
+      ]
+    },
+    {
+      "id": "vw-tiguan-life-1-4-i-tsi-dolphin-gray-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Tiguan",
+      "trim": "Life 1.4 I TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 I TSI",
+      "color": "Dolphin Gray Metallic",
+      "mileage": 0,
+      "price": 119900,
+      "description": "Tiguan Life 1.4 I TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "tiguan"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-tiguan-life-1-4-i-tsi-dolphin-gray-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "5"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "236"
+        }
+      ]
+    },
+    {
+      "id": "vw-tiguan-life-1-4-i-tsi-nightshade-blue-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Tiguan",
+      "trim": "Life 1.4 I TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 I TSI",
+      "color": "Nightshade Blue Metallic",
+      "mileage": 0,
+      "price": 119900,
+      "description": "Tiguan Life 1.4 I TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "tiguan"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-tiguan-life-1-4-i-tsi-nightshade-blue-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "7"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "236"
+        }
+      ]
+    },
+    {
+      "id": "vw-tiguan-life-1-4-i-tsi-cipressino-green-metallic-2026",
+      "make": "Volkswagen",
+      "model": "Tiguan",
+      "trim": "Life 1.4 I TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 I TSI",
+      "color": "Cipressino-Green Metallic",
+      "mileage": 0,
+      "price": 119900,
+      "description": "Tiguan Life 1.4 I TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "tiguan"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-tiguan-life-1-4-i-tsi-cipressino-green-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "2"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "257"
+        }
+      ]
+    },
+    {
+      "id": "vw-tiguan-life-1-4-i-tsi-urano-gray-2026",
+      "make": "Volkswagen",
+      "model": "Tiguan",
+      "trim": "Life 1.4 I TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 I TSI",
+      "color": "Urano Gray",
+      "mileage": 0,
+      "price": 119900,
+      "description": "Tiguan Life 1.4 I TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "tiguan"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "vw-tiguan-life-1-4-i-tsi-urano-gray-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "4"
+        },
+        {
+          "id": "inventory_age_days",
+          "name": "inventory_age_days",
+          "value": "236"
+        }
+      ]
+    }
+  ]
+}

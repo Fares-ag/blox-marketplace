@@ -365,6 +365,7 @@ model Product {
   vin             String?
   chassisNumber   String?
   description     String?
+  attributes      Json?
   price           Decimal          @db.Decimal(12, 2)
   financeEligible Boolean          @default(true)
   defaultOfferId  String?

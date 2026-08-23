@@ -18,7 +18,10 @@
     "db:seed": "tsx prisma/seed.ts",
     "ensure:seed-users": "node scripts/ensure-seed-users.mjs",
     "db:backfill-installment-plan": "tsx scripts/backfill-installment-plan.ts",
-    "bootstrap:qauto": "tsx scripts/bootstrap-qauto.ts"
+    "bootstrap:qauto": "tsx scripts/bootstrap-qauto.ts",
+    "seed:qauto-inventory": "tsx scripts/seed-qauto-inventory.ts",
+    "upload:qauto-images": "tsx scripts/upload-qauto-listing-images.ts",
+    "generate:qauto-import": "node scripts/generate-qauto-import-json.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -60,6 +60,7 @@ export class MobileService {
 
   private toVehicle(p: Record<string, unknown>) {
     const images = this.normalizeImages(p);
+    const attributes = Array.isArray(p.attributes) ? p.attributes : [];
     return {
       id: p.id,
       vehicle_id: p.id,
@@ -73,6 +74,8 @@ export class MobileService {
       mileage: p.mileage ?? null,
       price: p.price,
       status: 'active',
+      description: p.description ?? null,
+      attributes,
       images,
     };
   }

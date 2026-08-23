@@ -32,6 +32,8 @@
     "prisma/seed.ts",
     "prisma/seed-chery.ts",
     "prisma/seed-finance-partners.ts",
+    "prisma/seed-qauto-inventory.ts",
+    "prisma/upload-qauto-listing-images.ts",
     "prisma/bootstrap-qauto.ts"
   ],
   "exclude": [
