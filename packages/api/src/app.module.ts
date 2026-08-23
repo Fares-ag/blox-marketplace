@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { AppConfigModule } from './config/app-config.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -18,6 +20,10 @@ import { FinancePartnersModule } from './finance-partners/finance-partners.modul
 import { NotificationsModule } from './notifications/notifications.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { CreditsModule } from './credits/credits.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { KycModule } from './kyc/kyc.module';
+import { MobileModule } from './mobile/mobile.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -41,7 +47,12 @@ import { HealthController } from './health.controller';
     FinancePartnersModule,
     NotificationsModule,
     JobsModule,
+    CreditsModule,
+    CatalogModule,
+    KycModule,
+    MobileModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
 })
 export class AppModule {}

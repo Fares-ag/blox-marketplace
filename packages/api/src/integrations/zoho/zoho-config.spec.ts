@@ -73,6 +73,13 @@ describe('ZohoConfig', () => {
     }
   });
 
+  it('defaults outbound HTTP timeout to 8s and allows override', () => {
+    expect(makeConfig(CREDENTIALS).httpTimeoutMs).toBe(8000);
+    expect(
+      makeConfig({ ...CREDENTIALS, ZOHO_HTTP_TIMEOUT_MS: '15000' }).httpTimeoutMs,
+    ).toBe(15000);
+  });
+
   it('boot logging never throws, in any configuration state', () => {
     expect(() => makeConfig({}).onModuleInit()).not.toThrow();
     expect(() => makeConfig(CREDENTIALS).onModuleInit()).not.toThrow();

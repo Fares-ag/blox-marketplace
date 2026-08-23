@@ -23,7 +23,7 @@ if (!signIn.ok) {
 const raw = signIn.headers.getSetCookie?.() ?? [];
 const cookie = raw.map((c) => c.split(';')[0]).join('; ');
 
-const seed = await fetch(`${base}/api/ops/seed-chery`, {
+const seed = await fetch(`${base}/api/v1/ops/seed-chery`, {
   method: 'POST',
   headers: {
     Cookie: cookie,
@@ -33,7 +33,7 @@ const seed = await fetch(`${base}/api/ops/seed-chery`, {
 
 console.log('seed', seed.status, await seed.text());
 
-const products = await fetch(`${base}/api/products`);
+const products = await fetch(`${base}/api/v1/products`);
 const data = await products.json();
 console.log('products total', data.total);
 if (data.items?.length) {

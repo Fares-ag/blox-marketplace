@@ -1,0 +1,214 @@
+import { useMemo } from 'react';
+import { formatQar } from '../lib/format';
+import { useOpsLabels } from '../i18n/use-ops-labels';
+import { OpsStatusPill } from '../components/ops-ui';
+import { EmptyState, Table, type Column } from '../ops-ui-v2';
+import { scheduleOpsPillVariant } from '../config/status-styles';
+import { isScheduleLikelyDaily, normalizeInstallmentInterval } from '../lib/installment-plan-utils';
+import { parseTenureToMonths } from '../lib/tenure';
+import { resolveDisplaySchedule, type DisplayScheduleRow } from '../lib/resolve-display-schedule';
+import { rowOwnershipShares } from '../lib/plan-ownership';
+import type { InstallmentPlan } from '../types/installment-plan';
+
+export type InstallmentScheduleTableProps = {
+  installmentPlan?: InstallmentPlan | null;
+  paymentSchedules?: Array<{
+    id: string;
+    sequence: number;
+    due_date: string;
+    amount: number | null;
+    paid_amount?: number | null;
+    remaining_amount?: number | null;
+    status: string;
+    paid_at?: string | null;
+  }>;
+  applicationStatus: string;
+  vehiclePrice?: number;
+  projected?: boolean;
+  onMarkPaid?: (row: DisplayScheduleRow) => void;
+  onConvertDaily?: () => void;
+  canConvertDaily?: boolean;
+};
+
+type ScheduleTableRow = DisplayScheduleRow & { rowIndex: number };
+
+function scheduleStatusLabel(status: string, t: (key: string) => string): string {
+  const map: Record<string, string> = {
+    paid: t('ops.schedule.paid'),
+    pending: t('ops.schedule.pending'),
+    overdue: t('ops.schedule.overdue'),
+    due: t('ops.schedule.due'),
+    active: t('ops.schedule.active'),
+    upcoming: t('ops.schedule.upcoming'),
+    unpaid: t('ops.schedule.unpaid'),
+    partially_paid: t('ops.schedule.partial'),
+  };
+  return map[status] ?? status;
+}
+
+export function InstallmentScheduleTable({
+  installmentPlan,
+  paymentSchedules,
+  applicationStatus,
+  vehiclePrice = 0,
+  projected = false,
+  onMarkPaid,
+  onConvertDaily,
+  canConvertDaily,
+}: InstallmentScheduleTableProps) {
+  const { t } = useOpsLabels();
+
+  const isActive = !['draft', 'under_review', 'resubmission_required', 'contract_signing_required', 'contracts_submitted', 'contract_under_review', 'down_payment_required', 'down_payment_submitted', 'pending_finance_activation', 'rejected', 'submission_cancelled'].includes(applicationStatus);
+
+  const rows = useMemo(
+    () =>
+      resolveDisplaySchedule({
+        installmentPlan,
+        paymentSchedules,
+        vehiclePrice,
+        isActiveOrLater: isActive,
+      }),
+    [installmentPlan, paymentSchedules, vehiclePrice, isActive],
+  );
+
+  const planRows = installmentPlan?.schedule ?? [];
+  const normalizedInterval = normalizeInstallmentInterval(installmentPlan?.interval);
+  const looksDaily = isScheduleLikelyDaily(planRows.length ? planRows : rows);
+  const showConvert =
+    canConvertDaily &&
+    !!installmentPlan &&
+    rows.length > 0 &&
+    (normalizedInterval === 'daily' || looksDaily);
+
+  const tenureMonths = parseTenureToMonths(installmentPlan?.tenure ?? '12 Months');
+  const downPayment = Number(installmentPlan?.downPayment ?? 0);
+  const price = vehiclePrice || Number(installmentPlan?.totalAmount ?? 0);
+
+  const tableRows: ScheduleTableRow[] = useMemo(
+    () =>
+      rows.map((row, index) => ({
+        ...row,
+        rowIndex: index,
+        id: row.id ?? `row-${index}`,
+      })),
+    [rows],
+  );
+
+  const columns: Column<ScheduleTableRow>[] = useMemo(() => {
+    const base: Column<ScheduleTableRow>[] = [
+      {
+        id: 'sequence',
+        label: '#',
+        format: (_, row) => String(row.sequence ?? row.rowIndex + 1),
+      },
+      {
+        id: 'dueDate',
+        label: t('ops.workspace.col.dueDate'),
+        format: (_, row) => row.dueDate,
+      },
+      {
+        id: 'amount',
+        label: t('ops.workspace.col.amount'),
+        format: (_, row) => formatQar(Number(row.amount)),
+      },
+      {
+        id: 'status',
+        label: t('ops.col.status'),
+        format: (_, row) => (
+          <OpsStatusPill
+            label={scheduleStatusLabel(String(row.status), t)}
+            variant={scheduleOpsPillVariant(String(row.status))}
+          />
+        ),
+      },
+      {
+        id: 'paidDate',
+        label: t('ops.workspace.col.paidDate'),
+        format: (_, row) => row.paidDate ?? '—',
+      },
+      {
+        id: 'customerShare',
+        label: t('ops.workspace.col.customerShare'),
+        format: (_, row) => {
+          const { customerShare } = rowOwnershipShares({
+            vehiclePrice: price,
+            downPayment,
+            tenureMonths,
+            paymentIndex: row.rowIndex,
+            amount: Number(row.amount),
+            calculationMethod: installmentPlan?.calculationMethod,
+            paymentStructure: installmentPlan?.paymentStructure,
+          });
+          return formatQar(customerShare);
+        },
+      },
+      {
+        id: 'bloxShare',
+        label: t('ops.workspace.col.bloxShare'),
+        format: (_, row) => {
+          const { bloxShare } = rowOwnershipShares({
+            vehiclePrice: price,
+            downPayment,
+            tenureMonths,
+            paymentIndex: row.rowIndex,
+            amount: Number(row.amount),
+            calculationMethod: installmentPlan?.calculationMethod,
+            paymentStructure: installmentPlan?.paymentStructure,
+          });
+          return formatQar(bloxShare);
+        },
+      },
+    ];
+
+    if (onMarkPaid) {
+      base.push({
+        id: 'actions',
+        label: t('ops.workspace.col.actions'),
+        format: (_, row) => {
+          const canPay =
+            row.source === 'live' &&
+            row.id &&
+            (row.status === 'pending' || row.status === 'overdue' || row.status === 'due');
+          return canPay ? (
+            <button
+              type="button"
+              className="blox-btn blox-btn--ghost"
+              onClick={() => onMarkPaid(row)}
+            >
+              {t('ops.workspace.markPaid')}
+            </button>
+          ) : (
+            '—'
+          );
+        },
+      });
+    }
+
+    return base;
+  }, [t, onMarkPaid, price, downPayment, tenureMonths, installmentPlan]);
+
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        title={t('ops.workspace.scheduleEmpty')}
+        message={t('ops.workspace.scheduleEmptyHint')}
+      />
+    );
+  }
+
+  return (
+    <div className="blox-installment-schedule">
+      {(projected || !isActive) && (
+        <p className="blox-panel__hint" style={{ marginBottom: '0.75rem' }}>
+          {t('ops.workspace.scheduleProjected')}
+        </p>
+      )}
+      {showConvert && onConvertDaily && (
+        <button type="button" className="blox-btn blox-btn--secondary" onClick={onConvertDaily} style={{ marginBottom: '0.75rem' }}>
+          {t('ops.workspace.convertDailyToMonthly')}
+        </button>
+      )}
+      <Table columns={columns} rows={tableRows} emptyMessage={t('ops.workspace.scheduleEmpty')} />
+    </div>
+  );
+}

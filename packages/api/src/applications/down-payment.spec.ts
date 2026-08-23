@@ -140,9 +140,14 @@ describe('ApplicationsLifecycleService.activate down-payment guard', () => {
       },
       $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
-          paymentSchedule: { createMany: vi.fn() },
+          $queryRaw: vi.fn().mockResolvedValue([]),
+          paymentSchedule: {
+            count: vi.fn().mockResolvedValue(0),
+            createMany: vi.fn(),
+          },
           application: {
-            update: vi.fn().mockResolvedValue(activated),
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+            findUniqueOrThrow: vi.fn().mockResolvedValue(activated),
           },
           product: { update: vi.fn() },
         }),

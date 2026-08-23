@@ -147,6 +147,16 @@ export class MailService {
       },
     });
 
+    if (this.transport === 'none') {
+      const url = typeof payload.url === 'string' ? payload.url : undefined;
+      this.logger.warn(
+        url
+          ? `Mail not configured — dev verification link for ${input.to}: ${url}`
+          : `Mail not configured — queued outbox=${row.id} to=${input.to} template=${input.template}`,
+      );
+      return;
+    }
+
     try {
       await this.attemptDelivery(row);
     } catch (err) {

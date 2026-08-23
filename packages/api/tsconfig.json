@@ -18,6 +18,12 @@
     "paths": {
       "@drivemarket/shared/pricing": [
         "../shared/src/lib/pricing.ts"
+      ],
+      "@drivemarket/shared/installment-plan": [
+        "../shared/src/lib/installment-plan-server.ts"
+      ],
+      "@drivemarket/shared/installment-plan-utils": [
+        "../shared/src/lib/installment-plan-utils.ts"
       ]
     }
   },
@@ -25,7 +31,8 @@
     "src/**/*",
     "prisma/seed.ts",
     "prisma/seed-chery.ts",
-    "prisma/seed-finance-partners.ts"
+    "prisma/seed-finance-partners.ts",
+    "prisma/bootstrap-qauto.ts"
   ],
   "exclude": [
     "src/**/*.spec.ts"

@@ -21,14 +21,36 @@ function officer(
   } as User;
 }
 
-function mockPrisma(companyIds: string[]) {
+function mockPrisma(companyIds: string[], companies?: Array<{ id: string; kind: 'holding' | 'dealership' }>) {
   const rows = companyIds.map((companyId) => ({ companyId }));
+  const companyRows = companies ?? companyIds.map((id) => ({ id, kind: 'dealership' as const }));
   return {
     creditOfficerCompany: {
       findMany: vi.fn().mockResolvedValue(rows),
     },
     financeOfficerCompany: {
       findMany: vi.fn().mockResolvedValue(rows),
+    },
+    company: {
+      findUnique: vi.fn().mockImplementation(({ where }: { where: { id: string } }) =>
+        Promise.resolve(companyRows.find((c) => c.id === where.id) ?? { id: where.id, kind: 'dealership' }),
+      ),
+      findMany: vi.fn().mockImplementation(({ where }: { where?: { id?: { in: string[] }; parentCompanyId?: string | { in: string[] } } }) => {
+        if (where?.parentCompanyId) {
+          const parentIds = typeof where.parentCompanyId === 'string'
+            ? [where.parentCompanyId]
+            : where.parentCompanyId.in;
+          return Promise.resolve(
+            companyRows
+              .filter((c) => c.kind === 'dealership' && parentIds.includes('qauto'))
+              .map((c) => ({ id: c.id })),
+          );
+        }
+        if (where?.id?.in) {
+          return Promise.resolve(companyRows.filter((c) => where.id!.in.includes(c.id)));
+        }
+        return Promise.resolve(companyRows);
+      }),
     },
   } as unknown as PrismaService;
 }
@@ -133,6 +155,40 @@ describe('company-scope', () => {
       await expect(
         opsCompanyFilter(prisma, officer(UserRole.credit_officer, OfficerScope.assigned)),
       ).resolves.toEqual([companyA]);
+    });
+
+    it('expands a holding assignment to child dealerships', async () => {
+      const prisma = mockPrisma(['qauto'], [
+        { id: 'qauto', kind: 'holding' },
+        { id: 'audi', kind: 'dealership' },
+        { id: 'vw', kind: 'dealership' },
+      ]);
+      await expect(
+        opsCompanyFilter(prisma, officer(UserRole.credit_officer, OfficerScope.assigned)),
+      ).resolves.toEqual(['qauto', 'audi', 'vw']);
+    });
+
+    it('scopes group_admin to their holding descendants', async () => {
+      const prisma = mockPrisma([], [
+        { id: 'qauto', kind: 'holding' },
+        { id: 'audi', kind: 'dealership' },
+        { id: 'vw', kind: 'dealership' },
+      ]);
+      await expect(
+        opsCompanyFilter(prisma, { role: UserRole.group_admin, companyId: 'qauto' } as User),
+      ).resolves.toEqual(['qauto', 'audi', 'vw']);
+    });
+  });
+
+  describe('holding assignment on assert', () => {
+    it('allows credit_officer assigned to a holding to access a child', async () => {
+      const prisma = mockPrisma(['qauto'], [
+        { id: 'qauto', kind: 'holding' },
+        { id: 'audi', kind: 'dealership' },
+      ]);
+      await expect(
+        assertCompanyScope(prisma, officer(UserRole.credit_officer, OfficerScope.assigned), 'audi'),
+      ).resolves.toBeUndefined();
     });
   });
 });

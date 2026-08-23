@@ -24,6 +24,7 @@ function readLimitConfig(config: ConfigService) {
 function isStrictRateLimitPath(pathname: string): boolean {
   return (
     pathname.startsWith('/auth') ||
+    pathname.startsWith('/health') ||
     pathname.startsWith('/products') ||
     pathname.startsWith('/quotes/') ||
     pathname.startsWith('/payments/skipcash/')
@@ -32,14 +33,18 @@ function isStrictRateLimitPath(pathname: string): boolean {
 
 let redisClient: RedisClientType | undefined;
 
-async function createSharedRateLimitStore(redisUrl: string) {
+async function connectRedisRateLimitClient(redisUrl: string): Promise<RedisClientType> {
   const client = createClient({ url: redisUrl });
   client.on('error', (err) => {
     console.error('Redis rate-limit client error', err);
   });
   await client.connect();
-  redisClient = client;
+  return client;
+}
+
+function createRedisStore(client: RedisClientType, prefix: string): RedisStore {
   return new RedisStore({
+    prefix: `rl:${prefix}:`,
     sendCommand: (...args: string[]) => client.sendCommand(args),
   });
 }
@@ -67,15 +72,42 @@ export async function applySecurityMiddleware(
   if (process.env.NODE_ENV === 'test') return;
 
   const { windowMs, globalMax, authMax, publicMax } = readLimitConfig(config);
-  const redisUrl = config.get<string>('REDIS_URL')?.trim();
-  const store = redisUrl ? await createSharedRateLimitStore(redisUrl) : undefined;
+  const rateLimitStore = config.get<string>('RATE_LIMIT_STORE')?.trim().toLowerCase();
+  const redisUrl =
+    rateLimitStore === 'memory' ? undefined : config.get<string>('REDIS_URL')?.trim();
 
   const base = {
     windowMs,
     standardHeaders: true,
     legacyHeaders: false,
-    ...(store ? { store } : {}),
   };
+
+  if (redisUrl) {
+    redisClient = await connectRedisRateLimitClient(redisUrl);
+    const authLimiter: RequestHandler = rateLimit({
+      ...base,
+      max: authMax,
+      store: createRedisStore(redisClient, 'auth'),
+    });
+    const publicLimiter: RequestHandler = rateLimit({
+      ...base,
+      max: publicMax,
+      store: createRedisStore(redisClient, 'public'),
+    });
+    const globalLimiter: RequestHandler = rateLimit({
+      ...base,
+      max: globalMax,
+      store: createRedisStore(redisClient, 'global'),
+      skip: (req) => isStrictRateLimitPath(req.path),
+    });
+
+    expressApp.use('/api/auth', authLimiter);
+    expressApp.use('/api/products', publicLimiter);
+    expressApp.use('/api/quotes', publicLimiter);
+    expressApp.use('/api/payments/skipcash', publicLimiter);
+    expressApp.use('/api', globalLimiter);
+    return;
+  }
 
   const authLimiter: RequestHandler = rateLimit({ ...base, max: authMax });
   const publicLimiter: RequestHandler = rateLimit({ ...base, max: publicMax });

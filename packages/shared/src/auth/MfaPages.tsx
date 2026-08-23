@@ -1,6 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { bloxMeta } from '../config/blox-tokens';
+import type { OpsPortalKey } from '../config/ops-portal-keys';
+import { opsPortalAuthKeys } from '../config/ops-portal-auth';
+import { ConfirmDialog, OpsAuthCardInner, OpsAuthLayout } from '../ops-ui-v2';
+import { OpsPageHeader, OpsSecondaryButton } from '../components/ops-ui';
 import { useAuthStore } from './auth-store';
 
 function extractTotpSecret(totpURI: string): string | null {
@@ -17,8 +22,8 @@ interface MfaPageShellProps {
   portalLabel: string;
   title: string;
   lead: string;
-  brandName?: string;
   tagline?: string;
+  brandPoints?: string[];
   children: React.ReactNode;
 }
 
@@ -26,34 +31,25 @@ function MfaPageShell({
   portalLabel,
   title,
   lead,
-  brandName = bloxMeta.name,
   tagline = bloxMeta.tagline,
+  brandPoints,
   children,
 }: MfaPageShellProps) {
   return (
-    <div className="dm-auth-layout">
-      <aside className="dm-auth-brand" aria-label={`${brandName} brand`}>
-        <div className="dm-auth-brand__media" role="img" aria-hidden />
-        <div className="dm-auth-brand__scrim" />
-        <div className="dm-auth-brand__content">
-          <p className="dm-auth-brand__portal">{portalLabel}</p>
-          <p className="dm-auth-brand__tag">{tagline}</p>
-        </div>
-      </aside>
-      <main className="dm-auth-card">
-        <div className="dm-auth-card__inner">
-          <p className="dm-auth-card__eyebrow">{portalLabel}</p>
-          <h1>{title}</h1>
-          <p className="dm-auth-card__lead">{lead}</p>
-          {children}
-        </div>
-      </main>
-    </div>
+    <OpsAuthLayout portalLabel={portalLabel} tagline={tagline} brandPoints={brandPoints}>
+      <OpsAuthCardInner>
+        <p className="dm-auth-card__eyebrow blox-auth-card__eyebrow">{portalLabel}</p>
+        <h1>{title}</h1>
+        <p className="dm-auth-card__lead blox-auth-card__lead">{lead}</p>
+        {children}
+      </OpsAuthCardInner>
+    </OpsAuthLayout>
   );
 }
 
 interface TwoFactorLoginPageProps {
-  portalLabel: string;
+  portalLabel?: string;
+  portalKey?: OpsPortalKey;
   homePath?: string;
   brandName?: string;
   tagline?: string;
@@ -62,10 +58,21 @@ interface TwoFactorLoginPageProps {
 /** Second step after password sign-in when TOTP is enabled. */
 export function TwoFactorLoginPage({
   portalLabel,
+  portalKey,
   homePath = '/',
   brandName,
   tagline,
 }: TwoFactorLoginPageProps) {
+  const { t } = useTranslation();
+  const resolvedLabel = portalKey
+    ? t(`ops.auth.portals.${portalKey}.label`)
+    : (portalLabel ?? brandName ?? bloxMeta.name);
+  const resolvedTagline = portalKey
+    ? t(`ops.auth.portals.${portalKey}.tagline`)
+    : tagline;
+  const brandPoints = portalKey
+    ? opsPortalAuthKeys(portalKey).brandPointKeys.map((key) => t(key))
+    : undefined;
   const [code, setCode] = useState('');
   const [trustDevice, setTrustDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,13 +95,13 @@ export function TwoFactorLoginPage({
 
   return (
     <MfaPageShell
-      portalLabel={portalLabel}
+      portalLabel={resolvedLabel}
       title="Two-factor verification"
       lead="Enter the 6-digit code from your authenticator app to finish signing in."
-      brandName={brandName}
-      tagline={tagline}
+      tagline={resolvedTagline}
+      brandPoints={brandPoints}
     >
-      <form onSubmit={onSubmit} className="dm-auth-form">
+      <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
         <label>
           Authenticator code
           <input
@@ -117,8 +124,8 @@ export function TwoFactorLoginPage({
           />
           Trust this device for 30 days
         </label>
-        {error && <p className="dm-auth-error">{error}</p>}
-        <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={loading || code.length !== 6}>
+        {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+        <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={loading || code.length !== 6}>
           {loading ? 'Verifying…' : 'Verify and continue'}
         </button>
         <p className="dm-auth-foot">
@@ -130,7 +137,8 @@ export function TwoFactorLoginPage({
 }
 
 interface MfaSetupPageProps {
-  portalLabel: string;
+  portalLabel?: string;
+  portalKey?: OpsPortalKey;
   homePath?: string;
   brandName?: string;
   tagline?: string;
@@ -139,10 +147,21 @@ interface MfaSetupPageProps {
 /** Mandatory TOTP enrollment for privileged ops roles. */
 export function MfaSetupPage({
   portalLabel,
+  portalKey,
   homePath = '/',
   brandName,
   tagline,
 }: MfaSetupPageProps) {
+  const { t } = useTranslation();
+  const resolvedLabel = portalKey
+    ? t(`ops.auth.portals.${portalKey}.label`)
+    : (portalLabel ?? brandName ?? bloxMeta.name);
+  const resolvedTagline = portalKey
+    ? t(`ops.auth.portals.${portalKey}.tagline`)
+    : tagline;
+  const brandPoints = portalKey
+    ? opsPortalAuthKeys(portalKey).brandPointKeys.map((key) => t(key))
+    : undefined;
   const { user, initialized, init, loading, enableTwoFactor, verifyTwoFactorSetup, signOut } =
     useAuthStore();
   const [password, setPassword] = useState('');
@@ -202,14 +221,14 @@ export function MfaSetupPage({
 
   return (
     <MfaPageShell
-      portalLabel={portalLabel}
+      portalLabel={resolvedLabel}
       title="Set up two-factor authentication"
       lead="Privileged Blox accounts must use an authenticator app before accessing the portal."
-      brandName={brandName}
-      tagline={tagline}
+      tagline={resolvedTagline}
+      brandPoints={brandPoints}
     >
       {step === 'password' ? (
-        <form onSubmit={startSetup} className="dm-auth-form">
+        <form onSubmit={startSetup} className="dm-auth-form blox-auth-form">
           <label>
             Confirm your password
             <input
@@ -220,8 +239,8 @@ export function MfaSetupPage({
               required
             />
           </label>
-          {error && <p className="dm-auth-error">{error}</p>}
-          <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={loading}>
+          {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+          <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={loading}>
             {loading ? 'Preparing…' : 'Generate authenticator setup'}
           </button>
           <p className="dm-auth-foot">
@@ -258,7 +277,7 @@ export function MfaSetupPage({
               </ul>
             </div>
           )}
-          <form onSubmit={confirmSetup} className="dm-auth-form">
+          <form onSubmit={confirmSetup} className="dm-auth-form blox-auth-form">
             <label>
               Enter the 6-digit code from your app
               <input
@@ -273,8 +292,8 @@ export function MfaSetupPage({
                 placeholder="000000"
               />
             </label>
-            {error && <p className="dm-auth-error">{error}</p>}
-            <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={loading || code.length !== 6}>
+            {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+            <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={loading || code.length !== 6}>
               {loading ? 'Enabling…' : 'Enable two-factor and continue'}
             </button>
           </form>
@@ -294,6 +313,7 @@ export function SecuritySettingsPanel({ className }: SecuritySettingsPanelProps)
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (!user) return null;
 
@@ -301,13 +321,6 @@ export function SecuritySettingsPanel({ className }: SecuritySettingsPanelProps)
     setBusy(true);
     setMessage(null);
     setError(null);
-    const confirmed = window.confirm(
-      'This signs you out on every device, including this browser. Continue?',
-    );
-    if (!confirmed) {
-      setBusy(false);
-      return;
-    }
     const result = await revokeAllSessions();
     setBusy(false);
     if (result.error) {
@@ -320,25 +333,35 @@ export function SecuritySettingsPanel({ className }: SecuritySettingsPanelProps)
   }
 
   return (
-    <section className={className} style={{ marginTop: 24 }}>
-      <h2 style={{ margin: '0 0 8px', fontSize: '1.1rem' }}>Security</h2>
-      <p style={{ margin: '0 0 12px', color: 'var(--dm-slate-600)', fontSize: '0.92rem' }}>
+    <section className={`blox-detail-section${className ? ` ${className}` : ''}`} style={{ marginTop: 24 }}>
+      <OpsPageHeader title="Security" />
+      <p style={{ margin: '0 0 12px', color: 'var(--blox-slate)', fontSize: '0.92rem' }}>
         Two-factor authentication:{' '}
         <strong>{user.two_factor_enabled ? 'Enabled' : user.mfa_required ? 'Required — not set up' : 'Not required'}</strong>
       </p>
-      <button type="button" className="dm-btn-cta" disabled={busy} onClick={() => void onRevokeAll()}>
+      <OpsSecondaryButton type="button" disabled={busy} onClick={() => setConfirmOpen(true)}>
         {busy ? 'Revoking…' : 'Sign out everywhere'}
-      </button>
+      </OpsSecondaryButton>
       {message && (
         <p className="dm-auth-banner" role="status" style={{ marginTop: 12 }}>
           {message}
         </p>
       )}
       {error && (
-        <p className="dm-auth-error" style={{ marginTop: 12 }}>
+        <p className="dm-auth-error blox-auth-error" style={{ marginTop: 12 }}>
           {error}
         </p>
       )}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Sign out everywhere"
+        message="This signs you out on every device, including this browser. Continue?"
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void onRevokeAll();
+        }}
+      />
     </section>
   );
 }

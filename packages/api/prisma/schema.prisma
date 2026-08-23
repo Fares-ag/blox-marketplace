@@ -14,11 +14,17 @@ enum UserRole {
   finance_officer
   admin
   super_admin
+  group_admin
 }
 
 enum OfficerScope {
   all
   assigned
+}
+
+enum CompanyKind {
+  holding
+  dealership
 }
 
 enum CompanyStatus {
@@ -76,6 +82,7 @@ enum ApplicationStatus {
   down_payment_required
   down_payment_submitted
   pending_finance_activation
+  partner_processing
   active
   completed
   rejected
@@ -84,9 +91,16 @@ enum ApplicationStatus {
 
 enum DocumentCategory {
   qid
+  id
   salary
   bank
+  passport
+  license
   other
+  cr
+  computer_card
+  rental_agreement
+  signatory_id
 }
 
 enum CrmAdapter {
@@ -166,6 +180,12 @@ model User {
   createdQuotes        DealerQuote[]         @relation("QuoteCreator")
   paymentEvents        PaymentEvent[]
   complianceChecks     ComplianceCheck[]     @relation("ComplianceVerifier")
+  idempotencyRecords   IdempotencyRecord[]
+  userCredit           UserCredit?
+  creditTransactions   CreditTransaction[]
+  deviceTokens         DeviceToken[]
+  mobileRefreshTokens  MobileRefreshToken[]
+  paymentDeferrals     PaymentDeferral[]
 
   @@map("users")
 }
@@ -234,6 +254,10 @@ model Company {
   name                String
   code                String?       @unique
   status              CompanyStatus @default(active)
+  kind                CompanyKind   @default(dealership)
+  parentCompanyId     String?       @map("parent_company_id")
+  parentCompany       Company?      @relation("CompanyHierarchy", fields: [parentCompanyId], references: [id])
+  childCompanies      Company[]     @relation("CompanyHierarchy")
   canPay              Boolean       @default(false)
   logoUrl             String?
   branding            Json?
@@ -253,6 +277,7 @@ model Company {
   financeOfficers  FinanceOfficerCompany[]
   dealerQuotes     DealerQuote[]
 
+  @@index([parentCompanyId])
   @@map("companies")
 }
 
@@ -300,6 +325,7 @@ model Offer {
   profitRate         Decimal?    @db.Decimal(8, 4)
   tenureOptions      Json
   insuranceRateId    String?
+  insuranceRate      InsuranceRate? @relation(fields: [insuranceRateId], references: [id], onDelete: SetNull)
   isDefault          Boolean     @default(false)
   status             OfferStatus @default(active)
   minDownPaymentPct  Decimal     @default(0) @db.Decimal(5, 2)
@@ -395,6 +421,7 @@ model Application {
   zohoSyncAttempts   Int               @default(0)
   zohoNextRetryAt    DateTime?
   pricingSnapshot    Json
+  installmentPlan    Json?             @map("installment_plan")
   status             ApplicationStatus @default(draft)
   contractGenerated  Boolean           @default(false)
   contractData       Json?
@@ -410,6 +437,9 @@ model Application {
   completedAt        DateTime?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
+  kycCaseId          String?           @map("kyc_case_id")
+  kycStatus          String?           @map("kyc_status")
+  bloxMembership     Json?             @map("blox_membership")
 
   documents         ApplicationDocument[]
   paymentSchedules  PaymentSchedule[]
@@ -417,11 +447,13 @@ model Application {
   paymentEvents     PaymentEvent[]
   redeemedQuote     DealerQuote?      @relation("QuoteRedemption")
   complianceChecks  ComplianceCheck[]
+  paymentDeferrals  PaymentDeferral[]
 
   @@index([customerUserId, status])
   @@index([companyId, status])
   @@index([productId, status])
   @@index([status, createdAt])
+  @@index([kycCaseId])
   @@map("applications")
 }
 
@@ -435,7 +467,15 @@ model ApplicationDocument {
   uploadedById  String
   uploadedBy    User             @relation(fields: [uploadedById], references: [id])
   createdAt     DateTime         @default(now())
+  kycDocumentId   String?        @map("kyc_document_id")
+  kycDocumentType String?        @map("kyc_document_type")
+  verificationStatus String?     @map("verification_status")
+  quality         Float?
+  authenticity    Float?
+  reviewStatus    String?        @map("review_status")
+  originalName    String?        @map("original_name")
 
+  @@index([applicationId, category])
   @@map("application_documents")
 }
 
@@ -553,7 +593,25 @@ model PaymentTransaction {
   paymentEvents PaymentEvent[]
 
   @@index([applicationId, status])
+  @@index([scheduleId, status])
   @@map("payment_transactions")
+}
+
+/// Stores serialized responses for Idempotency-Key replays (scoped per user + route).
+model IdempotencyRecord {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope          String
+  idempotencyKey String
+  statusCode     Int       @default(201)
+  responseBody   Json?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@unique([userId, scope, idempotencyKey])
+  @@index([createdAt])
+  @@map("idempotency_records")
 }
 
 /// Append-only payment ledger — never updated after insert.
@@ -623,4 +681,174 @@ model EmailOutbox {
 
   @@index([status, nextAttemptAt])
   @@map("email_outbox")
+}
+
+model UserCredit {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Decimal  @default(0) @db.Decimal(18, 3)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("user_credits")
+}
+
+model CreditTransaction {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String
+  amount      Decimal  @db.Decimal(18, 3)
+  balanceAfter Decimal @map("balance_after") @db.Decimal(18, 3)
+  description String?
+  actorUserId String?  @map("actor_user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("credit_transactions")
+}
+
+model InsuranceRate {
+  id                   String   @id @default(cuid())
+  name                 String
+  description          String?
+  annualRate           Decimal  @map("annual_rate") @db.Decimal(5, 2)
+  annualRateProvider   Decimal  @map("annual_rate_provider") @db.Decimal(5, 2)
+  coverageType         String?  @map("coverage_type")
+  minVehicleValue      Decimal? @map("min_vehicle_value") @db.Decimal(12, 2)
+  maxVehicleValue      Decimal? @map("max_vehicle_value") @db.Decimal(12, 2)
+  minTenure            Int?     @map("min_tenure")
+  maxTenure            Int?     @map("max_tenure")
+  status               String   @default("active")
+  isDefault            Boolean  @default(false) @map("is_default")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  offers               Offer[]
+
+  @@map("insurance_rates")
+}
+
+model Promotion {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  discountPercentage Decimal?  @map("discount_percentage") @db.Decimal(5, 2)
+  discountAmount     Decimal?  @map("discount_amount") @db.Decimal(12, 2)
+  startDate          DateTime? @map("start_date") @db.Date
+  endDate            DateTime? @map("end_date") @db.Date
+  status             String    @default("active")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@map("promotions")
+}
+
+model Package {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  items       Json     @default("[]")
+  price       Decimal  @db.Decimal(12, 2)
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("packages")
+}
+
+model SettlementDiscountSettings {
+  id                         String    @id @default(cuid())
+  name                       String    @default("Default Settlement Discount Settings")
+  description                String?
+  principalDiscountEnabled   Boolean   @default(false) @map("principal_discount_enabled")
+  principalDiscountType      String    @default("percentage") @map("principal_discount_type")
+  principalDiscountValue     Decimal   @default(0) @map("principal_discount_value") @db.Decimal(10, 2)
+  principalDiscountMinAmount Decimal   @default(0) @map("principal_discount_min_amount") @db.Decimal(12, 2)
+  interestDiscountEnabled    Boolean   @default(false) @map("interest_discount_enabled")
+  interestDiscountType       String    @default("percentage") @map("interest_discount_type")
+  interestDiscountValue      Decimal   @default(0) @map("interest_discount_value") @db.Decimal(10, 2)
+  interestDiscountMinAmount  Decimal   @default(0) @map("interest_discount_min_amount") @db.Decimal(12, 2)
+  isActive                   Boolean   @default(true) @map("is_active")
+  minSettlementAmount        Decimal   @default(0) @map("min_settlement_amount") @db.Decimal(12, 2)
+  minRemainingPayments       Int       @default(1) @map("min_remaining_payments")
+  maxDiscountAmount          Decimal?  @map("max_discount_amount") @db.Decimal(12, 2)
+  maxDiscountPercentage      Decimal?  @map("max_discount_percentage") @db.Decimal(5, 2)
+  tieredDiscounts            Json      @default("[]") @map("tiered_discounts")
+  validFrom                  DateTime? @map("valid_from") @db.Date
+  validUntil                 DateTime? @map("valid_until") @db.Date
+  priority                   Int       @default(0)
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  @@map("settlement_discount_settings")
+}
+
+model DeviceToken {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform   String
+  fcmToken   String   @unique @map("fcm_token")
+  appVersion String?  @map("app_version")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model PaymentDeferral {
+  id              String      @id @default(cuid())
+  applicationId   String      @map("application_id")
+  application     Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  userId          String      @map("user_id")
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentId       String?     @map("payment_id")
+  originalDueDate DateTime    @map("original_due_date") @db.Date
+  deferredToDate  DateTime    @map("deferred_to_date") @db.Date
+  reason          String?
+  year            Int?
+  deferredAmount  Decimal     @default(0) @map("deferred_amount") @db.Decimal(12, 2)
+  originalAmount  Decimal     @default(0) @map("original_amount") @db.Decimal(12, 2)
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@index([applicationId])
+  @@index([userId])
+  @@map("payment_deferrals")
+}
+
+model MobileRefreshToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, expiresAt])
+  @@map("mobile_refresh_tokens")
+}
+
+model MigrationIdMap {
+  id         String   @id @default(cuid())
+  entity     String
+  sourceId   String   @map("source_id")
+  targetId   String   @map("target_id")
+  migratedAt DateTime @default(now()) @map("migrated_at")
+
+  @@unique([entity, sourceId])
+  @@index([entity, targetId])
+  @@map("migration_id_map")
+}
+
+model MigrationError {
+  id         String   @id @default(cuid())
+  entity     String
+  sourceId   String?  @map("source_id")
+  message    String
+  payload    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entity, createdAt])
+  @@map("migration_errors")
 }

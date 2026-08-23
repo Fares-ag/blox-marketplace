@@ -3,22 +3,38 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { trackProductEvent } from '../analytics/track';
 import { bloxMeta } from '../config/blox-tokens';
+import type { OpsPortalKey } from '../config/ops-portal-keys';
+import { opsPortalAuthKeys } from '../config/ops-portal-auth';
 import { BloxLogo } from '../components/BloxLogo';
+import { OpsAuthCardInner, OpsAuthLayout } from '../ops-ui-v2';
 import { getApiBase } from '../lib/api';
 import { useAuthStore, readAuthError } from './auth-store';
 
+const PORTAL_MISMATCH_REASONS = new Set([
+  'not_customer',
+  'not_dealer',
+  'not_credit',
+  'not_finance',
+  'not_admin',
+  'not_super_admin',
+]);
+
 const reasonCopy: Record<string, string> = {
-  not_customer: 'This marketplace account area is for customers only. Sign out to continue as another role, or create a customer account.',
-  not_dealer: 'This portal is for dealer staff only.',
-  not_credit: 'This portal is for credit officers only.',
-  not_finance: 'This portal is for finance officers only.',
-  not_admin: 'This portal is for admins only.',
-  not_super_admin: 'This portal is for super-admins only.',
+  not_customer:
+    'This area is for customer accounts. Sign in with your customer account, or create one.',
+  not_dealer: 'This is the dealer portal — sign in with your dealer staff account.',
+  not_credit: 'This is the credit portal — sign in with your credit officer account.',
+  not_finance: 'This is the finance portal — sign in with your finance officer account.',
+  not_admin: 'This is the admin portal — sign in with your admin account.',
+  not_super_admin: 'This is the ops portal — sign in with your super-admin account.',
   unverified: 'Verify your email before continuing.',
 };
 
 interface LoginPageProps {
-  portalLabel: string;
+  /** Display label; omitted when `portalKey` is set (resolved from i18n). */
+  portalLabel?: string;
+  /** Ops portal key — resolves label, tagline, and brand points from i18n. */
+  portalKey?: OpsPortalKey;
   homePath?: string;
   allowSignUp?: boolean;
   /** Marketplace-only: show link back to public browse. Ops portals leave this off. */
@@ -29,6 +45,7 @@ interface LoginPageProps {
 
 export function LoginPage({
   portalLabel,
+  portalKey,
   homePath = '/app/dashboard',
   allowSignUp = false,
   showMarketplaceLink = false,
@@ -36,8 +53,19 @@ export function LoginPage({
   tagline = bloxMeta.tagline,
 }: LoginPageProps) {
   const { t } = useTranslation();
-  const [email, setEmail] = useState('');
+  const resolvedLabel = portalKey
+    ? t(`ops.auth.portals.${portalKey}.label`)
+    : (portalLabel ?? brandName);
+  const resolvedTagline = portalKey
+    ? t(`ops.auth.portals.${portalKey}.tagline`)
+    : tagline;
+  const brandPoints = portalKey
+    ? opsPortalAuthKeys(portalKey).brandPointKeys.map((key) => t(key))
+    : undefined;
+  const signInLead = portalKey ? t('ops.auth.signInLead') : t('auth.signInLead');
+  const [email, setEmail] = useState(() => localStorage.getItem('blox.rememberEmail') ?? '');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem('blox.rememberEmail')));
   const [error, setError] = useState<string | null>(null);
   const signIn = useAuthStore((s) => s.signIn);
   const signOut = useAuthStore((s) => s.signOut);
@@ -47,10 +75,19 @@ export function LoginPage({
   const [params] = useSearchParams();
   const reason = params.get('reason');
   const returnUrl = params.get('returnUrl');
+  const portalMismatch = reason ? PORTAL_MISMATCH_REASONS.has(reason) : false;
+
+  // Each ops portal expects its own role — clear a session from another portal.
+  useEffect(() => {
+    if (!portalMismatch || !user) return;
+    void signOut();
+  }, [portalMismatch, user, signOut]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (rememberMe) localStorage.setItem('blox.rememberEmail', email.trim());
+    else localStorage.removeItem('blox.rememberEmail');
     const result = await signIn(email.trim(), password);
     if (result.error) {
       setError(
@@ -71,13 +108,11 @@ export function LoginPage({
   }
 
   return (
-    <div className="dm-auth-layout">
-      <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel={portalLabel} />
-      <main className="dm-auth-card">
-        <div className="dm-auth-card__inner">
-          <p className="dm-auth-card__eyebrow">{portalLabel}</p>
+    <OpsAuthLayout portalLabel={resolvedLabel} tagline={resolvedTagline} brandPoints={brandPoints}>
+      <OpsAuthCardInner>
+          <p className="dm-auth-card__eyebrow blox-auth-card__eyebrow">{resolvedLabel}</p>
           <h1>Sign in</h1>
-          <p className="dm-auth-card__lead">{t('auth.signInLead')}</p>
+          <p className="dm-auth-card__lead blox-auth-card__lead">{signInLead}</p>
 
           {(reason || (user && reason)) && (
             <div className="dm-auth-banner" role="status">
@@ -86,7 +121,7 @@ export function LoginPage({
               ) : reason ? (
                 <p>{reasonCopy[reason] ?? reason}</p>
               ) : null}
-              {user && reason && (
+              {user && reason && !portalMismatch && (
                 <p className="dm-auth-banner__session">
                   Signed in as <strong>{user.email}</strong> ({user.role}).{' '}
                   <button type="button" className="dm-auth-linkbtn" onClick={() => void signOut()}>
@@ -97,7 +132,7 @@ export function LoginPage({
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="dm-auth-form">
+          <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
             <label>
               Email
               <input
@@ -120,8 +155,12 @@ export function LoginPage({
                 placeholder="••••••••"
               />
             </label>
-            {error && <p className="dm-auth-error">{error}</p>}
-            <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={loading}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+              Remember me
+            </label>
+            {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+            <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={loading}>
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
             <p className="dm-auth-foot" style={{ marginTop: 14 }}>
@@ -143,10 +182,9 @@ export function LoginPage({
               {showMarketplaceLink && <Link to="/">Back to marketplace</Link>}
             </p>
           )}
-        </div>
-      </main>
+      </OpsAuthCardInner>
       <AuthPageStyles />
-    </div>
+    </OpsAuthLayout>
   );
 }
 
@@ -199,7 +237,7 @@ export function RegisterPage({
           <p className="dm-auth-card__eyebrow">Customer marketplace</p>
           <h1>Create account</h1>
           <p className="dm-auth-card__lead">{t('auth.signUpLead')}</p>
-          <form onSubmit={onSubmit} className="dm-auth-form">
+          <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
             <label>
               Full name
               <input
@@ -234,8 +272,8 @@ export function RegisterPage({
                 placeholder="At least 8 characters"
               />
             </label>
-            {error && <p className="dm-auth-error">{error}</p>}
-            <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={loading}>
+            {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+            <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={loading}>
               {loading ? 'Creating account…' : 'Create account'}
             </button>
           </form>
@@ -317,7 +355,7 @@ export function ForgotPasswordPage({
               <p className="dm-auth-card__lead">
                 Enter your account email and we&apos;ll send you a link to set a new password.
               </p>
-              <form onSubmit={onSubmit} className="dm-auth-form">
+              <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
                 <label>
                   Email
                   <input
@@ -329,8 +367,8 @@ export function ForgotPasswordPage({
                     placeholder="you@example.com"
                   />
                 </label>
-                {error && <p className="dm-auth-error">{error}</p>}
-                <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={busy}>
+                {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+                <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={busy}>
                   {busy ? 'Sending…' : 'Send reset link'}
                 </button>
               </form>
@@ -421,7 +459,7 @@ export function ResetPasswordPage({
               </p>
             </>
           ) : (
-            <form onSubmit={onSubmit} className="dm-auth-form">
+            <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
               <label>
                 New password
                 <input
@@ -446,8 +484,8 @@ export function ResetPasswordPage({
                   placeholder="Repeat the password"
                 />
               </label>
-              {error && <p className="dm-auth-error">{error}</p>}
-              <button type="submit" className="dm-btn-cta dm-auth-submit" disabled={busy}>
+              {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+              <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={busy}>
                 {busy ? 'Saving…' : 'Set new password'}
               </button>
             </form>
@@ -480,6 +518,7 @@ export function VerifyEmailPage({
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
   const autoSentRef = useRef(false);
 
   useEffect(() => {
@@ -489,12 +528,16 @@ export function VerifyEmailPage({
   async function resendVerification() {
     if (!user?.email) return;
     setError(null);
+    setPendingNotice(null);
     setBusy(true);
     try {
       const res = await fetch(`${getApiBase()}/api/auth/send-verification-email`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: window.location.origin,
+        },
         body: JSON.stringify({
           email: user.email.trim().toLowerCase(),
           callbackURL: `${window.location.origin}/auth/verify-email`,
@@ -519,7 +562,13 @@ export function VerifyEmailPage({
   }, [initialized, loading, user]);
 
   async function checkVerified() {
+    setError(null);
+    setPendingNotice(null);
     await refreshProfile();
+    const current = useAuthStore.getState().user;
+    if (current && !current.email_verified) {
+      setPendingNotice(t('auth.verifyEmailStillPending'));
+    }
   }
 
   if (!initialized || loading) {
@@ -554,10 +603,15 @@ export function VerifyEmailPage({
               <p>{t('auth.verifyEmailSent')}</p>
             </div>
           )}
-          {error && <p className="dm-auth-error">{error}</p>}
+          {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+          {pendingNotice && (
+            <div className="dm-auth-banner" role="status">
+              <p>{pendingNotice}</p>
+            </div>
+          )}
           <button
             type="button"
-            className="dm-btn-cta dm-auth-submit"
+            className="dm-btn-cta dm-auth-submit blox-auth-submit"
             disabled={busy}
             onClick={() => void resendVerification()}
           >
@@ -681,7 +735,7 @@ function AuthPageStyles() {
 
       .dm-auth-brand__portal {
         margin: 0 0 18px;
-        color: var(--dm-amber, #dbff00);
+        color: var(--dm-amber);
         font-weight: 650;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -734,8 +788,8 @@ function AuthPageStyles() {
         width: 7px;
         height: 7px;
         border-radius: 50%;
-        background: var(--dm-amber, #dbff00);
-        box-shadow: 0 0 0 3px rgba(219, 255, 0, 0.18);
+        background: var(--dm-amber);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--dm-amber) 18%, transparent);
       }
 
       .dm-auth-card {

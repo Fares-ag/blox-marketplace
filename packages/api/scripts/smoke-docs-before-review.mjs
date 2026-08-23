@@ -116,7 +116,9 @@ function assert(condition, message) {
 }
 
 function errorMessage(data, text) {
+  if (typeof data === 'object' && data?.error?.code) return String(data.error.code);
   if (typeof data === 'object' && data?.message) return String(data.message);
+  if (typeof data === 'object' && data?.error?.message) return String(data.error.message);
   if (typeof data === 'string') return data;
   return text ?? '';
 }
@@ -141,7 +143,7 @@ function buildPricing(listPrice) {
 }
 
 async function findPublishedProduct(session) {
-  const products = await jsonOk(session, '/api/products?limit=20');
+  const products = await jsonOk(session, '/api/v1/products?limit=20');
   const items = products.items ?? products;
   const published = items.find((p) => p.listingStatus === 'published' || !p.listingStatus);
   if (published?.id) return published;
@@ -152,7 +154,7 @@ async function uploadDoc(session, appId, category, buffer, mimeType, filename) {
   const form = new FormData();
   form.append('category', category);
   form.append('file', new Blob([buffer], { type: mimeType }), filename);
-  const { res, data, text } = await requestJsonWithRetry(session, `/api/applications/${appId}/documents`, {
+  const { res, data, text } = await requestJsonWithRetry(session, `/api/v1/applications/${appId}/documents`, {
     method: 'POST',
     body: form,
   });
@@ -168,18 +170,19 @@ async function uploadAllDocs(session, appId) {
 }
 
 async function opsQueueIds(credit) {
-  const queue = await jsonOk(credit, '/api/ops/applications');
-  return new Set((queue ?? []).map((a) => a.id));
+  const queue = await jsonOk(credit, '/api/v1/ops/applications');
+  const items = Array.isArray(queue) ? queue : (queue?.items ?? []);
+  return new Set(items.map((a) => a.id));
 }
 
 async function createDraftApp(customer) {
   const product = await findPublishedProduct(customer);
-  const created = await jsonOk(customer, '/api/applications', {
+  const created = await jsonOk(customer, '/api/v1/applications', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       productId: product.id,
-      offerId: product.defaultOfferId ?? 'seed-default-offer',
+      offerId: product.defaultOfferId ?? 'seed-al-jazeera-offer',
       customerSnapshot: {
         full_name: 'QA Customer',
         phone: '+974 5555 0099',
@@ -194,7 +197,7 @@ async function createDraftApp(customer) {
 }
 
 async function cancelApp(customer, appId) {
-  await jsonOk(customer, `/api/applications/${appId}/cancel`, {
+  await jsonOk(customer, `/api/v1/applications/${appId}/cancel`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason: 'QA cleanup' }),
@@ -223,9 +226,9 @@ async function main() {
   await signIn(dealer, 'dealer@drivemarket.local');
 
   // Clear blocking app if possible so happy path can create fresh
-  const blocking = await jsonOk(customer, '/api/applications/blocking');
+  const blocking = await jsonOk(customer, '/api/v1/applications/blocking');
   if (blocking.blocking && blocking.applicationId) {
-    const existing = await jsonOk(customer, `/api/applications/${blocking.applicationId}`);
+    const existing = await jsonOk(customer, `/api/v1/applications/${blocking.applicationId}`);
     if (['draft', 'under_review', 'resubmission_required'].includes(existing.status)) {
       console.log('Cancelling existing blocking app for clean QA:', blocking.applicationId);
       await cancelApp(customer, blocking.applicationId);
@@ -263,7 +266,7 @@ async function main() {
     }
 
     const { res: submitEarlyRes, data: submitEarlyData, text: submitEarlyText } =
-      await requestJsonWithRetry(customer, `/api/applications/${appId}/submit`, { method: 'POST' });
+      await requestJsonWithRetry(customer, `/api/v1/applications/${appId}/submit`, { method: 'POST' });
     record(
       'happy-path',
       'Submit without docs returns documents_incomplete',
@@ -274,14 +277,14 @@ async function main() {
 
     const { res: blockRes, data: blockData, text: blockText } = await requestJsonWithRetry(
       customer,
-      '/api/applications',
+      '/api/v1/applications',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId,
-          offerId: 'seed-default-offer',
-          customerSnapshot: { full_name: 'QA', phone: '+974', qid: '123' },
+          offerId: 'seed-al-jazeera-offer',
+          customerSnapshot: { full_name: 'QA', phone: '+97455550099', qid: '28099998887' },
           pricingSnapshot: buildPricing(100000),
         }),
       },
@@ -337,7 +340,9 @@ async function main() {
     record(
       'gates',
       'Oversized file rejected',
-      bigRes.status === 400 && errorMessage(bigData, bigText).includes('file_too_large'),
+      (bigRes.status === 400 || bigRes.status === 413) &&
+        (errorMessage(bigData, bigText).includes('file_too_large') ||
+          errorMessage(bigData, bigText).includes('payload_too_large')),
       errorMessage(bigData, bigText) || `HTTP ${bigRes.status}`,
     );
 
@@ -361,14 +366,16 @@ async function main() {
 
     const { res: submitRes, data: submitted, text: submitText } = await requestJsonWithRetry(
       customer,
-      `/api/applications/${appId}/submit`,
+      `/api/v1/applications/${appId}/submit`,
       { method: 'POST' },
     );
     record(
       'happy-path',
       'Submit with all docs → under_review',
-      submitRes.ok && submitted.status === 'under_review' && submitted.submittedAt,
-      submitRes.ok ? submitted.status : errorMessage(submitted, submitText),
+      submitRes.ok &&
+        (submitted.status ?? submitted.application?.status) === 'under_review' &&
+        Boolean(submitted.submittedAt ?? submitted.submitted_at),
+      submitRes.ok ? (submitted.status ?? submitted.application?.status) : errorMessage(submitted, submitText),
     );
 
     try {
@@ -391,7 +398,7 @@ async function main() {
 
   // Submit wrong status + upload blocked
   if (appId && draftCreated) {
-    const { res, data, text } = await requestJsonWithRetry(customer, `/api/applications/${appId}/submit`, { method: 'POST' });
+    const { res, data, text } = await requestJsonWithRetry(customer, `/api/v1/applications/${appId}/submit`, { method: 'POST' });
     record(
       'gates',
       'Submit again after under_review rejected',
@@ -437,7 +444,7 @@ async function main() {
 
     const { res: dSub, data: dSubData, text: dSubText } = await requestJsonWithRetry(
       dealer,
-      `/api/applications/${appId}/submit`,
+      `/api/v1/applications/${appId}/submit`,
       { method: 'POST' },
     );
     record(
@@ -452,7 +459,7 @@ async function main() {
   await sleep(7000);
   if (appId) {
     try {
-      const transitioned = await jsonOk(credit, `/api/ops/applications/${appId}/transition`, {
+      const transitioned = await jsonOk(credit, `/api/v1/ops/applications/${appId}/transition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toStatus: 'resubmission_required', reason: 'QA: please re-upload docs' }),
@@ -469,7 +476,7 @@ async function main() {
 
       const { res: resubRes, data: resubData, text: resubText } = await requestJsonWithRetry(
         customer,
-        `/api/applications/${appId}/resubmit`,
+        `/api/v1/applications/${appId}/resubmit`,
         { method: 'POST' },
       );
       record(
@@ -480,7 +487,7 @@ async function main() {
       );
 
       const { res: resubFailRes, data: resubFailData, text: resubFailText } =
-        await requestJsonWithRetry(customer, `/api/applications/${appId}/resubmit`, { method: 'POST' });
+        await requestJsonWithRetry(customer, `/api/v1/applications/${appId}/resubmit`, { method: 'POST' });
       record(
         'resubmit',
         'Resubmit without resubmission_required rejected',
@@ -503,7 +510,7 @@ async function main() {
   if (appId) {
     try {
       await cancelApp(customer, appId);
-      const blockingAfter = await jsonOk(customer, '/api/applications/blocking');
+      const blockingAfter = await jsonOk(customer, '/api/v1/applications/blocking');
       record(
         'gates',
         'Cancel draft/under_review clears blocking',

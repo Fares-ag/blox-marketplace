@@ -6,6 +6,7 @@ export const MFA_REQUIRED_ROLES: UserRole[] = [
   UserRole.super_admin,
   UserRole.credit_officer,
   UserRole.finance_officer,
+  UserRole.group_admin,
 ];
 
 export function isMfaRequiredRole(role: UserRole): boolean {

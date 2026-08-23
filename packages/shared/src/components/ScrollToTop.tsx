@@ -9,7 +9,7 @@ export function ScrollToTop() {
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    document.querySelectorAll('.blox-shell__main').forEach((el) => {
+    document.querySelectorAll('.blox-shell-main, .blox-shell__main').forEach((el) => {
       el.scrollTop = 0;
     });
   }, [pathname, search]);

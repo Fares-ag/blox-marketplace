@@ -1,0 +1,225 @@
+// Blox KYC service — standalone schema (its own database).
+// References to the marketplace live as opaque string IDs (applicationId,
+// customerUserId, companyId), NOT as cross-database foreign keys.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum KycCaseStatus {
+  created
+  capturing
+  checks_running
+  needs_review
+  step_up_required
+  reviewing
+  approved
+  rejected
+  expired
+}
+
+enum KycDecision {
+  approved
+  rejected
+}
+
+enum KycCheckType {
+  qid
+  passport
+  doc_authenticity
+  identity_binding
+  bank_statement
+  aml_screen
+  bureau
+}
+
+enum KycCheckStatus {
+  pending
+  passed
+  failed
+  manual_review
+  error
+}
+
+enum ConsentPurpose {
+  identity
+  bureau_pull
+  bank_data
+}
+
+enum IdentityDocType {
+  qid
+  passport
+}
+
+enum IdentityBindingMethod {
+  agent_attestation
+  video_review
+}
+
+/// One KYC case per financing application. The unit of review and evidence.
+model KycCase {
+  id             String        @id @default(cuid())
+  applicationId  String        @unique
+  customerUserId String
+  companyId      String
+  status         KycCaseStatus @default(created)
+  decision       KycDecision?
+  decisionReason String?
+  reviewerUserId String?
+  reviewedAt     DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  checks       KycCheck[]
+  documents    IdentityDocument[]
+  bindings     IdentityBinding[]
+  consents     ConsentRecord[]
+  screenings   ScreeningResult[]
+  statements   BankStatement[]
+  auditEvents  KycAuditEvent[]
+
+  @@index([status, createdAt])
+  @@index([companyId, status])
+  @@map("kyc_cases")
+}
+
+/// One row per check attempt. Append-only (never updated in place — a re-run
+/// inserts a new row; the latest per type is the current result).
+model KycCheck {
+  id              String         @id @default(cuid())
+  caseId          String
+  case            KycCase        @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  type            KycCheckType
+  status          KycCheckStatus @default(pending)
+  score           Float?
+  provider        String
+  providerVersion String
+  reason          String?
+  evidence        Json?
+  createdAt       DateTime       @default(now())
+
+  @@index([caseId, type, createdAt])
+  @@map("kyc_checks")
+}
+
+/// A captured identity document. Extracted fields are stored encrypted.
+model IdentityDocument {
+  id                 String          @id @default(cuid())
+  caseId             String
+  case               KycCase         @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  docType            IdentityDocType
+  storageRef         String
+  extractedEncrypted String?
+  nfcVerified        Boolean         @default(false)
+  authenticityScore  Float?
+  createdAt          DateTime        @default(now())
+
+  @@index([caseId, docType])
+  @@map("identity_documents")
+}
+
+/// Compensating control that binds holder-to-owner in place of a face check.
+model IdentityBinding {
+  id             String                @id @default(cuid())
+  caseId         String
+  case           KycCase               @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  method         IdentityBindingMethod
+  attesterUserId String
+  evidenceRef    String?
+  note           String?
+  createdAt      DateTime              @default(now())
+
+  @@index([caseId])
+  @@map("identity_bindings")
+}
+
+/// Granular, per-purpose consent with the exact text shown to the customer.
+model ConsentRecord {
+  id          String         @id @default(cuid())
+  caseId      String
+  case        KycCase        @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  purpose     ConsentPurpose
+  granted     Boolean
+  textVersion String
+  textShown   String
+  createdAt   DateTime       @default(now())
+
+  @@unique([caseId, purpose])
+  @@map("consent_records")
+}
+
+/// AML/sanctions/PEP screening outcome.
+model ScreeningResult {
+  id          String         @id @default(cuid())
+  caseId      String
+  case        KycCase        @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  status      KycCheckStatus
+  hitsJson    Json?
+  listVersion String?
+  disposition String?
+  reviewerUserId String?
+  createdAt   DateTime       @default(now())
+
+  @@index([caseId])
+  @@map("screening_results")
+}
+
+/// An uploaded (or API-sourced) bank statement and its derived signals.
+model BankStatement {
+  id                 String               @id @default(cuid())
+  caseId             String
+  case               KycCase              @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  source             String               @default("upload")
+  bankCode           String?
+  storageRef         String?
+  tamperStatus       KycCheckStatus       @default(pending)
+  periodStart        DateTime?            @db.Date
+  periodEnd          DateTime?            @db.Date
+  affordabilityJson  Json?
+  createdAt          DateTime             @default(now())
+
+  transactions StatementTransaction[]
+
+  @@index([caseId])
+  @@map("bank_statements")
+}
+
+model StatementTransaction {
+  id           String        @id @default(cuid())
+  statementId  String
+  statement    BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  postedAt     DateTime      @db.Date
+  description  String
+  amount       Decimal       @db.Decimal(14, 2)
+  direction    String
+  category     String?
+  createdAt    DateTime      @default(now())
+
+  @@index([statementId, postedAt])
+  @@map("statement_transactions")
+}
+
+/// Immutable audit/evidence trail. Enforced append-only by a DB trigger
+/// (see the generated migration). Never updated or deleted by app code.
+model KycAuditEvent {
+  id          String   @id @default(cuid())
+  caseId      String?
+  case        KycCase? @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  actorType   String
+  actorId     String?
+  action      String
+  fromValue   String?
+  toValue     String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([caseId, createdAt])
+  @@map("kyc_audit_events")
+}

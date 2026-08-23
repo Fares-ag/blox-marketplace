@@ -1,0 +1,23 @@
+-- CreateEnum
+CREATE TYPE "CompanyKind" AS ENUM ('holding', 'dealership');
+
+-- AlterEnum
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'group_admin';
+
+-- AlterTable
+ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "kind" "CompanyKind" NOT NULL DEFAULT 'dealership';
+ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "parent_company_id" TEXT;
+
+CREATE INDEX IF NOT EXISTS "companies_parent_company_id_idx" ON "companies"("parent_company_id");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'companies_parent_company_id_fkey'
+  ) THEN
+    ALTER TABLE "companies"
+      ADD CONSTRAINT "companies_parent_company_id_fkey"
+      FOREIGN KEY ("parent_company_id") REFERENCES "companies"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;

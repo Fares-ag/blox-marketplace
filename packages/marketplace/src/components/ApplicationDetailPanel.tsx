@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, getApiBase } from '@drivemarket/shared';
+import { apiFetch, apiFileUrl, apiUrl } from '@drivemarket/shared';
 import { ApplicationStatusView } from './ApplicationStatusView';
 import { OwnershipProgress } from './OwnershipProgress';
 
@@ -35,7 +35,7 @@ export type ApplicationDetailData = {
 const UPLOAD_CATEGORIES = ['qid', 'salary', 'bank', 'other'] as const;
 
 function documentDownloadUrl(appId: string, docId: string) {
-  return `${getApiBase()}/api/applications/${appId}/documents/${docId}/file`;
+  return apiFileUrl(`/applications/${appId}/documents/${docId}/file`);
 }
 
 function DocumentUploadCard({
@@ -178,7 +178,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     body.append('file', file);
     body.append('category', category);
     try {
-      const res = await fetch(`${getApiBase()}/api/applications/${app.id}/documents`, {
+      const res = await fetch(apiUrl(`/api/applications/${app.id}/documents`), {
         method: 'POST',
         credentials: 'include',
         body,
@@ -214,7 +214,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     const body = new FormData();
     body.append('file', file);
     try {
-      const res = await fetch(`${getApiBase()}/api/applications/${app.id}/contract/signed`, {
+      const res = await fetch(apiUrl(`/api/applications/${app.id}/contract/signed`), {
         method: 'POST',
         credentials: 'include',
         body,
@@ -302,7 +302,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           <p className="dm-app-detail__hint">{t('application.contractHint')}</p>
           <a
             className="dm-app-detail__link-btn"
-            href={`${getApiBase()}/api/applications/${app.id}/contract/file`}
+            href={apiFileUrl(`/applications/${app.id}/contract/file`)}
             target="_blank"
             rel="noreferrer"
           >

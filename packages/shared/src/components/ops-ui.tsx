@@ -1,6 +1,7 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { OpsPillVariant } from '../config/status-styles';
+import { Button, type ButtonProps } from '../ops-core';
 
 export type { OpsPillVariant };
 
@@ -8,15 +9,17 @@ export function OpsPageHeader({
   title,
   subtitle,
   actions,
+  sticky,
 }: {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  sticky?: boolean;
 }) {
   return (
-    <header className="blox-page-header">
+    <header className={`blox-page-header${sticky ? ' blox-page-header--sticky' : ''}`}>
       <div>
-        <h1>{title}</h1>
+        <h2>{title}</h2>
         {subtitle && <p className="blox-page-header__subtitle">{subtitle}</p>}
       </div>
       {actions && <div className="blox-page-header__actions">{actions}</div>}
@@ -28,13 +31,17 @@ export function OpsStatCard({
   label,
   value,
   delta,
+  variant = 'default',
 }: {
   label: string;
   value: string;
   delta?: string;
+  variant?: 'default' | 'hero' | 'dark';
 }) {
+  const variantClass =
+    variant === 'hero' ? ' blox-stat-card--hero' : variant === 'dark' ? ' blox-stat-card--dark' : '';
   return (
-    <article className="blox-stat-card">
+    <article className={`blox-stat-card${variantClass}`}>
       <p className="blox-stat-card__label">{label}</p>
       <p className="blox-stat-card__value blox-money">{value}</p>
       {delta && <p className="blox-stat-card__delta">{delta}</p>}
@@ -46,43 +53,54 @@ export function OpsStatusPill({ label, variant }: { label: string; variant: OpsP
   return <span className={`blox-pill blox-pill--${variant}`}>{label}</span>;
 }
 
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode };
+type BtnProps = Omit<ButtonProps, 'variant'>;
 
 export function OpsPrimaryButton({ children, className, ...rest }: BtnProps) {
   return (
-    <button type="button" className={`blox-btn blox-btn--primary${className ? ` ${className}` : ''}`} {...rest}>
+    <Button variant="primary" className={className} {...rest}>
       {children}
-    </button>
+    </Button>
   );
 }
 
 export function OpsSecondaryButton({ children, className, ...rest }: BtnProps) {
   return (
-    <button type="button" className={`blox-btn blox-btn--secondary${className ? ` ${className}` : ''}`} {...rest}>
+    <Button variant="secondary" className={className} {...rest}>
       {children}
-    </button>
+    </Button>
   );
 }
 
 export function OpsGhostButton({ children, className, ...rest }: BtnProps) {
   return (
-    <button type="button" className={`blox-btn blox-btn--ghost${className ? ` ${className}` : ''}`} {...rest}>
+    <Button variant="tertiary" className={className} {...rest}>
       {children}
-    </button>
+    </Button>
   );
 }
 
 export function OpsDangerButton({ children, className, ...rest }: BtnProps) {
   return (
-    <button type="button" className={`blox-btn blox-btn--danger${className ? ` ${className}` : ''}`} {...rest}>
+    <Button variant="destructive" className={className} {...rest}>
       {children}
-    </button>
+    </Button>
   );
 }
 
-export function OpsEmptyState({ title, body, action }: { title: string; body?: string; action?: ReactNode }) {
+export function OpsEmptyState({
+  title,
+  body,
+  action,
+  icon,
+}: {
+  title: string;
+  body?: string;
+  action?: ReactNode;
+  icon?: ReactNode;
+}) {
   return (
     <div className="blox-empty">
+      {icon && <div className="blox-empty__icon">{icon}</div>}
       <p className="blox-empty__title">{title}</p>
       {body && <p className="blox-empty__body">{body}</p>}
       {action && <div style={{ marginTop: 14 }}>{action}</div>}
@@ -117,6 +135,7 @@ export function OpsDataTable({
   rows,
   pagination,
   empty,
+  numericColumns,
 }: {
   columns: string[];
   rows: ReactNode[][];
@@ -128,13 +147,21 @@ export function OpsDataTable({
     onNext?: () => void;
   };
   empty?: ReactNode;
+  numericColumns?: number[];
 }) {
   const { t } = useTranslation();
 
   if (rows.length === 0 && empty) {
-    return <>{empty}</>;
+    return (
+      <div className="blox-table-wrap">
+        <div className="blox-empty" style={{ padding: '48px 24px' }}>
+          {empty}
+        </div>
+      </div>
+    );
   }
 
+  const numericSet = new Set(numericColumns ?? []);
   const actionsColIndex =
     columns.length > 0 &&
     (columns[columns.length - 1] === '' || columns[columns.length - 1].toLowerCase() === 'actions')
@@ -178,8 +205,10 @@ export function OpsDataTable({
         <table className="blox-table">
           <thead>
             <tr>
-              {columns.map((col) => (
-                <th key={col || 'actions'}>{col}</th>
+              {columns.map((col, j) => (
+                <th key={col || 'actions'} className={numericSet.has(j) ? 'blox-table__num' : undefined}>
+                  {col}
+                </th>
               ))}
             </tr>
           </thead>
@@ -187,7 +216,9 @@ export function OpsDataTable({
             {rows.map((row, i) => (
               <tr key={i}>
                 {row.map((cell, j) => (
-                  <td key={j}>{cell}</td>
+                  <td key={j} className={numericSet.has(j) ? 'blox-table__num' : undefined}>
+                    {cell}
+                  </td>
                 ))}
               </tr>
             ))}

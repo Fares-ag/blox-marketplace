@@ -198,7 +198,20 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
             },
           },
         }
-      : {}),
+      : process.env.NODE_ENV === 'production'
+        ? {
+            // Portals on *.blox.market calling a Railway *.railway.app host need
+            // SameSite=None; host-only cookies (no COOKIE_DOMAIN) until api.blox.market
+            // is attached to this service.
+            advanced: {
+              useSecureCookies: true,
+              defaultCookieAttributes: {
+                secure: true,
+                sameSite: 'none' as const,
+              },
+            },
+          }
+        : {}),
   });
 }
 

@@ -1,0 +1,22 @@
+# Local Postgres for the KYC service. SEPARATE DB from the marketplace
+# (host port 55433 to avoid colliding with the marketplace's 55432).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: blox-kyc-postgres
+    restart: unless-stopped
+    ports:
+      - '55433:5432'
+    environment:
+      POSTGRES_USER: kyc
+      POSTGRES_PASSWORD: kyc
+      POSTGRES_DB: blox_kyc
+    volumes:
+      - blox_kyc_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kyc -d blox_kyc']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  blox_kyc_pg:

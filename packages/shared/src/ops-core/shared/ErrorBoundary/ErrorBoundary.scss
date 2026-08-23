@@ -1,0 +1,54 @@
+.error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--spacing-lg);
+  background-color: var(--background);
+
+  .error-content {
+    text-align: center;
+    max-width: 600px;
+    padding: var(--spacing-lg);
+    background: var(--card-background);
+    border-radius: var(--radius-card);
+    box-shadow: var(--card-shadow);
+
+    .error-icon {
+      font-size: 64px;
+      color: var(--status-unpaid);
+      margin-bottom: var(--spacing-md);
+    }
+
+    .error-title {
+      margin-bottom: var(--spacing-sm);
+      color: var(--primary-text);
+    }
+
+    .error-message {
+      color: var(--custom-text-color);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .error-details {
+      margin: var(--spacing-lg) 0;
+      padding: var(--spacing-md);
+      background: var(--background);
+      border-radius: var(--radius-sm);
+      text-align: left;
+      max-height: 300px;
+      overflow: auto;
+
+      pre {
+        font-size: 12px;
+        color: var(--status-unpaid);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    }
+
+    .error-button {
+      margin-top: var(--spacing-md);
+    }
+  }
+}

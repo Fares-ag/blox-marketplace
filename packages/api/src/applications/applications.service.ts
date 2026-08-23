@@ -7,6 +7,7 @@ import {
 import path from 'node:path';
 import {
   ApplicationStatus,
+  DocumentCategory,
   ListingStatus,
   Prisma,
   User,
@@ -15,6 +16,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
 import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
+import { CREDIT_QUEUE_STATUSES } from './application-transitions';
+import { submittedStatusForPartner } from './partner-finance';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { StorageService } from '../storage/storage.service';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
@@ -23,7 +26,7 @@ import {
   buildApplicationPricingSnapshot,
   assertOfferMatchesProduct,
 } from './application-pricing';
-import { hasAllRequiredDocuments } from './application-documents';
+import { hasAllRequiredDocuments, type ApplicationDocCategory } from './application-documents';
 import {
   assertApplicationCanView,
   BLOCKING_APPLICATION_STATUSES,
@@ -33,6 +36,15 @@ import {
   opsCompanyFilter,
 } from './company-scope';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
+import { buildScheduleDrafts } from './payment-schedules';
+import {
+  convertInstallmentPlanDailyToMonthly,
+  syncPaymentSchedulesFromInstallmentPlan,
+} from './installment-plan-sync';
+import {
+  buildPlanFromPricingSnapshot,
+  type InstallmentPlan,
+} from '@drivemarket/shared/installment-plan';
 import {
   mapApplicationDto,
   toApplicationBlockingDto,
@@ -201,7 +213,7 @@ export class ApplicationsService {
   async submit(user: User, id: string) {
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { documents: true, product: true },
+      include: { documents: true, product: true, financePartner: true },
     });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
     if (app.status !== 'draft' && app.status !== 'resubmission_required') {
@@ -216,9 +228,10 @@ export class ApplicationsService {
     }
 
     const fromStatus = app.status;
+    const nextStatus = submittedStatusForPartner(app.financePartner?.crmAdapter);
     const updated = await this.prisma.$transaction(async (tx) => {
       await transitionApplication(tx, id, fromStatus, {
-        status: ApplicationStatus.under_review,
+        status: nextStatus,
         submittedAt: app.submittedAt ?? new Date(),
       });
 
@@ -239,10 +252,12 @@ export class ApplicationsService {
       entityId: id,
       action: 'status_transition',
       fromValue: app.status,
-      toValue: 'under_review',
+      toValue: nextStatus,
     });
 
-    await this.notifyOpsOnSubmit(app.companyId, id);
+    if (nextStatus === ApplicationStatus.under_review) {
+      await this.notifyOpsOnSubmit(app.companyId, id);
+    }
     void this.maybeSyncZoho(id, user.id);
 
     this.analytics.track('application_submitted', {
@@ -279,23 +294,92 @@ export class ApplicationsService {
       include: {
         product: true,
         documents: true,
-        company: { select: { id: true, name: true } },
+        company: { select: { id: true, name: true, allowDirectActivate: true } },
         customer: { select: { name: true, email: true, phone: true } },
         offer: true,
+        financePartner: { select: { name: true, code: true, crmAdapter: true } },
+        agent: { select: { id: true, name: true, email: true } },
         paymentSchedules: { orderBy: { sequence: 'asc' } },
+        paymentTransactions: { orderBy: { createdAt: 'desc' }, take: 50 },
+        complianceChecks: { orderBy: { createdAt: 'desc' }, take: 5 },
       },
     });
     if (!app) throw new NotFoundException();
     await assertApplicationCanView(this.prisma, user, app);
-    return mapApplicationDto(app, this.audienceForUser(user, app));
+    const audience = this.audienceForUser(user, app);
+    const dto = mapApplicationDto(app, audience) as Record<string, unknown>;
+
+    if (audience === 'ops' || audience === 'dealer') {
+      dto.agent = app.agent
+        ? { id: app.agent.id, name: app.agent.name, email: app.agent.email }
+        : null;
+      dto.allow_direct_activate = app.company?.allowDirectActivate ?? false;
+      dto.payment_transactions = app.paymentTransactions.map((txn) => ({
+        id: txn.id,
+        gateway: txn.gateway,
+        amount: Number(txn.amount),
+        status: txn.status,
+        created_at: txn.createdAt.toISOString(),
+        receipt_url: txn.rawPayloadRef ?? null,
+      }));
+    }
+
+    if (audience === 'ops') {
+      const logs = await this.prisma.activityLog.findMany({
+        where: { entityType: 'application', entityId: id },
+        include: { actor: { select: { email: true, name: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 80,
+      });
+      const isSuper = user.role === UserRole.super_admin;
+      dto.activity_logs = logs
+        .filter((l) => (isSuper ? true : l.action !== 'comment'))
+        .map((l) => ({
+          id: l.id,
+          action: l.action,
+          from_value: l.fromValue,
+          to_value: l.toValue,
+          actor_email: l.actor?.email ?? null,
+          actor_role: l.actor?.role ?? null,
+          metadata: isSuper || user.role === UserRole.admin ? l.metadata : undefined,
+          created_at: l.createdAt.toISOString(),
+        }));
+      dto.comments = logs
+        .filter((l) => l.action === 'comment')
+        .map((l) => ({
+          id: l.id,
+          body: l.toValue,
+          actor_email: l.actor?.email ?? null,
+          created_at: l.createdAt.toISOString(),
+        }));
+      dto.compliance_checks = app.complianceChecks.map((c) => ({
+        id: c.id,
+        overall_status: c.overallStatus,
+        created_at: c.createdAt.toISOString(),
+      }));
+    }
+
+    return dto;
   }
 
-  async opsQueue(user: User, query: PaginationQueryDto = {}) {
+  async opsQueue(
+    user: User,
+    query: PaginationQueryDto & {
+      status?: ApplicationStatus;
+      statusIn?: string;
+      q?: string;
+      companyId?: string;
+      scheduleHealth?: string;
+      createdFrom?: string;
+      createdTo?: string;
+    } = {},
+  ) {
     const allowed: UserRole[] = [
       UserRole.credit_officer,
       UserRole.admin,
       UserRole.super_admin,
       UserRole.finance_officer,
+      UserRole.group_admin,
     ];
     if (!allowed.includes(user.role)) {
       throw new ForbiddenException('forbidden_role');
@@ -303,29 +387,55 @@ export class ApplicationsService {
 
     const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
     const companyFilter = await opsCompanyFilter(this.prisma, user);
-    const where = {
-      status: {
-        in: [
-          'under_review',
-          'resubmission_required',
-          'contract_signing_required',
-          'contracts_submitted',
-          'contract_under_review',
-          'down_payment_required',
-          'down_payment_submitted',
-          'pending_finance_activation',
-        ] as ApplicationStatus[],
-      },
-      ...(companyFilter ? { companyId: { in: companyFilter } } : {}),
+    const statusIn = this.parseStatusIn(query.status, query.statusIn, user.role);
+    const search = query.q?.trim();
+    const createdFrom = query.createdFrom ? new Date(query.createdFrom) : undefined;
+    const createdTo = query.createdTo ? new Date(query.createdTo) : undefined;
+    const requestedCompany = query.companyId?.trim();
+    const scopedCompanyIds = companyFilter
+      ? requestedCompany
+        ? companyFilter.filter((id) => id === requestedCompany)
+        : companyFilter
+      : requestedCompany
+        ? [requestedCompany]
+        : undefined;
+    const where: Prisma.ApplicationWhereInput = {
+      ...(statusIn ? { status: { in: statusIn } } : {}),
+      ...(scopedCompanyIds ? { companyId: { in: scopedCompanyIds } } : {}),
+      ...(createdFrom && !Number.isNaN(createdFrom.getTime()) ? { createdAt: { gte: createdFrom } } : {}),
+      ...(createdTo && !Number.isNaN(createdTo.getTime())
+        ? { createdAt: { ...(createdFrom ? { gte: createdFrom } : {}), lte: createdTo } }
+        : {}),
+      ...(query.scheduleHealth === 'overdue'
+        ? { paymentSchedules: { some: { status: 'overdue' } } }
+        : query.scheduleHealth === 'on_track'
+          ? { paymentSchedules: { some: {}, none: { status: 'overdue' } } }
+          : query.scheduleHealth === 'none'
+            ? { paymentSchedules: { none: {} } }
+            : {}),
+      ...(search
+        ? {
+            OR: [
+              { customerEmail: { contains: search, mode: 'insensitive' } },
+              { id: { contains: search, mode: 'insensitive' } },
+              { customer: { name: { contains: search, mode: 'insensitive' } } },
+              { company: { name: { contains: search, mode: 'insensitive' } } },
+              { agent: { name: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
     };
 
     const [items, total] = await Promise.all([
       this.prisma.application.findMany({
         where,
         include: {
-          product: { select: { make: true, model: true, modelYear: true, slug: true } },
+          product: { select: { make: true, model: true, modelYear: true, slug: true, price: true } },
           company: { select: { name: true } },
           customer: { select: { name: true, email: true } },
+          agent: { select: { id: true, name: true, email: true } },
+          paymentSchedules: { select: { status: true, dueDate: true } },
+          financePartner: { select: { name: true, code: true, crmAdapter: true } },
         },
         orderBy: { createdAt: 'asc' },
         take: limit,
@@ -333,21 +443,69 @@ export class ApplicationsService {
       }),
       this.prisma.application.count({ where }),
     ]);
-    return toPaginatedResponse(items.map((item) => toOpsApplicationQueueItemDto(item)), total, limit, offset);
+    const metricsRows = await this.prisma.application.findMany({
+      where,
+      select: {
+        pricingSnapshot: true,
+        paymentSchedules: { select: { remainingAmount: true, amount: true } },
+      },
+      take: 500,
+    });
+    let loanValue = 0;
+    let receivable = 0;
+    let paymentCount = 0;
+    let paymentSum = 0;
+    for (const row of metricsRows) {
+      const pricing = (row.pricingSnapshot as Record<string, unknown>) ?? {};
+      loanValue += Number(pricing.financed_total ?? pricing.list_price ?? 0);
+      for (const schedule of row.paymentSchedules) {
+        receivable += Number(schedule.remainingAmount);
+        paymentSum += Number(schedule.amount);
+        paymentCount += 1;
+      }
+    }
+    return {
+      ...toPaginatedResponse(items.map((item) => toOpsApplicationQueueItemDto(item)), total, limit, offset),
+      metrics: {
+        loan_value: Math.round(loanValue),
+        receivable: Math.round(receivable),
+        avg_payment: paymentCount ? Math.round(paymentSum / paymentCount) : 0,
+      },
+    };
   }
 
-  async dealerLeads(user: User, query: PaginationQueryDto = {}) {
+  async dealerLeads(
+    user: User,
+    query: PaginationQueryDto & { status?: ApplicationStatus; q?: string; tab?: string } = {},
+  ) {
     if (user.role !== UserRole.dealer_agent || !user.companyId) {
       throw new ForbiddenException('forbidden_role');
     }
     const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
-    const where = { companyId: user.companyId };
+    const search = query.q?.trim();
+    const tab = query.tab?.trim();
+    const where: Prisma.ApplicationWhereInput = {
+      companyId: user.companyId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(tab === 'mine' ? { agentUserId: user.id } : {}),
+      ...(tab === 'resubmission' ? { status: ApplicationStatus.resubmission_required } : {}),
+      ...(search
+        ? {
+            OR: [
+              { customerEmail: { contains: search, mode: 'insensitive' } },
+              { customer: { name: { contains: search, mode: 'insensitive' } } },
+              { id: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
     const [items, total] = await Promise.all([
       this.prisma.application.findMany({
         where,
         include: {
           product: { select: { make: true, model: true, modelYear: true, slug: true } },
           customer: { select: { name: true, email: true, phone: true } },
+          agent: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -356,6 +514,90 @@ export class ApplicationsService {
       this.prisma.application.count({ where }),
     ]);
     return toPaginatedResponse(items.map((item) => toDealerApplicationListItemDto(item)), total, limit, offset);
+  }
+
+  async patchOps(
+    user: User,
+    id: string,
+    body: {
+      agentUserId?: string | null;
+      companyId?: string;
+      comment?: string;
+      customerSnapshot?: Record<string, unknown>;
+      hideInterest?: boolean;
+    },
+  ) {
+    const isAdmin = user.role === UserRole.admin || user.role === UserRole.super_admin;
+    const isCredit = user.role === UserRole.credit_officer;
+    if (!isAdmin && !isCredit) throw new ForbiddenException('forbidden_role');
+
+    const app = await this.prisma.application.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException();
+    await assertApplicationCanView(this.prisma, user, app);
+
+    if (body.comment?.trim()) {
+      await this.activity.log({
+        actorUserId: user.id,
+        entityType: 'application',
+        entityId: id,
+        action: 'comment',
+        toValue: body.comment.trim(),
+      });
+    }
+
+    const data: Prisma.ApplicationUpdateInput = {};
+    if (isAdmin && body.agentUserId !== undefined) {
+      data.agent = body.agentUserId ? { connect: { id: body.agentUserId } } : { disconnect: true };
+    }
+    if (isAdmin && body.companyId) {
+      data.company = { connect: { id: body.companyId } };
+    }
+    if (body.customerSnapshot && typeof body.customerSnapshot === 'object') {
+      data.customerSnapshot = asJson({
+        ...((app.customerSnapshot as Record<string, unknown>) ?? {}),
+        ...body.customerSnapshot,
+      });
+    }
+    if (body.hideInterest !== undefined) {
+      const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
+      data.pricingSnapshot = asJson({ ...pricing, hide_interest: body.hideInterest });
+    }
+
+    if (Object.keys(data).length > 0) {
+      await this.prisma.application.update({ where: { id }, data });
+      await this.activity.log({
+        actorUserId: user.id,
+        entityType: 'application',
+        entityId: id,
+        action: 'application_updated',
+      });
+    }
+
+    return this.getOne(user, id);
+  }
+
+  private parseStatusIn(
+    status: ApplicationStatus | undefined,
+    statusIn: string | undefined,
+    role: UserRole,
+  ): ApplicationStatus[] | undefined {
+    if (status) return [status];
+    if (statusIn?.trim()) {
+      return statusIn
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean) as ApplicationStatus[];
+    }
+    if (role === UserRole.credit_officer) return [...CREDIT_QUEUE_STATUSES];
+    if (role === UserRole.finance_officer) {
+      return [
+        ApplicationStatus.down_payment_required,
+        ApplicationStatus.down_payment_submitted,
+        ApplicationStatus.pending_finance_activation,
+        ApplicationStatus.active,
+      ];
+    }
+    return undefined;
   }
 
   async transition(user: User, id: string, toStatus: ApplicationStatus, reason?: string) {
@@ -449,7 +691,7 @@ export class ApplicationsService {
   async uploadDoc(
     user: User,
     id: string,
-    category: 'qid' | 'salary' | 'bank' | 'other',
+    category: ApplicationDocCategory,
     file: Express.Multer.File,
   ) {
     const app = await this.prisma.application.findUnique({ where: { id } });
@@ -463,7 +705,7 @@ export class ApplicationsService {
     const doc = await this.prisma.applicationDocument.create({
       data: {
         applicationId: id,
-        category,
+        category: category as DocumentCategory,
         storagePath: key,
         mimeType: file.mimetype,
         uploadedById: user.id,
@@ -529,6 +771,186 @@ export class ApplicationsService {
     }
   }
 
+  async deleteOps(user: User, id: string) {
+    if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+      include: { paymentSchedules: true },
+    });
+    if (!app) throw new NotFoundException();
+    if (!['draft', 'rejected', 'submission_cancelled'].includes(app.status)) {
+      throw new BadRequestException('cannot_delete_application');
+    }
+    if (app.paymentSchedules.some((s) => Number(s.paidAmount) > 0)) {
+      throw new BadRequestException('cannot_delete_paid_application');
+    }
+    await this.prisma.paymentSchedule.deleteMany({ where: { applicationId: id } });
+    await this.prisma.application.delete({ where: { id } });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: id,
+      action: 'application_deleted',
+    });
+    return { ok: true };
+  }
+
+  async rebuildSchedule(
+    user: User,
+    id: string,
+    dto: { tenureMonths?: number; downPaymentPct?: number; sellingPrice?: number; installmentPlan?: InstallmentPlan },
+  ) {
+    if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+      include: { offer: true, paymentSchedules: true, product: true },
+    });
+    if (!app) throw new NotFoundException();
+    if (app.status === ApplicationStatus.partner_processing) {
+      throw new BadRequestException('partner_application_readonly');
+    }
+    if (app.paymentSchedules.some((s) => Number(s.paidAmount) > 0)) {
+      throw new BadRequestException('cannot_rebuild_paid_schedule');
+    }
+    const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
+    const next = buildApplicationPricingSnapshot({
+      listPrice: dto.sellingPrice ?? Number(pricing.list_price ?? pricing.selling_price ?? 0),
+      offer: app.offer,
+      pricingSnapshot: {
+        ...pricing,
+        tenor: dto.tenureMonths ?? pricing.tenor ?? pricing.tenure,
+        tenure: dto.tenureMonths ?? pricing.tenure ?? pricing.tenor,
+        down_payment_pct: dto.downPaymentPct ?? pricing.down_payment_pct,
+      },
+    });
+    const installmentPlan =
+      dto.installmentPlan ??
+      buildPlanFromPricingSnapshot({
+        pricingSnapshot: next,
+        vehiclePrice: Number(next.list_price ?? app.product.price),
+      });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.application.update({
+        where: { id },
+        data: {
+          pricingSnapshot: next as Prisma.InputJsonValue,
+          installmentPlan: installmentPlan as unknown as Prisma.InputJsonValue,
+        },
+      });
+      if (app.status === ApplicationStatus.active) {
+        await syncPaymentSchedulesFromInstallmentPlan(tx, id, next, installmentPlan);
+      }
+    });
+    return this.getOne(user, id);
+  }
+
+  async convertDailyToMonthly(user: User, id: string) {
+    const allowed: UserRole[] = [
+      UserRole.credit_officer,
+      UserRole.admin,
+      UserRole.super_admin,
+    ];
+    if (!allowed.includes(user.role)) {
+      throw new ForbiddenException('forbidden_role');
+    }
+
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+      include: { paymentSchedules: { orderBy: { dueDate: 'asc' } } },
+    });
+    if (!app) throw new NotFoundException();
+
+    const plan = app.installmentPlan as InstallmentPlan | null;
+    if (plan?.schedule?.length) {
+      const monthlyPlan = convertInstallmentPlanDailyToMonthly(plan);
+      await this.prisma.$transaction(async (tx) => {
+        await tx.application.update({
+          where: { id },
+          data: {
+            installmentPlan: monthlyPlan as unknown as Prisma.InputJsonValue,
+          },
+        });
+        if (app.paymentSchedules.length > 0) {
+          await syncPaymentSchedulesFromInstallmentPlan(
+            tx,
+            id,
+            app.pricingSnapshot as Record<string, unknown>,
+            monthlyPlan,
+          );
+        }
+      });
+      return this.getOne(user, id);
+    }
+
+    const rows = app.paymentSchedules;
+    if (rows.length < 2) throw new BadRequestException('not_daily_schedule');
+    const firstGap = (rows[1].dueDate.getTime() - rows[0].dueDate.getTime()) / 86400000;
+    if (firstGap > 7) throw new BadRequestException('not_daily_schedule');
+    const unpaid = rows.filter((r) => Number(r.paidAmount) === 0);
+    const groups = new Map<string, typeof unpaid>();
+    for (const row of unpaid) {
+      const key = `${row.dueDate.getUTCFullYear()}-${row.dueDate.getUTCMonth()}`;
+      const list = groups.get(key) ?? [];
+      list.push(row);
+      groups.set(key, list);
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentSchedule.deleteMany({ where: { id: { in: unpaid.map((r) => r.id) } } });
+      let sequence = rows.filter((r) => Number(r.paidAmount) > 0).length;
+      for (const group of groups.values()) {
+        sequence += 1;
+        const amount = group.reduce((sum, r) => sum + Number(r.amount), 0);
+        await tx.paymentSchedule.create({
+          data: {
+            applicationId: id,
+            sequence,
+            dueDate: group[0].dueDate,
+            amount,
+            paidAmount: 0,
+            remainingAmount: amount,
+            status: 'pending',
+          },
+        });
+      }
+    });
+    return this.getOne(user, id);
+  }
+
+  async syncSchedulesFromPlan(user: User, id: string) {
+    const allowed: UserRole[] = [
+      UserRole.credit_officer,
+      UserRole.finance_officer,
+      UserRole.admin,
+      UserRole.super_admin,
+    ];
+    if (!allowed.includes(user.role)) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    const app = await this.prisma.application.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException();
+    if (app.status === ApplicationStatus.partner_processing) {
+      throw new BadRequestException('partner_application_readonly');
+    }
+    const plan = app.installmentPlan as InstallmentPlan | null;
+    if (!plan?.schedule?.length) {
+      throw new BadRequestException('empty_installment_plan');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await syncPaymentSchedulesFromInstallmentPlan(
+        tx,
+        id,
+        app.pricingSnapshot as Record<string, unknown>,
+        plan,
+      );
+    });
+    return this.getOne(user, id);
+  }
+
   private audienceForUser(
     user: User,
     app: { customerUserId: string; companyId: string },
@@ -538,6 +960,7 @@ export class ApplicationsService {
       UserRole.finance_officer,
       UserRole.admin,
       UserRole.super_admin,
+      UserRole.group_admin,
     ];
     if (ops.includes(user.role)) return 'ops';
     if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return 'dealer';

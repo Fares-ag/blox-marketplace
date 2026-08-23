@@ -88,19 +88,19 @@ async function main() {
 
   await signIn(customer, 'customer@drivemarket.local');
 
-  const blocking = await json(customer, '/api/applications/blocking');
+  const blocking = await json(customer, '/api/v1/applications/blocking');
   let appId;
 
   if (blocking.blocking && blocking.applicationId) {
     console.log('Using existing blocking application:', blocking.applicationId);
     appId = blocking.applicationId;
   } else {
-    const products = await json(customer, '/api/products?limit=1');
+    const products = await json(customer, '/api/v1/products?limit=1');
     const product = products.items?.[0] ?? products[0];
     if (!product?.id) throw new Error('No published product found');
     console.log('Creating application for product:', product.slug ?? product.id);
 
-    const created = await json(customer, '/api/applications', {
+    const created = await json(customer, '/api/v1/applications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

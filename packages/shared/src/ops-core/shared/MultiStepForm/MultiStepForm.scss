@@ -1,0 +1,30 @@
+.multi-step-form {
+  .form-stepper {
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--card-background);
+    border-radius: var(--radius-card);
+  }
+
+  .form-content {
+    min-height: 400px;
+    padding: var(--spacing-lg);
+    background: var(--card-background);
+    border-radius: var(--radius-card);
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md);
+    background: var(--card-background);
+    border-radius: var(--radius-card);
+
+    .navigation-buttons {
+      display: flex;
+      gap: var(--spacing-md);
+    }
+  }
+}

@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, useMemo } from 'react';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   AuthGuard,
@@ -9,14 +9,36 @@ import {
   TwoFactorLoginPage,
   MfaSetupPage,
   BloxShell,
+  OpsAppFrame,
+  AddApplicationWizard,
+  ApplicationWorkspace,
+  PageSkeleton,
   mountPortalApp,
   type BloxNavItem,
-} from '@drivemarket/shared';import '@drivemarket/shared/styles/global.scss';
+} from '@drivemarket/shared';
+import '@drivemarket/shared/styles/global.scss';
 import { DashboardPage } from './pages/DashboardPage';
 import { ApplicationsPage } from './pages/ApplicationsPage';
-import { ProductsPage } from './pages/ProductsPage';
-import { OffersPage } from './pages/EntityListPages';
+import { ProductsPage, ProductEditPage } from './pages/ProductsPage';
+import { OffersPage, OfferEditPage } from './pages/EntityListPages';
 import { LedgersPage } from './pages/LedgersPage';
+import { BankTransfersPage } from './pages/BankTransfersPage';
+import { UsersPage, UserDetailPage } from './pages/UsersPages';
+import { CompaniesPage } from './pages/CompaniesPage';
+const PromotionsPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.PromotionsPage })));
+const PromotionEditPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.PromotionEditPage })));
+const InsuranceRatesPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.InsuranceRatesPage })));
+const InsuranceRateEditPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.InsuranceRateEditPage })));
+const PackagesPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.PackagesPage })));
+const PackageEditPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.PackageEditPage })));
+const SettlementSettingsPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.SettlementSettingsPage })));
+const ClearStoragePage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.ClearStoragePage })));
+
+function AdminWorkspace() {
+  const { id } = useParams();
+  if (!id) return <Navigate to="/main/applications" replace />;
+  return <ApplicationWorkspace id={id} audience="admin" backTo="/main/applications" />;
+}
 
 function App() {
   const { t } = useTranslation();
@@ -24,46 +46,74 @@ function App() {
     () => [
       { to: '/main/dashboard', label: t('ops.admin.nav.dashboard'), icon: 'home' },
       { to: '/main/applications', label: t('ops.admin.nav.applications'), icon: 'apps' },
-      { to: '/main/products', label: t('ops.admin.nav.products'), icon: 'products' },
+      { to: '/main/bank-transfers', label: t('ops.admin.nav.bankTransfers'), icon: 'finance' },
+      { to: '/main/users', label: t('ops.admin.nav.users'), icon: 'users' },
+      { to: '/main/companies', label: t('ops.admin.nav.companies'), icon: 'company' },
+      { to: '/main/vehicles', label: t('ops.admin.nav.vehicles'), icon: 'products' },
       { to: '/main/offers', label: t('ops.admin.nav.offers'), icon: 'offers' },
+      { to: '/main/promotions', label: t('ops.admin.nav.promotions'), icon: 'promotions' },
+      { to: '/main/insurance-rates', label: t('ops.admin.nav.insurance'), icon: 'insurance' },
+      { to: '/main/packages', label: t('ops.admin.nav.packages'), icon: 'packages' },
       { to: '/main/ledgers', label: t('ops.admin.nav.ledgers'), icon: 'ledgers' },
+      { to: '/main/settings/settlement-discounts', label: t('ops.admin.nav.settings'), icon: 'settings' },
     ],
     [t],
   );
 
-  return (    <Routes>
-      <Route
-        path="/auth/login"
-        element={<LoginPage portalLabel="Blox Admin" homePath="/main/dashboard" />}
-      />
+  return (
+    <OpsAppFrame>
+    <Routes>
+      <Route path="/auth/login" element={<LoginPage portalKey="admin" homePath="/main/dashboard" />} />
       <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
-      <Route
-        path="/auth/two-factor"
-        element={<TwoFactorLoginPage portalLabel="Blox Admin" homePath="/main/dashboard" />}
-      />
-      <Route
-        path="/auth/mfa-setup"
-        element={<MfaSetupPage portalLabel="Blox Admin" homePath="/main/dashboard" />}
-      />
+      <Route path="/auth/two-factor" element={<TwoFactorLoginPage portalKey="admin" homePath="/main/dashboard" />} />
+      <Route path="/auth/mfa-setup" element={<MfaSetupPage portalKey="admin" homePath="/main/dashboard" />} />
       <Route
         path="/*"
         element={
-          <AuthGuard allowedRole="admin" reasonParam="not_admin">
-            <BloxShell title="Admin" nav={navItems} homePaths={['/main/dashboard']}>              <Routes>
+          <AuthGuard allowedRole={['admin', 'super_admin', 'group_admin']} reasonParam="not_admin">
+            <BloxShell title="Admin" nav={navItems} homePaths={['/main/dashboard']}>
+              <Suspense fallback={<PageSkeleton variant="dashboard" />}>
+              <Routes>
                 <Route path="/" element={<Navigate to="/main/dashboard" replace />} />
                 <Route path="/main/dashboard" element={<DashboardPage />} />
                 <Route path="/main/applications" element={<ApplicationsPage />} />
-                <Route path="/main/products" element={<ProductsPage />} />
+                <Route path="/main/applications/new" element={<AddApplicationWizard audience="admin" detailBase="/main/applications" />} />
+                <Route path="/main/applications/:id" element={<AdminWorkspace />} />
+                <Route path="/main/bank-transfers" element={<BankTransfersPage />} />
+                <Route path="/main/users" element={<UsersPage />} />
+                <Route path="/main/users/:id" element={<UserDetailPage />} />
+                <Route path="/main/companies" element={<CompaniesPage />} />
+                <Route path="/main/vehicles" element={<ProductsPage />} />
+                <Route path="/main/vehicles/add" element={<ProductEditPage />} />
+                <Route path="/main/vehicles/:id" element={<ProductEditPage />} />
+                <Route path="/main/products" element={<Navigate to="/main/vehicles" replace />} />
                 <Route path="/main/offers" element={<OffersPage />} />
+                <Route path="/main/offers/new" element={<OfferEditPage />} />
+                <Route path="/main/offers/:id" element={<OfferEditPage />} />
+                <Route path="/main/promotions" element={<PromotionsPage />} />
+                <Route path="/main/promotions/new" element={<PromotionEditPage />} />
+                <Route path="/main/promotions/:id" element={<PromotionEditPage />} />
+                <Route path="/main/insurance-rates" element={<InsuranceRatesPage />} />
+                <Route path="/main/insurance-rates/new" element={<InsuranceRateEditPage />} />
+                <Route path="/main/insurance-rates/:id" element={<InsuranceRateEditPage />} />
+                <Route path="/main/packages" element={<PackagesPage />} />
+                <Route path="/main/packages/new" element={<PackageEditPage />} />
+                <Route path="/main/packages/:id" element={<PackageEditPage />} />
                 <Route path="/main/ledgers" element={<LedgersPage />} />
+                <Route path="/main/settings/settlement-discounts" element={<SettlementSettingsPage />} />
+                {import.meta.env.DEV && (
+                  <Route path="/main/dev-tools/clear-storage" element={<ClearStoragePage />} />
+                )}
                 <Route path="*" element={<Navigate to="/main/dashboard" replace />} />
               </Routes>
+              </Suspense>
             </BloxShell>
           </AuthGuard>
         }
       />
     </Routes>
+    </OpsAppFrame>
   );
 }
 

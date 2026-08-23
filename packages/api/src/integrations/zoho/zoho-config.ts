@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { resolveHttpTimeoutMs } from '../../common/fetch-with-timeout';
 
 /**
  * Zoho data-centre suffix of a hostname, e.g. `www.zohoapis.com` -> `.com`,
@@ -82,6 +83,11 @@ export class ZohoConfig implements OnModuleInit {
 
   get requestSubmittedTo(): string {
     return this.config.get<string>('ZOHO_REQUEST_SUBMITTED_TO') ?? 'Al Jazeera Finance';
+  }
+
+  /** Outbound Zoho CRM + OAuth HTTP timeout (default 8s). */
+  get httpTimeoutMs(): number {
+    return resolveHttpTimeoutMs(this.config.get<string>('ZOHO_HTTP_TIMEOUT_MS'), 8000);
   }
 
   /** Boot-time visibility: never log secrets, only the resolved routing. */

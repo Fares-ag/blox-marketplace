@@ -22,6 +22,10 @@ async function main() {
         password,
       },
     });
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { emailVerified: true },
+    });
     console.log('QA customer ready:', EMAIL, existing.id);
     return;
   }

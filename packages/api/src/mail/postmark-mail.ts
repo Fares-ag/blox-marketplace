@@ -1,6 +1,8 @@
 import type { ConfigService } from '@nestjs/config';
+import { fetchWithTimeout, resolveHttpTimeoutMs } from '../common/fetch-with-timeout';
 
 const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
+const DEFAULT_POSTMARK_HTTP_TIMEOUT_MS = 30_000;
 
 /** Prefer POSTMARK_SERVER_TOKEN; fall back to SMTP_USER when host is Postmark. */
 export function resolvePostmarkServerToken(config: ConfigService): string | null {
@@ -14,6 +16,10 @@ export function resolvePostmarkServerToken(config: ConfigService): string | null
   return null;
 }
 
+export function resolvePostmarkHttpTimeoutMs(config: ConfigService): number {
+  return resolveHttpTimeoutMs(config.get<string>('POSTMARK_HTTP_TIMEOUT_MS'), DEFAULT_POSTMARK_HTTP_TIMEOUT_MS);
+}
+
 export async function sendPostmarkEmail(input: {
   token: string;
   from: string;
@@ -21,24 +27,29 @@ export async function sendPostmarkEmail(input: {
   subject: string;
   text: string;
   html?: string;
+  timeoutMs?: number;
 }): Promise<void> {
-  const res = await fetch(POSTMARK_API_URL, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'X-Postmark-Server-Token': input.token,
+  const timeoutMs = input.timeoutMs ?? DEFAULT_POSTMARK_HTTP_TIMEOUT_MS;
+  const res = await fetchWithTimeout(
+    POSTMARK_API_URL,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': input.token,
+      },
+      body: JSON.stringify({
+        From: input.from,
+        To: input.to,
+        Subject: input.subject,
+        TextBody: input.text,
+        ...(input.html ? { HtmlBody: input.html } : {}),
+        MessageStream: 'outbound',
+      }),
     },
-    body: JSON.stringify({
-      From: input.from,
-      To: input.to,
-      Subject: input.subject,
-      TextBody: input.text,
-      ...(input.html ? { HtmlBody: input.html } : {}),
-      MessageStream: 'outbound',
-    }),
-    signal: AbortSignal.timeout(30_000),
-  });
+    timeoutMs,
+  );
 
   if (!res.ok) {
     const body = await res.text();

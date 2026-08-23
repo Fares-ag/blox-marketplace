@@ -51,6 +51,23 @@ function triggerUnauthorized() {
   onUnauthorized();
 }
 
+function resolveApiPath(path: string): string {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  // Better Auth + neutral health probes are not URI-versioned.
+  if (
+    normalized.startsWith('/api/v1/') ||
+    normalized === '/api/v1' ||
+    normalized.startsWith('/api/auth/') ||
+    normalized.startsWith('/api/health')
+  ) {
+    return normalized;
+  }
+  if (normalized.startsWith('/api/')) {
+    return `/api/v1${normalized.slice('/api'.length)}`;
+  }
+  return normalized;
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
@@ -60,7 +77,8 @@ export async function apiFetch<T = unknown>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(`${API_BASE()}${path.startsWith('/') ? path : `/${path}`}`, {
+  const resolvedPath = resolveApiPath(path);
+  const res = await fetch(`${API_BASE()}${resolvedPath}`, {
     ...init,
     headers,
     credentials: 'include',
@@ -81,7 +99,7 @@ export async function apiFetch<T = unknown>(
     }
     if (res.status === 401) {
       // /api/me is the session probe — 401 means guest, not "force login".
-      if (path !== '/api/me' && !path.endsWith('/me')) {
+      if (!resolvedPath.endsWith('/me') && !path.endsWith('/me')) {
         triggerUnauthorized();
       }
     }
@@ -94,6 +112,29 @@ export async function apiFetch<T = unknown>(
 
 export function getApiBase() {
   return API_BASE();
+}
+
+/** Absolute API URL with `/api/v1` normalization (for fetch, downloads, file links). */
+export function apiUrl(path: string): string {
+  return `${API_BASE()}${resolveApiPath(path)}`;
+}
+
+/** Listing image path/URL from API → absolute URL for `<img src>` (ops portals run on a different origin than the API). */
+export function resolveListingImageUrl(path: string | null | undefined): string | null {
+  if (!path?.trim()) return null;
+  const trimmed = path.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/')) return `${API_BASE()}${trimmed}`;
+  return trimmed;
+}
+
+/** File download route under `/api/v1/...` (path may omit `/api`). */
+export function apiFileUrl(path: string): string {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  if (normalized.startsWith('/api/')) {
+    return apiUrl(normalized);
+  }
+  return `${API_BASE()}/api/v1${normalized}`;
 }
 
 export const DEFAULT_PAGE_SIZE = 50;

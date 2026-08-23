@@ -86,6 +86,8 @@ export function toPaymentScheduleDto(schedule: {
   remainingAmount: DecimalLike;
   status: string;
   paidAt?: Date | null;
+  pendingWaiveReason?: string | null;
+  pendingWaiveRequestedById?: string | null;
 }) {
   return {
     id: schedule.id,
@@ -96,6 +98,8 @@ export function toPaymentScheduleDto(schedule: {
     remaining_amount: asNumber(schedule.remainingAmount),
     status: schedule.status,
     paid_at: schedule.paidAt ?? null,
+    pending_waive_reason: schedule.pendingWaiveReason ?? null,
+    pending_waive_requested_by_id: schedule.pendingWaiveRequestedById ?? null,
   };
 }
 
@@ -110,6 +114,7 @@ type ApplicationCore = {
   financePartnerId?: string | null;
   leadSource?: string | null;
   pricingSnapshot: unknown;
+  installmentPlan?: unknown;
   status: ApplicationStatus;
   contractGenerated: boolean;
   rejectionReason?: string | null;
@@ -129,6 +134,7 @@ type ApplicationRelations = {
   customer?: { name: string | null; email: string; phone?: string | null } | null;
   offer?: (Parameters<typeof toPublicOfferDto>[0] & Record<string, unknown>) | null;
   paymentSchedules?: Array<Partial<Parameters<typeof toPaymentScheduleDto>[0]>> | null;
+  financePartner?: { name?: string | null; crmAdapter?: string | null } | null;
 };
 
 function hasProductFields(
@@ -174,6 +180,7 @@ function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudien
     offer_id: app.offerId,
     finance_partner_id: app.financePartnerId ?? null,
     pricing_snapshot: app.pricingSnapshot,
+    ...(app.installmentPlan != null ? { installment_plan: app.installmentPlan } : {}),
     status: app.status,
     contract_generated: app.contractGenerated,
     rejection_reason: app.rejectionReason ?? null,
@@ -222,6 +229,8 @@ function applicationRelations(app: ApplicationRelations) {
             .map((schedule) => toPaymentScheduleDto(schedule)),
         }
       : {}),
+    financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
+    finance_partner_name: app.financePartner?.name ?? null,
   };
 }
 
@@ -300,15 +309,34 @@ export function toOpsApplicationQueueItemDto(app: {
   status: ApplicationStatus;
   createdAt: Date;
   submittedAt?: Date | null;
-  product?: { make: string; model: string; modelYear: number; slug: string } | null;
+  pricingSnapshot?: unknown;
+  installmentPlan?: unknown;
+  product?: { make: string; model: string; modelYear: number; slug: string; price?: DecimalLike } | null;
   company?: { name: string } | null;
   customer?: { name: string | null; email: string } | null;
+  agent?: { id: string; name: string | null; email: string } | null;
+  paymentSchedules?: Array<{ status: string; dueDate: Date }>;
+  financePartner?: { name?: string | null; crmAdapter?: string | null } | null;
 }) {
+  const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
+  const plan = app.installmentPlan as Record<string, unknown> | null | undefined;
+  const sellingPrice = Number(pricing.selling_price ?? pricing.list_price ?? app.product?.price ?? 0);
+  const monthly = Number(plan?.monthlyAmount ?? pricing.monthly ?? 0);
+
   return {
     id: app.id,
     status: app.status,
     created_at: app.createdAt,
     submitted_at: app.submittedAt ?? null,
+    pricing_snapshot: app.pricingSnapshot ?? null,
+    installment_plan: app.installmentPlan ?? null,
+    deal_summary: {
+      selling_price: sellingPrice,
+      monthly,
+      rate: Number(pricing.rate ?? plan?.annualRentalRate ?? 0),
+    },
+    payment_health: derivePaymentHealth(app.status, app.paymentSchedules ?? []),
+    risk_level: deriveRiskLevel(app.status, app.paymentSchedules ?? []),
     ...(app.product
       ? {
           product: {
@@ -316,6 +344,7 @@ export function toOpsApplicationQueueItemDto(app: {
             model: app.product.model,
             model_year: app.product.modelYear,
             slug: app.product.slug,
+            price: app.product.price != null ? asNumber(app.product.price) : null,
           },
         }
       : {}),
@@ -323,7 +352,33 @@ export function toOpsApplicationQueueItemDto(app: {
     ...(app.customer
       ? { customer: { name: app.customer.name, email: app.customer.email } }
       : {}),
+    ...(app.agent
+      ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
+      : { agent: null }),
+    financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
+    finance_partner_name: app.financePartner?.name ?? null,
   };
+}
+
+function derivePaymentHealth(
+  status: ApplicationStatus,
+  schedules: Array<{ status: string; dueDate: Date }>,
+): 'none' | 'on_track' | 'overdue' | 'paid' {
+  if (schedules.length === 0) return 'none';
+  if (schedules.every((s) => s.status === 'paid')) return 'paid';
+  if (schedules.some((s) => s.status === 'overdue')) return 'overdue';
+  return 'on_track';
+}
+
+function deriveRiskLevel(
+  status: ApplicationStatus,
+  schedules: Array<{ status: string; dueDate: Date }>,
+): 'low' | 'medium' | 'high' {
+  if (status === 'rejected' || status === 'submission_cancelled') return 'high';
+  const overdue = schedules.filter((s) => s.status === 'overdue').length;
+  if (overdue >= 2) return 'high';
+  if (overdue === 1 || status === 'resubmission_required') return 'medium';
+  return 'low';
 }
 
 export function toDealerApplicationListItemDto(app: {
@@ -332,6 +387,7 @@ export function toDealerApplicationListItemDto(app: {
   createdAt: Date;
   product?: { make: string; model: string; modelYear: number; slug: string } | null;
   customer?: { name: string | null; email: string; phone?: string | null } | null;
+  agent?: { id: string; name: string | null; email: string } | null;
 }) {
   return {
     id: app.id,
@@ -356,5 +412,8 @@ export function toDealerApplicationListItemDto(app: {
           },
         }
       : {}),
+    ...(app.agent
+      ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
+      : { agent: null }),
   };
 }

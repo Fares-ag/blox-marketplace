@@ -1,0 +1,114 @@
+.custom-table-container {
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+
+  .MuiTableCell-root.table-header {
+    background-color: var(--table-header) !important;
+    color: var(--table-header-color) !important;
+    font-weight: 600;
+    font-size: 0.6875rem;
+    font-family: 'IBM Plex Sans', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .loading-cell,
+  .empty-cell {
+    padding: var(--spacing-lg) !important;
+  }
+
+  .clickable-row {
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--card-hover);
+    }
+  }
+
+  .MuiTableCell-root:not(.table-header) {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    color: var(--primary-text);
+    font-weight: 500;
+    border-bottom: 1px solid var(--divider-color);
+  }
+
+  .MuiTableContainer-root {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: rgba(22, 83, 91, 0.05);
+      border-radius: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(22, 83, 91, 0.2);
+      border-radius: 4px;
+
+      &:hover {
+        background: rgba(22, 83, 91, 0.3);
+      }
+    }
+  }
+
+  @media (max-width: 960px) {
+    .MuiTableCell-root {
+      font-size: 13px;
+      padding: 10px 8px;
+
+      &.table-header {
+        font-size: 12px;
+        padding: 12px 8px;
+      }
+    }
+
+    .MuiTablePagination-root {
+      overflow-x: auto;
+
+      .MuiTablePagination-toolbar {
+        flex-wrap: wrap;
+        gap: 8px;
+
+        .MuiTablePagination-spacer {
+          display: none;
+        }
+      }
+    }
+  }
+
+  @media (max-width: 600px) {
+    border-radius: var(--radius-sm);
+
+    .MuiTableCell-root {
+      font-size: 12px;
+      padding: 8px 6px;
+      white-space: nowrap;
+
+      &.table-header {
+        font-size: 11px;
+        padding: 10px 6px;
+      }
+    }
+
+    .MuiTablePagination-root {
+      .MuiTablePagination-toolbar {
+        font-size: 12px;
+        padding: 8px;
+
+        .MuiTablePagination-selectLabel,
+        .MuiTablePagination-displayedRows {
+          font-size: 12px;
+        }
+      }
+    }
+  }
+}

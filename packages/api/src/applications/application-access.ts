@@ -14,6 +14,7 @@ export const BLOCKING_APPLICATION_STATUSES: ApplicationStatus[] = [
   'down_payment_required',
   'down_payment_submitted',
   'pending_finance_activation',
+  'partner_processing',
   'active',
 ];
 
@@ -29,6 +30,7 @@ export async function assertApplicationCanView(
     UserRole.finance_officer,
     UserRole.admin,
     UserRole.super_admin,
+    UserRole.group_admin,
   ];
   if (ops.includes(user.role)) {
     await assertCompanyScopeForRead(prisma, user, app.companyId);

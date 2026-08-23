@@ -1,0 +1,21 @@
+{
+  "exported_at": "2026-08-21T00:00:00.000Z",
+  "source": "https://YOUR_PROJECT.supabase.co",
+  "tables": {
+    "auth.users": 0,
+    "public.users": 0,
+    "products": 0,
+    "applications": 0,
+    "payment_schedules": 0,
+    "payment_transactions": 0,
+    "notifications": 0,
+    "user_credits": 0,
+    "device_tokens": 0,
+    "payment_deferrals": 0
+  },
+  "storage": {
+    "application-documents": 0,
+    "signed-contracts": 0
+  },
+  "checksums": {}
+}

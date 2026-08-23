@@ -35,6 +35,44 @@ import {
 } from '../applications/separation-of-duties';
 import { computeScheduleAmountsFromEvents } from './payment-ledger';
 import { toPaymentScheduleDto, toPaymentTransactionDto } from './payment-response.dto';
+import { mapSkipCashPaid, SkipCashClient } from './skipcash.client';
+
+const BLOX_CREDIT_QAR_VALUE = 250;
+
+export type MobileSkipCashInitiateInput = {
+  applicationId: string;
+  scheduleId: string;
+  returnUrl?: string;
+  transactionId?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string;
+  custom1?: string;
+  subject?: string;
+  description?: string;
+  onlyDebitCard?: boolean;
+};
+
+export type MobileCreditTopUpInput = {
+  amount: number;
+  transactionId: string;
+  returnUrl?: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  custom1?: string;
+  subject?: string;
+  description?: string;
+};
+
+export type MobileSkipCashVerifyInput = {
+  gatewayPaymentId?: string;
+  paymentId?: string;
+  transactionId?: string;
+  idempotencyKey?: string;
+};
 
 const PAYMENT_ROLES: UserRole[] = [
   UserRole.finance_officer,
@@ -74,6 +112,88 @@ export class PaymentsService {
   private isSkipCashSandbox(): boolean {
     const flag = this.config.get<string>('SKIPCASH_SANDBOX');
     return flag === 'true' || flag === '1';
+  }
+
+  private skipCashClient(): SkipCashClient | null {
+    return SkipCashClient.fromEnv(process.env);
+  }
+
+  private mobileSkipCashResponse(
+    txn: { id: string; idempotencyKey: string; amount: Prisma.Decimal; gatewayPaymentId?: string | null },
+    opts: { paymentUrl?: string; applicationId?: string },
+  ) {
+    const fallbackReturn = opts.applicationId
+      ? `${this.appConfig.marketplacePath(`/app/applications/${opts.applicationId}`)}?skipcash_key=${encodeURIComponent(txn.idempotencyKey)}`
+      : undefined;
+    const paymentUrl = opts.paymentUrl ?? fallbackReturn ?? '';
+    return {
+      transaction_id: txn.id,
+      idempotency_key: txn.idempotencyKey,
+      amount: txn.amount.toNumber(),
+      currency: 'QAR',
+      redirect_url: paymentUrl,
+      paymentUrl,
+      payUrl: paymentUrl,
+      paymentId: txn.gatewayPaymentId ?? undefined,
+      sandbox: this.isSkipCashSandbox(),
+    };
+  }
+
+  private async attachSkipCashCheckout(
+    txn: { id: string; idempotencyKey: string; amount: Prisma.Decimal; gatewayPaymentId?: string | null },
+    input: {
+      amount: number;
+      firstName: string;
+      lastName: string;
+      phone: string;
+      email: string;
+      transactionId: string;
+      returnUrl?: string;
+      custom1?: string;
+      subject?: string;
+      description?: string;
+      onlyDebitCard?: boolean;
+      applicationId?: string;
+    },
+  ) {
+    const client = this.skipCashClient();
+    if (client) {
+      const created = await client.createPayment({
+        amount: input.amount,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        phone: input.phone,
+        email: input.email,
+        transactionId: input.transactionId,
+        returnUrl: input.returnUrl,
+        custom1: input.custom1,
+        subject: input.subject,
+        description: input.description,
+        onlyDebitCard: input.onlyDebitCard,
+      });
+      const updated = await this.prisma.paymentTransaction.update({
+        where: { id: txn.id },
+        data: { gatewayPaymentId: created.id },
+      });
+      return this.mobileSkipCashResponse(updated, {
+        paymentUrl: created.payUrl,
+        applicationId: input.applicationId,
+      });
+    }
+
+    if (this.isSkipCashSandbox() && input.returnUrl) {
+      const url = new URL(input.returnUrl);
+      url.searchParams.set('paymentId', txn.id);
+      url.searchParams.set('transactionId', input.transactionId);
+      url.searchParams.set('idempotency_key', txn.idempotencyKey);
+      url.searchParams.set('sandbox', '1');
+      return this.mobileSkipCashResponse(txn, {
+        paymentUrl: url.toString(),
+        applicationId: input.applicationId,
+      });
+    }
+
+    return this.mobileSkipCashResponse(txn, { applicationId: input.applicationId });
   }
 
   private assertWaiveRole(user: User) {
@@ -276,6 +396,122 @@ export class PaymentsService {
       schedule: toPaymentScheduleDto(result.updated),
       application_completed: result.applicationCompleted,
     };
+  }
+
+  async listPendingBank(user: User, query: PaginationQueryDto = {}) {
+    this.assertPaymentRole(user);
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
+    const companyFilter = await opsCompanyFilter(this.prisma, user);
+    const where: Prisma.PaymentTransactionWhereInput = {
+      gateway: 'bank_transfer',
+      status: { in: ['pending', 'failed'] },
+      ...(companyFilter ? { application: { companyId: { in: companyFilter } } } : {}),
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.paymentTransaction.findMany({
+        where: { ...where, status: 'pending' },
+        include: {
+          application: {
+            select: {
+              customerEmail: true,
+              customer: { select: { name: true } },
+              product: { select: { make: true, model: true } },
+              company: { select: { name: true } },
+            },
+          },
+          schedule: { select: { sequence: true, dueDate: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.paymentTransaction.count({ where: { ...where, status: 'pending' } }),
+    ]);
+    return {
+      total,
+      limit,
+      offset,
+      items: items.map((txn) => ({
+        id: txn.id,
+        application_id: txn.applicationId,
+        schedule_id: txn.scheduleId,
+        amount: Number(txn.amount),
+        status: txn.status,
+        customer_name: txn.application.customer?.name ?? null,
+        customer_email: txn.application.customerEmail,
+        vehicle: txn.application.product
+          ? `${txn.application.product.make} ${txn.application.product.model}`
+          : '',
+        company_name: txn.application.company?.name ?? '',
+        sequence: txn.schedule?.sequence ?? null,
+        due_date: txn.schedule?.dueDate?.toISOString().slice(0, 10) ?? null,
+        created_at: txn.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async createPendingBank(
+    user: User,
+    scheduleId: string,
+    body: { amount?: number; reference?: string },
+  ) {
+    this.assertPaymentRole(user);
+    const schedule = await this.prisma.paymentSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { application: { select: { id: true, companyId: true, status: true } } },
+    });
+    if (!schedule) throw new NotFoundException();
+    await assertCompanyScope(this.prisma, user, schedule.application.companyId);
+    if (schedule.application.status !== 'active') {
+      throw new BadRequestException('application_not_active');
+    }
+    const amount = body.amount ?? Number(schedule.remainingAmount);
+    const txn = await this.prisma.paymentTransaction.create({
+      data: {
+        gateway: 'bank_transfer',
+        idempotencyKey: `bank:${scheduleId}:${Date.now()}:${user.id}`,
+        amount,
+        status: 'pending',
+        applicationId: schedule.applicationId,
+        scheduleId: schedule.id,
+        rawPayloadRef: body.reference ?? null,
+      },
+    });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'payment_transaction',
+      entityId: txn.id,
+      action: 'bank_transfer_pending',
+      metadata: { scheduleId, amount },
+    });
+    return toPaymentTransactionDto(txn);
+  }
+
+  async confirmBank(user: User, transactionId: string) {
+    this.assertPaymentRole(user);
+    const txn = await this.prisma.paymentTransaction.findUnique({
+      where: { id: transactionId },
+    });
+    if (!txn || txn.gateway !== 'bank_transfer') throw new NotFoundException();
+    if (txn.status !== 'pending') throw new BadRequestException('not_pending');
+    if (!txn.scheduleId) throw new BadRequestException('validation_failed');
+
+    const result = await this.recordPayment(user, txn.scheduleId, {
+      amount: Number(txn.amount),
+      method: 'bank_transfer',
+      reference: txn.rawPayloadRef ?? txn.id,
+    });
+    await this.prisma.paymentTransaction.update({
+      where: { id: txn.id },
+      data: { status: 'completed' },
+    });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'payment_transaction',
+      entityId: txn.id,
+      action: 'bank_transfer_confirmed',
+    });
+    return result;
   }
 
   async requestWaiveSchedule(user: User, scheduleId: string, reason?: string) {
@@ -525,6 +761,241 @@ export class PaymentsService {
     }
   }
 
+  /** Mobile installment checkout — resolves schedule, creates txn, opens SkipCash when configured. */
+  async initiateMobileInstallmentPayment(user: User, input: MobileSkipCashInitiateInput) {
+    const base = await this.createSkipCashPayment(user, input.applicationId, input.scheduleId);
+    let txn = await this.prisma.paymentTransaction.findUnique({
+      where: { id: base.transaction_id as string },
+    });
+    if (!txn) throw new NotFoundException();
+
+    const clientTx = input.transactionId?.trim();
+    if (clientTx) {
+      txn = await this.prisma.paymentTransaction.update({
+        where: { id: txn.id },
+        data: {
+          rawPayloadRef: JSON.stringify({
+            type: 'installment_payment',
+            clientTransactionId: clientTx,
+            applicationId: input.applicationId,
+            scheduleId: input.scheduleId,
+          }),
+        },
+      });
+    }
+
+    const amount = txn.amount.toNumber();
+    const checkoutTx = clientTx || txn.id;
+    return this.attachSkipCashCheckout(txn, {
+      amount,
+      firstName: input.firstName?.trim() || 'Customer',
+      lastName: input.lastName?.trim() || 'User',
+      phone: input.phone?.trim() || '+97400000000',
+      email: input.email?.trim() || user.email,
+      transactionId: checkoutTx,
+      returnUrl: input.returnUrl,
+      custom1: input.custom1,
+      subject: input.subject,
+      description: input.description,
+      onlyDebitCard: input.onlyDebitCard,
+      applicationId: input.applicationId,
+    });
+  }
+
+  /** Mobile credit top-up — no schedule; completion credits wallet via claim endpoint. */
+  async createCreditTopUpPayment(user: User, input: MobileCreditTopUpInput) {
+    if (user.role !== UserRole.customer) throw new ForbiddenException('forbidden_role');
+    if (input.amount <= 0) throw new BadRequestException('invalid_amount');
+
+    let creditsAmount = 0;
+    if (input.custom1) {
+      try {
+        const custom = JSON.parse(input.custom1) as { type?: string; creditsAmount?: number };
+        if (custom.type === 'credit_topup' && custom.creditsAmount) {
+          creditsAmount = Number(custom.creditsAmount);
+          const expected = creditsAmount * BLOX_CREDIT_QAR_VALUE;
+          if (Math.abs(expected - input.amount) > 0.01) {
+            throw new BadRequestException('credit_price_mismatch');
+          }
+        }
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+      }
+    }
+
+    const anchorApp = await this.prisma.application.findFirst({
+      where: { customerUserId: user.id },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true },
+    });
+    if (!anchorApp) throw new BadRequestException('no_application_for_credit_topup');
+
+    const clientTx = input.transactionId.trim();
+    const idempotencyKey = `credit-topup:${user.id}:${clientTx}`;
+    const existing = await this.prisma.paymentTransaction.findUnique({ where: { idempotencyKey } });
+    if (existing) {
+      return this.attachSkipCashCheckout(existing, {
+        amount: existing.amount.toNumber(),
+        firstName: input.firstName,
+        lastName: input.lastName,
+        phone: input.phone,
+        email: input.email,
+        transactionId: clientTx,
+        returnUrl: input.returnUrl,
+        custom1: input.custom1,
+        subject: input.subject,
+        description: input.description,
+      });
+    }
+
+    const payload = JSON.stringify({
+      type: 'credit_topup',
+      clientTransactionId: clientTx,
+      creditsAmount: creditsAmount || Math.floor(input.amount / BLOX_CREDIT_QAR_VALUE),
+      email: input.email.toLowerCase(),
+    });
+
+    const txn = await this.prisma.paymentTransaction.create({
+      data: {
+        gateway: 'skipcash',
+        idempotencyKey,
+        amount: input.amount,
+        applicationId: anchorApp.id,
+        status: 'pending',
+        rawPayloadRef: payload,
+      },
+    });
+
+    return this.attachSkipCashCheckout(txn, {
+      amount: input.amount,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone,
+      email: input.email,
+      transactionId: clientTx,
+      returnUrl: input.returnUrl,
+      custom1: input.custom1,
+      subject: input.subject,
+      description: input.description,
+    });
+  }
+
+  /** Mobile return-path verification — accepts SkipCash ids or sandbox idempotency keys. */
+  async mobileVerifySkipCash(user: User, input: MobileSkipCashVerifyInput) {
+    const gatewayPaymentId =
+      input.gatewayPaymentId?.trim() ||
+      input.paymentId?.trim() ||
+      undefined;
+    const clientTx = input.transactionId?.trim();
+    const idempotencyKey = input.idempotencyKey?.trim();
+
+    let txn =
+      gatewayPaymentId != null
+        ? await this.prisma.paymentTransaction.findFirst({
+            where: { gatewayPaymentId, gateway: 'skipcash' },
+            include: { application: { select: { customerUserId: true } } },
+          })
+        : null;
+
+    if (!txn && idempotencyKey) {
+      txn = await this.prisma.paymentTransaction.findFirst({
+        where: { idempotencyKey, gateway: 'skipcash' },
+        include: { application: { select: { customerUserId: true } } },
+      });
+    }
+
+    if (!txn && clientTx) {
+      txn = await this.prisma.paymentTransaction.findFirst({
+        where: {
+          OR: [
+            { idempotencyKey: `credit-topup:${user.id}:${clientTx}` },
+            { id: clientTx },
+            { gatewayPaymentId: clientTx },
+            { rawPayloadRef: { contains: clientTx } },
+          ],
+          gateway: 'skipcash',
+        },
+        include: { application: { select: { customerUserId: true } } },
+      });
+    }
+
+    if (!txn || txn.application.customerUserId !== user.id) {
+      throw new NotFoundException();
+    }
+
+    if (txn.status === 'completed') {
+      return this.formatMobileVerifyResponse(txn, 'completed', true);
+    }
+
+    const client = this.skipCashClient();
+    const resolvedGatewayId = gatewayPaymentId ?? txn.gatewayPaymentId ?? undefined;
+
+    if (client && resolvedGatewayId) {
+      const remote = await client.getPayment(resolvedGatewayId);
+      if (!mapSkipCashPaid(remote.status ?? remote.statusId)) {
+        return this.formatMobileVerifyResponse(txn, 'pending', false);
+      }
+      if (txn.scheduleId) {
+        await this.sandboxCompleteSkipCashPayment(txn.idempotencyKey, resolvedGatewayId);
+      } else {
+        await this.completeCreditTopUpPayment(txn.idempotencyKey, resolvedGatewayId);
+      }
+      const refreshed = await this.prisma.paymentTransaction.findUniqueOrThrow({ where: { id: txn.id } });
+      return this.formatMobileVerifyResponse(refreshed, 'completed', true);
+    }
+
+    if (this.isSkipCashSandbox()) {
+      if (txn.scheduleId) {
+        await this.sandboxCompleteSkipCashPayment(txn.idempotencyKey, resolvedGatewayId);
+      } else {
+        await this.completeCreditTopUpPayment(txn.idempotencyKey, resolvedGatewayId);
+      }
+      const refreshed = await this.prisma.paymentTransaction.findUniqueOrThrow({ where: { id: txn.id } });
+      return this.formatMobileVerifyResponse(refreshed, 'completed', true);
+    }
+
+    throw new NotImplementedException('skipcash_verify_not_implemented');
+  }
+
+  private formatMobileVerifyResponse(
+    txn: { id: string; status: string; amount: Prisma.Decimal },
+    dbStatus: string,
+    dbConfirmed: boolean,
+  ) {
+    const statusId =
+      dbStatus === 'completed' ? 2 : dbStatus === 'failed' ? 4 : dbStatus === 'cancelled' ? 3 : 1;
+    return {
+      data: {
+        status: dbStatus,
+        statusId,
+        dbStatus,
+        dbConfirmed,
+        transactionId: txn.id,
+        amount: txn.amount.toNumber(),
+      },
+    };
+  }
+
+  private async completeCreditTopUpPayment(idempotencyKey: string, gatewayPaymentId?: string) {
+    const txn = await this.prisma.paymentTransaction.findFirst({ where: { idempotencyKey } });
+    if (!txn) throw new NotFoundException();
+    if (txn.status === 'completed') {
+      return { transaction: toPaymentTransactionDto(txn), already_completed: true };
+    }
+    if (txn.scheduleId) throw new BadRequestException('validation_failed');
+
+    await this.prisma.paymentTransaction.updateMany({
+      where: { id: txn.id, status: 'pending' },
+      data: {
+        status: 'completed',
+        gatewayPaymentId: gatewayPaymentId ?? txn.gatewayPaymentId ?? txn.id,
+      },
+    });
+
+    const refreshed = await this.prisma.paymentTransaction.findUniqueOrThrow({ where: { id: txn.id } });
+    return { transaction: toPaymentTransactionDto(refreshed), already_completed: false };
+  }
+
   private skipCashOpenWindowMs(): number {
     const raw = this.config.get<string>('SKIPCASH_OPEN_WINDOW_MS');
     const n = Number(raw);
@@ -548,12 +1019,31 @@ export class PaymentsService {
   }
 
   /**
-   * Production completion path — requires verified gateway payment id.
-   * Client-supplied idempotency keys are never accepted as proof of payment.
+   * Production completion path — verifies payment against SkipCash when configured.
    */
-  async verifyAndComplete(_gatewayPaymentId: string) {
-    // TODO: HTTP call to SkipCash gateway to verify payment status for gatewayPaymentId.
-    throw new NotImplementedException('skipcash_verify_not_implemented');
+  async verifyAndComplete(gatewayPaymentId: string) {
+    const apiUrl = this.config.get<string>('SKIPCASH_API_URL')?.replace(/\/$/, '');
+    const apiKey = this.config.get<string>('SKIPCASH_API_KEY')?.trim();
+    if (!apiUrl || !apiKey) {
+      throw new NotImplementedException('skipcash_verify_not_implemented');
+    }
+
+    const res = await fetch(`${apiUrl}/api/v1/payments/${encodeURIComponent(gatewayPaymentId)}`, {
+      headers: { Authorization: `Bearer ${apiKey}`, accept: 'application/json' },
+    });
+    if (!res.ok) {
+      throw new BadRequestException('gateway_verification_failed');
+    }
+    const body = (await res.json()) as { status?: string; id?: string };
+    if (String(body.status).toLowerCase() !== 'paid' && String(body.status).toLowerCase() !== 'success') {
+      throw new BadRequestException('payment_not_completed');
+    }
+
+    const txn = await this.prisma.paymentTransaction.findFirst({
+      where: { gatewayPaymentId, gateway: 'skipcash' },
+    });
+    if (!txn) throw new NotFoundException();
+    return this.sandboxCompleteSkipCashPayment(txn.idempotencyKey, gatewayPaymentId);
   }
 
   /**

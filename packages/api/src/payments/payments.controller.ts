@@ -87,6 +87,30 @@ export class PaymentsController {
     return this.payments.markOverdue(user);
   }
 
+  @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @Get('ops/payments/pending-bank')
+  pendingBank(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+    return this.payments.listPendingBank(user, query);
+  }
+
+  @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/payment-schedules/:id/bank-pending')
+  createPendingBank(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: RecordPaymentDto,
+  ) {
+    return this.payments.createPendingBank(user, id, dto);
+  }
+
+  @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/payments/:id/confirm-bank')
+  confirmBank(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.payments.confirmBank(user, id);
+  }
+
   @Roles(UserRole.customer)
   @Post('applications/:applicationId/schedules/:scheduleId/skipcash')
   createSkipCash(

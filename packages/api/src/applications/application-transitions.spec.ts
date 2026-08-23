@@ -58,4 +58,31 @@ describe('application-transitions', () => {
       assertOpsTransitionAllowed('contracts_submitted', 'contract_under_review', UserRole.finance_officer),
     ).toThrow('invalid_status_transition');
   });
+
+  it('allows dealer to submit a draft', () => {
+    expect(() =>
+      assertOpsTransitionAllowed('draft', 'under_review', UserRole.dealer_agent),
+    ).not.toThrow();
+  });
+
+  it('allows credit to reopen a rejected application', () => {
+    expect(() =>
+      assertOpsTransitionAllowed('rejected', 'under_review', UserRole.credit_officer),
+    ).not.toThrow();
+  });
+
+  it('allows admin to complete an active application', () => {
+    expect(() =>
+      assertOpsTransitionAllowed('active', 'completed', UserRole.admin),
+    ).not.toThrow();
+  });
+
+  it('forbids finance from completing or activating via transition', () => {
+    expect(() =>
+      assertOpsTransitionAllowed('active', 'completed', UserRole.finance_officer),
+    ).toThrow('invalid_status_transition');
+    expect(() =>
+      assertOpsTransitionAllowed('pending_finance_activation', 'active', UserRole.finance_officer),
+    ).toThrow();
+  });
 });

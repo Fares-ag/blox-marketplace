@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { fetchWithTimeout } from '../../common/fetch-with-timeout';
 import { ZohoConfig } from './zoho-config';
 
 type TokenCache = {
@@ -18,16 +19,20 @@ export class ZohoAuthService {
       return this.cache.accessToken;
     }
 
-    const res = await fetch(`${this.config.accountsUrl}/oauth/v2/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-        refresh_token: this.config.refreshToken,
-      }),
-    });
+    const res = await fetchWithTimeout(
+      `${this.config.accountsUrl}/oauth/v2/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: this.config.clientId,
+          client_secret: this.config.clientSecret,
+          refresh_token: this.config.refreshToken,
+        }),
+      },
+      this.config.httpTimeoutMs,
+    );
 
     const body = (await res.json()) as {
       access_token?: string;

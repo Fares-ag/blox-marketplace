@@ -258,8 +258,15 @@ describe('ApplicationsLifecycleService.activate direct-activate compliance gate'
       paymentEvent: { findMany: vi.fn().mockResolvedValue([]) },
       $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
-          paymentSchedule: { createMany: vi.fn() },
-          application: { update: vi.fn().mockResolvedValue(activated) },
+          $queryRaw: vi.fn().mockResolvedValue([]),
+          paymentSchedule: {
+            count: vi.fn().mockResolvedValue(0),
+            createMany: vi.fn(),
+          },
+          application: {
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+            findUniqueOrThrow: vi.fn().mockResolvedValue(activated),
+          },
           product: { update: vi.fn() },
         }),
       ),

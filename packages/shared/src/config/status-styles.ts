@@ -1,4 +1,4 @@
-import type { ApplicationStatus, ListingStatus } from '../types/domain';
+import type { ApplicationStatus, CompanyStatus, ListingStatus } from '../types/domain';
 
 export type OpsPillVariant =
   | 'active'
@@ -27,6 +27,7 @@ export const applicationStatusStyles: Record<
   down_payment_required: { bg: 'var(--dm-warning-soft)', color: 'var(--dm-warning)' },
   down_payment_submitted: { bg: 'var(--dm-success-soft)', color: 'var(--dm-success)' },
   pending_finance_activation: { bg: 'var(--dm-steel-soft)', color: 'var(--dm-steel)' },
+  partner_processing: { bg: 'var(--dm-steel-soft)', color: 'var(--dm-steel)' },
   active: { bg: 'var(--dm-success-soft)', color: 'var(--dm-success)' },
   completed: { bg: 'var(--dm-surface-muted)', color: 'var(--dm-slate-600)' },
   rejected: { bg: 'var(--dm-danger-soft)', color: 'var(--dm-danger)' },
@@ -51,6 +52,7 @@ const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   down_payment_required: 'Down payment required',
   down_payment_submitted: 'Down payment submitted',
   pending_finance_activation: 'Pending activation',
+  partner_processing: 'Sent to partner finance',
   active: 'Active',
   completed: 'Completed',
   rejected: 'Rejected',
@@ -65,8 +67,14 @@ const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   archived: 'Archived',
 };
 
+const COMPANY_STATUS_LABELS: Record<CompanyStatus, string> = {
+  active: 'Active',
+  inactive: 'Inactive',
+};
+
 /** Canonical human-readable application status label. */
-export function applicationStatusLabel(status: string): string {
+export function applicationStatusLabel(status: string | undefined | null): string {
+  if (!status) return '—';
   return (
     APPLICATION_STATUS_LABELS[status as ApplicationStatus] ??
     status.replace(/_/g, ' ')
@@ -74,8 +82,22 @@ export function applicationStatusLabel(status: string): string {
 }
 
 /** Canonical human-readable listing status label. */
-export function listingStatusLabel(status: string): string {
+export function listingStatusLabel(status: string | undefined | null): string {
+  if (!status) return '—';
   return LISTING_STATUS_LABELS[status as ListingStatus] ?? status.replace(/_/g, ' ');
+}
+
+/** Canonical human-readable company status label. */
+export function companyStatusLabel(status: string | undefined | null): string {
+  if (!status) return '—';
+  return COMPANY_STATUS_LABELS[status as CompanyStatus] ?? status.replace(/_/g, ' ');
+}
+
+/** Ops portal pill variant for company statuses. */
+export function companyOpsPillVariant(status: string | undefined | null): OpsPillVariant {
+  if (status === 'active') return 'approved';
+  if (status === 'inactive') return 'draft';
+  return 'pending';
 }
 
 /** Ops portal pill variant for financing application statuses. */

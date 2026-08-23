@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/lib/installment-plan-server.ts",
+    "src/lib/generate-schedule.ts",
+    "src/lib/installment-plan-utils.ts",
+    "src/lib/date-utils.ts",
+    "src/lib/tenure.ts",
+    "src/lib/pricing.ts",
+    "src/types/installment-plan.ts"
+  ]
+}

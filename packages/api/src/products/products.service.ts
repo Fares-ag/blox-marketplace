@@ -29,6 +29,7 @@ import {
 } from './dealer-inventory.dto';
 
 export type ProductInputDto = {
+  companyId?: string;
   make: string;
   model: string;
   trim?: string;
@@ -306,13 +307,27 @@ export class ProductsService {
     return toPaginatedResponse(items.map((item) => toDealerInventoryDto(item)), total, limit, offset);
   }
 
+  async getDealerOne(user: User, id: string) {
+    const product = await this.requireDealerProduct(user, id);
+    return toDealerInventoryDto(product);
+  }
+
   async create(user: User, dto: ProductInputDto) {
-    if (user.role !== UserRole.dealer_agent || !user.companyId) {
-      if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
-        throw new ForbiddenException('forbidden_role');
-      }
+    let companyId: string;
+    if (user.role === UserRole.dealer_agent) {
+      if (!user.companyId) throw new ForbiddenException('forbidden_role');
+      const dealerCompany = await this.prisma.company.findUnique({ where: { id: user.companyId } });
+      if (dealerCompany?.kind === 'holding') throw new BadRequestException('holding_cannot_have_products');
+      companyId = user.companyId;
+    } else if (user.role === UserRole.admin || user.role === UserRole.super_admin) {
+      if (!dto.companyId) throw new BadRequestException('company_required');
+      const company = await this.prisma.company.findUnique({ where: { id: dto.companyId } });
+      if (!company) throw new BadRequestException('company_not_found');
+      if (company.kind === 'holding') throw new BadRequestException('holding_cannot_have_products');
+      companyId = dto.companyId;
+    } else {
+      throw new ForbiddenException('forbidden_role');
     }
-    const companyId = user.companyId!;
     const id = randomUUID();
     const slug = this.buildSlug(dto, id);
 
@@ -472,6 +487,93 @@ export class ProductsService {
       id.slice(0, 8),
     ].filter(Boolean);
     return slugify(parts.join('-'), { lower: true, strict: true });
+  }
+
+  async getOpsOne(user: User, id: string) {
+    if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        company: { select: { id: true, name: true, code: true } },
+        images: { orderBy: { sortOrder: 'asc' } },
+        defaultOffer: { select: { id: true, name: true } },
+      },
+    });
+    if (!product) throw new NotFoundException('listing_not_available');
+    return {
+      ...toDealerInventoryDto(product),
+      company_name: product.company.name,
+      company_code: product.company.code,
+      default_offer_name: product.defaultOffer?.name ?? null,
+    };
+  }
+
+  async updateOps(
+    user: User,
+    id: string,
+    dto: Partial<ProductInputDto> & { listingStatus?: string },
+  ) {
+    if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    const product = await this.prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundException('listing_not_available');
+    const listingStatus =
+      dto.listingStatus &&
+      ['draft', 'published', 'reserved', 'sold', 'archived'].includes(dto.listingStatus)
+        ? (dto.listingStatus as ListingStatus)
+        : undefined;
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: {
+        ...(dto.price !== undefined ? { price: dto.price } : {}),
+        ...(dto.financeEligible !== undefined ? { financeEligible: dto.financeEligible } : {}),
+        ...(dto.defaultOfferId !== undefined ? { defaultOfferId: dto.defaultOfferId || null } : {}),
+        ...(dto.make !== undefined ? { make: dto.make } : {}),
+        ...(dto.model !== undefined ? { model: dto.model } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(listingStatus ? { listingStatus } : {}),
+      },
+    });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'product',
+      entityId: id,
+      action: 'ops_product_updated',
+    });
+    return toDealerInventoryDto(updated);
+  }
+
+  async deleteOps(user: User, id: string) {
+    if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    const apps = await this.prisma.application.count({ where: { productId: id } });
+    if (apps > 0) throw new BadRequestException('product_has_applications');
+    await this.prisma.product.delete({ where: { id } });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'product',
+      entityId: id,
+      action: 'product_deleted',
+    });
+    return { ok: true };
+  }
+
+  async bulkStatus(user: User, ids: string[], listingStatus: string) {
+    if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    if (!['draft', 'published', 'archived'].includes(listingStatus)) {
+      throw new BadRequestException('invalid_listing_status');
+    }
+    const result = await this.prisma.product.updateMany({
+      where: { id: { in: ids } },
+      data: { listingStatus: listingStatus as ListingStatus },
+    });
+    return { updated: result.count };
   }
 
   private async requireDealerProduct(user: User, id: string) {

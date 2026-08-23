@@ -3,8 +3,8 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response } from 'express';
-import { AppModule } from './app.module';
-import { AUTH_INSTANCE } from './auth/auth.constants';
+import path from 'node:path';
+import { AppModule } from './app.module';import { AUTH_INSTANCE } from './auth/auth.constants';
 import { applySecurityMiddleware } from './common/security-middleware';
 import { applyRequestIdMiddleware, RequestIdLogger } from './common/request-id';
 import { applyMulterErrorMiddleware } from './common/multer-error.middleware';
@@ -42,10 +42,18 @@ async function bootstrap() {
   const express = require('express');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const multer = require('multer');
-  expressApp.use(express.json({ limit: '10mb' }));
+  expressApp.use(
+    express.json({
+      limit: '10mb',
+      verify: (req: { rawBody?: string }, _res: unknown, buf: Buffer) => {
+        req.rawBody = buf.toString('utf8');
+      },
+    }),
+  );
   expressApp.use(express.urlencoded({ extended: true }));
+  // Local dev listing images (storage.service returns /uploads/{bucket}/{key})
+  expressApp.use('/uploads', express.static(path.join(process.cwd(), '.uploads')));
   applyMulterErrorMiddleware(expressApp, multer);
-
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

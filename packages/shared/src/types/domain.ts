@@ -4,7 +4,8 @@ export type UserRole =
   | 'credit_officer'
   | 'finance_officer'
   | 'admin'
-  | 'super_admin';
+  | 'super_admin'
+  | 'group_admin';
 
 export type OfficerScope = 'all' | 'assigned';
 
@@ -127,6 +128,7 @@ export type ApplicationStatus =
   | 'down_payment_required'
   | 'down_payment_submitted'
   | 'pending_finance_activation'
+  | 'partner_processing'
   | 'active'
   | 'completed'
   | 'rejected'
@@ -174,6 +176,8 @@ export interface PublicOffer {
   tenure_options: unknown;
   min_down_payment_pct: number | null;
   finance_partner_id?: string | null;
+  finance_partner_name?: string | null;
+  crm_adapter?: string | null;
   is_default?: boolean;
 }
 
@@ -325,6 +329,10 @@ export interface AdminCompany {
   status: CompanyStatus;
   can_pay: boolean;
   allow_direct_activate: boolean;
+  kind?: 'holding' | 'dealership';
+  parent_company_id?: string | null;
+  parent_name?: string | null;
+  child_count?: number;
   contact_email: string | null;
   contact_phone: string | null;
   logo_url: string | null;

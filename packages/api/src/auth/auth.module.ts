@@ -9,12 +9,15 @@ import { createAuth } from './auth';
 import { AUTH_INSTANCE } from './auth.constants';
 import { OptionalSessionGuard, SessionAuthGuard } from './guards';
 import { MeController } from './me.controller';
+import { MobileAuthController } from './mobile/mobile-auth.controller';
+import { MobileAuthService } from './mobile/mobile-auth.service';
 
 @Global()
 @Module({
   imports: [PrismaModule, MailModule],
-  controllers: [MeController],
+  controllers: [MeController, MobileAuthController],
   providers: [
+    MobileAuthService,
     {
       provide: AUTH_INSTANCE,
       useFactory: (

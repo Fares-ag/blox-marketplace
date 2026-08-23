@@ -1,0 +1,39 @@
+{
+  "name": "@blox/kyc-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Blox KYC platform — case engine, check orchestration, consent + immutable audit. Standalone service.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/src/main.js",
+    "start:dev": "nest start --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy"
+  },
+  "prisma": { "schema": "prisma/schema.prisma" },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@prisma/client": "^6.4.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "prisma": "^6.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.7"
+  },
+  "engines": { "node": ">=20" }
+}

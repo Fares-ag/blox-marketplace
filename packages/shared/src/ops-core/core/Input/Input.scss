@@ -1,0 +1,105 @@
+.custom-input {
+  width: 100%;
+
+  .MuiOutlinedInput-root {
+    height: 48px;
+    min-height: 48px;
+    border-radius: var(--radius-sm);
+    background-color: var(--card-background);
+    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+
+    &:hover {
+      background-color: var(--card-background);
+      .MuiOutlinedInput-notchedOutline {
+        border-color: var(--field-border-hover);
+      }
+    }
+
+    &.Mui-focused {
+      background-color: var(--card-background);
+      box-shadow: var(--field-focus-ring);
+
+      .MuiOutlinedInput-notchedOutline {
+        border-color: var(--field-border-focus);
+        border-width: 2px;
+      }
+    }
+
+    &.Mui-error {
+      .MuiOutlinedInput-notchedOutline {
+        border-color: var(--blox-black);
+      }
+    }
+
+    &.Mui-disabled {
+      background-color: var(--disabled-bg);
+      .MuiOutlinedInput-notchedOutline {
+        border-color: var(--field-border-color);
+      }
+    }
+
+    &.MuiInputBase-multiline {
+      height: auto;
+      min-height: 48px;
+      align-items: flex-start;
+    }
+
+    .MuiInputBase-input {
+      padding: 0 var(--spacing-md);
+      height: 48px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--primary-text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 400;
+
+      &::placeholder {
+        color: var(--field-placeholder);
+        opacity: 1;
+        font-weight: 400;
+      }
+    }
+
+    .MuiInputBase-inputMultiline {
+      padding: var(--spacing-md);
+      min-height: 48px;
+      height: auto;
+    }
+  }
+
+  .MuiInputLabel-root {
+    color: var(--field-lable-color);
+    font-weight: 500;
+    font-size: 14px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    transform: translate(14px, 14px) scale(1);
+
+    &.MuiInputLabel-shrink {
+      transform: translate(14px, -9px) scale(0.85);
+    }
+
+    &.Mui-focused {
+      color: var(--field-lable-color);
+    }
+
+    &.Mui-error {
+      color: var(--blox-black);
+    }
+  }
+
+  .MuiFormHelperText-root {
+    color: var(--primary-text);
+    font-size: 13px;
+    margin-top: 6px;
+    margin-left: 0;
+    line-height: 1.4;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 500;
+    opacity: 1;
+
+    &.Mui-error {
+      color: var(--blox-black);
+      font-weight: 600;
+    }
+  }
+}

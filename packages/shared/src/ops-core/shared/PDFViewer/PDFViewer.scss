@@ -1,0 +1,53 @@
+.pdf-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--background);
+
+  .pdf-viewer-header {
+    padding: var(--spacing-md);
+    background: var(--card-background);
+    border-bottom: 1px solid var(--field-border-color);
+  }
+
+  .pdf-viewer-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--card-background);
+    border-bottom: 1px solid var(--field-border-color);
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+
+    .toolbar-left,
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+    }
+
+    .pdf-viewer-note {
+      color: var(--secondary-text);
+    }
+  }
+
+  .pdf-viewer-content {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    padding: var(--spacing-lg);
+    background: var(--background);
+  }
+
+  .pdf-viewer-frame {
+    width: 100%;
+    min-height: 480px;
+    height: 100%;
+    border: none;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--card-shadow);
+    background: var(--card-background);
+  }
+}

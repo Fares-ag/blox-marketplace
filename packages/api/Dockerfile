@@ -26,6 +26,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared ./packages/shared
 COPY --from=build /app/packages/api/dist ./packages/api/dist
 COPY --from=build /app/packages/api/prisma ./packages/api/prisma
+COPY --from=build /app/packages/api/scripts/chery-elite-motors-import.json ./packages/api/scripts/chery-elite-motors-import.json
 COPY --from=build /app/packages/api/package.json ./packages/api/package.json
 COPY --from=build /app/packages/api/node_modules ./packages/api/node_modules
 WORKDIR /app/packages/api

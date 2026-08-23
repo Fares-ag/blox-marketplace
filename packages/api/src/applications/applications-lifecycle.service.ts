@@ -34,6 +34,8 @@ import {
   sumDownPaymentRecorded,
 } from './down-payment';
 import { buildScheduleDrafts } from './payment-schedules';
+import { syncPaymentSchedulesFromInstallmentPlan } from './installment-plan-sync';
+import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
 import { assertCompanyScope } from './company-scope';
 import { assertApplicationCanView, BLOCKING_APPLICATION_STATUSES } from './application-access';
 import { transitionApplication } from './guarded-transitions';
@@ -294,9 +296,15 @@ export class ApplicationsLifecycleService {
     if (!transitionRoles.includes(user.role)) {
       throw new ForbiddenException('forbidden_role');
     }
-    const app = await this.prisma.application.findUnique({ where: { id } });
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+      include: { financePartner: { select: { crmAdapter: true } } },
+    });
     if (!app) throw new NotFoundException();
     await assertCompanyScope(this.prisma, user, app.companyId);
+    if (app.status === ApplicationStatus.partner_processing) {
+      throw new BadRequestException('partner_application_readonly');
+    }
 
     try {
       assertOpsTransitionAllowed(app.status, toStatus, user.role);
@@ -456,6 +464,9 @@ export class ApplicationsLifecycleService {
     });
     if (!app) throw new NotFoundException();
     await assertCompanyScope(this.prisma, user, app.companyId);
+    if (app.status === ApplicationStatus.partner_processing) {
+      throw new BadRequestException('partner_application_readonly');
+    }
 
     if (app.status === 'active') {
       return toOpsApplicationDto(app);
@@ -485,11 +496,12 @@ export class ApplicationsLifecycleService {
     }
 
     const pricing = app.pricingSnapshot as Record<string, unknown>;
+    const installmentPlan = app.installmentPlan as InstallmentPlan | null | undefined;
     const requiredDown = requiredDownPaymentAmount(pricing);
     const recordedDown = await sumDownPaymentRecorded(this.prisma, id);
     assertDownPaymentSatisfied(requiredDown, recordedDown);
 
-    const scheduleDrafts = buildScheduleDrafts(pricing);
+    const scheduleDrafts = buildScheduleDrafts(pricing, new Date(), installmentPlan);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM applications WHERE id = ${id} FOR UPDATE`;
@@ -510,6 +522,8 @@ export class ApplicationsLifecycleService {
             status: 'pending',
           })),
         });
+      } else if (installmentPlan?.schedule?.length) {
+        await syncPaymentSchedulesFromInstallmentPlan(tx, id, pricing, installmentPlan);
       }
 
       await transitionApplication(tx, id, expectedFromStatus, {

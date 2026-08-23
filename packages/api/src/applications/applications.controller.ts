@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -13,7 +15,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
-import { IsBoolean, IsDateString, IsEnum, IsIn, IsNumber, IsObject, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
+import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
+import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsNumber, IsObject, IsOptional, IsString, Matches, ValidateIf, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Response } from 'express';
 import { CurrentUser, Roles } from '../auth/guards';
@@ -22,11 +25,13 @@ import { IDEMPOTENCY_KEY_HEADER, IDEMPOTENCY_SCOPES } from '../common/idempotenc
 import { IdempotencyService } from '../common/idempotency.service';
 import { multerUploadOptions } from '../common/multer-options';
 import { ComplianceService } from '../compliance/compliance.service';
+import { StorageService } from '../storage/storage.service';
 import { ApplicationsService } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
+import { ApplicationsStaffService } from './applications-staff.service';
 import {
-  REQUIRED_APPLICATION_DOC_CATEGORIES,
-  type RequiredDocCategory,
+  APPLICATION_DOC_CATEGORIES,
+  type ApplicationDocCategory,
 } from './application-documents';
 import { PaginationQueryDto } from '../common/pagination.dto';
 
@@ -70,8 +75,83 @@ class CancelApplicationDto {
 }
 
 class UploadDocumentDto {
-  @IsIn(REQUIRED_APPLICATION_DOC_CATEGORIES)
-  category!: RequiredDocCategory;
+  @IsIn(APPLICATION_DOC_CATEGORIES)
+  category!: ApplicationDocCategory;
+}
+
+class StaffCustomerSnapshotDto {
+  @IsEmail() email!: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() full_name?: string;
+  @IsOptional() @IsString() qid?: string;
+  @IsOptional()
+  @ValidateIf((o: StaffCustomerSnapshotDto) => o.employment != null && typeof o.employment === 'string')
+  @IsString()
+  @ValidateIf((o: StaffCustomerSnapshotDto) => o.employment != null && typeof o.employment === 'object')
+  @IsObject()
+  employment?: string | Record<string, unknown>;
+  @IsOptional() @IsNumber() income?: number;
+  @IsOptional() @IsNumber() monthlyIncome?: number;
+  @IsOptional() @IsIn(['individual', 'corporate']) applicantType?: 'individual' | 'corporate';
+  @IsOptional() @IsString() firstName?: string;
+  @IsOptional() @IsString() lastName?: string;
+  @IsOptional() @IsString() dateOfBirth?: string;
+  @IsOptional() @IsString() nationality?: string;
+  @IsOptional() @IsString() street?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() country?: string;
+  @IsOptional() @IsString() postalCode?: string;
+  @IsOptional() @IsObject() address?: Record<string, unknown>;
+  @IsOptional() @IsObject() employmentDetails?: Record<string, unknown>;
+  @IsOptional() @IsObject() corporate?: Record<string, unknown>;
+}
+
+class StaffCreateApplicationDto {
+  @IsOptional() @IsString() productId?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) productIds?: string[];
+  @IsString() offerId!: string;
+  @ValidateNested()
+  @Type(() => StaffCustomerSnapshotDto)
+  customerSnapshot!: StaffCustomerSnapshotDto;
+  @IsObject() pricingSnapshot!: Record<string, unknown>;
+  @IsOptional() @IsObject() installmentPlan?: Record<string, unknown>;
+  @IsOptional() @IsString() agentUserId?: string;
+  @IsOptional() @IsNumber() listPrice?: number;
+  @IsOptional() @IsNumber() sellingPrice?: number;
+  @IsOptional() @IsBoolean() hideInterest?: boolean;
+  @IsOptional() @IsString() companyId?: string;
+  @IsOptional() @IsBoolean() submit?: boolean;
+}
+
+class OpsApplicationsQueryDto extends PaginationQueryDto {
+  @IsOptional() @IsEnum(ApplicationStatus) status?: ApplicationStatus;
+  @IsOptional() @IsString() statusIn?: string;
+  @IsOptional() @IsString() q?: string;
+  @IsOptional() @IsString() companyId?: string;
+  @IsOptional() @IsString() scheduleHealth?: string;
+  @IsOptional() @IsString() createdFrom?: string;
+  @IsOptional() @IsString() createdTo?: string;
+}
+
+class RebuildScheduleDto {
+  @IsOptional() @IsNumber() tenureMonths?: number;
+  @IsOptional() @IsNumber() downPaymentPct?: number;
+  @IsOptional() @IsNumber() sellingPrice?: number;
+  @IsOptional() @IsObject() installmentPlan?: Record<string, unknown>;
+}
+
+class DealerApplicationsQueryDto extends PaginationQueryDto {
+  @IsOptional() @IsEnum(ApplicationStatus) status?: ApplicationStatus;
+  @IsOptional() @IsString() q?: string;
+  @IsOptional() @IsString() tab?: string;
+}
+
+class PatchOpsApplicationDto {
+  @IsOptional() @IsString() agentUserId?: string | null;
+  @IsOptional() @IsString() companyId?: string;
+  @IsOptional() @IsString() comment?: string;
+  @IsOptional() @IsObject() customerSnapshot?: Record<string, unknown>;
+  @IsOptional() @IsBoolean() hideInterest?: boolean;
 }
 
 @Controller()
@@ -81,6 +161,8 @@ export class ApplicationsController {
     private readonly lifecycle: ApplicationsLifecycleService,
     private readonly compliance: ComplianceService,
     private readonly idempotency: IdempotencyService,
+    private readonly staff: ApplicationsStaffService,
+    private readonly storage: StorageService,
   ) {}
 
   @Roles(UserRole.customer)
@@ -201,9 +283,58 @@ export class ApplicationsController {
     return this.lifecycle.submitSignedContractOps(user, id, file);
   }
 
+  @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
+  @Post('ops/applications')
+  createStaff(
+    @CurrentUser() user: User,
+    @Body() dto: StaffCreateApplicationDto,
+    @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
+  ) {
+    return this.idempotency.run({
+      userId: user.id,
+      scope: IDEMPOTENCY_SCOPES.opsApplicationCreate,
+      idempotencyKey,
+      handler: () =>
+        this.staff.create(user, {
+          ...dto,
+          customerSnapshot: { ...dto.customerSnapshot },
+          installmentPlan: dto.installmentPlan as InstallmentPlan | undefined,
+        }),
+    });
+  }
+
+  @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/applications/:id/submit')
+  submitStaff(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.staff.submitDraft(user, id);
+  }
+
+  @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin, UserRole.credit_officer)
+  @Post('ops/applications/:id/documents')
+  @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
+  uploadDocStaff(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: UploadDocumentDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.staff.uploadDoc(user, id, dto.category, file, this.storage);
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Patch('ops/applications/:id')
+  patchOps(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: PatchOpsApplicationDto,
+  ) {
+    return this.apps.patchOps(user, id, dto);
+  }
+
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.finance_officer)
   @Get('ops/applications')
-  queue(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+  queue(@CurrentUser() user: User, @Query() query: OpsApplicationsQueryDto) {
     return this.apps.opsQueue(user, query);
   }
 
@@ -258,7 +389,41 @@ export class ApplicationsController {
 
   @Roles(UserRole.dealer_agent)
   @Get('dealer/applications')
-  dealerLeads(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+  dealerLeads(@CurrentUser() user: User, @Query() query: DealerApplicationsQueryDto) {
     return this.apps.dealerLeads(user, query);
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Delete('ops/applications/:id')
+  deleteOps(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.apps.deleteOps(user, id);
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/applications/:id/rebuild-schedule')
+  rebuildSchedule(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: RebuildScheduleDto,
+  ) {
+    return this.apps.rebuildSchedule(user, id, {
+      ...dto,
+      installmentPlan: dto.installmentPlan as InstallmentPlan | undefined,
+    });
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/applications/:id/convert-daily-to-monthly')
+  convertDaily(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.apps.convertDailyToMonthly(user, id);
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/applications/:id/sync-schedules')
+  syncSchedules(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.apps.syncSchedulesFromPlan(user, id);
   }
 }

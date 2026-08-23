@@ -1,9 +1,11 @@
 import { Controller, Get, Patch, Body, Post, HttpCode } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { IsOptional, IsString, Matches } from 'class-validator';
 import type { User } from '@prisma/client';
 import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
 import { CurrentUser, MfaExempt } from './guards';
 import { PrismaService } from '../prisma/prisma.service';
+import { isMfaEnforcementActive, resolveMfaEnforcement } from './auth-config';
 import { isMfaRequiredRole } from './privileged-roles';
 
 class UpdateProfileDto {
@@ -24,7 +26,10 @@ class UpdateProfileDto {
 @Controller('me')
 @MfaExempt()
 export class MeController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Get()
   me(@CurrentUser() user: User) {
@@ -54,6 +59,7 @@ export class MeController {
 
   private toPublic(user: User) {
     const mfaRequired = isMfaRequiredRole(user.role);
+    const mfaEnforced = isMfaEnforcementActive(resolveMfaEnforcement(this.config));
     return {
       id: user.id,
       email: user.email,
@@ -68,7 +74,7 @@ export class MeController {
       is_active: user.isActive,
       two_factor_enabled: user.twoFactorEnabled,
       mfa_required: mfaRequired,
-      mfa_setup_required: mfaRequired && !user.twoFactorEnabled,
+      mfa_setup_required: mfaEnforced && mfaRequired && !user.twoFactorEnabled,
     };
   }
 }

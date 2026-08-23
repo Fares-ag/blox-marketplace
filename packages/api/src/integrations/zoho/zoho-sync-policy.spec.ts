@@ -22,6 +22,7 @@ describe('shouldSyncStatusToCrm', () => {
       'down_payment_required',
       'down_payment_submitted',
       'pending_finance_activation',
+      'partner_processing',
       'active',
       'completed',
       'rejected',

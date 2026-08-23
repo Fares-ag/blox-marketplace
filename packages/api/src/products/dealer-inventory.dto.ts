@@ -30,6 +30,7 @@ export function toDealerInventoryDto(product: ProductWithImages) {
     published_at: product.publishedAt,
     created_at: product.createdAt,
     updated_at: product.updatedAt,
+    primary_image: product.images?.[0]?.storagePath ?? null,
     images: (product.images ?? []).map(toDealerProductImageDto),
   };
 }

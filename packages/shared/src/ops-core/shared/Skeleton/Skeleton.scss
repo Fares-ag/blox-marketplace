@@ -1,0 +1,33 @@
+.custom-skeleton {
+  background-color: var(--disabled-bg);
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.table-skeleton {
+  .skeleton-header {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .skeleton-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+  }
+}
+
+.card-skeleton {
+  background: var(--card-background);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}

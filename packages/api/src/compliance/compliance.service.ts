@@ -7,6 +7,7 @@ import {
   COMPLIANCE_PROVIDER,
   ComplianceProvider,
 } from './compliance-provider.interface';
+import { toComplianceCheckDto } from './compliance-response.dto';
 import { assertCompliancePassed, deriveOverallComplianceStatus } from './compliance-gate';
 
 const OPS_ROLES: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
@@ -91,6 +92,6 @@ export class ComplianceService {
       },
     });
 
-    return check;
+    return toComplianceCheckDto(check);
   }
 }

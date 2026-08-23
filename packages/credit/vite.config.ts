@@ -4,6 +4,7 @@ import path from 'node:path';
 
 export default defineConfig({
   plugins: [react()],
+  publicDir: path.resolve(__dirname, '../shared/public'),
   server: { port: 5177, strictPort: true },
   resolve: {
     alias: [

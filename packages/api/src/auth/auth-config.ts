@@ -131,14 +131,14 @@ export type MfaEnforcementConfig = {
 
 /**
  * Whether privileged ops roles must have TOTP enabled before using protected API routes.
- * Defaults to enforced in production; optional MFA_GRACE_UNTIL ISO date delays enforcement.
+ * Opt-in via MFA_ENFORCE=true; optional MFA_GRACE_UNTIL ISO date delays enforcement.
  */
 export function resolveMfaEnforcement(config: ConfigService): MfaEnforcementConfig {
   const raw = config.get<string>('MFA_ENFORCE')?.trim().toLowerCase();
   let enforced: boolean;
   if (raw === 'true' || raw === '1') enforced = true;
   else if (raw === 'false' || raw === '0') enforced = false;
-  else enforced = process.env.NODE_ENV === 'production';
+  else enforced = false;
 
   const graceRaw = config.get<string>('MFA_GRACE_UNTIL')?.trim();
   if (!graceRaw) return { enforced, graceUntil: null };

@@ -1,7 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import type { UserRole } from '../types/domain';
-import { isMfaRequiredRole } from './privileged-roles';
 import { roleAllowed, useAuthStore } from './auth-store';
 
 interface AuthGuardProps {
@@ -38,20 +37,13 @@ export function AuthGuard({
   }
 
   if (!roleAllowed(user.role, allowedRole)) {
+    void useAuthStore.getState().signOut();
     return <Navigate to={`/auth/login?reason=${reasonParam}`} replace />;
   }
 
   if (requireVerifiedEmail && !user.email_verified) {
     const returnUrl = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/auth/verify-email?returnUrl=${returnUrl}`} replace />;
-  }
-
-  if (
-    (user.mfa_setup_required || (isMfaRequiredRole(user.role) && !user.two_factor_enabled)) &&
-    !location.pathname.startsWith('/auth/mfa-setup')
-  ) {
-    const returnUrl = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/auth/mfa-setup?returnUrl=${returnUrl}`} replace />;
   }
 
   return <>{children}</>;

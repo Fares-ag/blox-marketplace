@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -54,6 +55,8 @@ class CreateProductDto {
   @IsNumber() @Min(1) price!: number;
   @IsOptional() @IsBoolean() financeEligible?: boolean;
   @IsOptional() @IsString() defaultOfferId?: string;
+  /** Required when admin/super_admin creates inventory on behalf of a dealer. */
+  @IsOptional() @IsString() companyId?: string;
 }
 
 class UpdateProductDto {
@@ -76,6 +79,10 @@ class UpdateProductDto {
   @IsOptional() @IsNumber() @Min(1) price?: number;
   @IsOptional() @IsBoolean() financeEligible?: boolean;
   @IsOptional() @IsString() defaultOfferId?: string;
+}
+
+class AdminUpdateProductDto extends UpdateProductDto {
+  @IsOptional() @IsString() listingStatus?: string;
 }
 
 @Controller()
@@ -139,10 +146,44 @@ export class ProductsController {
     return this.products.getBySlug(slug, user);
   }
 
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Get('ops/products/:id')
+  opsOne(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.products.getOpsOne(user, id);
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Patch('ops/products/:id')
+  opsUpdate(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: AdminUpdateProductDto) {
+    return this.products.updateOps(user, id, dto);
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Delete('ops/products/:id')
+  opsDelete(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.products.deleteOps(user, id);
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/products/bulk-status')
+  bulkStatus(
+    @CurrentUser() user: User,
+    @Body() dto: { ids: string[]; listingStatus: string },
+  ) {
+    return this.products.bulkStatus(user, dto.ids ?? [], dto.listingStatus);
+  }
+
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
   @Get('dealer/inventory')
   inventory(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
     return this.products.listDealerInventory(user, query);
+  }
+
+  @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)
+  @Get('dealer/inventory/:id')
+  inventoryOne(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.products.getDealerOne(user, id);
   }
 
   @Roles(UserRole.dealer_agent, UserRole.admin, UserRole.super_admin)

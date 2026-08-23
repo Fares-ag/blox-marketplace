@@ -128,14 +128,14 @@ describe('resolveMfaEnforcement', () => {
     else process.env.NODE_ENV = originalNodeEnv;
   });
 
-  it('defaults to enforced in production', () => {
+  it('defaults to disabled unless MFA_ENFORCE=true', () => {
     process.env.NODE_ENV = 'production';
-    expect(resolveMfaEnforcement(mockConfig({}) as never).enforced).toBe(true);
+    expect(resolveMfaEnforcement(mockConfig({}) as never).enforced).toBe(false);
   });
 
-  it('defaults to disabled outside production', () => {
-    process.env.NODE_ENV = 'development';
-    expect(resolveMfaEnforcement(mockConfig({}) as never).enforced).toBe(false);
+  it('can be enabled explicitly in production', () => {
+    process.env.NODE_ENV = 'production';
+    expect(resolveMfaEnforcement(mockConfig({ MFA_ENFORCE: 'true' }) as never).enforced).toBe(true);
   });
 
   it('honours MFA_ENFORCE override and MFA_GRACE_UNTIL', () => {

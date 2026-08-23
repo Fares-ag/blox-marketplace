@@ -23,6 +23,20 @@ Production layout for the DriveMarket monorepo:
 
 See [BACKUP_DR.md](./BACKUP_DR.md) for Postgres backup cadence, PITR/restore drills, and KYC/contract retention.
 
+### API versioning
+
+REST endpoints live under **`/api/v1/...`** (URI versioning with `defaultVersion: '1'`). Better Auth stays at **`/api/auth/...`** (not versioned).
+
+| Surface | Example |
+|---------|---------|
+| Versioned REST | `GET /api/v1/products`, `GET /api/v1/me` |
+| Auth (Better Auth) | `POST /api/auth/sign-in/email` |
+| Health | `GET /api/v1/health`, `GET /api/v1/health/ready` |
+
+Frontends set `VITE_API_URL` to the API **origin** only (e.g. `https://api.blox.market`). `@drivemarket/shared` appends `/api/v1` for `apiFetch` and `/api/auth` for auth calls.
+
+**Introducing v2:** add controllers or routes with `@Version('2')` (or a `v2` module), keep v1 as the default until clients migrate, then deprecate v1. Do not version Better Auth paths.
+
 ### Secrets hygiene
 
 - **Never commit `.env.local`** (or any file containing Vercel/Railway/API tokens). Add it to `.gitignore` and keep deploy credentials in your password manager or platform secret stores only.
@@ -58,9 +72,12 @@ Deploy **from the repository root** (not from `packages/<app>`). Each portal’s
 railway login
 railway init --name blox-market-api
 railway add --database postgres
+railway add --database redis
 ```
 
 Link the API service and set the root directory to the repo (Dockerfile at `packages/api/Dockerfile`).
+
+On the **api** service, set `REDIS_URL=${{Redis.REDIS_URL}}` so rate limits are shared if you scale past one replica.
 
 ### Environment variables
 
@@ -75,6 +92,7 @@ API_PORT=3010
 CORS_ORIGINS=https://blox.market,https://www.blox.market,https://dealer.blox.market,https://credit.blox.market,https://finance.blox.market,https://admin.blox.market,https://ops.blox.market
 MARKETPLACE_URL=https://www.blox.market
 COOKIE_DOMAIN=.blox.market
+REDIS_URL=${{Redis.REDIS_URL}}
 S3_ENDPOINT=...
 S3_ACCESS_KEY=...
 S3_SECRET_KEY=...
@@ -83,7 +101,11 @@ S3_BUCKET_KYC=...
 S3_BUCKET_CONTRACTS=...
 S3_FORCE_PATH_STYLE=true
 S3_PUBLIC_BASE_URL=...
+POSTMARK_SERVER_TOKEN=<Postmark server API token — required for email>
+SMTP_FROM=Blox <no-reply@blox.market>
 ```
+
+Email delivery uses the Postmark HTTP API (`POSTMARK_SERVER_TOKEN`). SMTP vars are optional fallback; Railway often blocks outbound SMTP ports.
 
 ### Deploy
 
@@ -115,16 +137,23 @@ railway run --service api npm run db:seed
 
 ### Custom domain
 
-In Railway → service → Settings → Networking → add `api.blox.market`.
+In Railway → **blox-market-api** project → **api** service → Settings → Networking → add `api.blox.market`.
 
 At your DNS provider, add the CNAME/A record Railway provides for `api`.
 
-Verify:
+**Critical:** `api.blox.market` must attach to the same Railway service that runs the current `@drivemarket/api` deploy (project `blox-market-api`). If the domain points at an older Railway deployment, auth and email will appear broken: sign-ups succeed but no verification/reset emails are sent.
+
+Verify the domain hits the current API (not a stale deploy):
 
 ```bash
-curl https://api.blox.market/api/health
-# → {"ok":true,"service":"drivemarket-api"}
+curl https://api.blox.market/api/health/ready
+# → {"ok":true,"service":"drivemarket-api","database":"up"}
+
+curl -sI https://api.blox.market/api/health | grep -i content-security-policy
+# Current API includes a content-security-policy header; a stale deploy typically does not.
 ```
+
+If `api.blox.market` cannot be added because it is bound to another Railway project, remove it from the old project first, then re-add it on `blox-market-api` → `api`.
 
 ---
 
@@ -195,8 +224,8 @@ These must all be true or logins break across portals:
 ## 4. Production smoke test
 
 ```bash
-# API health
-curl -s https://api.blox.market/api/health
+# API health (readiness probe used by Railway)
+curl -s https://api.blox.market/api/v1/health/ready
 
 # Marketplace loads (HTML)
 curl -sI https://www.blox.market | head -5
@@ -245,3 +274,5 @@ See `scripts/deploy-vercel.mjs` for the non-interactive link/deploy flow.
 | Uploads fail in prod | Configure S3/R2 env vars; local `.uploads/` is not persisted on Railway |
 | CORS error | Add the exact browser origin (including `https://`) to `CORS_ORIGINS` |
 | Auth 403 / origin check | Ensure portal URL is in `CORS_ORIGINS` (Better Auth `trustedOrigins`) |
+| No verification / reset emails | Confirm `POSTMARK_SERVER_TOKEN` + verified `SMTP_FROM` in Railway; check `email_outbox` in Postgres (`status`, `lastError`); ensure `api.blox.market` DNS attaches to **blox-market-api** (not an old deploy — see Custom domain); compare `curl api.blox.market/api/health/ready` vs `curl <railway-service-url>/api/health/ready` |
+| Emails stuck pending | Check Railway logs for `Mail send failed` / `Postmark HTTP`; run `POST /api/v1/ops/jobs/email-outbox` as admin to drain backlog |

@@ -2,14 +2,18 @@ import { StrictMode, useEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { CssBaseline, ThemeProvider } from '@mui/material';
+import { ToastContainer } from 'react-toastify';
 import * as Sentry from '@sentry/react';
 import { ScrollToTop } from '../components/ScrollToTop';
 import { PortalErrorFallback } from '../components/PortalErrorFallback';
 import { useAuthStore } from '../auth/auth-store';
+import { theme } from '../config/theme';
 import { initAppSentry } from './sentry';
 import { createQueryClient } from './query-client';
 import { assertApiBaseConfigured } from './api';
 import '../i18n';
+import 'react-toastify/dist/ReactToastify.css';
 
 export function AuthBootstrap({ children }: { children: ReactNode }) {
   const init = useAuthStore((s) => s.init);
@@ -48,12 +52,16 @@ export function mountPortalApp({
           <PortalErrorFallback error={error} onReset={resetError} />
         )}
       >
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            {scrollTop && <ScrollToTop />}
-            {app}
-          </BrowserRouter>
-        </QueryClientProvider>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
+              {scrollTop && <ScrollToTop />}
+              {app}
+            </BrowserRouter>
+            <ToastContainer position="bottom-center" autoClose={4000} hideProgressBar={false} newestOnTop />
+          </QueryClientProvider>
+        </ThemeProvider>
       </Sentry.ErrorBoundary>
     </StrictMode>,
   );

@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 
 import { ActivityService } from '../../common/activity.service';
+import { fetchWithTimeout } from '../../common/fetch-with-timeout';
 
 import { ZohoAuthService } from './zoho-auth.service';
 
@@ -187,9 +188,13 @@ export class ZohoCrmService {
     }
   }
 
+  private zohoFetch(url: string | URL, init: RequestInit = {}): Promise<Response> {
+    return fetchWithTimeout(url, init, this.config.httpTimeoutMs);
+  }
+
   private async createLead(payload: Record<string, unknown>): Promise<string> {
     const token = await this.auth.getAccessToken();
-    const res = await fetch(`${this.config.apiDomain}/crm/v8/Leads`, {
+    const res = await this.zohoFetch(`${this.config.apiDomain}/crm/v8/Leads`, {
       method: 'POST',
       headers: {
         Authorization: `Zoho-oauthtoken ${token}`,
@@ -219,7 +224,7 @@ export class ZohoCrmService {
    */
   private async updateLead(id: string, payload: Record<string, unknown>): Promise<UpdateOutcome> {
     const token = await this.auth.getAccessToken();
-    const res = await fetch(`${this.config.apiDomain}/crm/v8/Leads/${id}`, {
+    const res = await this.zohoFetch(`${this.config.apiDomain}/crm/v8/Leads/${id}`, {
       method: 'PUT',
       headers: {
         Authorization: `Zoho-oauthtoken ${token}`,
@@ -251,7 +256,7 @@ export class ZohoCrmService {
    */
   private async findLeadIdByEmail(email: string): Promise<string | null> {
     const token = await this.auth.getAccessToken();
-    const res = await fetch(
+    const res = await this.zohoFetch(
       `${this.config.apiDomain}/crm/v8/Leads/search?email=${encodeURIComponent(email)}`,
       {
         headers: { Authorization: `Zoho-oauthtoken ${token}` },
@@ -300,7 +305,7 @@ export class ZohoCrmService {
 
   private async listAttachmentNames(leadId: string): Promise<Set<string>> {
     const token = await this.auth.getAccessToken();
-    const res = await fetch(`${this.config.apiDomain}/crm/v8/Leads/${leadId}/Attachments`, {
+    const res = await this.zohoFetch(`${this.config.apiDomain}/crm/v8/Leads/${leadId}/Attachments`, {
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
     });
 
@@ -332,7 +337,7 @@ export class ZohoCrmService {
       fileName,
     );
 
-    const res = await fetch(`${this.config.apiDomain}/crm/v8/Leads/${leadId}/Attachments`, {
+    const res = await this.zohoFetch(`${this.config.apiDomain}/crm/v8/Leads/${leadId}/Attachments`, {
       method: 'POST',
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
       body: form,

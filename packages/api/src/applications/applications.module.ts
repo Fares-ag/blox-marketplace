@@ -6,11 +6,13 @@ import { ZohoModule } from '../integrations/zoho/zoho.module';
 import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
+import { ApplicationsStaffService } from './applications-staff.service';
 import { QuotesModule } from '../quotes/quotes.module';
 
 @Module({
   imports: [CommonModule, ComplianceModule, StorageModule, QuotesModule, ZohoModule],
   controllers: [ApplicationsController],
-  providers: [ApplicationsService, ApplicationsLifecycleService],
+  providers: [ApplicationsService, ApplicationsLifecycleService, ApplicationsStaffService],
+  exports: [ApplicationsService, ApplicationsStaffService],
 })
 export class ApplicationsModule {}

@@ -1,8 +1,9 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException, VERSION_NEUTRAL } from '@nestjs/common';
 import { Public } from './auth/guards';
 import { PrismaService } from './prisma/prisma.service';
 
-@Controller('health')
+/** Stable liveness/readiness URLs for Railway and load balancers (no /v1 prefix). */
+@Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 

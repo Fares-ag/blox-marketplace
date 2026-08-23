@@ -1,6 +1,19 @@
-export const REQUIRED_APPLICATION_DOC_CATEGORIES = ['qid', 'salary', 'bank', 'other'] as const;
-
+export const APPLICATION_DOC_CATEGORIES = [
+  'qid',
+  'id',
+  'passport',
+  'license',
+  'salary',
+  'bank',
+  'other',
+  'cr',
+  'computer_card',
+  'rental_agreement',
+  'signatory_id',
+] as const;
+export const REQUIRED_APPLICATION_DOC_CATEGORIES = ['qid', 'salary', 'bank'] as const;
 export type RequiredDocCategory = (typeof REQUIRED_APPLICATION_DOC_CATEGORIES)[number];
+export type ApplicationDocCategory = (typeof APPLICATION_DOC_CATEGORIES)[number];
 
 export function missingRequiredDocumentCategories(
   documents: Array<{ category: string }>,

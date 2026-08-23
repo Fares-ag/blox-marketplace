@@ -16,8 +16,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { DmAuth } from './auth';
 import { AUTH_INSTANCE } from './auth.constants';
 import { fromNodeHeaders } from 'better-auth/node';
-import { isMfaEnforcementActive, resolveMfaEnforcement } from './auth-config';
+import { isMfaEnforcementActive, resolveMfaEnforcement, resolveAuthSecret } from './auth-config';
 import { isMfaRequiredRole } from './privileged-roles';
+import { bearerFromHeader, verifyMobileAccessToken } from './mobile/mobile-token';
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
@@ -65,6 +66,21 @@ export class SessionAuthGuard implements CanActivate {
     }
 
     if (!req.user) {
+      const token = bearerFromHeader(req.headers.authorization);
+      if (token) {
+        try {
+          const payload = verifyMobileAccessToken(resolveAuthSecret(this.config), token);
+          if (payload?.sub) {
+            const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+            if (user?.isActive) req.user = user;
+          }
+        } catch {
+          /* invalid bearer */
+        }
+      }
+    }
+
+    if (!req.user) {
       if (isPublic) return true;
       throw new UnauthorizedException();
     }
@@ -94,6 +110,7 @@ export class SessionAuthGuard implements CanActivate {
 export class OptionalSessionGuard implements CanActivate {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
     @Inject(AUTH_INSTANCE) private readonly auth: DmAuth,
   ) {}
 
@@ -104,6 +121,16 @@ export class OptionalSessionGuard implements CanActivate {
       if (session?.user) {
         const user = await this.prisma.user.findUnique({ where: { id: session.user.id } });
         if (user?.isActive) req.user = user;
+      }
+      if (!req.user) {
+        const token = bearerFromHeader(req.headers.authorization);
+        if (token) {
+          const payload = verifyMobileAccessToken(resolveAuthSecret(this.config), token);
+          if (payload?.sub) {
+            const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+            if (user?.isActive) req.user = user;
+          }
+        }
       }
     } catch {
       /* guest */
