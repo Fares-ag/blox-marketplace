@@ -35,6 +35,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const resolved = this.resolveException(exception);
 
+    // Client errors are logged too, at warn. They are not our crash, but they
+    // are the only trace of a request the caller could not complete: a form
+    // that will not submit, or an upload the UI offered and the API refused,
+    // otherwise leaves nothing on the server at all. Without this a 400 can
+    // only be diagnosed by asking the person to reproduce it with devtools
+    // open. The code and request id are enough to find it; no payload is
+    // logged, since these carry customer details.
+    if (
+      resolved.status >= HttpStatus.BAD_REQUEST &&
+      resolved.status < HttpStatus.INTERNAL_SERVER_ERROR &&
+      resolved.status !== HttpStatus.UNAUTHORIZED &&
+      resolved.status !== HttpStatus.NOT_FOUND
+    ) {
+      this.logger.warn(
+        `${request.method} ${request.url} -> ${resolved.status} ${resolved.code} [${requestId}]`,
+      );
+    }
+
     if (resolved.status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
         `${request.method} ${request.url} -> ${resolved.code}`,
