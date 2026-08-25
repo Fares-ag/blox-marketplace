@@ -717,6 +717,13 @@ export class ApplicationsService {
       mime_type: file.mimetype,
     });
 
+    // Push the new file to the partner CRM. Without this a document uploaded
+    // after the lead already exists — the whole point of
+    // `resubmission_required` — never reaches them: the lead was created and
+    // synced earlier, and nothing re-sent it. maybeSyncZoho skips `draft`, so
+    // a first-time applicant still syncs once on submit rather than per file.
+    await this.maybeSyncZoho(id, user.id);
+
     return toApplicationDocumentDto(doc);
   }
 

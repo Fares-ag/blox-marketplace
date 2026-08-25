@@ -317,6 +317,16 @@ export class ApplicationsStaffService {
         uploadedById: actor.id,
       },
     });
+
+    // The walk-in path creates the application and syncs it to the partner CRM
+    // immediately, BEFORE the wizard uploads any documents — so the lead was
+    // created with nothing attached and nothing ever re-sent it. Awaited rather
+    // than fire-and-forget: parallel syncs would each read the attachment list
+    // before the other had written, and upload the same file twice.
+    if (shouldSyncStatusToCrm(app.status)) {
+      await this.zoho.syncApplicationToZoho(id, actor.id);
+    }
+
     return {
       id: doc.id,
       category: doc.category,
