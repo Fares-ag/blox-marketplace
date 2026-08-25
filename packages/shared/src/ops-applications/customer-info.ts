@@ -64,7 +64,19 @@ export const EMPLOYMENT_DURATION_OPTIONS = [
   { value: 'more-than-12-months', labelKey: 'ops.customer.employmentDurations.gt12' },
 ] as const;
 
-export const INDIVIDUAL_DOC_CATEGORIES = ['id', 'passport', 'license', 'salary', 'bank', 'other'] as const;
+// `qid` leads deliberately: REQUIRED_APPLICATION_DOC_CATEGORIES (api) requires
+// exactly 'qid', so a Qatar ID filed by staff under the generic 'id' category
+// left the application still reporting its QID as missing. Both remain valid —
+// 'id' covers a non-Qatari identity card.
+export const INDIVIDUAL_DOC_CATEGORIES = [
+  'qid',
+  'passport',
+  'id',
+  'license',
+  'salary',
+  'bank',
+  'other',
+] as const;
 export const CORPORATE_DOC_CATEGORIES = ['cr', 'computer_card', 'rental_agreement', 'signatory_id'] as const;
 
 export type IndividualDocCategory = (typeof INDIVIDUAL_DOC_CATEGORIES)[number];

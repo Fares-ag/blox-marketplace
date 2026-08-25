@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, apiFileUrl, apiUrl } from '@drivemarket/shared';
 import { ApplicationStatusView } from './ApplicationStatusView';
@@ -32,7 +32,20 @@ export type ApplicationDetailData = {
   }>;
 };
 
-const UPLOAD_CATEGORIES = ['qid', 'salary', 'bank', 'other'] as const;
+// Identity documents are uploaded here like any other file, straight to S3.
+// `passport` was missing, so a non-Qatari applicant had no way to supply the
+// one identity document they can actually produce — and the finance partner's
+// CRM therefore never received it.
+const UPLOAD_CATEGORIES = ['qid', 'passport', 'salary', 'bank', 'other'] as const;
+
+/**
+ * What the application actually needs before it can be submitted. Mirrors
+ * REQUIRED_APPLICATION_DOC_CATEGORIES in the API — deliberately NOT the same as
+ * UPLOAD_CATEGORIES, which is merely what we offer a slot for. Gating on the
+ * offered list would demand a passport from every Qatari applicant (who has a
+ * QID and no passport to give) and an "other" document from everyone.
+ */
+const REQUIRED_UPLOAD_CATEGORIES = ['qid', 'salary', 'bank'] as const;
 
 function documentDownloadUrl(appId: string, docId: string) {
   return apiFileUrl(`/applications/${appId}/documents/${docId}/file`);
@@ -89,7 +102,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const [cancelReason, setCancelReason] = useState('');
 
   const uploadedCategories = new Set((app.documents ?? []).map((d) => d.category));
-  const hasAllDocs = UPLOAD_CATEGORIES.every((c) => uploadedCategories.has(c));
+  const hasAllDocs = REQUIRED_UPLOAD_CATEGORIES.every((c) => uploadedCategories.has(c));
 
   const canUpload = ['resubmission_required', 'draft'].includes(app.status);
   const canSubmitDraft = app.status === 'draft';
@@ -163,6 +176,35 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     },
     onError: (e: Error) => setActionError(e.message),
   });
+
+  const deferralStatus = useQuery({
+    queryKey: ['deferral-status'],
+    queryFn: () =>
+      apiFetch<{
+        remaining: number;
+        membership_active: boolean;
+      }>('/api/customer/payments/deferral-status'),
+    enabled: app.status === 'active',
+  });
+
+  const deferPayment = useMutation({
+    mutationFn: (scheduleId: string) =>
+      apiFetch(`/api/applications/${app.id}/schedules/${scheduleId}/defer`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['customer-payments-hub'] });
+      void qc.invalidateQueries({ queryKey: ['deferral-status'] });
+    },
+    onError: (e: Error) => setActionError(e.message),
+  });
+
+  const canDefer =
+    (deferralStatus.data?.membership_active ?? false) &&
+    (deferralStatus.data?.remaining ?? 0) > 0;
 
   async function onUpload(e: FormEvent<HTMLFormElement>, category: (typeof UPLOAD_CATEGORIES)[number]) {
     e.preventDefault();
@@ -331,20 +373,38 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
                   #{s.sequence} · {new Date(s.dueDate).toLocaleDateString()} · {String(s.amount)} QAR · {s.status}
                 </span>
                 {s.status === 'pending' || s.status === 'overdue' ? (
-                  <button
-                    type="button"
-                    className="dm-app-detail__upload-btn"
-                    style={{ width: 'auto', padding: '0 12px' }}
-                    disabled={payInstallment.isPending}
-                    onClick={() => {
-                      setActionError(null);
-                      payInstallment.mutate(s.id);
-                    }}
-                  >
-                    {payInstallment.isPending && payInstallment.variables === s.id
-                      ? t('application.startingPayment', { defaultValue: 'Starting payment…' })
-                      : t('application.payInstallment', { defaultValue: 'Pay online' })}
-                  </button>
+                  <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="dm-app-detail__upload-btn"
+                      style={{ width: 'auto', padding: '0 12px' }}
+                      disabled={payInstallment.isPending}
+                      onClick={() => {
+                        setActionError(null);
+                        payInstallment.mutate(s.id);
+                      }}
+                    >
+                      {payInstallment.isPending && payInstallment.variables === s.id
+                        ? t('application.startingPayment', { defaultValue: 'Starting payment…' })
+                        : t('application.payInstallment', { defaultValue: 'Pay online' })}
+                    </button>
+                    {canDefer && (
+                      <button
+                        type="button"
+                        className="dm-app-detail__link-btn"
+                        style={{ marginBottom: 0, minHeight: 40 }}
+                        disabled={deferPayment.isPending}
+                        onClick={() => {
+                          setActionError(null);
+                          deferPayment.mutate(s.id);
+                        }}
+                      >
+                        {deferPayment.isPending && deferPayment.variables === s.id
+                          ? t('calendar.deferring')
+                          : t('calendar.deferPayment')}
+                      </button>
+                    )}
+                  </span>
                 ) : null}
               </li>
             ))}

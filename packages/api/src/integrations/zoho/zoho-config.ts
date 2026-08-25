@@ -81,8 +81,24 @@ export class ZohoConfig implements OnModuleInit {
     return this.rawApiDomain.replace(/\/$/, '');
   }
 
+  /**
+   * Picklist value on Al Jazeera's `Request_Submitted_To`. It records their
+   * intake channel, NOT the financier — every lead in that CRM is already
+   * theirs. The only valid options are: Main Branch, Wakra Branch, Mobile App,
+   * Direct to Partner. The previous default, "Al Jazeera Finance", is not among
+   * them and Zoho rejects the whole record when an unknown option is sent.
+   */
   get requestSubmittedTo(): string {
-    return this.config.get<string>('ZOHO_REQUEST_SUBMITTED_TO') ?? 'Al Jazeera Finance';
+    return this.config.get<string>('ZOHO_REQUEST_SUBMITTED_TO') ?? 'Direct to Partner';
+  }
+
+  /**
+   * Picklist value on the standard `Lead_Source` field. Their layout has no
+   * "Blox Marketplace" option; "Partner" is the closest valid one. Change this
+   * only to another option that exists on their picklist.
+   */
+  get leadSource(): string {
+    return this.config.get<string>('ZOHO_LEAD_SOURCE') ?? 'Partner';
   }
 
   /** Outbound Zoho CRM + OAuth HTTP timeout (default 8s). */
