@@ -161,18 +161,64 @@ export function mapApplicationToZohoLead(
     payload.Down_Payment_Reference = clamp(qar(pricing.down_payment), LEN.reference);
   }
 
-  // Reference (free-text) twins of their picklists — staff pick the structured value.
+  // Everything below reads the shape buildCustomerSnapshot actually produces
+  // (packages/shared/src/ops-applications/customer-info.ts). Getting a key name
+  // wrong here fails silently — the field is simply never sent — so these are
+  // pinned by tests against the real snapshot shape.
+  const employment = (customer.employment ?? {}) as Record<string, unknown>;
+  const address = (customer.address ?? {}) as Record<string, unknown>;
+  const income = num(customer.monthlyIncome) ?? num(customer.income) ?? num(employment.salary);
+
+  if (customer.full_name) payload.Full_Name = clamp(customer.full_name, LEN.reference);
   if (customer.nationality) payload.Nationality = clamp(customer.nationality, LEN.reference);
-  if (customer.employer_duration ?? customer.employment_duration) {
-    payload.Employment_Duration = clamp(
-      customer.employer_duration ?? customer.employment_duration,
-      LEN.reference,
-    );
+  if (customer.city ?? address.city) payload.City = clamp(customer.city ?? address.city, LEN.reference);
+
+  // Every Blox application is vehicle finance. Their picklist has an exact
+  // option for it, so this is free structured data on their side.
+  payload.Finance_Type = 'Car Finance';
+
+  if (employment.employmentDuration) {
+    payload.Employment_Duration = clamp(humanise(employment.employmentDuration), LEN.reference);
   }
-  if (customer.work_sector) payload.Work_Sector_Reference = clamp(customer.work_sector, LEN.reference);
-  if (customer.monthly_income ?? customer.salary) {
-    payload.Salary_Reference = clamp(qar(customer.monthly_income ?? customer.salary), LEN.reference);
+
+  if (employment.employmentType) {
+    const type = String(employment.employmentType);
+    payload.Work_Sector_Reference = clamp(humanise(type), LEN.reference);
+    // Only set the picklist where our option maps onto exactly one of theirs.
+    // `gov-or-semi-gov` spans two of their options (Government / Semi
+    // Government) and `self-employed` has no counterpart, so those stay
+    // free-text — an unknown picklist value rejects the entire record.
+    const sector = WORK_SECTOR_PICKLIST[type];
+    if (sector) payload.Work_Sector = sector;
+  }
+
+  if (income != null) {
+    payload.Salary_Reference = clamp(qar(income), LEN.reference);
+    // They keep salary in two different fields depending on the applicant, and
+    // their affordability rules read the matching one.
+    if (isQatari(customer.nationality)) payload.Basic_Salary_Qatari = income;
+    else payload.Total_Salary_Expat = income;
   }
 
   return payload;
+}
+
+/** "more-than-12-months" -> "More than 12 months". */
+function humanise(value: unknown): string {
+  const s = String(value ?? '').replace(/[-_]+/g, ' ').trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Our employment types mapped onto Al Jazeera's Work_Sector picklist. Only
+ * unambiguous pairings appear — anything absent is sent as free text instead.
+ */
+const WORK_SECTOR_PICKLIST: Record<string, string> = {
+  'private-international': 'Private',
+  'private-local': 'Private',
+};
+
+function isQatari(nationality: unknown): boolean {
+  const n = String(nationality ?? '').trim().toLowerCase();
+  return n === 'qatari' || n === 'qatar' || n === 'qa' || n === 'qat';
 }

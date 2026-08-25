@@ -82,11 +82,17 @@ describe('zoho-lead.mapper', () => {
 
   it('writes reference twins rather than picklists it cannot validate', () => {
     const payload = map({
-      customerSnapshot: { ...base.customerSnapshot, nationality: 'Indian', work_sector: 'Private' },
+      customerSnapshot: {
+        ...base.customerSnapshot,
+        nationality: 'Indian',
+        employment: { employmentType: 'self-employed' },
+      },
     });
     expect(payload.Nationality).toBe('Indian');
-    expect(payload.Work_Sector_Reference).toBe('Private');
-    // The picklist twins are left for Al Jazeera's staff to set.
+    expect(payload.Work_Sector_Reference).toBe('Self employed');
+    // Nationality_New is a full country picklist and our value is a demonym
+    // ("Indian" vs "India"), so it is never written — a mismatch would reject
+    // the record. self-employed likewise has no counterpart in Work_Sector.
     expect(payload).not.toHaveProperty('Nationality_New');
     expect(payload).not.toHaveProperty('Work_Sector');
   });
@@ -106,5 +112,81 @@ describe('zoho-lead.mapper', () => {
     const payload = map({ pricingSnapshot: {} });
     expect(payload).not.toHaveProperty('Finance_Amount');
     expect(payload).not.toHaveProperty('Re_payment_Period');
+  });
+
+  /**
+   * These read the shape buildCustomerSnapshot really produces. An invented key
+   * name here fails silently — the field is just never sent — which is exactly
+   * how employment type, duration and income were being dropped.
+   */
+  describe('against the real customerSnapshot shape', () => {
+    const realistic = {
+      applicantType: 'individual',
+      firstName: 'Sara',
+      lastName: 'Ali',
+      full_name: 'Sara Ali',
+      email: 'sara@example.com',
+      phone: '+974 5555 0001',
+      qid: '28012345678',
+      nationality: 'Indian',
+      address: { street: '12 Al Sadd', city: 'Doha', country: 'QA', postalCode: '' },
+      street: '12 Al Sadd',
+      city: 'Doha',
+      employment: {
+        company: 'Ooredoo',
+        position: 'Engineer',
+        employmentType: 'private-local',
+        employmentDuration: 'more-than-12-months',
+        salary: 18000,
+      },
+      income: 18000,
+      monthlyIncome: 18000,
+    };
+
+    it('reads employment duration from employment.employmentDuration', () => {
+      expect(map({ customerSnapshot: realistic }).Employment_Duration).toBe('More than 12 months');
+    });
+
+    it('reads work sector from employment.employmentType', () => {
+      const payload = map({ customerSnapshot: realistic });
+      expect(payload.Work_Sector_Reference).toBe('Private local');
+      expect(payload.Work_Sector).toBe('Private');
+    });
+
+    it('reads income from monthlyIncome', () => {
+      expect(map({ customerSnapshot: realistic }).Salary_Reference).toBe('QAR 18,000');
+    });
+
+    it('routes salary to the expat field for a non-Qatari', () => {
+      const payload = map({ customerSnapshot: realistic });
+      expect(payload.Total_Salary_Expat).toBe(18000);
+      expect(payload).not.toHaveProperty('Basic_Salary_Qatari');
+    });
+
+    it('routes salary to the Qatari field for a Qatari', () => {
+      const payload = map({ customerSnapshot: { ...realistic, nationality: 'Qatari' } });
+      expect(payload.Basic_Salary_Qatari).toBe(18000);
+      expect(payload).not.toHaveProperty('Total_Salary_Expat');
+    });
+
+    it('sends city and full name', () => {
+      const payload = map({ customerSnapshot: realistic });
+      expect(payload.City).toBe('Doha');
+      expect(payload.Full_Name).toBe('Sara Ali');
+    });
+
+    it('always declares the finance type — every Blox application is vehicle finance', () => {
+      expect(map().Finance_Type).toBe('Car Finance');
+    });
+
+    it('leaves ambiguous employment types out of the picklist', () => {
+      // gov-or-semi-gov spans two of their options; an unknown picklist value
+      // would reject the whole record, so only the free-text twin is sent.
+      const payload = map({
+        customerSnapshot: { ...realistic, employment: { employmentType: 'gov-or-semi-gov' } },
+      });
+      expect(payload.Work_Sector_Reference).toBe('Gov or semi gov');
+      expect(payload).not.toHaveProperty('Work_Sector');
+    });
   });
 });
