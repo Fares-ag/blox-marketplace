@@ -24,6 +24,7 @@ import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
 import { IDEMPOTENCY_KEY_HEADER, IDEMPOTENCY_SCOPES } from '../common/idempotency.constants';
 import { IdempotencyService } from '../common/idempotency.service';
 import { multerUploadOptions } from '../common/multer-options';
+import { CustomerPaymentsService } from '../payments/customer-payments.service';
 import { ComplianceService } from '../compliance/compliance.service';
 import { StorageService } from '../storage/storage.service';
 import { ApplicationsService } from './applications.service';
@@ -146,6 +147,10 @@ class DealerApplicationsQueryDto extends PaginationQueryDto {
   @IsOptional() @IsString() tab?: string;
 }
 
+class DeferPaymentDto {
+  @IsOptional() @IsString() reason?: string;
+}
+
 class PatchOpsApplicationDto {
   @IsOptional() @IsString() agentUserId?: string | null;
   @IsOptional() @IsString() companyId?: string;
@@ -163,6 +168,7 @@ export class ApplicationsController {
     private readonly idempotency: IdempotencyService,
     private readonly staff: ApplicationsStaffService,
     private readonly storage: StorageService,
+    private readonly customerPayments: CustomerPaymentsService,
   ) {}
 
   @Roles(UserRole.customer)
@@ -220,6 +226,18 @@ export class ApplicationsController {
     @Body() dto: CancelApplicationDto,
   ) {
     return this.apps.cancel(user, id, dto.reason);
+  }
+
+  @Roles(UserRole.customer)
+  @HttpCode(200)
+  @Post('applications/:id/schedules/:scheduleId/defer')
+  deferPayment(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Param('scheduleId') scheduleId: string,
+    @Body() dto: DeferPaymentDto,
+  ) {
+    return this.customerPayments.deferPayment(user, id, scheduleId, dto.reason);
   }
 
   @Roles(UserRole.customer)

@@ -9,7 +9,6 @@ import {
   getAppLocale,
   useAuthStore,
   applicationMarketplacePillVariant,
-  applicationStatusLabel,
   type ProductDetailResponse,
   type ProductListResponse,
 } from '@drivemarket/shared';
@@ -313,6 +312,7 @@ export function CustomerDashboardPage() {
                     {compareCount > 0 ? ` (${compareCount})` : ''}
                   </Link>
                   <Link to="/app/applications">{t('application.title')}</Link>
+                  <Link to="/app/calendar">{t('calendar.shortcut')}</Link>
                   <Link to="/help">{t('nav.help')}</Link>
                 </nav>
               </section>
@@ -377,9 +377,9 @@ export function CustomerDashboardPage() {
                 </div>
                 <Link to="/vehicles?sort=newest">{t('home.viewAll')}</Link>
               </div>
-              <div className="dm-dash__arrivals-list">
+              <div className="dm-dash__arrivals-list dm-listing-stack">
                 {arrivals!.data!.items.map((p) => (
-                  <ListingCard key={p.id} product={p} />
+                  <ListingCard key={p.id} product={p} variant="row" />
                 ))}
               </div>
             </section>
@@ -741,9 +741,7 @@ export function CustomerDashboardPage() {
         }
         .dm-dash__arrivals .dm-dash__panel-head { margin-bottom: 20px; }
         .dm-dash__arrivals-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          gap: 16px;
+          width: 100%;
         }
         @media (max-width: 900px) {
           .dm-dash__snapshot { grid-template-columns: repeat(2, minmax(0, 1fr)); }

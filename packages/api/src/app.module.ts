@@ -24,6 +24,7 @@ import { CreditsModule } from './credits/credits.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { KycModule } from './kyc/kyc.module';
 import { MobileModule } from './mobile/mobile.module';
+import { MediaModule } from './media/media.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -51,6 +52,7 @@ import { HealthController } from './health.controller';
     CatalogModule,
     KycModule,
     MobileModule,
+    MediaModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

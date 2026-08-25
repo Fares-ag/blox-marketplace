@@ -11,33 +11,46 @@ import {
   startOfDay,
   startOfMonth,
 } from './date-utils';
-import { roundMoney } from './pricing';
+import { buildInstallmentAmounts, roundMoney, sumInstallmentAmounts } from './pricing';
 import { parseTenureToMonths } from './tenure';
 
 type PaymentStatus = PaymentScheduleRow['status'];
 
+function splitMonthlyAmountAcrossDays(monthAmount: number, dim: number): number[] {
+  if (dim <= 0) return [];
+  const totalMinor = Math.round(monthAmount * 100);
+  const regularMinor = Math.round((monthAmount / dim) * 100);
+  const amounts: number[] = [];
+  for (let d = 0; d < dim - 1; d += 1) {
+    amounts.push(regularMinor / 100);
+  }
+  amounts.push((totalMinor - regularMinor * (dim - 1)) / 100);
+  return amounts;
+}
+
 /**
- * Generate dynamic-rent or flat schedule rows (wizard + fallback).
- * Matches vercel InstallmentPlanStep.generateSchedule behavior.
+ * Generate fixed amortized schedule rows (wizard + fallback).
+ * Uses equal PMT-style installments via buildInstallmentAmounts.
  */
 export function generateInstallmentSchedule(args: {
-  monthlyPayment: number;
+  monthlyPayment?: number;
   startDate: Date;
   totalMonths: number;
   carValue?: number;
   downPayment?: number;
   annualRentalRate?: number;
+  annualRatePercent?: number;
   paymentInterval?: string;
   /** When true, past periods are 'due' not 'paid' (detail page fallback). */
   reviewMode?: boolean;
 }): PaymentScheduleRow[] {
   const {
-    monthlyPayment,
     startDate,
     totalMonths,
     carValue,
     downPayment,
     annualRentalRate,
+    annualRatePercent,
     paymentInterval,
     reviewMode = false,
   } = args;
@@ -47,9 +60,24 @@ export function generateInstallmentSchedule(args: {
   const intervalValue = (paymentInterval ?? 'Monthly').toString().trim().toLowerCase();
   const isDaily = intervalValue === 'daily';
 
-  const useDynamicRent =
-    carValue !== undefined && downPayment !== undefined && annualRentalRate !== undefined;
-  const loanAmount = useDynamicRent ? carValue - downPayment : 0;
+  const hasPricing =
+    carValue !== undefined && downPayment !== undefined && totalMonths > 0;
+  const ratePercent =
+    annualRatePercent ??
+    (annualRentalRate !== undefined ? annualRentalRate * 100 : undefined);
+
+  let installmentAmounts: number[] = [];
+  if (hasPricing && ratePercent !== undefined) {
+    installmentAmounts = buildInstallmentAmounts({
+      price: carValue,
+      downPayment,
+      annualRatePercent: ratePercent,
+      tenureMonths: totalMonths,
+    });
+  } else if (args.monthlyPayment && totalMonths > 0) {
+    const flat = roundMoney(args.monthlyPayment);
+    installmentAmounts = Array.from({ length: totalMonths }, () => flat);
+  }
 
   const statusFor = (
     dueDate: Date,
@@ -65,31 +93,23 @@ export function generateInstallmentSchedule(args: {
     return 'upcoming';
   };
 
+  /* Dynamic rent (declining payments) — disabled in favour of amortized_fixed.
+  const useDynamicRent =
+    carValue !== undefined && downPayment !== undefined && annualRentalRate !== undefined;
+  */
+
   if (isDaily) {
-    const rentPerDayRate = useDynamicRent ? annualRentalRate! / 365 : 0;
     let currentDate = startOfDay(startDate);
-    let totalPrincipalPaid = 0;
-    const principalPaymentPerMonth = useDynamicRent ? loanAmount / totalMonths : 0;
 
     for (let monthIndex = 0; monthIndex < totalMonths; monthIndex++) {
       const monthStart = startOfMonth(currentDate);
       const dim = daysInMonth(monthStart);
-      const principalPaymentPerDay = principalPaymentPerMonth / dim;
+      const monthAmount = installmentAmounts[monthIndex] ?? 0;
+      const dailyAmounts = splitMonthlyAmountAcrossDays(monthAmount, dim);
 
       for (let dayInMonth = 0; dayInMonth < dim; dayInMonth++) {
         const dueDate = addDays(monthStart, dayInMonth);
-        let paymentAmount = monthlyPayment;
-
-        if (useDynamicRent) {
-          const customerOwnership = downPayment! + totalPrincipalPaid;
-          const bloxOwnership = carValue! - customerOwnership;
-          const dailyRentForThisDay = bloxOwnership * rentPerDayRate;
-          paymentAmount = principalPaymentPerDay + dailyRentForThisDay;
-          totalPrincipalPaid += principalPaymentPerDay;
-        } else {
-          paymentAmount = monthlyPayment / dim;
-        }
-
+        const paymentAmount = dailyAmounts[dayInMonth] ?? 0;
         const status = statusFor(dueDate, 'day');
         const dueDateFormatted = formatDateYmd(dueDate);
 
@@ -106,21 +126,11 @@ export function generateInstallmentSchedule(args: {
     }
   } else {
     const firstDueDate = new Date(startDate);
-    const principalPaymentPerMonth = useDynamicRent ? loanAmount / totalMonths : 0;
-    const rentPerPeriodRate = useDynamicRent ? annualRentalRate! / 12 : 0;
 
     for (let i = 0; i < totalMonths; i++) {
       const dueDate = addMonths(firstDueDate, i);
       const dueDateFormatted = formatDateYmd(dueDate);
-
-      let paymentAmount = monthlyPayment;
-      if (useDynamicRent) {
-        const customerOwnership = downPayment! + principalPaymentPerMonth * i;
-        const bloxOwnership = carValue! - customerOwnership;
-        const monthlyRentForThisMonth = bloxOwnership * rentPerPeriodRate;
-        paymentAmount = principalPaymentPerMonth + monthlyRentForThisMonth;
-      }
-
+      const paymentAmount = installmentAmounts[i] ?? 0;
       const status = statusFor(dueDate, 'month');
 
       schedule.push({
@@ -145,16 +155,22 @@ export function generatePaymentScheduleFallback(args: {
   if (plan.schedule?.length) return plan.schedule;
 
   const tenureMonths = parseTenureToMonths(plan.tenure || '12 Months');
-  const monthlyAmount = plan.monthlyAmount || 0;
+  const listPrice = args.vehiclePrice ?? 0;
+  const downPayment = Number(plan.downPayment) || 0;
+  const ratePercent =
+    plan.annualRentalRate != null
+      ? plan.annualRentalRate <= 1
+        ? plan.annualRentalRate * 100
+        : plan.annualRentalRate
+      : 0;
   const startDate = addMonths(startOfMonth(new Date()), 1);
 
   return generateInstallmentSchedule({
-    monthlyPayment: monthlyAmount,
     startDate,
     totalMonths: tenureMonths,
-    carValue: args.vehiclePrice,
-    downPayment: plan.downPayment,
-    annualRentalRate: plan.annualRentalRate,
+    carValue: listPrice,
+    downPayment,
+    annualRatePercent: ratePercent,
     paymentInterval: plan.interval,
     reviewMode: true,
   });
@@ -236,24 +252,25 @@ export function buildPlanFromPricingSnapshot(args: {
 
   const startDate = addMonths(startOfMonth(new Date()), 1);
   const schedule = generateInstallmentSchedule({
-    monthlyPayment: monthly,
     startDate,
     totalMonths: tenor,
     carValue: listPrice,
     downPayment,
-    annualRentalRate: rate / 100,
+    annualRatePercent: rate,
     paymentInterval: args.interval ?? 'Monthly',
     reviewMode: true,
   });
 
+  const scheduleTotal = sumInstallmentAmounts(schedule.map((r) => Number(r.amount)));
+
   return {
     tenure: args.tenureLabel ?? `${tenor} Months`,
     interval: args.interval ?? 'Monthly',
-    monthlyAmount: monthly,
-    totalAmount: roundMoney(listPrice + (financedTotal - (monthly * tenor > 0 ? 0 : 0))),
+    monthlyAmount: schedule[0]?.amount ?? monthly,
+    totalAmount: roundMoney(downPayment + scheduleTotal),
     downPayment,
     schedule,
     annualRentalRate: rate / 100,
-    calculationMethod: 'dynamic_rent',
+    calculationMethod: 'amortized_fixed',
   };
 }

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
@@ -11,12 +11,14 @@ import {
   OpsListPage,
   OpsStatusPill,
   PageSkeleton,
+  UserCredentialsDialog,
   apiFetch,
   buildPaginationQuery,
   paginationWindow,
   useAuthStore,
   useOpsLabels,
   type AdminUser,
+  type AdminUserProvision,
   type PaginatedResponse,
 } from '@drivemarket/shared';
 
@@ -25,7 +27,10 @@ const PRIVILEGED_ROLES = ['admin', 'super_admin'];
 
 function assignableRoles(meRole?: string | null) {
   return ASSIGNABLE_ROLES.filter((r) => {
-    if (r === 'admin' || r === 'group_admin') return meRole === 'super_admin';
+    if (r === 'super_admin') return meRole === 'super_admin';
+    if (r === 'admin' || r === 'group_admin') {
+      return meRole === 'super_admin' || meRole === 'admin';
+    }
     return true;
   });
 }
@@ -36,6 +41,7 @@ function canManageUserAccess(
 ) {
   if (!me || target.id === me.id) return false;
   if (me.role === 'super_admin') return true;
+  if (me.role === 'admin') return target.role !== 'super_admin';
   return !PRIVILEGED_ROLES.includes(target.role);
 }
 
@@ -49,6 +55,30 @@ type UserDetail = AdminUser & {
   applications_count?: number;
 };
 
+function companyRequiredForRole(role: string) {
+  return role === 'dealer_agent' || role === 'group_admin';
+}
+
+function showsCreditFields(role: string) {
+  return role === 'credit_officer';
+}
+
+function showsFinanceFields(role: string) {
+  return role === 'finance_officer';
+}
+
+function filterCompaniesForRole(
+  companies: Array<{ id: string; name: string; kind?: string }>,
+  role: string,
+) {
+  return companies.filter((c) => {
+    const kind = c.kind;
+    if (role === 'group_admin') return kind === 'holding';
+    if (role === 'dealer_agent') return kind !== 'holding';
+    return true;
+  });
+}
+
 export function UsersPage() {
   const { t } = useOpsLabels();
   const qc = useQueryClient();
@@ -57,8 +87,32 @@ export function UsersPage() {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('dealer_agent');
+  const [companyId, setCompanyId] = useState('');
+  const [creditScope, setCreditScope] = useState('assigned');
+  const [financeScope, setFinanceScope] = useState('assigned');
+  const [creditCompanyIds, setCreditCompanyIds] = useState<string[]>([]);
+  const [financeCompanyIds, setFinanceCompanyIds] = useState<string[]>([]);
+  const [createdAccount, setCreatedAccount] = useState<AdminUserProvision | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+
+  const companies = useQuery({
+    queryKey: ['admin-companies-mini'],
+    queryFn: () =>
+      apiFetch<PaginatedResponse<{ id: string; name: string; kind?: string }>>(
+        '/api/companies/all?limit=100&offset=0',
+      ),
+  });
+  const companyItems = companies.data?.items ?? [];
+  const filteredCompanies = useMemo(
+    () => filterCompaniesForRole(companyItems, role),
+    [companyItems, role],
+  );
+
+  useEffect(() => {
+    if (!companyId) return;
+    if (!filteredCompanies.some((c) => c.id === companyId)) setCompanyId('');
+  }, [companyId, filteredCompanies]);
 
   const { data } = useQuery({
     queryKey: ['admin-users', page],
@@ -68,15 +122,33 @@ export function UsersPage() {
   const { from, to, total } = paginationWindow(data?.total ?? 0, page);
 
   const create = useMutation({
-    mutationFn: () =>
-      apiFetch('/api/users', {
+    mutationFn: () => {
+      if (companyRequiredForRole(role) && !companyId) {
+        throw new Error(t('ops.superAdmin.createUserCompanyRequired'));
+      }
+      return apiFetch<AdminUserProvision>('/api/users', {
         method: 'POST',
-        body: JSON.stringify({ email, name, role }),
-      }),
-    onSuccess: () => {
+        body: JSON.stringify({
+          email: email.trim(),
+          name: name.trim(),
+          role,
+          companyId: companyId || undefined,
+          creditScope: showsCreditFields(role) ? creditScope : undefined,
+          financeScope: showsFinanceFields(role) ? financeScope : undefined,
+          creditCompanyIds: showsCreditFields(role) ? creditCompanyIds : undefined,
+          financeCompanyIds: showsFinanceFields(role) ? financeCompanyIds : undefined,
+        }),
+      });
+    },
+    onSuccess: (account) => {
       setEmail('');
       setName('');
+      setCompanyId('');
+      setCreditCompanyIds([]);
+      setFinanceCompanyIds([]);
       setError(null);
+      setCreatedAccount(account);
+      toast.success(t('ops.superAdmin.createUserSuccess'));
       void qc.invalidateQueries({ queryKey: ['admin-users'] });
     },
     onError: (e: Error) => setError(e.message),
@@ -106,7 +178,7 @@ export function UsersPage() {
       subtitle={t('ops.superAdmin.usersSubtitle')}
       error={error ? <p style={{ color: 'var(--blox-danger)' }}>{error}</p> : undefined}
     >
-      <OpsFormSection title="Invite user">
+      <OpsFormSection title={t('ops.superAdmin.createUserTitle')}>
         <form className="blox-form" onSubmit={onCreate}>
           <label>
             {t('ops.col.email')}
@@ -126,13 +198,87 @@ export function UsersPage() {
               ))}
             </select>
           </label>
+          {(companyRequiredForRole(role) || role === 'admin') && (
+            <label>
+              Company
+              <select
+                value={companyId}
+                onChange={(e) => setCompanyId(e.target.value)}
+                required={companyRequiredForRole(role)}
+              >
+                <option value="">{companyRequiredForRole(role) ? 'Select company' : 'No company'}</option>
+                {filteredCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.kind === 'holding' ? ' (holding)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {showsCreditFields(role) && (
+            <>
+              <label>
+                {t('ops.superAdmin.creditScopeLabel')}
+                <select value={creditScope} onChange={(e) => setCreditScope(e.target.value)}>
+                  <option value="assigned">{t('ops.superAdmin.officerScopeAssigned')}</option>
+                  <option value="all">{t('ops.superAdmin.officerScopeAll')}</option>
+                </select>
+              </label>
+              <label>
+                {t('ops.superAdmin.creditCompaniesLabel')}
+                <select
+                  multiple
+                  value={creditCompanyIds}
+                  onChange={(e) =>
+                    setCreditCompanyIds(Array.from(e.target.selectedOptions, (opt) => opt.value))
+                  }
+                  size={Math.min(6, Math.max(3, companyItems.length))}
+                >
+                  {companyItems.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {showsFinanceFields(role) && (
+            <>
+              <label>
+                {t('ops.superAdmin.financeScopeLabel')}
+                <select value={financeScope} onChange={(e) => setFinanceScope(e.target.value)}>
+                  <option value="assigned">{t('ops.superAdmin.officerScopeAssigned')}</option>
+                  <option value="all">{t('ops.superAdmin.officerScopeAll')}</option>
+                </select>
+              </label>
+              <label>
+                {t('ops.superAdmin.financeCompaniesLabel')}
+                <select
+                  multiple
+                  value={financeCompanyIds}
+                  onChange={(e) =>
+                    setFinanceCompanyIds(Array.from(e.target.selectedOptions, (opt) => opt.value))
+                  }
+                  size={Math.min(6, Math.max(3, companyItems.length))}
+                >
+                  {companyItems.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
           <button type="submit" className="blox-btn blox-btn--primary" disabled={create.isPending}>
-            {create.isPending ? t('ops.common.saving') : 'Invite'}
+            {create.isPending ? t('ops.common.saving') : t('ops.superAdmin.createUserAction')}
           </button>
         </form>
       </OpsFormSection>
       <OpsDataTable
-        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), t('ops.col.status'), '']}
+        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), 'Company', t('ops.col.status'), '']}
         pagination={{
           from,
           to,
@@ -147,6 +293,7 @@ export function UsersPage() {
           </Link>,
           u.name,
           u.role,
+          u.company_name ?? '—',
           <OpsStatusPill
             key="s"
             label={u.is_active ? t('ops.superAdmin.active') : t('ops.superAdmin.suspended')}
@@ -180,6 +327,18 @@ export function UsersPage() {
             </span>
           ),
         ])}
+      />
+      <UserCredentialsDialog
+        open={!!createdAccount}
+        account={createdAccount}
+        title={t('ops.superAdmin.createUserSuccess')}
+        hint={t('ops.superAdmin.createUserCredentialsHint')}
+        passwordLabel={t('ops.superAdmin.createUserPasswordLabel')}
+        loginUrlLabel={t('ops.superAdmin.createUserLoginUrlLabel')}
+        copyAllLabel={t('ops.superAdmin.createUserCopyAll')}
+        copiedLabel={t('ops.superAdmin.createUserCopied')}
+        closeLabel={t('ops.common.close')}
+        onClose={() => setCreatedAccount(null)}
       />
       <ConfirmDialog
         open={!!confirm}

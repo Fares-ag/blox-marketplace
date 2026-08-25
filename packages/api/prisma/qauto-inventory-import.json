@@ -2,7 +2,9 @@
   "source": {
     "audi": "20260724000400_import_audi_price_list_skus.sql",
     "volkswagen": "20260803190000_qauto_brand_dealers_and_vw_inventory.sql",
-    "generated_at": "2026-08-23T07:32:55.989Z"
+    "generated_at": "2026-08-23T07:32:55.989Z",
+    "skoda": "generate-skoda-inventory.mjs (Skoda Qatar official specs)",
+    "skoda_generated_at": "2026-08-23T14:40:49.814Z"
   },
   "listings": [
     {
@@ -2054,6 +2056,2315 @@
           "id": "inventory_age_days",
           "name": "inventory_age_days",
           "value": "236"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-selection-1-4-tsi-black-magic-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Selection 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Black Magic Pearlescent",
+      "mileage": 0,
+      "price": 99900,
+      "description": "Skoda Karoq Selection 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-selection-1-4-tsi-black-magic-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-selection-1-4-tsi-steel-grey-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Selection 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Steel Grey",
+      "mileage": 0,
+      "price": 99900,
+      "description": "Skoda Karoq Selection 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-selection-1-4-tsi-steel-grey-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-selection-1-4-tsi-race-blue-metallic-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Selection 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Race Blue Metallic",
+      "mileage": 0,
+      "price": 99900,
+      "description": "Skoda Karoq Selection 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-selection-1-4-tsi-race-blue-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-selection-1-4-tsi-brilliant-silver-metallic-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Selection 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Brilliant Silver Metallic",
+      "mileage": 0,
+      "price": 99900,
+      "description": "Skoda Karoq Selection 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-selection-1-4-tsi-brilliant-silver-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-selection-1-4-tsi-graphite-grey-metallic-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Selection 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Graphite Grey Metallic",
+      "mileage": 0,
+      "price": 99900,
+      "description": "Skoda Karoq Selection 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-selection-1-4-tsi-graphite-grey-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-selection-1-4-tsi-moon-white-metallic-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Selection 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Moon White Metallic",
+      "mileage": 0,
+      "price": 99900,
+      "description": "Skoda Karoq Selection 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-selection-1-4-tsi-moon-white-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-sportline-1-4-tsi-black-magic-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Black Magic Pearlescent",
+      "mileage": 0,
+      "price": 127900,
+      "description": "Skoda Karoq Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-sportline-1-4-tsi-black-magic-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-sportline-1-4-tsi-graphite-grey-metallic-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Graphite Grey Metallic",
+      "mileage": 0,
+      "price": 127900,
+      "description": "Skoda Karoq Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-sportline-1-4-tsi-graphite-grey-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-sportline-1-4-tsi-velvet-red-metallic-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Velvet Red Metallic",
+      "mileage": 0,
+      "price": 127900,
+      "description": "Skoda Karoq Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-sportline-1-4-tsi-velvet-red-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-karoq-sportline-1-4-tsi-steel-grey-2026",
+      "make": "Skoda",
+      "model": "Karoq",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Steel Grey",
+      "mileage": 0,
+      "price": 127900,
+      "description": "Skoda Karoq Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "8-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.6"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "karoq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-karoq-sportline-1-4-tsi-steel-grey-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-sportline-1-4-tsi-brilliant-silver-metallic-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Brilliant Silver Metallic",
+      "mileage": 0,
+      "price": 176900,
+      "description": "Skoda Kodiaq Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "All Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-sportline-1-4-tsi-brilliant-silver-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-sportline-1-4-tsi-bronx-gold-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Bronx Gold Pearlescent",
+      "mileage": 0,
+      "price": 176900,
+      "description": "Skoda Kodiaq Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "All Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-sportline-1-4-tsi-bronx-gold-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-sportline-1-4-tsi-graphite-grey-metallic-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Graphite Grey Metallic",
+      "mileage": 0,
+      "price": 176900,
+      "description": "Skoda Kodiaq Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "All Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-sportline-1-4-tsi-graphite-grey-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-sportline-1-4-tsi-steel-grey-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Steel Grey",
+      "mileage": 0,
+      "price": 176900,
+      "description": "Skoda Kodiaq Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "All Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-sportline-1-4-tsi-steel-grey-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-selection-plus-2-0-tsi-black-magic-pearlescent-2025",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Selection Plus 2.0 TSI",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0 TSI",
+      "color": "Black Magic Pearlescent",
+      "mileage": 0,
+      "price": 173900,
+      "description": "Skoda Kodiaq Selection Plus 2.0 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "190"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "320"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "12.3"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "58"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-selection-plus-2-0-tsi-black-magic-pearlescent-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-selection-plus-2-0-tsi-graphite-grey-metallic-2025",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Selection Plus 2.0 TSI",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0 TSI",
+      "color": "Graphite Grey Metallic",
+      "mileage": 0,
+      "price": 173900,
+      "description": "Skoda Kodiaq Selection Plus 2.0 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "190"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "320"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "12.3"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "58"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-selection-plus-2-0-tsi-graphite-grey-metallic-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-selection-plus-2-0-tsi-brilliant-silver-metallic-2025",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Selection Plus 2.0 TSI",
+      "year": 2025,
+      "condition": "new",
+      "engine": "2.0 TSI",
+      "color": "Brilliant Silver Metallic",
+      "mileage": 0,
+      "price": 173900,
+      "description": "Skoda Kodiaq Selection Plus 2.0 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "190"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "320"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "12.3"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "58"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-selection-plus-2-0-tsi-brilliant-silver-metallic-2025"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-selection-loft-1-4-tsi-race-blue-metallic-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Selection Loft 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Race Blue Metallic",
+      "mileage": 0,
+      "price": 143900,
+      "description": "Skoda Kodiaq Selection Loft 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-selection-loft-1-4-tsi-race-blue-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-selection-loft-1-4-tsi-bronx-gold-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Selection Loft 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Bronx Gold Pearlescent",
+      "mileage": 0,
+      "price": 143900,
+      "description": "Skoda Kodiaq Selection Loft 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-selection-loft-1-4-tsi-bronx-gold-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-selection-plus-1-4-tsi-bronx-gold-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Selection Plus 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Bronx Gold Pearlescent",
+      "mileage": 0,
+      "price": 166900,
+      "description": "Skoda Kodiaq Selection Plus 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-selection-plus-1-4-tsi-bronx-gold-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-essence-1-4-tsi-steel-grey-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Essence 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Steel Grey",
+      "mileage": 0,
+      "price": 124900,
+      "description": "Skoda Kodiaq Essence 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-essence-1-4-tsi-steel-grey-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-essence-1-4-tsi-bronx-gold-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Essence 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Bronx Gold Pearlescent",
+      "mileage": 0,
+      "price": 124900,
+      "description": "Skoda Kodiaq Essence 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-essence-1-4-tsi-bronx-gold-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-selection-plus-nps-1-4-tsi-black-magic-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Selection Plus NPS 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Black Magic Pearlescent",
+      "mileage": 0,
+      "price": 163900,
+      "description": "Skoda Kodiaq Selection Plus NPS 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-selection-plus-nps-1-4-tsi-black-magic-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-essence-plus-1-4-tsi-moon-white-metallic-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Essence Plus 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Moon White Metallic",
+      "mileage": 0,
+      "price": 131900,
+      "description": "Skoda Kodiaq Essence Plus 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-essence-plus-1-4-tsi-moon-white-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-essence-plus-1-4-tsi-steel-grey-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Essence Plus 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Steel Grey",
+      "mileage": 0,
+      "price": 131900,
+      "description": "Skoda Kodiaq Essence Plus 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-essence-plus-1-4-tsi-steel-grey-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kodiaq-essence-plus-1-4-tsi-black-magic-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Kodiaq",
+      "trim": "Essence Plus 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Black Magic Pearlescent",
+      "mileage": 0,
+      "price": 131900,
+      "description": "Skoda Kodiaq Essence Plus 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "7"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed DSG"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "14.6"
+        },
+        {
+          "id": "fuel_tank_l",
+          "name": "fuel_tank_l",
+          "value": "55"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kodiaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kodiaq-essence-plus-1-4-tsi-black-magic-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kushaq-ambition-1-0-tsi-reflex-silver-metallic-2026",
+      "make": "Skoda",
+      "model": "Kushaq",
+      "trim": "Ambition 1.0 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.0 TSI",
+      "color": "Reflex Silver Metallic",
+      "mileage": 0,
+      "price": 69450,
+      "description": "Skoda Kushaq Ambition 1.0 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "114"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "175"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "6-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.8"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kushaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kushaq-ambition-1-0-tsi-reflex-silver-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kushaq-ambition-1-0-tsi-candy-white-2026",
+      "make": "Skoda",
+      "model": "Kushaq",
+      "trim": "Ambition 1.0 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.0 TSI",
+      "color": "Candy White",
+      "mileage": 0,
+      "price": 69450,
+      "description": "Skoda Kushaq Ambition 1.0 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "114"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "175"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "6-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.8"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kushaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kushaq-ambition-1-0-tsi-candy-white-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kushaq-ambition-1-0-tsi-carbon-steel-2026",
+      "make": "Skoda",
+      "model": "Kushaq",
+      "trim": "Ambition 1.0 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.0 TSI",
+      "color": "Carbon Steel",
+      "mileage": 0,
+      "price": 69450,
+      "description": "Skoda Kushaq Ambition 1.0 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "114"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "175"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "6-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.8"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kushaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kushaq-ambition-1-0-tsi-carbon-steel-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-kushaq-ambition-1-0-tsi-lava-blue-metallic-2026",
+      "make": "Skoda",
+      "model": "Kushaq",
+      "trim": "Ambition 1.0 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.0 TSI",
+      "color": "Lava Blue Metallic",
+      "mileage": 0,
+      "price": 69450,
+      "description": "Skoda Kushaq Ambition 1.0 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "SUV"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "114"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "175"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "6-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "16.8"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "kushaq"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-kushaq-ambition-1-0-tsi-lava-blue-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-octavia-rs-2-0-tsi-black-magic-pearlescent-2026",
+      "make": "Skoda",
+      "model": "Octavia",
+      "trim": "RS 2.0 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "2.0 TSI",
+      "color": "Black Magic Pearlescent",
+      "mileage": 0,
+      "price": 146900,
+      "description": "Skoda Octavia RS 2.0 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "265"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "370"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "7-speed automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "fuel_consumption_km_l",
+          "name": "fuel_consumption_km_l",
+          "value": "15.7"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "octavia"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-octavia-rs-2-0-tsi-black-magic-pearlescent-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-octavia-selection-1-4-tsi-graphite-grey-metallic-2026",
+      "make": "Skoda",
+      "model": "Octavia",
+      "trim": "Selection 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Graphite Grey Metallic",
+      "mileage": 0,
+      "price": 119900,
+      "description": "Skoda Octavia Selection 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "Automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "octavia"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-octavia-selection-1-4-tsi-graphite-grey-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-octavia-selection-1-4-tsi-moon-white-metallic-2026",
+      "make": "Skoda",
+      "model": "Octavia",
+      "trim": "Selection 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Moon White Metallic",
+      "mileage": 0,
+      "price": 119900,
+      "description": "Skoda Octavia Selection 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "Automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "octavia"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-octavia-selection-1-4-tsi-moon-white-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "skoda-octavia-sportline-1-4-tsi-moon-white-metallic-2026",
+      "make": "Skoda",
+      "model": "Octavia",
+      "trim": "Sportline 1.4 TSI",
+      "year": 2026,
+      "condition": "new",
+      "engine": "1.4 TSI",
+      "color": "Moon White Metallic",
+      "mileage": 0,
+      "price": 124900,
+      "description": "Skoda Octavia Sportline 1.4 TSI",
+      "image": null,
+      "attributes": [
+        {
+          "id": "body_style",
+          "name": "body_style",
+          "value": "Sedan"
+        },
+        {
+          "id": "seating_capacity",
+          "name": "seating_capacity",
+          "value": "5"
+        },
+        {
+          "id": "horsepower",
+          "name": "horsepower",
+          "value": "150"
+        },
+        {
+          "id": "torque_nm",
+          "name": "torque_nm",
+          "value": "250"
+        },
+        {
+          "id": "transmission",
+          "name": "transmission",
+          "value": "Automatic"
+        },
+        {
+          "id": "drive_type",
+          "name": "drive_type",
+          "value": "Front Wheel Drive"
+        },
+        {
+          "id": "model_family_key",
+          "name": "model_family_key",
+          "value": "octavia"
+        },
+        {
+          "id": "sku_key",
+          "name": "sku_key",
+          "value": "skoda-octavia-sportline-1-4-tsi-moon-white-metallic-2026"
+        },
+        {
+          "id": "stock_qty",
+          "name": "stock_qty",
+          "value": "1"
         }
       ]
     }

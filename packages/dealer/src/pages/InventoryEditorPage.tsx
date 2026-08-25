@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import {
   OpsFormPage,
   OpsFormSection,
@@ -65,23 +66,29 @@ export function InventoryEditorPage() {
 
   const save = useMutation({
     mutationFn: async () => {
+      if (!make.trim() || !model.trim()) {
+        throw new Error('Make and model are required.');
+      }
+      if (!Number.isFinite(price) || price < 1) {
+        throw new Error('Enter a price of at least QAR 1.');
+      }
       const body = {
-        make,
-        model,
-        trim: trim || undefined,
+        make: make.trim(),
+        model: model.trim(),
+        trim: trim.trim() || undefined,
         modelYear,
         price,
-        description,
+        description: description.trim() || undefined,
         condition,
-        engine: engine || undefined,
+        engine: engine.trim() || undefined,
         transmission: transmission || undefined,
-        cylinders: cylinders === '' ? undefined : Number(cylinders),
+        cylinders: cylinders === '' ? undefined : Math.trunc(Number(cylinders)),
         drivetrain: drivetrain || undefined,
         bodyType: bodyType || undefined,
-        color: color || undefined,
-        mileage: mileage === '' ? undefined : Number(mileage),
-        warrantyMonths: warrantyMonths === '' ? undefined : Number(warrantyMonths),
-        warrantyNotes: warrantyNotes || undefined,
+        color: color.trim() || undefined,
+        mileage: mileage === '' ? undefined : Math.trunc(Number(mileage)),
+        warrantyMonths: warrantyMonths === '' ? undefined : Math.trunc(Number(warrantyMonths)),
+        warrantyNotes: warrantyNotes.trim() || undefined,
         financeEligible,
       };
       if (isNew) {
@@ -100,19 +107,28 @@ export function InventoryEditorPage() {
       void qc.invalidateQueries({ queryKey: ['dealer-inventory'] });
       navigate(`/inventory/${row.id}`);
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      setError(e.message);
+      toast.error(e.message);
+    },
   });
 
   const publish = useMutation({
     mutationFn: () => apiFetch(`/api/dealer/inventory/${id}/publish`, { method: 'POST' }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['dealer-inventory'] }),
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      setError(e.message);
+      toast.error(e.message);
+    },
   });
 
   const unpublish = useMutation({
     mutationFn: () => apiFetch(`/api/dealer/inventory/${id}/unpublish`, { method: 'POST' }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['dealer-inventory'] }),
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      setError(e.message);
+      toast.error(e.message);
+    },
   });
 
   const inventoryBusy = save.isPending || publish.isPending || unpublish.isPending;

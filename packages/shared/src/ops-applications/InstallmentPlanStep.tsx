@@ -3,6 +3,7 @@ import { addMonths, startOfMonth } from '../lib/date-utils';
 import { formatMonthsToTenure } from '../lib/tenure';
 import { generateInstallmentSchedule } from '../lib/generate-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
+import { buildPricingSnapshot, sumInstallmentAmounts } from '../lib/pricing';
 import { formatQar, formatPercent } from '../lib/format';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsSelect } from '../ops-ui-v2/OpsField';
@@ -21,6 +22,7 @@ export type InstallmentPlanStepProps = {
 export function InstallmentPlanStep({
   vehiclePrice,
   offerRate,
+  minDownPct,
   tenureMonths,
   downPaymentPct,
   hideInterest,
@@ -30,52 +32,48 @@ export function InstallmentPlanStep({
   const [interval, setInterval] = useState<'Monthly' | 'Daily'>('Monthly');
 
   const plan = useMemo(() => {
-    const downPayment = (vehiclePrice * downPaymentPct) / 100;
-    const loanAmount = Math.max(vehiclePrice - downPayment, 0);
-    const annualRentalRate = offerRate / 100;
-    const principalPerMonth = tenureMonths > 0 ? loanAmount / tenureMonths : 0;
-    const initialRent = loanAmount * (annualRentalRate / 12);
-    const firstMonthPayment = principalPerMonth + initialRent;
+    const snapshot = buildPricingSnapshot({
+      listPrice: vehiclePrice,
+      annualRatePercent: offerRate,
+      minDownPaymentPct: minDownPct,
+      tenureMonths,
+      downPaymentPct,
+    });
+    const downPayment = snapshot.down_payment;
     const startDate = addMonths(startOfMonth(new Date()), 1);
 
     const schedule = generateInstallmentSchedule({
-      monthlyPayment: firstMonthPayment,
       startDate,
       totalMonths: tenureMonths,
       carValue: vehiclePrice,
       downPayment,
-      annualRentalRate,
+      annualRatePercent: offerRate,
       paymentInterval: interval,
       reviewMode: true,
     });
 
-    const financedTotal = schedule.reduce((s, r) => s + Number(r.amount), 0);
+    const financedTotal = sumInstallmentAmounts(schedule.map((r) => Number(r.amount)));
 
     const built: InstallmentPlan = {
       tenure: formatMonthsToTenure(tenureMonths),
       interval,
-      monthlyAmount:
-        schedule.find((r) => r.paymentType !== 'down_payment')?.amount ?? firstMonthPayment,
-      totalAmount: vehiclePrice + (financedTotal - loanAmount),
+      monthlyAmount: schedule[0]?.amount ?? snapshot.monthly,
+      totalAmount: downPayment + financedTotal,
       downPayment,
       schedule,
-      annualRentalRate,
-      calculationMethod: 'dynamic_rent',
+      annualRentalRate: offerRate / 100,
+      calculationMethod: 'amortized_fixed',
     };
 
     const pricingSnapshot = {
-      list_price: vehiclePrice,
-      down_payment: downPayment,
-      down_payment_pct: downPaymentPct,
-      tenor: tenureMonths,
-      rate: offerRate,
+      ...snapshot,
       monthly: built.monthlyAmount,
       financed_total: financedTotal,
       hide_interest: hideInterest,
     };
 
     return { plan: built, pricingSnapshot };
-  }, [vehiclePrice, offerRate, downPaymentPct, tenureMonths, interval, hideInterest]);
+  }, [vehiclePrice, offerRate, minDownPct, downPaymentPct, tenureMonths, interval, hideInterest]);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;

@@ -19,6 +19,7 @@ import {
   CompaniesPage,
   DashboardPage,
   SystemPage,
+  UserDetailPage,
   UsersPage,
 } from './pages';
 
@@ -54,6 +55,7 @@ function App() {
                 <Routes>
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/users" element={<UsersPage />} />
+                  <Route path="/users/:id" element={<UserDetailPage />} />
                   <Route path="/companies" element={<CompaniesPage />} />
                   <Route path="/activity-logs" element={<ActivityLogsPage />} />
                   <Route path="/system" element={<SystemPage />} />

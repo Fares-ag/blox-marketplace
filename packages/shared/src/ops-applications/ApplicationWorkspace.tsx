@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiFileUrl } from '../lib/api';
-import { applicationOpsPillVariant, scheduleOpsPillVariant } from '../config/status-styles';
+import { applicationOpsPillVariant } from '../config/status-styles';
 import { useAuthStore } from '../auth/auth-store';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { toast } from 'react-toastify';
@@ -10,6 +10,7 @@ import {
   HorizontalBarChart,
   OpsDetailGrid,
   OpsDetailPage,
+  OpsTextarea,
   PageSkeleton,
   SegmentedBarChart,
 } from '../ops-ui-v2';
@@ -18,7 +19,7 @@ import { calculateOwnershipTimeline } from '../lib/ownership';
 import { resolveDisplaySchedule } from '../lib/resolve-display-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
 import { InstallmentScheduleTable } from './InstallmentScheduleTable';
-import { OpsStatusPill } from '../components/ops-ui';
+import { OpsDangerButton, OpsGhostButton, OpsPrimaryButton, OpsSecondaryButton } from '../components/ops-ui';
 import type { OpsAgent, OpsAudience, OpsWorkspace } from './types';
 import { visibleWorkspaceActions } from './useApplicationActions';
 import { CustomerInfoOverview } from './CustomerInfoOverview';
@@ -46,7 +47,7 @@ export function ApplicationWorkspace({
   audience: OpsAudience;
   backTo: string;
 }) {
-  const { t, applicationStatus, scheduleStatus } = useOpsLabels();
+  const { t, applicationStatus } = useOpsLabels();
   const user = useAuthStore((s) => s.user);
   const role = user?.role;
   const qc = useQueryClient();
@@ -120,7 +121,10 @@ export function ApplicationWorkspace({
   const submit = useMutation({
     mutationFn: () => apiFetch(`/api/ops/applications/${id}/submit`, { method: 'POST' }),
     onSuccess: invalidate,
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      setError(e.message);
+      toast.error(e.message);
+    },
   });
   const compliance = useMutation({
     mutationFn: () => apiFetch(`/api/ops/applications/${id}/compliance-check`, { method: 'POST' }),
@@ -164,21 +168,6 @@ export function ApplicationWorkspace({
       setPayAmount(0);
       invalidate();
     },
-    onError: (e: Error) => setError(e.message),
-  });
-  const requestWaive = useMutation({
-    mutationFn: (payload: { scheduleId: string; reason: string }) =>
-      apiFetch(`/api/ops/payment-schedules/${payload.scheduleId}/waive/request`, {
-        method: 'POST',
-        body: JSON.stringify({ reason: payload.reason }),
-      }),
-    onSuccess: invalidate,
-    onError: (e: Error) => setError(e.message),
-  });
-  const confirmWaive = useMutation({
-    mutationFn: (scheduleId: string) =>
-      apiFetch(`/api/ops/payment-schedules/${scheduleId}/waive/confirm`, { method: 'POST', body: '{}' }),
-    onSuccess: invalidate,
     onError: (e: Error) => setError(e.message),
   });
   const uploadSignedContract = useMutation({
@@ -723,42 +712,44 @@ export function ApplicationWorkspace({
         </section>
       )}
 
-      <section className="blox-detail-section" style={{ maxWidth: 640 }}>
+      <section className="blox-detail-section blox-actions-panel">
         <h2 className="blox-panel__title">{t('ops.credit.actions')}</h2>
-        <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: '0.875rem' }}>
-          {t('ops.credit.reasonForReject')}
-          <input value={reason} onChange={(e) => setReason(e.target.value)} />
-        </label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+        <OpsTextarea
+          label={t('ops.credit.reasonForReject')}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          fullWidth
+        />
+        <div className="blox-actions-panel__buttons">
           {actions.submitToCredit && (
-            <button type="button" className="blox-btn blox-btn--primary" disabled={busy} onClick={() => submit.mutate()}>
+            <OpsPrimaryButton type="button" disabled={busy} onClick={() => submit.mutate()}>
               {t('ops.dealer.submitToCredit')}
-            </button>
+            </OpsPrimaryButton>
           )}
           {actions.approveContract && (
-            <button type="button" className="blox-btn blox-btn--primary" disabled={busy} onClick={() => approve.mutate()}>
+            <OpsPrimaryButton type="button" disabled={busy} onClick={() => approve.mutate()}>
               {t('ops.credit.approveSendContract')}
-            </button>
+            </OpsPrimaryButton>
           )}
           {actions.startContractReview && (
-            <button type="button" className="blox-btn blox-btn--secondary" disabled={busy} onClick={() => transition.mutate('contract_under_review')}>
+            <OpsSecondaryButton type="button" disabled={busy} onClick={() => transition.mutate('contract_under_review')}>
               {t('ops.credit.startContractReview')}
-            </button>
+            </OpsSecondaryButton>
           )}
           {actions.approveSignedContract && (
-            <button type="button" className="blox-btn blox-btn--secondary" disabled={busy} onClick={() => transition.mutate('pending_finance_activation')}>
+            <OpsSecondaryButton type="button" disabled={busy} onClick={() => transition.mutate('pending_finance_activation')}>
               {t('ops.credit.approveContract')}
-            </button>
+            </OpsSecondaryButton>
           )}
           {actions.requireDownPayment && (
-            <button type="button" className="blox-btn blox-btn--ghost" disabled={busy} onClick={() => transition.mutate('down_payment_required')}>
+            <OpsGhostButton type="button" disabled={busy} onClick={() => transition.mutate('down_payment_required')}>
               {t('ops.credit.requireDownPayment')}
-            </button>
+            </OpsGhostButton>
           )}
           {actions.activate && (
-            <button
+            <OpsPrimaryButton
               type="button"
-              className="blox-btn blox-btn--primary"
               disabled={busy}
               onClick={() =>
                 setConfirm({
@@ -769,12 +760,11 @@ export function ApplicationWorkspace({
               }
             >
               {t('ops.credit.activateFinancing')}
-            </button>
+            </OpsPrimaryButton>
           )}
           {actions.directActivate && data.allow_direct_activate && (
-            <button
+            <OpsGhostButton
               type="button"
-              className="blox-btn blox-btn--ghost"
               disabled={busy}
               onClick={() =>
                 setConfirm({
@@ -785,17 +775,16 @@ export function ApplicationWorkspace({
               }
             >
               {t('ops.credit.directActivate')}
-            </button>
+            </OpsGhostButton>
           )}
           {actions.requestResubmission && (
-            <button type="button" className="blox-btn blox-btn--secondary" disabled={busy} onClick={() => transition.mutate('resubmission_required')}>
+            <OpsSecondaryButton type="button" disabled={busy} onClick={() => transition.mutate('resubmission_required')}>
               {t('ops.credit.requestResubmission')}
-            </button>
+            </OpsSecondaryButton>
           )}
           {actions.reject && (
-            <button
+            <OpsDangerButton
               type="button"
-              className="blox-btn blox-btn--danger"
               disabled={busy}
               onClick={() =>
                 setConfirm({
@@ -806,27 +795,27 @@ export function ApplicationWorkspace({
               }
             >
               {t('ops.common.reject')}
-            </button>
+            </OpsDangerButton>
           )}
           {actions.reopen && (
-            <button type="button" className="blox-btn blox-btn--secondary" disabled={busy} onClick={() => transition.mutate('under_review')}>
+            <OpsSecondaryButton type="button" disabled={busy} onClick={() => transition.mutate('under_review')}>
               {t('ops.credit.reopen')}
-            </button>
+            </OpsSecondaryButton>
           )}
           {actions.recordDownPayment && data.status === 'down_payment_required' && (
-            <button type="button" className="blox-btn blox-btn--primary" onClick={() => downPay.mutate()}>
+            <OpsPrimaryButton type="button" onClick={() => downPay.mutate()}>
               {t('ops.finance.recordDownPayment')}
-            </button>
+            </OpsPrimaryButton>
           )}
           {actions.recordDownPayment && data.status === 'down_payment_submitted' && (
-            <button type="button" className="blox-btn blox-btn--primary" disabled={busy} onClick={() => transition.mutate('pending_finance_activation')}>
+            <OpsPrimaryButton type="button" disabled={busy} onClick={() => transition.mutate('pending_finance_activation')}>
               {t('ops.finance.confirmDownPayment')}
-            </button>
+            </OpsPrimaryButton>
           )}
           {actions.complianceCheck && (
-            <button type="button" className="blox-btn blox-btn--ghost" onClick={() => compliance.mutate()}>
+            <OpsGhostButton type="button" onClick={() => compliance.mutate()}>
               {t('ops.credit.complianceCheck')}
-            </button>
+            </OpsGhostButton>
           )}
         </div>
       </section>

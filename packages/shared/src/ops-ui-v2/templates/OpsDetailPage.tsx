@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { OpsPageHeader, OpsStatusPill } from '../../components/ops-ui';
+import { OpsStatusPill } from '../../components/ops-ui';
 import type { OpsPillVariant } from '../../config/status-styles';
 import { OpsTabs, OpsTab } from '../OpsTabs';
 
@@ -10,7 +10,7 @@ export function OpsDetailPage({
   title,
   idLabel,
   status,
-  statusVariant,
+  statusVariant: _statusVariant,
   headerActions,
   tabs,
   activeTab,

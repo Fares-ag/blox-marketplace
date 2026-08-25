@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Dialog, DialogActions, DialogContent, DialogTitle } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import {
   useAuthStore,
   apiFetch,
@@ -21,13 +23,18 @@ import {
   OpsSecondaryButton,
   OpsToolbar,
   FilterPanel,
+  OpsFormSection,
+  UserCredentialsDialog,
   useOpsLabels,
   type AdminUser,
+  type AdminUserProvision,
   type AdminCompany,
   type FilterConfig,
+  type PaginatedResponse,
 } from '@drivemarket/shared';
 
 export { DashboardPage, SuperAdminTypeChart } from './DashboardPage';
+export { UserDetailPage } from './UserDetailPage';
 
 type UserRow = AdminUser;
 const ASSIGNABLE_ROLES = [
@@ -36,8 +43,33 @@ const ASSIGNABLE_ROLES = [
   'credit_officer',
   'finance_officer',
   'admin',
+  'group_admin',
   'super_admin',
 ] as const;
+
+function companyRequiredForRole(role: string) {
+  return role === 'dealer_agent' || role === 'group_admin';
+}
+
+function showsCreditFields(role: string) {
+  return role === 'credit_officer';
+}
+
+function showsFinanceFields(role: string) {
+  return role === 'finance_officer';
+}
+
+function filterCompaniesForRole(
+  companies: Array<{ id: string; name: string; kind?: string }>,
+  role: string,
+) {
+  return companies.filter((c) => {
+    const kind = c.kind;
+    if (role === 'group_admin') return kind === 'holding';
+    if (role === 'dealer_agent') return kind !== 'holding';
+    return true;
+  });
+}
 
 export function UsersPage() {
   const { t } = useOpsLabels();
@@ -47,6 +79,33 @@ export function UsersPage() {
   const [roleEdit, setRoleEdit] = useState<{ id: string; role: string } | null>(null);
   const [page, setPage] = useState(0);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('dealer_agent');
+  const [companyId, setCompanyId] = useState('');
+  const [creditScope, setCreditScope] = useState('assigned');
+  const [financeScope, setFinanceScope] = useState('assigned');
+  const [creditCompanyIds, setCreditCompanyIds] = useState<string[]>([]);
+  const [financeCompanyIds, setFinanceCompanyIds] = useState<string[]>([]);
+  const [createdAccount, setCreatedAccount] = useState<AdminUserProvision | null>(null);
+
+  const companies = useQuery({
+    queryKey: ['sa-companies-mini'],
+    queryFn: () =>
+      apiFetch<PaginatedResponse<{ id: string; name: string; kind?: string }>>(
+        '/api/companies/all?limit=100&offset=0',
+      ),
+  });
+  const companyItems = companies.data?.items ?? [];
+  const filteredCompanies = useMemo(
+    () => filterCompaniesForRole(companyItems, role),
+    [companyItems, role],
+  );
+
+  useEffect(() => {
+    if (!companyId) return;
+    if (!filteredCompanies.some((c) => c.id === companyId)) setCompanyId('');
+  }, [companyId, filteredCompanies]);
 
   const { data, error } = useQuery({
     queryKey: ['sa-users', page],
@@ -55,6 +114,39 @@ export function UsersPage() {
   });
   const users = data?.items ?? [];
   const { from, to, total } = paginationWindow(data?.total ?? 0, page);
+
+  const create = useMutation({
+    mutationFn: () => {
+      if (companyRequiredForRole(role) && !companyId) {
+        throw new Error(t('ops.superAdmin.createUserCompanyRequired'));
+      }
+      return apiFetch<AdminUserProvision>('/api/users', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: email.trim(),
+          name: name.trim(),
+          role,
+          companyId: companyId || undefined,
+          creditScope: showsCreditFields(role) ? creditScope : undefined,
+          financeScope: showsFinanceFields(role) ? financeScope : undefined,
+          creditCompanyIds: showsCreditFields(role) ? creditCompanyIds : undefined,
+          financeCompanyIds: showsFinanceFields(role) ? financeCompanyIds : undefined,
+        }),
+      });
+    },
+    onSuccess: (account) => {
+      setEmail('');
+      setName('');
+      setCompanyId('');
+      setCreditCompanyIds([]);
+      setFinanceCompanyIds([]);
+      setActionError(null);
+      setCreatedAccount(account);
+      toast.success(t('ops.superAdmin.createUserSuccess'));
+      void qc.invalidateQueries({ queryKey: ['sa-users'] });
+    },
+    onError: (e) => setActionError((e as Error).message),
+  });
 
   const update = useMutation({
     mutationFn: (payload: { id: string; body: Record<string, unknown> }) =>
@@ -70,6 +162,11 @@ export function UsersPage() {
     onError: (e) => setActionError((e as Error).message),
   });
 
+  function onCreate(e: FormEvent) {
+    e.preventDefault();
+    create.mutate();
+  }
+
   return (
     <OpsListPage
       title={t('ops.superAdmin.usersTitle')}
@@ -81,8 +178,111 @@ export function UsersPage() {
         </>
       }
     >
+      <div style={{ maxWidth: 640, marginBottom: 24 }}>
+        <OpsContentCard staticHover>
+          <OpsFormSection title={t('ops.superAdmin.createUserTitle')}>
+            <form className="blox-form" onSubmit={onCreate}>
+              <label>
+                {t('ops.col.email')}
+                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </label>
+              <label>
+                {t('ops.col.name')}
+                <input required value={name} onChange={(e) => setName(e.target.value)} />
+              </label>
+              <label>
+                {t('ops.col.role')}
+                <select value={role} onChange={(e) => setRole(e.target.value)}>
+                  {ASSIGNABLE_ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {(companyRequiredForRole(role) || role === 'admin') && (
+                <label>
+                  Company
+                  <select
+                    value={companyId}
+                    onChange={(e) => setCompanyId(e.target.value)}
+                    required={companyRequiredForRole(role)}
+                  >
+                    <option value="">{companyRequiredForRole(role) ? 'Select company' : 'No company'}</option>
+                    {filteredCompanies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.kind === 'holding' ? ' (holding)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {showsCreditFields(role) && (
+                <>
+                  <label>
+                    {t('ops.superAdmin.creditScopeLabel')}
+                    <select value={creditScope} onChange={(e) => setCreditScope(e.target.value)}>
+                      <option value="assigned">{t('ops.superAdmin.officerScopeAssigned')}</option>
+                      <option value="all">{t('ops.superAdmin.officerScopeAll')}</option>
+                    </select>
+                  </label>
+                  <label>
+                    {t('ops.superAdmin.creditCompaniesLabel')}
+                    <select
+                      multiple
+                      value={creditCompanyIds}
+                      onChange={(e) =>
+                        setCreditCompanyIds(Array.from(e.target.selectedOptions, (opt) => opt.value))
+                      }
+                      size={Math.min(6, Math.max(3, companyItems.length))}
+                    >
+                      {companyItems.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+              {showsFinanceFields(role) && (
+                <>
+                  <label>
+                    {t('ops.superAdmin.financeScopeLabel')}
+                    <select value={financeScope} onChange={(e) => setFinanceScope(e.target.value)}>
+                      <option value="assigned">{t('ops.superAdmin.officerScopeAssigned')}</option>
+                      <option value="all">{t('ops.superAdmin.officerScopeAll')}</option>
+                    </select>
+                  </label>
+                  <label>
+                    {t('ops.superAdmin.financeCompaniesLabel')}
+                    <select
+                      multiple
+                      value={financeCompanyIds}
+                      onChange={(e) =>
+                        setFinanceCompanyIds(Array.from(e.target.selectedOptions, (opt) => opt.value))
+                      }
+                      size={Math.min(6, Math.max(3, companyItems.length))}
+                    >
+                      {companyItems.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+              <OpsPrimaryButton type="submit" disabled={create.isPending} style={{ marginTop: 12 }}>
+                {create.isPending ? t('ops.common.saving') : t('ops.superAdmin.createUserAction')}
+              </OpsPrimaryButton>
+            </form>
+          </OpsFormSection>
+        </OpsContentCard>
+      </div>
       <OpsDataTable
-        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), t('ops.col.status'), '']}
+        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), 'Company', t('ops.col.status'), '']}
         pagination={{
           from,
           to,
@@ -92,7 +292,9 @@ export function UsersPage() {
         }}
         empty={<OpsEmptyState title={t('ops.superAdmin.noUsers')} body="" />}
         rows={users.map((u) => [
-          u.email,
+          <Link key="e" to={`/users/${u.id}`}>
+            {u.email}
+          </Link>,
           u.name,
           roleEdit?.id === u.id ? (
             <span key="r" style={{ display: 'inline-flex', gap: 6 }}>
@@ -147,6 +349,7 @@ export function UsersPage() {
               )}
             </span>
           ),
+          u.company_name ?? '—',
           <OpsStatusPill
             key="s"
             label={u.is_active ? t('ops.superAdmin.active') : t('ops.superAdmin.suspended')}
@@ -174,6 +377,18 @@ export function UsersPage() {
             <span key="b" style={{ fontSize: '0.75rem', opacity: 0.6 }}>{t('ops.common.you')}</span>
           ),
         ])}
+      />
+      <UserCredentialsDialog
+        open={!!createdAccount}
+        account={createdAccount}
+        title={t('ops.superAdmin.createUserSuccess')}
+        hint={t('ops.superAdmin.createUserCredentialsHint')}
+        passwordLabel={t('ops.superAdmin.createUserPasswordLabel')}
+        loginUrlLabel={t('ops.superAdmin.createUserLoginUrlLabel')}
+        copyAllLabel={t('ops.superAdmin.createUserCopyAll')}
+        copiedLabel={t('ops.superAdmin.createUserCopied')}
+        closeLabel={t('ops.common.close')}
+        onClose={() => setCreatedAccount(null)}
       />
       <ConfirmDialog
         open={!!confirm}
@@ -320,6 +535,18 @@ export function CompaniesPage() {
   );
 }
 
+type ActivityLogRow = {
+  id: string;
+  actor_email: string | null;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  from_value: string | null;
+  to_value: string | null;
+  created_at: string;
+  metadata?: unknown;
+};
+
 export function ActivityLogsPage() {
   const [page, setPage] = useState(0);
   const [entityType, setEntityType] = useState('');
@@ -351,7 +578,7 @@ export function ActivityLogsPage() {
         }>;
       }>(`/api/ops/activity-logs?${qs}`),
   });
-  const [selected, setSelected] = useState<(typeof data extends infer _T ? any : never) | null>(null);
+  const [selected, setSelected] = useState<ActivityLogRow | null>(null);
   const { from, to, total } = paginationWindow(data?.total ?? 0, page);
   const filterConfigs: FilterConfig[] = [
     { id: 'actorEmail', label: 'Actor email', type: 'text' },
@@ -473,6 +700,36 @@ export function SystemPage() {
             }
           >
             Seed finance partners
+          </OpsSecondaryButton>
+          <OpsSecondaryButton
+            type="button"
+            onClick={() =>
+              apiFetch('/api/ops/bootstrap-qauto', { method: 'POST' })
+                .then((r) => setSeedMsg(JSON.stringify(r)))
+                .catch((e: Error) => setSeedMsg(e.message))
+            }
+          >
+            Bootstrap QAuto companies
+          </OpsSecondaryButton>
+          <OpsSecondaryButton
+            type="button"
+            onClick={() =>
+              apiFetch('/api/ops/seed-qauto-inventory', { method: 'POST' })
+                .then((r) => setSeedMsg(JSON.stringify(r)))
+                .catch((e: Error) => setSeedMsg(e.message))
+            }
+          >
+            Seed QAuto inventory
+          </OpsSecondaryButton>
+          <OpsSecondaryButton
+            type="button"
+            onClick={() =>
+              apiFetch('/api/ops/upload-qauto-listing-images', { method: 'POST' })
+                .then((r) => setSeedMsg(JSON.stringify(r)))
+                .catch((e: Error) => setSeedMsg(e.message))
+            }
+          >
+            Upload QAuto listing images
           </OpsSecondaryButton>
         </div>
       </section>

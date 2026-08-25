@@ -71,7 +71,10 @@ export class CatalogService {
   }
 
   private async paged(
-    model: { findMany: Function; count: Function },
+    model: {
+      findMany: (args: { orderBy: { createdAt: 'desc' }; take: number; skip: number }) => Promise<unknown[]>;
+      count: () => Promise<number>;
+    },
     query: PaginationQueryDto,
   ) {
     const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
@@ -82,7 +85,7 @@ export class CatalogService {
     return toPaginatedResponse(items, total, limit, offset);
   }
 
-  private async one(model: { findUnique: Function }, id: string) {
+  private async one(model: { findUnique: (args: { where: { id: string } }) => Promise<unknown | null> }, id: string) {
     const row = await model.findUnique({ where: { id } });
     if (!row) throw new NotFoundException();
     return row;

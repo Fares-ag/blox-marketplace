@@ -9,6 +9,7 @@ export type MailTemplate =
   | 'password_reset'
   | 'email_verification'
   | 'walk_in_invite'
+  | 'staff_account_created'
   | 'transactional';
 
 export type MailInput = {
@@ -36,6 +37,7 @@ const AUTH_CRITICAL_TEMPLATES = new Set<MailTemplate>([
   'password_reset',
   'email_verification',
   'walk_in_invite',
+  'staff_account_created',
 ]);
 
 const MAX_OUTBOX_ATTEMPTS = 5;
@@ -331,6 +333,22 @@ export class MailService {
         `If this wasn't you, contact the dealer or ignore this email.`,
       template: 'walk_in_invite',
       payload: { url, dealerName },
+      authCritical: true,
+    });
+  }
+
+  async sendStaffAccountCreatedEmail(to: string, name: string, loginUrl: string): Promise<void> {
+    await this.send({
+      to,
+      subject: 'Your Blox account is ready',
+      text:
+        `Hi ${name},\n\n` +
+        `An administrator created your Blox account. Sign in here:\n${loginUrl}\n\n` +
+        `Use the email and temporary password shared with you by your administrator. ` +
+        `Change your password after your first sign-in.\n\n` +
+        `If you were not expecting this account, contact your administrator.`,
+      template: 'staff_account_created',
+      payload: { name, loginUrl },
       authCritical: true,
     });
   }

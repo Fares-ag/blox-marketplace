@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import { apiFetch } from '../lib/api';
 import { buildPricingSnapshot } from '../lib/pricing';
+import { clampTenureMonths, MAX_TENURE_MONTHS, MIN_TENURE_MONTHS } from '../lib/tenure';
 import { useAuthStore } from '../auth/auth-store';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsPageHeader } from '../components/ops-ui';
@@ -22,8 +24,6 @@ import {
   validateCustomerInfo,
   type CustomerInfoFormValue,
 } from './customer-info';
-
-const STEPS = ['customer', 'vehicle', 'deal', 'offer', 'plan', 'documents', 'review'] as const;
 
 type VehicleOption = {
   id: string;
@@ -151,6 +151,7 @@ export function AddApplicationWizard({
   const isAdmin = audience === 'admin' || audience === 'super_admin';
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const createIdempotencyKey = useRef(`ops-app-${crypto.randomUUID()}`);
 
   const initialData: WizardData = useMemo(
     () => ({
@@ -308,7 +309,6 @@ export function AddApplicationWizard({
         const selectedVehicles = vehicleItems.filter((v) => data.productIds.includes(v.id));
         const primaryVehicle = selectedVehicles[0];
         const offer = (offers.data?.items ?? []).find((o) => o.id === data.offerId);
-        const tenures = Array.isArray(offer?.tenure_options) ? (offer?.tenure_options as number[]) : [12, 24, 36, 48, 60];
         const minDown = Number(offer?.min_down_payment_pct ?? 10);
         const rate = Number(offer?.annual_rent_rate ?? 0);
         const priceForPlan = data.sellingPrice || data.listPrice || Number(primaryVehicle?.price ?? 0);
@@ -327,15 +327,14 @@ export function AddApplicationWizard({
         return (
           <OpsFormSection title={t('ops.wizard.step.plan')}>
             <OpsFormGrid>
-              <OpsSelect
+              <OpsField
                 label={t('ops.credit.tenure')}
-                value={String(data.tenure)}
-                onChange={(e) => updateData({ tenure: Number(e.target.value) })}
-              >
-                {tenures.map((n) => (
-                  <option key={n} value={n}>{t('ops.common.months', { count: n })}</option>
-                ))}
-              </OpsSelect>
+                type="number"
+                min={MIN_TENURE_MONTHS}
+                max={MAX_TENURE_MONTHS}
+                value={data.tenure}
+                onChange={(e) => updateData({ tenure: clampTenureMonths(Number(e.target.value)) })}
+              />
               <OpsField
                 label={t('ops.wizard.downPaymentPct')}
                 type="number"
@@ -412,6 +411,7 @@ export function AddApplicationWizard({
   ];
 
   async function onSubmit(data: WizardData) {
+    if (busy) return;
     if (!data.planPricingSnapshot || !data.installmentPlan || !data.offerId || data.productIds.length === 0) return;
 
     const validationError = validateCustomerInfo(data.customerInfo);
@@ -426,23 +426,27 @@ export function AddApplicationWizard({
     try {
       const customerSnapshot = buildCustomerSnapshot(data.customerInfo);
       const docCategories = docCategoriesForApplicant(data.customerInfo.applicantType);
-      const created = await apiFetch<{ id: string; created_ids?: string[] }>('/api/ops/applications', {
-        method: 'POST',
-        body: JSON.stringify({
-          productId: data.productIds[0],
-          productIds: data.customerInfo.applicantType === 'corporate' ? data.productIds : undefined,
-          offerId: data.offerId,
-          customerSnapshot,
-          pricingSnapshot: data.planPricingSnapshot,
-          installmentPlan: data.installmentPlan,
-          agentUserId: data.agentUserId || undefined,
-          listPrice: data.listPrice,
-          sellingPrice: data.sellingPrice,
-          hideInterest: data.hideInterest,
-          companyId: isAdmin ? data.companyId || undefined : undefined,
-          submit: isAdmin ? data.submitOnCreate : true,
-        }),
-      });
+      const created = await apiFetch<{ id: string; created_ids?: string[] }>(
+        '/api/ops/applications',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            productId: data.productIds[0],
+            productIds: data.customerInfo.applicantType === 'corporate' ? data.productIds : undefined,
+            offerId: data.offerId,
+            customerSnapshot,
+            pricingSnapshot: data.planPricingSnapshot,
+            installmentPlan: data.installmentPlan,
+            agentUserId: data.agentUserId || undefined,
+            listPrice: data.listPrice,
+            sellingPrice: data.sellingPrice,
+            hideInterest: data.hideInterest,
+            companyId: isAdmin ? data.companyId || undefined : undefined,
+            submit: isAdmin ? data.submitOnCreate : true,
+          }),
+        },
+        { idempotencyKey: createIdempotencyKey.current },
+      );
 
       const ids = created.created_ids?.length ? created.created_ids : [created.id];
 
@@ -459,7 +463,9 @@ export function AddApplicationWizard({
 
       navigate(`${detailBase}/${ids[0]}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('ops.wizard.submitFailed'));
+      const message = err instanceof Error ? err.message : t('ops.wizard.submitFailed');
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -468,12 +474,17 @@ export function AddApplicationWizard({
   return (
     <div className="blox-page">
       <OpsPageHeader title={t('ops.wizard.newApplication')} subtitle={t('ops.wizard.step.customer')} />
-      {error && <p style={{ color: 'var(--blox-danger)' }}>{error}</p>}
+      {error && (
+        <div className="blox-form-error blox-form-grid__full" role="alert">
+          {error}
+        </div>
+      )}
       <OpsContentCard staticHover>
         <MultiStepForm
           steps={steps}
           initialData={initialData}
           onSubmit={onSubmit}
+          isSubmitting={busy}
         />
         {busy && <p style={{ marginTop: 8 }}>{t('ops.common.saving')}</p>}
       </OpsContentCard>

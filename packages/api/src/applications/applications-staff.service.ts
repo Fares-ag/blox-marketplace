@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -143,6 +144,15 @@ export class ApplicationsStaffService {
         product.listingStatus === ListingStatus.archived
       ) {
         throw new BadRequestException('listing_not_available');
+      }
+
+      if (initialStatus !== ApplicationStatus.draft) {
+        if (product.listingStatus === ListingStatus.reserved) {
+          throw new ConflictException('vehicle_unavailable');
+        }
+        if (product.listingStatus !== ListingStatus.published) {
+          throw new BadRequestException('listing_not_available');
+        }
       }
 
       const listPrice = Number(dto.listPrice ?? product.price);

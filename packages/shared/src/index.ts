@@ -3,6 +3,7 @@ export { bloxTokens, bloxMeta, bloxSpacing, bloxRadius, bloxElevation, bloxMotio
 export { chartPalette, chartColors, chartColorAt } from './config/chart-palette';
 export { applicationStatusStyles, listingStatusStyles, applicationStatusLabel, listingStatusLabel, applicationOpsPillVariant, applicationMarketplacePillVariant, listingOpsPillVariant, scheduleOpsPillVariant, type OpsPillVariant, type MarketplacePillVariant } from './config/status-styles';
 export { apiFetch, ApiError, getApiBase, apiUrl, apiFileUrl, resolveListingImageUrl, assertApiBaseConfigured, registerUnauthorizedHandler, resetUnauthorizedLatch, DEFAULT_PAGE_SIZE, buildPaginationQuery, paginationWindow } from './lib/api';
+export { listingImageMediaPath } from './lib/listing-image-url';
 export { createQueryClient } from './lib/query-client';
 export { mountPortalApp, AuthBootstrap } from './lib/app-bootstrap';
 export { initAppSentry } from './lib/sentry';
@@ -37,7 +38,15 @@ export {
   getCustomerFacingPrice,
   getCustomerFacingRatePercent,
 } from './lib/deal-pricing';
-export { parseTenureToMonths, formatMonthsToTenure } from './lib/tenure';
+export {
+  parseTenureToMonths,
+  formatMonthsToTenure,
+  MIN_TENURE_MONTHS,
+  MAX_TENURE_MONTHS,
+  TENURE_PRESET_MONTHS,
+  clampTenureMonths,
+  isTenureInRange,
+} from './lib/tenure';
 export {
   generateInstallmentSchedule,
   generatePaymentScheduleFallback,
@@ -102,6 +111,7 @@ export type {
   Company,
   NotificationItem,
   AdminUser,
+  AdminUserProvision,
   AdminCompany,
   DealerInventoryItem,
   DealerQuoteItem,
@@ -131,6 +141,7 @@ export {
   exportToCSV,
   exportToJSON,
   ConfirmDialog,
+  UserCredentialsDialog,
   EmptyState,
   StatusBadge,
   SearchBar,

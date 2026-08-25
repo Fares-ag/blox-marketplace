@@ -22,6 +22,7 @@ interface MultiStepFormProps<TData = any> {
   initialData?: TData;
   onSubmit: (data: TData) => void | Promise<void>;
   onCancel?: () => void;
+  isSubmitting?: boolean;
 }
 
 export const MultiStepForm: React.FC<MultiStepFormProps> = ({
@@ -29,6 +30,7 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   initialData = {} as any,
   onSubmit,
   onCancel,
+  isSubmitting = false,
 }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState<any>(initialData);
@@ -50,6 +52,7 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     try {
       await onSubmit(formData);
     } catch (error: unknown) {
@@ -96,11 +99,11 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
             </CustomButton>
           )}
           {!isLastStep ? (
-            <CustomButton variant="primary" onClick={handleNext}>
+            <CustomButton variant="primary" disabled={isSubmitting} onClick={handleNext}>
               Next
             </CustomButton>
           ) : (
-            <CustomButton variant="primary" onClick={handleSubmit}>
+            <CustomButton variant="primary" disabled={isSubmitting} loading={isSubmitting} onClick={handleSubmit}>
               Submit
             </CustomButton>
           )}

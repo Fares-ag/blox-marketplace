@@ -13,7 +13,7 @@ describe('resolveDisplaySchedule', () => {
       { dueDate: '2026-02-01', amount: 1000, status: 'upcoming' },
       { dueDate: '2026-03-01', amount: 1000, status: 'upcoming' },
     ],
-    calculationMethod: 'dynamic_rent',
+    calculationMethod: 'amortized_fixed',
   };
 
   it('returns plan rows when pre-active and no live schedules', () => {

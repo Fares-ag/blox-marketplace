@@ -1,5 +1,4 @@
-import type { UserRole } from '../types/domain';
-import type { ApplicationStatus } from '../types/domain';
+import type { ApplicationStatus, UserRole } from '../types/domain';
 
 export function isFullAdminRole(role?: UserRole | null) {
   return role === 'admin' || role === 'super_admin';

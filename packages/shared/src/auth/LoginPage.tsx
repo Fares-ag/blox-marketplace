@@ -195,7 +195,7 @@ interface RegisterPageProps {
 }
 
 export function RegisterPage({
-  homePath = '/app/dashboard',
+  homePath: _homePath = '/app/dashboard',
   brandName = bloxMeta.name,
   tagline = bloxMeta.tagline,
 }: RegisterPageProps) {

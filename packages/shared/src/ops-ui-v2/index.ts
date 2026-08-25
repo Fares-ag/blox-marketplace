@@ -37,6 +37,7 @@ export { OpsTabs, OpsTab } from './OpsTabs';
 export { OpsToolbar } from './OpsToolbar';
 export { OpsMetricRow, type OpsMetricItem } from './OpsMetricRow';
 export { OpsFormSection } from './OpsFormSection';
+export { UserCredentialsDialog } from './UserCredentialsDialog';
 export { OpsField, OpsSelect, OpsTextarea, OpsFormGrid, OpsContentCard } from './OpsField';
 export { OwnershipBar } from './OwnershipBar';
 export { OpsListPage } from './templates/OpsListPage';

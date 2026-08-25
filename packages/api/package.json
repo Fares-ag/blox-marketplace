@@ -20,7 +20,10 @@
     "db:backfill-installment-plan": "tsx scripts/backfill-installment-plan.ts",
     "bootstrap:qauto": "tsx scripts/bootstrap-qauto.ts",
     "seed:qauto-inventory": "tsx scripts/seed-qauto-inventory.ts",
+    "seed:qauto": "tsx scripts/run-qauto-seed.mjs",
+    "seed:qauto:production": "node scripts/seed-qauto-production.mjs",
     "upload:qauto-images": "tsx scripts/upload-qauto-listing-images.ts",
+    "upload:qauto:production": "node scripts/upload-qauto-images-production.mjs",
     "generate:qauto-import": "node scripts/generate-qauto-import-json.mjs"
   },
   "prisma": {

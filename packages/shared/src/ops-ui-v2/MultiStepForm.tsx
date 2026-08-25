@@ -21,12 +21,14 @@ export function MultiStepForm<TData extends Record<string, unknown>>({
   onSubmit,
   onCancel,
   canAdvance,
+  isSubmitting = false,
 }: {
   steps: StepConfig<TData>[];
   initialData: TData;
   onSubmit: (data: TData) => void | Promise<void>;
   onCancel?: () => void;
   canAdvance?: (step: number, data: TData) => boolean;
+  isSubmitting?: boolean;
 }) {
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState<TData>(initialData);
@@ -67,12 +69,16 @@ export function MultiStepForm<TData extends Record<string, unknown>>({
             <Button onClick={() => setActiveStep((s) => s - 1)}>Previous</Button>
           )}
           {!isLastStep ? (
-            <Button variant="contained" disabled={!allowed} onClick={() => setActiveStep((s) => s + 1)}>
+            <Button variant="contained" disabled={!allowed || isSubmitting} onClick={() => setActiveStep((s) => s + 1)}>
               Next
             </Button>
           ) : (
-            <Button variant="contained" disabled={!allowed} onClick={() => void onSubmit(formData)}>
-              Submit
+            <Button
+              variant="contained"
+              disabled={!allowed || isSubmitting}
+              onClick={() => void onSubmit(formData)}
+            >
+              {isSubmitting ? 'Submitting…' : 'Submit'}
             </Button>
           )}
         </Box>

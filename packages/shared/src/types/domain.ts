@@ -317,9 +317,22 @@ export interface AdminUser {
   name: string | null;
   role: UserRole;
   company_id: string | null;
+  company_name?: string | null;
   is_active: boolean;
   email_verified: boolean;
   created_at: string;
+}
+
+export interface AdminUserProvision {
+  id: string;
+  email: string;
+  name: string | null;
+  role: UserRole;
+  company_id: string | null;
+  company_name?: string | null;
+  is_active: boolean;
+  temporary_password: string;
+  login_url: string;
 }
 
 export interface AdminCompany {

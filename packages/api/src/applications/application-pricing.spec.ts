@@ -22,24 +22,44 @@ describe('buildApplicationPricingSnapshot', () => {
     expect(snap.tenor).toBe(36);
   });
 
-  it('rejects tenure not in offer.tenureOptions', () => {
+  it('accepts any tenure in platform range 1–60', () => {
+    const snap = buildApplicationPricingSnapshot({
+      listPrice: 100_000,
+      offer: sampleOffer,
+      pricingSnapshot: { tenor: 7 },
+    });
+    expect(snap.tenor).toBe(7);
+  });
+
+  it('rejects tenure outside platform range', () => {
     expect(() =>
       buildApplicationPricingSnapshot({
         listPrice: 100_000,
         offer: sampleOffer,
-        pricingSnapshot: { tenor: 12 },
+        pricingSnapshot: { tenor: 0 },
+      }),
+    ).toThrow('invalid_tenure');
+    expect(() =>
+      buildApplicationPricingSnapshot({
+        listPrice: 100_000,
+        offer: sampleOffer,
+        pricingSnapshot: { tenor: 61 },
       }),
     ).toThrow('invalid_tenure');
   });
 });
 
 describe('assertTenureAllowed', () => {
-  it('accepts allowed tenure values', () => {
-    expect(() => assertTenureAllowed(36, [24, 36, 48])).not.toThrow();
+  it('accepts tenure values in 1–60 range', () => {
+    expect(() => assertTenureAllowed(1, [])).not.toThrow();
+    expect(() => assertTenureAllowed(7, [])).not.toThrow();
+    expect(() => assertTenureAllowed(36, [])).not.toThrow();
+    expect(() => assertTenureAllowed(60, [])).not.toThrow();
   });
 
-  it('rejects disallowed tenure values', () => {
-    expect(() => assertTenureAllowed(60, [24, 36, 48])).toThrow('invalid_tenure');
+  it('rejects tenure outside range', () => {
+    expect(() => assertTenureAllowed(0, [])).toThrow('invalid_tenure');
+    expect(() => assertTenureAllowed(61, [])).toThrow('invalid_tenure');
   });
 });
 

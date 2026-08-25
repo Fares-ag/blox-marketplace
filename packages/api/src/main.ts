@@ -2,14 +2,18 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { toNodeHandler } from 'better-auth/node';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import path from 'node:path';
-import { AppModule } from './app.module';import { AUTH_INSTANCE } from './auth/auth.constants';
+import { AppModule } from './app.module';
+import { AUTH_INSTANCE } from './auth/auth.constants';
 import { applySecurityMiddleware } from './common/security-middleware';
 import { applyRequestIdMiddleware, RequestIdLogger } from './common/request-id';
 import { applyMulterErrorMiddleware } from './common/multer-error.middleware';
 import { initApiSentry } from './observability/sentry';
 import { AppConfigService } from './config/app-config.service';
+import { StorageService } from './storage/storage.service';
+import { serveListingImageRequest } from './media/listing-image.handler';
+import { serveCatalogImageRequest } from './media/catalog-image.handler';
 
 initApiSentry();
 
@@ -36,6 +40,14 @@ async function bootstrap() {
 
   // Express 5: named wildcard required (bare `*` throws PathError)
   expressApp.all('/api/auth/*path', (req: Request, res: Response) => handler(req, res));
+
+  const storage = app.get(StorageService);
+  expressApp.get('/api/v1/media/listings/*path', (req: Request, res: Response, next: NextFunction) => {
+    void serveListingImageRequest(storage, req, res).catch(next);
+  });
+  expressApp.get('/api/v1/media/catalog/:filename', (req: Request, res: Response, next: NextFunction) => {
+    void serveCatalogImageRequest(req, res).catch(next);
+  });
 
   // Re-enable JSON body parser for Nest routes (auth handler reads its own body)
   // eslint-disable-next-line @typescript-eslint/no-require-imports

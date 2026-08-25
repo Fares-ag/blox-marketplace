@@ -7,6 +7,7 @@ import { ListingStatus, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { ProductsService } from '../products/products.service';
+import { CustomerPaymentsService } from '../payments/customer-payments.service';
 import { CreditsService } from '../credits/credits.service';
 
 type Calculator = {
@@ -26,6 +27,7 @@ export class MobileService {
     private readonly prisma: PrismaService,
     private readonly apps: ApplicationsService,
     private readonly products: ProductsService,
+    private readonly customerPayments: CustomerPaymentsService,
     private readonly credits: CreditsService,
   ) {}
 
@@ -232,13 +234,7 @@ export class MobileService {
   }
 
   async paymentsHub(user: User) {
-    const schedules = await this.prisma.paymentSchedule.findMany({
-      where: { application: { customerUserId: user.id } },
-      include: { application: { select: { id: true, status: true, productId: true } } },
-      orderBy: { dueDate: 'asc' },
-    });
-    const credits = await this.credits.getBalance(user);
-    return { schedules, credits };
+    return this.customerPayments.paymentsHub(user);
   }
 
   async registerDeviceToken(user: User, input: { platform: string; fcmToken: string; appVersion?: string }) {

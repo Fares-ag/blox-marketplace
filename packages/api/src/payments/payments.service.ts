@@ -1161,8 +1161,6 @@ function startOfTodayUtc(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-const ZERO = new Prisma.Decimal(0);
-
 type LockedScheduleRow = {
   id: string;
   applicationId: string;

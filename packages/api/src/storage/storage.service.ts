@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -126,8 +127,35 @@ export class StorageService implements OnModuleInit {
     const base = this.config.get<string>('S3_PUBLIC_BASE_URL');
     if (base) return `${base.replace(/\/$/, '')}/${key}`;
     if (this.useLocal) return `/uploads/${bucket}/${key}`;
-    const endpoint = this.config.get('S3_ENDPOINT');
-    return `${endpoint}/${bucket}/${key}`;
+    return `/api/v1/media/listings/${key}`;
+  }
+
+  async readListingImage(objectKey: string): Promise<{ buffer: Buffer; contentType: string }> {
+    const buckets = [
+      this.config.get<string>('S3_BUCKET_LISTINGS') ?? 'listing-images',
+      'listing-images',
+      'blox-listings',
+    ].filter((bucket, index, all) => bucket && all.indexOf(bucket) === index);
+
+    let lastError: unknown;
+    for (const bucket of buckets) {
+      try {
+        return await this.readObject(bucket, objectKey);
+      } catch (err) {
+        lastError = err;
+        if (!this.isMissingObjectError(err)) continue;
+      }
+    }
+    if (this.isMissingObjectError(lastError)) {
+      throw new NotFoundException('listing_image_not_found');
+    }
+    throw lastError ?? new BadRequestException('validation_failed');
+  }
+
+  private isMissingObjectError(err: unknown): boolean {
+    if (!err || typeof err !== 'object') return false;
+    const code = (err as { Code?: string; name?: string }).Code ?? (err as { name?: string }).name;
+    return code === 'NoSuchKey' || code === 'NotFound' || code === 'ENOENT';
   }
 
   assertImage(file?: Express.Multer.File) {

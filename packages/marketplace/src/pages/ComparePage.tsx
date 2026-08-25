@@ -16,13 +16,11 @@ import { MarketplaceNav } from '../components/MarketplaceNav';
 
 function estimateMonthly(p: ProductDetailResponse['product'], offer: ProductDetailResponse['offer']) {
   if (!p || !offer) return null;
-  const opts = offer.tenure_options || [36];
-  const tenureMonths = opts.includes(36) ? 36 : opts[0];
   return buildPricingSnapshot({
     listPrice: p.price,
     annualRatePercent: offer.annual_rent_rate,
     minDownPaymentPct: Number(offer.min_down_payment_pct),
-    tenureMonths,
+    tenureMonths: 36,
   }).monthly;
 }
 

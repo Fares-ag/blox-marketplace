@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { UserRole } from '@prisma/client';
 import { resolveApiPort, resolveAuthSecret } from '../auth/auth-config';
 
 function requireNonEmpty(value: string | undefined, name: string): string {
@@ -17,6 +18,19 @@ function parseOrigins(raw: string | undefined, fallback: string): string[] {
     .filter(Boolean);
 }
 
+function resolvePortalBase(
+  config: ConfigService,
+  envKey: string,
+  corsOrigins: string[],
+  devPort: number,
+): string {
+  const explicit = config.get<string>(envKey)?.trim();
+  if (explicit) return explicit.replace(/\/$/, '');
+  const fromCors = corsOrigins.find((origin) => new RegExp(`:${devPort}(?:/|$)`).test(origin));
+  if (fromCors) return fromCors.replace(/\/$/, '');
+  return `http://localhost:${devPort}`;
+}
+
 /** Validated, typed view of process env — constructed once at boot. */
 @Injectable()
 export class AppConfigService {
@@ -26,6 +40,11 @@ export class AppConfigService {
   readonly apiPort: number;
   readonly corsOrigins: string[];
   readonly marketplaceUrl: string;
+  readonly adminUrl: string;
+  readonly superAdminUrl: string;
+  readonly dealerUrl: string;
+  readonly creditUrl: string;
+  readonly financeUrl: string;
   readonly databaseUrl: string;
 
   constructor(config: ConfigService) {
@@ -40,6 +59,11 @@ export class AppConfigService {
       throw new Error('MARKETPLACE_URL is required in production');
     }
     this.marketplaceUrl = (marketplace ?? 'http://localhost:5173').replace(/\/$/, '');
+    this.adminUrl = resolvePortalBase(config, 'ADMIN_URL', this.corsOrigins, 5174);
+    this.superAdminUrl = resolvePortalBase(config, 'SUPER_ADMIN_URL', this.corsOrigins, 5175);
+    this.dealerUrl = resolvePortalBase(config, 'DEALER_URL', this.corsOrigins, 5176);
+    this.creditUrl = resolvePortalBase(config, 'CREDIT_URL', this.corsOrigins, 5177);
+    this.financeUrl = resolvePortalBase(config, 'FINANCE_URL', this.corsOrigins, 5179);
 
     this.databaseUrl = requireNonEmpty(config.get<string>('DATABASE_URL'), 'DATABASE_URL');
 
@@ -56,5 +80,19 @@ export class AppConfigService {
   marketplacePath(path: string): string {
     const normalized = path.startsWith('/') ? path : `/${path}`;
     return `${this.marketplaceUrl}${normalized}`;
+  }
+
+  portalSignInUrl(role: UserRole): string {
+    const baseByRole: Partial<Record<UserRole, string>> = {
+      customer: this.marketplaceUrl,
+      dealer_agent: this.dealerUrl,
+      credit_officer: this.creditUrl,
+      finance_officer: this.financeUrl,
+      admin: this.adminUrl,
+      super_admin: this.superAdminUrl,
+      group_admin: this.adminUrl,
+    };
+    const base = baseByRole[role] ?? this.marketplaceUrl;
+    return `${base}/auth/sign-in`;
   }
 }

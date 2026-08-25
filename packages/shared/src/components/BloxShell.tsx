@@ -163,47 +163,68 @@ export function BloxShell({ title, nav, children, homePaths = ['/'] }: BloxShell
             boxSizing: 'border-box',
             background: `linear-gradient(180deg, ${bloxTokens.deepGreenDark} 0%, ${bloxTokens.deepGreen} 100%)`,
             color: '#fff',
-            overflowX: 'hidden',
+            overflow: 'hidden',
             transition: 'width 0.3s ease',
             display: { xs: collapsed ? 'none' : 'flex' },
+            border: 'none',
           },
         }}
       >
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <Box sx={{ p: 2, position: 'relative', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          <Box
+            sx={{
+              px: 2,
+              py: 1.75,
+              borderBottom: '1px solid rgba(255,255,255,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+              minHeight: 72,
+            }}
+          >
             <Box
               onClick={() => navigate(nav[0]?.to ?? '/')}
-              sx={{ cursor: 'pointer', display: 'flex', justifyContent: 'center' }}
+              sx={{
+                cursor: 'pointer',
+                flex: 1,
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: collapsed ? 'center' : 'flex-start',
+                justifyContent: 'center',
+              }}
             >
               <BloxLogo height={collapsed ? 22 : 28} tone="onDark" />
+              {!collapsed && (
+                <Typography
+                  variant="caption"
+                  component="span"
+                  className="blox-shell-portal-badge"
+                  sx={{
+                    display: 'block',
+                    mt: 0.5,
+                    color: bloxTokens.emerald,
+                    letterSpacing: 1,
+                    textTransform: 'uppercase',
+                    fontWeight: 600,
+                    fontSize: '0.6875rem',
+                  }}
+                >
+                  {title}
+                </Typography>
+              )}
             </Box>
-            {!collapsed && (
-              <Typography
-                variant="caption"
-                component="span"
-                className="blox-shell-portal-badge"
-                sx={{
-                  display: 'block',
-                  textAlign: 'center',
-                  mt: 0.5,
-                  color: bloxTokens.emerald,
-                  letterSpacing: 1,
-                  textTransform: 'uppercase',
-                  fontWeight: 600,
-                }}
-              >
-                {title}
-              </Typography>
-            )}
             <IconButton
               onClick={() => setCollapsed((v) => !v)}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               sx={{
-                position: 'absolute',
-                top: 8,
-                right: collapsed ? '50%' : 8,
-                transform: collapsed ? 'translateX(50%)' : 'none',
+                flexShrink: 0,
                 color: '#fff',
                 backgroundColor: 'rgba(255,255,255,0.1)',
+                width: 32,
+                height: 32,
+                ...(collapsed && { mx: 'auto' }),
               }}
             >
               {collapsed ? <ChevronRight fontSize="small" /> : <ChevronLeft fontSize="small" />}

@@ -95,7 +95,12 @@ export function LedgersPage() {
       toolbar={
         <OpsToolbar
           filters={
-            <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
+            <select
+              className="blox-toolbar-select"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              aria-label="Status"
+            >
               <option value="">{t('ops.finance.allStatuses')}</option>
               <option value="pending">{t('ops.scheduleStatus.pending')}</option>
               <option value="overdue">{t('ops.scheduleStatus.overdue')}</option>

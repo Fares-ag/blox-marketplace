@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
   EXPECTED_AUDI_COUNT,
+  EXPECTED_SKODA_COUNT,
   EXPECTED_VW_COUNT,
   loadQautoListings,
 } from '../../prisma/seed-qauto-inventory';
 
 describe('QAuto inventory import', () => {
-  it('loads 25 Audi and 32 Volkswagen SKUs from the committed JSON', () => {
+  it('loads Audi, Volkswagen, and Skoda SKUs from the committed JSON', () => {
     const listings = loadQautoListings();
     const audi = listings.filter((l) => l.make === 'Audi');
     const vw = listings.filter((l) => l.make === 'Volkswagen');
+    const skoda = listings.filter((l) => l.make === 'Skoda');
     expect(audi).toHaveLength(EXPECTED_AUDI_COUNT);
     expect(vw).toHaveLength(EXPECTED_VW_COUNT);
-    expect(listings).toHaveLength(EXPECTED_AUDI_COUNT + EXPECTED_VW_COUNT);
+    expect(skoda).toHaveLength(EXPECTED_SKODA_COUNT);
+    expect(listings).toHaveLength(EXPECTED_AUDI_COUNT + EXPECTED_VW_COUNT + EXPECTED_SKODA_COUNT);
   });
 
   it('uses stable slug ids that match blox-app catalog assets', () => {

@@ -8,6 +8,7 @@ import {
   hasWarranty,
   labelCondition,
   labelTransmission,
+  resolveListingImageUrl,
 } from '@drivemarket/shared';
 import { useCompareStore } from '../lib/compare-store';
 import { toDialDigits } from './ListingCtaPanel';
@@ -39,7 +40,8 @@ export function ListingCard({
       )}`
     : null;
   const detailHref = `/vehicles/${product.slug}`;
-  const hasPhoto = Boolean(product.primary_image);
+  const imageUrl = resolveListingImageUrl(product.primary_image);
+  const hasPhoto = Boolean(imageUrl);
 
   function onCompareClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -63,7 +65,7 @@ export function ListingCard({
       />
       <div
         className={`dm-listing-card__media${hasPhoto ? '' : ' dm-listing-card__media--no-photo'}`}
-        style={hasPhoto ? { backgroundImage: `url(${product.primary_image})` } : undefined}
+        style={hasPhoto ? { backgroundImage: `url(${imageUrl})` } : undefined}
       >
         {!hasPhoto && (
           <span className="dm-listing-card__no-photo" aria-hidden>

@@ -1,26 +1,27 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import {
-  DEFAULT_PAGE_SIZE,
   FilterPanel,
-  OpsCoreTable,
+  OpsField,
   OpsFormPage,
   OpsFormSection,
   OpsGhostButton,
   OpsListPage,
   OpsPrimaryButton,
   OpsSecondaryButton,
+  OpsSelect,
   OpsToolbar,
   SearchBar,
   StatusBadge,
+  VehicleCardGrid,
   apiFetch,
   buildPaginationQuery,
-  formatQar,
   useOpsLabels,
   type FilterConfig,
-  type OpsTableColumn,
   type PaginatedResponse,
+  type VehicleCardOption,
 } from '@drivemarket/shared';
 
 type ProductRow = {
@@ -33,6 +34,7 @@ type ProductRow = {
   listing_status: string;
   company_name: string;
   updated_at: string;
+  primary_image?: string | null;
 };
 
 type ProductDetail = ProductRow & {
@@ -43,17 +45,15 @@ type ProductDetail = ProductRow & {
 
 export function ProductsPage() {
   const { t, listingStatus: listingStatusLabel } = useOpsLabels();
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const qc = useQueryClient();
   const { data, error, isLoading } = useQuery({
-    queryKey: ['admin-products', page, rowsPerPage],
+    queryKey: ['admin-products'],
     queryFn: () =>
       apiFetch<{ total: number; items: ProductRow[] }>(
-        `/api/ops/products?${buildPaginationQuery(page, rowsPerPage)}`,
+        `/api/ops/products?${buildPaginationQuery(0, 200)}`,
       ),
   });
   const bulk = useMutation({
@@ -94,58 +94,19 @@ export function ProductsPage() {
     });
   }, [data?.items, search, statusFilter]);
 
-  const columns: OpsTableColumn<ProductRow>[] = useMemo(
-    () => [
-      {
-        id: 'select',
-        label: '',
-        minWidth: 48,
-        format: (_, row) => (
-          <input
-            type="checkbox"
-            checked={selected.includes(row.id)}
-            onChange={() =>
-              setSelected((prev) => (prev.includes(row.id) ? prev.filter((x) => x !== row.id) : [...prev, row.id]))
-            }
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`Select ${row.make} ${row.model}`}
-          />
-        ),
-      },
-      {
-        id: 'vehicle',
-        label: 'Vehicle',
-        minWidth: 180,
-        format: (_, row) => (
-          <Link to={`/main/vehicles/${row.id}`}>
-            {row.make} {row.model} {row.model_year}
-          </Link>
-        ),
-      },
-      { id: 'company_name', label: 'Dealer', minWidth: 140 },
-      {
-        id: 'price',
-        label: 'Price',
-        align: 'right',
-        minWidth: 120,
-        format: (value) => <span className="blox-money">{formatQar(Number(value))}</span>,
-      },
-      {
-        id: 'listing_status',
-        label: 'Status',
-        minWidth: 120,
-        format: (value) => (
-          <StatusBadge status={String(value)} type="listing" label={listingStatusLabel(String(value))} />
-        ),
-      },
-      {
-        id: 'updated_at',
-        label: 'Updated',
-        minWidth: 120,
-        format: (value) => new Date(String(value)).toLocaleDateString(),
-      },
-    ],
-    [listingStatusLabel, selected],
+  const vehicleCards: VehicleCardOption[] = useMemo(
+    () =>
+      filteredItems.map((p) => ({
+        id: p.id,
+        make: p.make,
+        model: p.model,
+        model_year: p.model_year,
+        price: p.price,
+        listing_status: p.listing_status,
+        company_name: p.company_name,
+        primary_image: p.primary_image ?? null,
+      })),
+    [filteredItems],
   );
 
   return (
@@ -196,19 +157,26 @@ export function ProductsPage() {
         />
       }
     >
-      <OpsCoreTable
-        columns={columns}
-        rows={filteredItems}
+      <VehicleCardGrid
+        items={vehicleCards}
         loading={isLoading}
-        page={page}
-        rowsPerPage={rowsPerPage}
-        totalRows={data?.total ?? 0}
-        onPageChange={setPage}
-        onRowsPerPageChange={(next) => {
-          setRowsPerPage(next);
-          setPage(0);
-        }}
-        emptyMessage="Dealer inventory appears here."
+        searchable={false}
+        selectedIds={selected}
+        onToggle={(id) =>
+          setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+        }
+        multiple
+        hrefFor={(item) => `/main/vehicles/${item.id}`}
+        statusFor={(item) =>
+          item.listing_status ? (
+            <StatusBadge
+              status={item.listing_status}
+              type="listing"
+              label={listingStatusLabel(item.listing_status)}
+            />
+          ) : null
+        }
+        emptyTitle="Dealer inventory appears here."
       />
     </OpsListPage>
   );
@@ -216,13 +184,14 @@ export function ProductsPage() {
 
 export function ProductEditPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const isNew = !id || id === 'add';
   const qc = useQueryClient();
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
   const [modelYear, setModelYear] = useState(new Date().getFullYear());
   const [companyId, setCompanyId] = useState('');
-  const [price, setPrice] = useState(0);
+  const [price, setPrice] = useState<number | ''>('');
   const [financeEligible, setFinanceEligible] = useState(true);
   const [defaultOfferId, setDefaultOfferId] = useState('');
   const [listingStatusValue, setListingStatusValue] = useState('draft');
@@ -230,9 +199,17 @@ export function ProductEditPage() {
 
   const companies = useQuery({
     queryKey: ['admin-companies-mini'],
-    queryFn: () => apiFetch<PaginatedResponse<{ id: string; name: string }>>('/api/companies/all?limit=100&offset=0'),
+    queryFn: () =>
+      apiFetch<PaginatedResponse<{ id: string; name: string; kind?: string | null }>>(
+        '/api/companies/all?limit=100&offset=0',
+      ),
     enabled: isNew,
   });
+
+  const dealershipOptions = useMemo(
+    () => (companies.data?.items ?? []).filter((c) => c.kind !== 'holding'),
+    [companies.data?.items],
+  );
 
   const { data } = useQuery({
     queryKey: ['admin-product', id],
@@ -249,79 +226,137 @@ export function ProductEditPage() {
   }, [data]);
 
   const save = useMutation({
-    mutationFn: () =>
-      isNew
-        ? apiFetch('/api/dealer/inventory', {
-            method: 'POST',
-            body: JSON.stringify({ make, model, modelYear, price, companyId }),
-          })
-        : apiFetch(`/api/ops/products/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              price,
-              financeEligible,
-              defaultOfferId: defaultOfferId || undefined,
-              listingStatus: listingStatusValue,
-            }),
+    mutationFn: () => {
+      const priceValue = typeof price === 'number' ? price : Number(price);
+      if (isNew) {
+        if (!companyId) throw new Error('Select a dealer company.');
+        if (!make.trim() || !model.trim()) throw new Error('Make and model are required.');
+        if (!Number.isFinite(priceValue) || priceValue < 1) {
+          throw new Error('Enter a price of at least QAR 1.');
+        }
+        return apiFetch<{ id: string }>('/api/dealer/inventory', {
+          method: 'POST',
+          body: JSON.stringify({
+            make: make.trim(),
+            model: model.trim(),
+            modelYear,
+            price: priceValue,
+            companyId,
+            financeEligible,
+            defaultOfferId: defaultOfferId.trim() || undefined,
           }),
-    onSuccess: () => {
+        });
+      }
+      if (!Number.isFinite(priceValue) || priceValue < 1) {
+        throw new Error('Enter a price of at least QAR 1.');
+      }
+      return apiFetch(`/api/ops/products/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          price: priceValue,
+          financeEligible,
+          defaultOfferId: defaultOfferId || undefined,
+          listingStatus: listingStatusValue,
+        }),
+      });
+    },
+    onSuccess: (created) => {
       setError(null);
       void qc.invalidateQueries({ queryKey: ['admin-product', id] });
       void qc.invalidateQueries({ queryKey: ['admin-products'] });
+      if (isNew && created && typeof created === 'object' && 'id' in created) {
+        toast.success('Vehicle created');
+        navigate(`/main/vehicles/${created.id}`);
+        return;
+      }
+      toast.success('Vehicle saved');
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      setError(e.message);
+      toast.error(e.message);
+    },
   });
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
+    setError(null);
     save.mutate();
   }
 
   return (
-    <OpsFormPage title={data ? `${data.make} ${data.model}` : 'Vehicle'} subtitle={data?.company_name ?? undefined}>
+    <OpsFormPage title={data ? `${data.make} ${data.model}` : 'Add vehicle'} subtitle={data?.company_name ?? undefined}>
       <OpsFormSection title="Listing">
-      <form className="blox-form" onSubmit={onSubmit}>
-        {isNew && (
-          <>
-            <label>Make<input value={make} onChange={(e) => setMake(e.target.value)} required /></label>
-            <label>Model<input value={model} onChange={(e) => setModel(e.target.value)} required /></label>
-            <label>Year<input type="number" value={modelYear} onChange={(e) => setModelYear(Number(e.target.value))} /></label>
-            <label>
-              Company
-              <select required value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+        <form className="blox-form" onSubmit={onSubmit}>
+          {error && (
+            <p className="blox-form-error blox-form-grid__full" role="alert">
+              {error}
+            </p>
+          )}
+          {isNew && (
+            <>
+              <OpsField label="Make" value={make} onChange={(e) => setMake(e.target.value)} required />
+              <OpsField label="Model" value={model} onChange={(e) => setModel(e.target.value)} required />
+              <OpsField
+                label="Year"
+                type="number"
+                value={modelYear}
+                onChange={(e) => setModelYear(Number(e.target.value))}
+                required
+              />
+              <OpsSelect
+                label="Dealer company"
+                value={companyId}
+                onChange={(e) => setCompanyId(e.target.value)}
+                required
+              >
                 <option value="">Select dealer</option>
-                {(companies.data?.items ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                {dealershipOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
                 ))}
-              </select>
-            </label>
-          </>
-        )}
-        <label>
-          Price (QAR)
-          <input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-        </label>
-        <label>
-          Default offer ID
-          <input value={defaultOfferId} onChange={(e) => setDefaultOfferId(e.target.value)} />
-        </label>
-        <label>
-          Listing status
-          <select value={listingStatusValue} onChange={(e) => setListingStatusValue(e.target.value)}>
-            {['draft', 'published', 'reserved', 'sold', 'archived'].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="checkbox" checked={financeEligible} onChange={(e) => setFinanceEligible(e.target.checked)} />
-          Finance eligible
-        </label>
-        {error && <p style={{ color: 'var(--blox-danger)' }}>{error}</p>}
-        <OpsPrimaryButton type="submit" disabled={save.isPending}>
-          Save
-        </OpsPrimaryButton>
-      </form>
+              </OpsSelect>
+            </>
+          )}
+          <OpsField
+            label="Price (QAR)"
+            type="number"
+            min={1}
+            value={price}
+            onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
+            required
+          />
+          <OpsField
+            label="Default offer ID"
+            value={defaultOfferId}
+            onChange={(e) => setDefaultOfferId(e.target.value)}
+            hint="Optional — link an active offer for financing quotes"
+          />
+          {!isNew && (
+            <OpsSelect
+              label="Listing status"
+              value={listingStatusValue}
+              onChange={(e) => setListingStatusValue(e.target.value)}
+            >
+              {['draft', 'published', 'reserved', 'sold', 'archived'].map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </OpsSelect>
+          )}
+          <label className="blox-checkbox-row blox-form-grid__full">
+            <input
+              type="checkbox"
+              checked={financeEligible}
+              onChange={(e) => setFinanceEligible(e.target.checked)}
+            />
+            <span>Finance eligible</span>
+          </label>
+          <OpsPrimaryButton type="submit" className="blox-form-grid__full blox-form-actions__primary" disabled={save.isPending}>
+            {isNew ? 'Create vehicle' : 'Save'}
+          </OpsPrimaryButton>
+        </form>
       </OpsFormSection>
     </OpsFormPage>
   );

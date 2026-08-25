@@ -23,10 +23,11 @@ export type IntegrationContext = {
 
 export async function createIntegrationApp(
   envOverrides: Record<string, string | undefined> = {},
+  providerOverrides: Array<{ token: unknown; useValue: unknown }> = [],
 ): Promise<IntegrationContext> {
   applyIntegrationEnv(envOverrides);
 
-  const moduleRef = await Test.createTestingModule({
+  let moduleBuilder = Test.createTestingModule({
     imports: [AppModule],
   })
     .overrideProvider(MailService)
@@ -37,10 +38,16 @@ export async function createIntegrationApp(
       sendVerificationEmail: async () => undefined,
       sendPasswordResetEmail: async () => undefined,
       sendWalkInInviteEmail: async () => undefined,
+      sendStaffAccountCreatedEmail: async () => undefined,
       processOutbox: async () => ({ processed: 0, sent: 0, failed: 0 }),
       markForRetry: async () => undefined,
-    } satisfies Partial<MailService>)
-    .compile();
+    } satisfies Partial<MailService>);
+
+  for (const override of providerOverrides) {
+    moduleBuilder = moduleBuilder.overrideProvider(override.token).useValue(override.useValue);
+  }
+
+  const moduleRef = await moduleBuilder.compile();
 
   const app = moduleRef.createNestApplication({ bodyParser: false });
   const prisma = app.get(PrismaService);

@@ -7,12 +7,43 @@ import {
   labelCondition,
   labelDrivetrain,
   labelTransmission,
+  resolveListingImageUrl,
 } from '@drivemarket/shared';
 
 export function ImageGallery({ images }: { images: { storage_path: string; alt_text?: string | null }[] }) {
   const { t } = useTranslation();
 
-  if (images.length === 0) {
+  const list = images
+    .map((img) => ({
+      ...img,
+      resolvedUrl: resolveListingImageUrl(img.storage_path),
+    }))
+    .filter((img): img is typeof img & { resolvedUrl: string } => Boolean(img.resolvedUrl));
+
+  const [active, setActive] = useState(0);
+  const count = list.length;
+
+  const go = useCallback(
+    (dir: -1 | 1) => {
+      setActive((i) => (i + dir + count) % count);
+    },
+    [count],
+  );
+
+  useEffect(() => {
+    setActive(0);
+  }, [images]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowLeft') go(-1);
+      if (e.key === 'ArrowRight') go(1);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [go]);
+
+  if (count === 0) {
     return (
       <div
         className="dm-carousel dm-carousel--empty"
@@ -44,30 +75,6 @@ export function ImageGallery({ images }: { images: { storage_path: string; alt_t
     );
   }
 
-  const list = images;
-  const [active, setActive] = useState(0);
-  const count = list.length;
-
-  const go = useCallback(
-    (dir: -1 | 1) => {
-      setActive((i) => (i + dir + count) % count);
-    },
-    [count],
-  );
-
-  useEffect(() => {
-    setActive(0);
-  }, [images]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'ArrowLeft') go(-1);
-      if (e.key === 'ArrowRight') go(1);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [go]);
-
   return (
     <div className="dm-carousel" role="region" aria-roledescription="carousel" aria-label={t('detail.gallery')}>
       <div className="dm-carousel__viewport">
@@ -86,7 +93,7 @@ export function ImageGallery({ images }: { images: { storage_path: string; alt_t
             >
               <div
                 className="dm-carousel__image"
-                style={{ backgroundImage: `url(${img.storage_path})` }}
+                style={{ backgroundImage: `url(${img.resolvedUrl})` }}
                 role="img"
                 aria-label={img.alt_text || `Slide ${i + 1}`}
               />
@@ -140,7 +147,7 @@ export function ImageGallery({ images }: { images: { storage_path: string; alt_t
                 key={img.storage_path + i}
                 type="button"
                 className={i === active ? 'is-active' : ''}
-                style={{ backgroundImage: `url(${img.storage_path})` }}
+                style={{ backgroundImage: `url(${img.resolvedUrl})` }}
                 onClick={() => setActive(i)}
                 aria-label={`${i + 1} / ${count}`}
               />

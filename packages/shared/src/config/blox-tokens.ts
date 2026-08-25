@@ -49,6 +49,6 @@ export const bloxMeta = {
   name: 'Blox',
   tagline: "Own it, don't owe it.",
   logo: {
-    nav: '/brand/blox-logo-nav.png',
+    nav: '/brand/blox-logo-nav.svg',
   },
 } as const;

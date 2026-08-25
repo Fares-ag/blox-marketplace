@@ -1,3 +1,5 @@
+import { IDEMPOTENCY_KEY_HEADER, parseApiErrorBody } from './api-errors';
+
 const LOCAL_API_FALLBACK = 'http://localhost:3010';
 
 function resolveApiBase(): string {
@@ -68,13 +70,22 @@ function resolveApiPath(path: string): string {
   return normalized;
 }
 
+export type ApiFetchOptions = {
+  /** Replays the same response for duplicate POSTs (application create, payments, etc.). */
+  idempotencyKey?: string;
+};
+
 export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
+  options: ApiFetchOptions = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+  if (options.idempotencyKey?.trim()) {
+    headers.set(IDEMPOTENCY_KEY_HEADER, options.idempotencyKey.trim());
   }
 
   const resolvedPath = resolveApiPath(path);
@@ -86,14 +97,12 @@ export async function apiFetch<T = unknown>(
 
   if (!res.ok) {
     let code = 'request_failed';
-    let message = res.statusText;
+    let message = res.statusText || 'Request failed';
     try {
-      const data = (await res.json()) as { message?: string | string[]; error?: string };
-      if (Array.isArray(data.message)) message = data.message.join(', ');
-      else if (typeof data.message === 'string') {
-        message = data.message;
-        code = data.message;
-      }
+      const data = await res.json();
+      const parsed = parseApiErrorBody(data, res.status);
+      code = parsed.code;
+      message = parsed.message;
     } catch {
       /* ignore */
     }
@@ -119,10 +128,14 @@ export function apiUrl(path: string): string {
   return `${API_BASE()}${resolveApiPath(path)}`;
 }
 
+import { listingImageMediaPath } from './listing-image-url';
+
 /** Listing image path/URL from API → absolute URL for `<img src>` (ops portals run on a different origin than the API). */
 export function resolveListingImageUrl(path: string | null | undefined): string | null {
   if (!path?.trim()) return null;
   const trimmed = path.trim();
+  const proxyPath = listingImageMediaPath(trimmed);
+  if (proxyPath) return `${API_BASE()}${proxyPath}`;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   if (trimmed.startsWith('/')) return `${API_BASE()}${trimmed}`;
   return trimmed;

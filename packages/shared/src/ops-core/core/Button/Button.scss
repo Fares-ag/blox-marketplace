@@ -9,7 +9,7 @@
 
   &.btn-primary {
     background-color: var(--primary-btn-bg);
-    color: var(--primary-btn-color);
+    color: var(--primary-btn-color) !important;
     height: 44px;
     font-size: 15px;
     font-weight: 500;

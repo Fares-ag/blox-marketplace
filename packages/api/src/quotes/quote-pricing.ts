@@ -1,3 +1,10 @@
+import {
+  MAX_TENURE_MONTHS,
+  MIN_TENURE_MONTHS,
+  clampTenureMonths,
+  isTenureInRange,
+} from '@drivemarket/shared';
+
 export {
   buildPricingSnapshot,
   clampDownPaymentPct,
@@ -5,19 +12,23 @@ export {
   type PricingSnapshot,
 } from '@drivemarket/shared/pricing';
 
+export { MAX_TENURE_MONTHS, MIN_TENURE_MONTHS, clampTenureMonths, isTenureInRange };
+
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** Preset month options for UI quick-picks (not used for validation). */
 export function parseTenureOptions(raw: unknown): number[] {
   if (!Array.isArray(raw)) return [12, 24, 36, 48, 60];
   const parsed = raw.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0);
   return parsed.length > 0 ? parsed : [12, 24, 36, 48, 60];
 }
 
-export function assertTenureAllowed(tenureMonths: number, tenureOptions: unknown): void {
-  const allowed = parseTenureOptions(tenureOptions);
-  if (!Number.isFinite(tenureMonths) || tenureMonths <= 0 || !allowed.includes(tenureMonths)) {
+/** Validates tenure is within platform range (1–60 months). */
+export function assertTenureAllowed(tenureMonths: number, _tenureOptions?: unknown): void {
+  void _tenureOptions;
+  if (!isTenureInRange(tenureMonths)) {
     throw new Error('invalid_tenure');
   }
 }

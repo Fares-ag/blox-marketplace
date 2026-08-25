@@ -38,7 +38,7 @@ describe('ops role journeys', () => {
 
   async function staffUser(
     label: string,
-    role: 'dealer_agent' | 'credit_officer' | 'finance_officer' | 'admin' | 'super_admin',
+    role: 'dealer_agent' | 'credit_officer' | 'finance_officer' | 'admin' | 'super_admin' | 'group_admin',
     extra: Parameters<typeof setUserRole>[3] = {},
   ) {
     const agent = createAgent(ctx);
@@ -260,6 +260,46 @@ describe('ops role journeys', () => {
     const agents = await authed(admin.agent).get(`/api/v1/companies/${company.id}/agents`);
     expect(agents.status).toBe(200);
     expect(agents.body.items.length).toBeGreaterThan(0);
+  });
+
+  it('admin and group_admin can provision credit officers with company assignments', async () => {
+    const holding = await seedCompany(ctx.prisma, 'Credit Scope Holding');
+    await ctx.prisma.company.update({
+      where: { id: holding.id },
+      data: { kind: 'holding' },
+    });
+    const dealership = await seedCompany(ctx.prisma, 'Credit Scope Dealership');
+    await ctx.prisma.company.update({
+      where: { id: dealership.id },
+      data: { kind: 'dealership', parentCompanyId: holding.id },
+    });
+
+    const admin = await staffUser('credit-provision-admin', 'admin');
+    const adminCreate = await authed(admin.agent)
+      .post('/api/v1/users')
+      .send({
+        email: `credit-admin-${Date.now()}@integration.test`,
+        name: 'Credit From Admin',
+        role: 'credit_officer',
+        creditScope: 'assigned',
+        creditCompanyIds: [holding.id, dealership.id],
+      });
+    expect(adminCreate.status).toBeLessThan(300);
+    expect(adminCreate.body.role).toBe('credit_officer');
+    expect(adminCreate.body.temporary_password).toBeTruthy();
+
+    const groupAdmin = await staffUser('credit-provision-group', 'group_admin', { companyId: holding.id });
+    const groupCreate = await authed(groupAdmin.agent)
+      .post('/api/v1/users')
+      .send({
+        email: `credit-group-${Date.now()}@integration.test`,
+        name: 'Credit From Group Admin',
+        role: 'credit_officer',
+        creditScope: 'assigned',
+        creditCompanyIds: [dealership.id],
+      });
+    expect(groupCreate.status).toBeLessThan(300);
+    expect(groupCreate.body.role).toBe('credit_officer');
   });
 
   it('admin submit-on-create, patch edit, staff doc upload, and finance/admin record payment', async () => {

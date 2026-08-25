@@ -12,6 +12,7 @@ import { seedFinancePartners } from '../../prisma/seed-finance-partners';
 import { seedCheryInventory } from '../../prisma/seed-chery';
 import { seedQautoInventory } from '../../prisma/seed-qauto-inventory';
 import { uploadQautoListingImages } from '../../prisma/upload-qauto-listing-images';
+import { backfillListingImageUrls } from '../../prisma/backfill-listing-image-urls';
 import { bootstrapQauto } from '../../prisma/bootstrap-qauto';
 import { backfillInstallmentPlans } from '../applications/backfill-installment-plan';
 import { resolveDescendantCompanyIds } from '../companies/company-hierarchy';
@@ -831,6 +832,12 @@ export class OpsController {
   @Post('upload-qauto-listing-images')
   async uploadQautoListingImages() {
     return uploadQautoListingImages(this.prisma);
+  }
+
+  @Roles(UserRole.super_admin)
+  @Post('backfill-listing-image-urls')
+  backfillListingImageUrls() {
+    return backfillListingImageUrls(this.prisma);
   }
 
   @Roles(UserRole.super_admin)

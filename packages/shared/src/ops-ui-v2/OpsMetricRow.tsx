@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { OpsStatCard } from '../components/ops-ui';
 
 export type OpsMetricItem = {
   label: string;

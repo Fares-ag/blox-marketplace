@@ -5,33 +5,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Chip } from '@mui/material';
 
 import {
-
   ConfirmDialog,
-
   OpsDataTable,
-
   OpsEmptyState,
-
+  OpsField,
   OpsFormPage,
-
   OpsFormSection,
-
   OpsGhostButton,
-
   OpsPrimaryButton,
-
+  OpsSelect,
   OpsStatusPill,
-
   StatusBadge,
-
   apiFetch,
-
   buildPaginationQuery,
-
   paginationWindow,
-
   type AdminCompany,
-
 } from '@drivemarket/shared';
 
 
@@ -241,75 +229,37 @@ export function CompaniesPage() {
       {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
 
       <OpsFormSection title="Create company">
-
-        <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: '0.875rem' }}>
-
-          Name
-
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-
-        </label>
-
-        <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: '0.875rem', marginTop: 12 }}>
-
-          Code
-
-          <input value={code} onChange={(e) => setCode(e.target.value)} />
-
-        </label>
-
-        <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: '0.875rem', marginTop: 12 }}>
-
-          Kind
-
-          <select value={kind} onChange={(e) => setKind(e.target.value as 'holding' | 'dealership')}>
-
-            <option value="dealership">Dealership</option>
-
-            <option value="holding">Holding</option>
-
-          </select>
-
-        </label>
-
+        <OpsField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <OpsField label="Code" value={code} onChange={(e) => setCode(e.target.value)} />
+        <OpsSelect label="Kind" value={kind} onChange={(e) => setKind(e.target.value as 'holding' | 'dealership')}>
+          <option value="dealership">Dealership</option>
+          <option value="holding">Holding</option>
+        </OpsSelect>
         {kind === 'dealership' && (
-
-          <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: '0.875rem', marginTop: 12 }}>
-
-            Parent holding
-
-            <select value={parentCompanyId} onChange={(e) => setParentCompanyId(e.target.value)}>
-
-              <option value="">None</option>
-
-              {companies
-
-                .filter((c) => c.kind === 'holding')
-
-                .map((c) => (
-
-                  <option key={c.id} value={c.id}>
-
-                    {c.name}
-
-                  </option>
-
-                ))}
-
-            </select>
-
-          </label>
-
+          <OpsSelect label="Parent holding" value={parentCompanyId} onChange={(e) => setParentCompanyId(e.target.value)}>
+            <option value="">None</option>
+            {companies
+              .filter((c) => c.kind === 'holding')
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </OpsSelect>
         )}
-
-        {msg && <p style={{ marginTop: 8 }}>{msg}</p>}
-
-        <OpsPrimaryButton type="button" style={{ marginTop: 12 }} disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
-
+        {msg && (
+          <p className="blox-form-grid__full" style={{ margin: 0 }}>
+            {msg}
+          </p>
+        )}
+        <OpsPrimaryButton
+          type="button"
+          className="blox-form-grid__full blox-form-actions__primary"
+          disabled={!name.trim() || create.isPending}
+          onClick={() => create.mutate()}
+        >
           Create
-
         </OpsPrimaryButton>
-
       </OpsFormSection>
 
       <OpsDataTable
@@ -425,73 +375,31 @@ export function CompaniesPage() {
       {editId && (
 
         <OpsFormSection title="Edit company">
-
-          <label>Name<input value={editName} onChange={(e) => setEditName(e.target.value)} /></label>
-
-          <label>Code<input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></label>
-
-          <label>
-
-            Status
-
-            <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
-
-              <option value="active">active</option>
-
-              <option value="inactive">inactive</option>
-
-            </select>
-
-          </label>
-
-          <label>
-
-            Kind
-
-            <select value={editKind} onChange={(e) => setEditKind(e.target.value as 'holding' | 'dealership')}>
-
-              <option value="dealership">Dealership</option>
-
-              <option value="holding">Holding</option>
-
-            </select>
-
-          </label>
-
+          <OpsField label="Name" value={editName} onChange={(e) => setEditName(e.target.value)} />
+          <OpsField label="Code" value={editCode} onChange={(e) => setEditCode(e.target.value)} />
+          <OpsSelect label="Status" value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </OpsSelect>
+          <OpsSelect label="Kind" value={editKind} onChange={(e) => setEditKind(e.target.value as 'holding' | 'dealership')}>
+            <option value="dealership">Dealership</option>
+            <option value="holding">Holding</option>
+          </OpsSelect>
           {editKind === 'dealership' && (
-
-            <label>
-
-              Parent holding
-
-              <select value={editParentId} onChange={(e) => setEditParentId(e.target.value)}>
-
-                <option value="">None</option>
-
-                {companies
-
-                  .filter((c) => c.kind === 'holding' && c.id !== editId)
-
-                  .map((c) => (
-
-                    <option key={c.id} value={c.id}>
-
-                      {c.name}
-
-                    </option>
-
-                  ))}
-
-              </select>
-
-            </label>
-
+            <OpsSelect label="Parent holding" value={editParentId} onChange={(e) => setEditParentId(e.target.value)}>
+              <option value="">None</option>
+              {companies
+                .filter((c) => c.kind === 'holding' && c.id !== editId)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </OpsSelect>
           )}
-
           <OpsPrimaryButton
-
             type="button"
-
+            className="blox-form-grid__full blox-form-actions__primary"
             onClick={() =>
 
               setConfirm({

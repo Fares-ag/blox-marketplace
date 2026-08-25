@@ -9,7 +9,6 @@ import {
   isBeforeMonth,
   isSameDay,
   isSameMonth,
-  parseYmd,
   startOfDay,
   startOfMonth,
 } from './date-utils';

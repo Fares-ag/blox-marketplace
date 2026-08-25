@@ -47,6 +47,13 @@ if (!images.ok) {
   console.warn('Image upload skipped or failed — inventory is still seeded without photos.');
 }
 
+const backfill = await fetch(`${base}/api/v1/ops/backfill-listing-image-urls`, {
+  method: 'POST',
+  headers: { Cookie: cookie, Origin: origin },
+});
+const backfillText = await backfill.text();
+console.log('backfill-listing-image-urls', backfill.status, backfillText);
+
 const products = await fetch(`${base}/api/v1/products?make=Audi&limit=5`);
 const audi = await products.json();
 console.log('Audi marketplace sample total filter', audi.total ?? audi.items?.length ?? audi);

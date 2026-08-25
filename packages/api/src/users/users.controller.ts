@@ -12,7 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { CompanyKind, OfficerScope, User, UserRole } from '@prisma/client';
-import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { randomBytes } from 'node:crypto';
 import { CurrentUser, Roles } from '../auth/guards';
 import { AUTH_INSTANCE, type AuthInstance } from '../auth/auth.constants';
@@ -21,8 +21,12 @@ import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
 import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
-import { toAdminUserDto, toAdminUserListResponse, toAdminUserUpdateDto } from './user-response.dto';
+import { toAdminUserDto, toAdminUserListResponse, toAdminUserProvisionDto, toAdminUserUpdateDto } from './user-response.dto';
 import { resolveDescendantCompanyIds } from '../companies/company-hierarchy';
+import {
+  assertCanManageUserRole,
+  assertCanProvisionRole,
+} from './user-provisioning.policy';
 
 class UpdateUserDto {
   @IsOptional() @IsBoolean() isActive?: boolean;
@@ -41,20 +45,14 @@ class CreateUserDto {
   @IsOptional() @IsString() companyId?: string;
   @IsOptional() @IsEnum(OfficerScope) creditScope?: OfficerScope;
   @IsOptional() @IsEnum(OfficerScope) financeScope?: OfficerScope;
+  @IsOptional() @IsArray() @IsString({ each: true }) creditCompanyIds?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) financeCompanyIds?: string[];
 }
 
 class InviteDealerAgentDto {
-  @IsEmail() email!: string;
-  @IsString() name!: string;
+  @IsEmail() @IsNotEmpty() email!: string;
+  @IsString() @IsNotEmpty() name!: string;
 }
-
-const PRIVILEGED_ROLES: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.group_admin];
-const GROUP_MANAGEABLE_ROLES: UserRole[] = [
-  UserRole.customer,
-  UserRole.dealer_agent,
-  UserRole.credit_officer,
-  UserRole.finance_officer,
-];
 
 @Controller('users')
 export class UsersController {
@@ -95,6 +93,7 @@ export class UsersController {
           isActive: true,
           emailVerified: true,
           createdAt: true,
+          company: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -158,12 +157,7 @@ export class UsersController {
   }
 
   private async provisionUser(actor: User, dto: CreateUserDto) {
-    if (PRIVILEGED_ROLES.includes(dto.role) && actor.role !== UserRole.super_admin) {
-      throw new ForbiddenException('super_admin_required');
-    }
-    if (actor.role === UserRole.group_admin && !GROUP_MANAGEABLE_ROLES.includes(dto.role)) {
-      throw new ForbiddenException('forbidden_role');
-    }
+    assertCanProvisionRole(actor, dto.role);
     if (actor.role === UserRole.dealer_agent) {
       if (dto.role !== UserRole.dealer_agent || dto.companyId !== actor.companyId) {
         throw new ForbiddenException('forbidden_role');
@@ -172,9 +166,19 @@ export class UsersController {
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new BadRequestException('email_taken');
+
+    if (dto.role === UserRole.dealer_agent && !dto.companyId) {
+      throw new BadRequestException('dealer_requires_company');
+    }
+    if (dto.role === UserRole.group_admin && !dto.companyId) {
+      throw new BadRequestException('group_admin_requires_holding');
+    }
+
+    let companyName: string | null = null;
     if (dto.companyId) {
       const company = await this.prisma.company.findUnique({ where: { id: dto.companyId } });
       if (!company) throw new BadRequestException('company_not_found');
+      companyName = company.name;
       if (dto.role === UserRole.group_admin && company.kind !== CompanyKind.holding) {
         throw new BadRequestException('group_admin_requires_holding');
       }
@@ -185,42 +189,84 @@ export class UsersController {
         const allowed = await resolveDescendantCompanyIds(this.prisma, actor.companyId);
         if (!allowed.includes(dto.companyId)) throw new ForbiddenException('out_of_scope');
       }
-    } else if (dto.role === UserRole.group_admin) {
-      throw new BadRequestException('group_admin_requires_holding');
+    }
+
+    const officerCompanyIds = [
+      ...(dto.creditCompanyIds ?? []),
+      ...(dto.financeCompanyIds ?? []),
+    ];
+    if (officerCompanyIds.length) {
+      const uniqueIds = [...new Set(officerCompanyIds)];
+      const found = await this.prisma.company.findMany({
+        where: { id: { in: uniqueIds } },
+        select: { id: true },
+      });
+      if (found.length !== uniqueIds.length) throw new BadRequestException('company_not_found');
+      if (actor.role === UserRole.group_admin && actor.companyId) {
+        const allowed = await resolveDescendantCompanyIds(this.prisma, actor.companyId);
+        if (uniqueIds.some((id) => !allowed.includes(id))) throw new ForbiddenException('out_of_scope');
+      }
     }
 
     const password = `Tmp!${randomBytes(18).toString('base64url')}`;
+    const staffProvisioned = dto.role !== UserRole.customer;
     try {
       await this.auth.api.signUpEmail({
-        body: { email, password, name: dto.name },
+        body: { email, password, name: dto.name.trim() },
       });
     } catch {
+      const raced = await this.prisma.user.findUnique({ where: { email } });
+      if (raced) throw new BadRequestException('email_taken');
       throw new BadRequestException('user_create_failed');
     }
     const created = await this.prisma.user.findUnique({ where: { email } });
     if (!created) throw new BadRequestException('user_create_failed');
 
-    const updated = await this.prisma.user.update({
-      where: { id: created.id },
-      data: {
-        role: dto.role,
-        companyId: dto.companyId ?? null,
-        creditScope: dto.creditScope ?? undefined,
-        financeScope: dto.financeScope ?? undefined,
-        emailVerified: false,
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.user.update({
+        where: { id: created.id },
+        data: {
+          role: dto.role,
+          companyId: dto.companyId ?? null,
+          creditScope: dto.creditScope ?? undefined,
+          financeScope: dto.financeScope ?? undefined,
+          emailVerified: staffProvisioned,
+        },
+      });
+      if (dto.creditCompanyIds?.length) {
+        await tx.creditOfficerCompany.createMany({
+          data: dto.creditCompanyIds.map((companyId) => ({ userId: next.id, companyId })),
+          skipDuplicates: true,
+        });
+      }
+      if (dto.financeCompanyIds?.length) {
+        await tx.financeOfficerCompany.createMany({
+          data: dto.financeCompanyIds.map((companyId) => ({ userId: next.id, companyId })),
+          skipDuplicates: true,
+        });
+      }
+      return next;
     });
 
-    try {
-      await this.auth.api.requestPasswordReset({
-        body: { email, redirectTo: this.appConfig.marketplacePath('/auth/reset-password') },
-      });
-    } catch {
-      await this.mail.sendWalkInInviteEmail(
-        email,
-        this.appConfig.marketplacePath('/auth/forgot-password'),
-        'Blox',
-      );
+    const loginUrl = this.appConfig.portalSignInUrl(dto.role);
+    if (staffProvisioned) {
+      try {
+        await this.mail.sendStaffAccountCreatedEmail(email, dto.name.trim(), loginUrl);
+      } catch {
+        // Admin receives credentials in the API response; email is best-effort.
+      }
+    } else {
+      try {
+        await this.auth.api.requestPasswordReset({
+          body: { email, redirectTo: this.appConfig.marketplacePath('/auth/reset-password') },
+        });
+      } catch {
+        await this.mail.sendWalkInInviteEmail(
+          email,
+          this.appConfig.marketplacePath('/auth/forgot-password'),
+          'Blox',
+        );
+      }
     }
 
     await this.activity.log({
@@ -230,7 +276,11 @@ export class UsersController {
       action: 'user_created',
       toValue: updated.role,
     });
-    return toAdminUserUpdateDto(updated);
+    return toAdminUserProvisionDto(updated, {
+      temporaryPassword: password,
+      loginUrl,
+      companyName,
+    });
   }
 
   /**
@@ -251,17 +301,7 @@ export class UsersController {
     const target = await this.prisma.user.findUnique({ where: { id } });
     if (!target) throw new NotFoundException();
 
-    const touchesPrivileged =
-      PRIVILEGED_ROLES.includes(target.role) ||
-      (dto.role !== undefined && PRIVILEGED_ROLES.includes(dto.role));
-    if (touchesPrivileged && actor.role !== UserRole.super_admin) {
-      throw new ForbiddenException('super_admin_required');
-    }
-    if (actor.role === UserRole.group_admin) {
-      if (dto.role && !GROUP_MANAGEABLE_ROLES.includes(dto.role)) {
-        throw new ForbiddenException('forbidden_role');
-      }
-    }
+    assertCanManageUserRole(actor, target.role, dto.role);
 
     if (target.id === actor.id && (dto.isActive === false || (dto.role && dto.role !== actor.role))) {
       throw new BadRequestException('cannot_modify_own_access');

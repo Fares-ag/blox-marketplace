@@ -10,7 +10,10 @@ import {
   OpsDataTable,
   OpsEmptyState,
   OpsListPage,
+  OpsField,
+  OpsFormSection,
   OpsPageHeader,
+  OpsPrimaryButton,
 } from '@drivemarket/shared';
 import { toast } from 'react-toastify';
 
@@ -231,51 +234,53 @@ export function SettlementSettingsPage() {
   return (
     <div className="blox-page">
       <OpsPageHeader title="Settlement discounts" subtitle="Early settlement rules" />
-      <section className="blox-panel" style={{ maxWidth: 520 }}>
-        <label>
+      <div className="blox-form-section--narrow">
+      <OpsFormSection title="Early settlement rules">
+        <label className="blox-checkbox-row blox-form-grid__full">
           <input
             type="checkbox"
             checked={form.principalDiscountEnabled}
             onChange={(e) => setForm((p) => ({ ...p, principalDiscountEnabled: e.target.checked }))}
-          />{' '}
-          Principal discount enabled
-        </label>
-        <label>
-          Principal discount value
-          <input
-            type="number"
-            value={form.principalDiscountValue}
-            onChange={(e) => setForm((p) => ({ ...p, principalDiscountValue: Number(e.target.value) }))}
           />
+          <span>Principal discount enabled</span>
         </label>
-        <label>
+        <OpsField
+          label="Principal discount value"
+          type="number"
+          value={form.principalDiscountValue}
+          onChange={(e) => setForm((p) => ({ ...p, principalDiscountValue: Number(e.target.value) }))}
+        />
+        <label className="blox-checkbox-row blox-form-grid__full">
           <input
             type="checkbox"
             checked={form.interestDiscountEnabled}
             onChange={(e) => setForm((p) => ({ ...p, interestDiscountEnabled: e.target.checked }))}
-          />{' '}
-          Interest discount enabled
-        </label>
-        <label>
-          Interest discount value
-          <input
-            type="number"
-            value={form.interestDiscountValue}
-            onChange={(e) => setForm((p) => ({ ...p, interestDiscountValue: Number(e.target.value) }))}
           />
+          <span>Interest discount enabled</span>
         </label>
-        <label>
-          Min settlement amount
-          <input
-            type="number"
-            value={form.minSettlementAmount}
-            onChange={(e) => setForm((p) => ({ ...p, minSettlementAmount: Number(e.target.value) }))}
-          />
-        </label>
-        <button type="button" className="blox-btn blox-btn--primary" onClick={() => save.mutate()}>
+        <OpsField
+          label="Interest discount value"
+          type="number"
+          value={form.interestDiscountValue}
+          onChange={(e) => setForm((p) => ({ ...p, interestDiscountValue: Number(e.target.value) }))}
+        />
+        <OpsField
+          label="Min settlement amount"
+          type="number"
+          fullWidth
+          value={form.minSettlementAmount}
+          onChange={(e) => setForm((p) => ({ ...p, minSettlementAmount: Number(e.target.value) }))}
+        />
+        <OpsPrimaryButton
+          type="button"
+          className="blox-form-grid__full blox-form-actions__primary"
+          disabled={save.isPending}
+          onClick={() => save.mutate()}
+        >
           Save settings
-        </button>
-      </section>
+        </OpsPrimaryButton>
+      </OpsFormSection>
+      </div>
     </div>
   );
 }

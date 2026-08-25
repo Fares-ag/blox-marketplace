@@ -36,7 +36,6 @@ import {
   opsCompanyFilter,
 } from './company-scope';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
-import { buildScheduleDrafts } from './payment-schedules';
 import {
   convertInstallmentPlanDailyToMonthly,
   syncPaymentSchedulesFromInstallmentPlan,

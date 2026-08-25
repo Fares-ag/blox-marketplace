@@ -89,8 +89,8 @@ function storageKey(productId: string, ext: string): string {
 function publicPath(key: string, useLocal: boolean, publicBase?: string): string {
   if (publicBase) return `${publicBase.replace(/\/$/, '')}/${key}`;
   if (useLocal) return `/uploads/${LOCAL_BUCKET}/${key}`;
-  const endpoint = process.env.S3_ENDPOINT?.replace(/\/$/, '');
-  return endpoint ? `${endpoint}/${LOCAL_BUCKET}/${key}` : `/uploads/${LOCAL_BUCKET}/${key}`;
+  // Private R2/S3 endpoints are not browser-loadable — serve through the API media proxy.
+  return `/api/v1/media/listings/${key}`;
 }
 
 async function createStorageWriter() {
@@ -101,7 +101,7 @@ async function createStorageWriter() {
     await mkdir(localRoot, { recursive: true });
     return {
       useLocal: true,
-      put: async (key: string, body: Buffer, contentType: string) => {
+      put: async (key: string, body: Buffer, _contentType: string) => {
         const full = path.join(localRoot, LOCAL_BUCKET, key);
         await mkdir(path.dirname(full), { recursive: true });
         await writeFile(full, body);

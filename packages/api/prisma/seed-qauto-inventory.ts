@@ -33,10 +33,12 @@ export type QautoListing = {
 
 export const EXPECTED_AUDI_COUNT = 25;
 export const EXPECTED_VW_COUNT = 32;
+export const EXPECTED_SKODA_COUNT = 34;
 
 const COMPANY_CODE_BY_MAKE: Record<string, string> = {
   Audi: 'qauto-audi',
   Volkswagen: 'qauto-vw',
+  Skoda: 'qauto-skoda',
 };
 
 function resolveImportPath(): string {
@@ -83,8 +85,11 @@ function mapBodyType(listing: QautoListing): BodyType | null {
   }
 
   const model = listing.model.toLowerCase();
-  if (['teramont', 'tiguan', 't-roc', 'q2', 'q3', 'q5', 'q6', 'q7', 'q8', 'sq5', 'sq8', 'rsq8'].some((m) => model.includes(m))) {
+  if (['teramont', 'tiguan', 't-roc', 'karoq', 'kodiaq', 'kushaq', 'q2', 'q3', 'q5', 'q6', 'q7', 'q8', 'sq5', 'sq8', 'rsq8'].some((m) => model.includes(m))) {
     return BodyType.suv;
+  }
+  if (['octavia', 'superb'].some((m) => model.includes(m))) {
+    return BodyType.sedan;
   }
   if (model === 'amarok') return BodyType.pickup;
   if (model === 'caddy') return BodyType.van;
@@ -113,15 +118,17 @@ async function ensureOffer(prisma: PrismaClient) {
 async function resolveCompanies(prisma: PrismaClient) {
   let audi = await prisma.company.findUnique({ where: { code: 'qauto-audi' } });
   let vw = await prisma.company.findUnique({ where: { code: 'qauto-vw' } });
-  if (!audi || !vw) {
+  let skoda = await prisma.company.findUnique({ where: { code: 'qauto-skoda' } });
+  if (!audi || !vw || !skoda) {
     await bootstrapQauto(prisma);
     audi = await prisma.company.findUnique({ where: { code: 'qauto-audi' } });
     vw = await prisma.company.findUnique({ where: { code: 'qauto-vw' } });
+    skoda = await prisma.company.findUnique({ where: { code: 'qauto-skoda' } });
   }
-  if (!audi || !vw) {
-    throw new Error('QAuto Audi/Volkswagen companies missing after bootstrapQauto');
+  if (!audi || !vw || !skoda) {
+    throw new Error('QAuto Audi/Volkswagen/Skoda companies missing after bootstrapQauto');
   }
-  return { audi, vw };
+  return { audi, vw, skoda };
 }
 
 function productData(
@@ -179,7 +186,7 @@ async function upsertCoverImage(
   });
 }
 
-/** Idempotent QAuto Audi + Volkswagen inventory seed (production-safe). */
+/** Idempotent QAuto Audi + Volkswagen + Skoda inventory seed (production-safe). */
 export async function seedQautoInventory(prisma: PrismaClient) {
   await ensureOffer(prisma);
   const companies = await resolveCompanies(prisma);
@@ -187,12 +194,22 @@ export async function seedQautoInventory(prisma: PrismaClient) {
 
   const audiListings = listings.filter((l) => l.make === 'Audi');
   const vwListings = listings.filter((l) => l.make === 'Volkswagen');
+  const skodaListings = listings.filter((l) => l.make === 'Skoda');
   if (audiListings.length !== EXPECTED_AUDI_COUNT) {
     throw new Error(`Expected ${EXPECTED_AUDI_COUNT} Audi listings, got ${audiListings.length}`);
   }
   if (vwListings.length !== EXPECTED_VW_COUNT) {
     throw new Error(`Expected ${EXPECTED_VW_COUNT} Volkswagen listings, got ${vwListings.length}`);
   }
+  if (skodaListings.length !== EXPECTED_SKODA_COUNT) {
+    throw new Error(`Expected ${EXPECTED_SKODA_COUNT} Skoda listings, got ${skodaListings.length}`);
+  }
+
+  const companyByCode = {
+    'qauto-audi': companies.audi,
+    'qauto-vw': companies.vw,
+    'qauto-skoda': companies.skoda,
+  };
 
   const seenIds = new Set<string>();
   for (const listing of listings) {
@@ -204,7 +221,7 @@ export async function seedQautoInventory(prisma: PrismaClient) {
     if (!companyCode) {
       throw new Error(`Unsupported make in QAuto import: ${listing.make}`);
     }
-    const company = companyCode === 'qauto-audi' ? companies.audi : companies.vw;
+    const company = companyByCode[companyCode as keyof typeof companyByCode];
     const data = productData(listing, company.id);
 
     const product = await prisma.product.upsert({
@@ -236,8 +253,10 @@ export async function seedQautoInventory(prisma: PrismaClient) {
   return {
     audiCompanyId: companies.audi.id,
     vwCompanyId: companies.vw.id,
+    skodaCompanyId: companies.skoda.id,
     audiPublished: audiListings.length,
     volkswagenPublished: vwListings.length,
+    skodaPublished: skodaListings.length,
     listingsPublished: listings.length,
   };
 }

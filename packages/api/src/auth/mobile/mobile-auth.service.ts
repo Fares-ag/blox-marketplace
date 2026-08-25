@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -11,7 +12,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AUTH_INSTANCE } from '../auth.constants';
 import type { DmAuth } from '../auth';
 import { resolveAuthSecret } from '../auth-config';
-import { Inject } from '@nestjs/common';
 import {
   hashRefreshToken,
   newRefreshToken,

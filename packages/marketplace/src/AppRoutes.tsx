@@ -14,8 +14,11 @@ import {
   DocumentMeta,
   apiFetch,
   buildPricingSnapshot,
+  clampTenureMonths,
   formatQar,
   getAppLocale,
+  MAX_TENURE_MONTHS,
+  MIN_TENURE_MONTHS,
   applicationMarketplacePillVariant,
   applicationStatusLabel,
   trackProductEvent,
@@ -38,6 +41,7 @@ import { MarketplaceNav } from './components/MarketplaceNav';
 import { ComparePage } from './pages/ComparePage';
 import { HelpPage } from './pages/HelpPage';
 import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
+import { PaymentCalendarPage } from './pages/PaymentCalendarPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ApplicationDetailPanel, type ApplicationDetailData } from './components/ApplicationDetailPanel';
 
@@ -153,14 +157,14 @@ function VehiclesPage() {
           {!isLoading && shown.length === 0 && (
             <p style={{ color: 'var(--dm-slate-600)' }}>{t('vehicles.noResults')}</p>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
+          <div className="dm-listing-stack">
             {shown.map((p) => (
-              <ListingCard key={p.id} product={p} />
+              <ListingCard key={p.id} product={p} variant="row" />
             ))}
           </div>
           {hasMore && (
             <div style={{ marginTop: 24, textAlign: 'center' }}>
-              <button type="button" className="dm-btn-ghost" onClick={loadMore} disabled={isFetching}>
+              <button type="button" className="dm-btn-ghost dm-btn-ghost--on-light" onClick={loadMore} disabled={isFetching}>
                 {isFetching ? t('vehicles.loading') : t('vehicles.loadMore')}
               </button>
             </div>
@@ -222,7 +226,6 @@ function VehicleDetailPage() {
 
   useEffect(() => {
     if (offer?.min_down_payment_pct != null) setDownPct(Number(offer.min_down_payment_pct));
-    if (offer?.tenure_options?.length) setTenure(Number(offer.tenure_options[2] ?? offer.tenure_options[0]));
   }, [offer]);
 
   const monthly = useMemo(() => {
@@ -314,11 +317,14 @@ function VehicleDetailPage() {
             <>
               <label style={{ display: 'block', marginBottom: 12, fontSize: 14 }}>
                 {t('detail.tenure')}
-                <select value={tenure} onChange={(e) => setTenure(Number(e.target.value))} style={{ display: 'block', width: '100%', minHeight: 40, marginTop: 6 }}>
-                  {(offer.tenure_options || [12, 24, 36, 48, 60]).map((mo) => (
-                    <option key={mo} value={mo}>{mo}</option>
-                  ))}
-                </select>
+                <input
+                  type="number"
+                  min={MIN_TENURE_MONTHS}
+                  max={MAX_TENURE_MONTHS}
+                  value={tenure}
+                  onChange={(e) => setTenure(clampTenureMonths(Number(e.target.value)))}
+                  style={{ display: 'block', width: '100%', minHeight: 40, marginTop: 6 }}
+                />
               </label>
               <label style={{ display: 'block', marginBottom: 8, fontSize: 14 }}>
                 {t('detail.downPayment')}
@@ -441,9 +447,9 @@ function DealerShowroomPage() {
       </div>
       <div style={{ width: '100%', margin: 0, padding: '24px 32px', boxSizing: 'border-box' }}>
         <p style={{ color: 'var(--dm-slate-600)' }}>{t('dealers.listings', { count: products.data?.total ?? 0 })}</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
+        <div className="dm-listing-stack">
           {products.data?.items.map((p) => (
-            <ListingCard key={p.id} product={p} />
+            <ListingCard key={p.id} product={p} variant="row" />
           ))}
         </div>
       </div>
@@ -481,11 +487,8 @@ function ApplyWizardPage() {
     if (!offer) return;
     const minDown = Number(offer.min_down_payment_pct ?? 10);
     setDownPct((prev) => Math.max(prev, minDown));
-    const options = offer.tenure_options?.map(Number) ?? [12, 24, 36, 48, 60];
-    if (!options.includes(tenure)) {
-      setTenure(options.includes(36) ? 36 : options[0]);
-    }
-  }, [offer, tenure]);
+    setTenure((prev) => clampTenureMonths(prev || tenureParam));
+  }, [offer, tenureParam]);
 
   const monthlyPreview = useMemo(() => {
     if (!product || !offer) return 0;
@@ -586,17 +589,14 @@ function ApplyWizardPage() {
           >
             <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
               {t('detail.tenure')}
-              <select
+              <input
+                type="number"
+                min={MIN_TENURE_MONTHS}
+                max={MAX_TENURE_MONTHS}
                 value={tenure}
-                onChange={(e) => setTenure(Number(e.target.value))}
+                onChange={(e) => setTenure(clampTenureMonths(Number(e.target.value)))}
                 style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)' }}
-              >
-                {(offer.tenure_options || [12, 24, 36, 48, 60]).map((mo) => (
-                  <option key={mo} value={mo}>
-                    {mo}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
             <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
               {t('detail.downPayment')}
@@ -869,6 +869,7 @@ export function AppRoutes() {
         element={<VerifyEmailPage portalLabel="Customer marketplace" homePath="/app/dashboard" />}
       />
       <Route path="/app/dashboard" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><CustomerDashboardPage /></AuthGuard>} />
+      <Route path="/app/calendar" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><PaymentCalendarPage /></AuthGuard>} />
       <Route path="/app/notifications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><NotificationsPage /></AuthGuard>} />
       <Route path="/app/applications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplicationsListPage /></AuthGuard>} />
       <Route path="/app/applications/new" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplyWizardPage /></AuthGuard>} />

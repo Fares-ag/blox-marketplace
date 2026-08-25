@@ -1,13 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CommonModule } from '../common/common.module';
+import { CreditsModule } from '../credits/credits.module';
+import { CustomerPaymentsController } from './customer-payments.controller';
+import { CustomerPaymentsService } from './customer-payments.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 
 @Module({
-  imports: [CommonModule, ConfigModule],
-  controllers: [PaymentsController],
-  providers: [PaymentsService],
-  exports: [PaymentsService],
+  imports: [CommonModule, ConfigModule, CreditsModule],
+  controllers: [PaymentsController, CustomerPaymentsController],
+  providers: [PaymentsService, CustomerPaymentsService],
+  exports: [PaymentsService, CustomerPaymentsService],
 })
 export class PaymentsModule {}
