@@ -3,7 +3,7 @@ import {
   MIN_TENURE_MONTHS,
   clampTenureMonths,
   isTenureInRange,
-} from '@drivemarket/shared';
+} from '@drivemarket/shared/tenure';
 
 export {
   buildPricingSnapshot,

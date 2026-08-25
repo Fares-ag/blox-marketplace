@@ -24,6 +24,9 @@
       ],
       "@drivemarket/shared/installment-plan-utils": [
         "../shared/src/lib/installment-plan-utils.ts"
+      ],
+      "@drivemarket/shared/tenure": [
+        "../shared/src/lib/tenure.ts"
       ]
     }
   },

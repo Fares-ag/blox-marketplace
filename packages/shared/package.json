@@ -29,14 +29,21 @@
     "./styles/blox-ops.scss": "./src/styles/blox-ops.scss",
     "./i18n": "./src/i18n/index.ts",
     "./analytics/events": "./src/analytics/events.ts",
-    "./analytics/track": "./src/analytics/track.ts"
+    "./analytics/track": "./src/analytics/track.ts",
+    "./tenure": {
+      "types": "./src/lib/tenure.ts",
+      "import": "./src/lib/tenure.ts",
+      "require": "./dist/lib/tenure.cjs",
+      "default": "./src/lib/tenure.ts"
+    }
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:pricing": "tsc -p tsconfig.pricing.json && node -e \"require('node:fs').renameSync('dist/lib/pricing.js','dist/lib/pricing.cjs')\"",
     "build:installment-plan": "npx --yes esbuild@0.25.0 src/lib/installment-plan-server.ts --bundle --platform=node --format=cjs --outfile=dist/lib/installment-plan.cjs",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build:tenure": "npx --yes esbuild@0.25.0 src/lib/tenure.ts --bundle --platform=node --format=cjs --outfile=dist/lib/tenure.cjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
