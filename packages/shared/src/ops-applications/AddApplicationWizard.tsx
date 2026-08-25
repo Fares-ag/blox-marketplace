@@ -22,6 +22,8 @@ import {
   docCategoriesForApplicant,
   emptyCustomerInfo,
   validateCustomerInfo,
+  KYC_UPLOAD_ACCEPT,
+  kycUploadRejection,
   type CustomerInfoFormValue,
 } from './customer-info';
 
@@ -367,13 +369,24 @@ export function AddApplicationWizard({
               <label key={cat} className="blox-upload-dropzone" style={{ display: 'block', cursor: 'pointer' }}>
                 <input
                   type="file"
-                  accept=".pdf,image/*"
+                  accept={KYC_UPLOAD_ACCEPT}
                   hidden
-                  onChange={(e) =>
-                    updateData({
-                      files: { ...data.files, [cat]: e.target.files?.[0] },
-                    })
-                  }
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    // Rejected at selection rather than at submit: the wizard
+                    // uploads these only after the application has been
+                    // created, so an unsupported file otherwise fails once the
+                    // record already exists and the documents are missing.
+                    const rejection = kycUploadRejection(file);
+                    if (rejection) {
+                      setError(rejection);
+                      toast.error(rejection);
+                      return;
+                    }
+                    updateData({ files: { ...data.files, [cat]: file } });
+                  }}
                 />
                 <p style={{ margin: 0, fontWeight: 600 }}>{t(`ops.wizard.doc.${cat}`, { defaultValue: cat })}</p>
                 {data.files[cat] && (

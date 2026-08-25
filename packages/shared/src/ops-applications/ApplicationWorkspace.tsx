@@ -23,7 +23,12 @@ import { OpsDangerButton, OpsGhostButton, OpsPrimaryButton, OpsSecondaryButton }
 import type { OpsAgent, OpsAudience, OpsWorkspace } from './types';
 import { visibleWorkspaceActions } from './useApplicationActions';
 import { CustomerInfoOverview } from './CustomerInfoOverview';
-import { customerInfoFromSnapshot, docCategoriesForApplicant } from './customer-info';
+import {
+  customerInfoFromSnapshot,
+  docCategoriesForApplicant,
+  KYC_UPLOAD_ACCEPT,
+  kycUploadRejection,
+} from './customer-info';
 
 const TABS = ['overview', 'transactions', 'schedule', 'logs', 'comments', 'docs'] as const;
 const PAY_METHODS = ['bank_transfer', 'card', 'cash', 'cheque'] as const;
@@ -692,13 +697,22 @@ export function ApplicationWorkspace({
                 <label key={cat} className="blox-upload-dropzone" style={{ cursor: 'pointer' }}>
                   <input
                     type="file"
-                    accept=".pdf,image/*"
+                    accept={KYC_UPLOAD_ACCEPT}
                     hidden
                     disabled={uploadDoc.isPending}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) uploadDoc.mutate({ category: cat, file });
                       e.target.value = '';
+                      if (!file) return;
+                      // Checked here so the uploader is told which file is wrong
+                      // and why, instead of a bare 400 from the API.
+                      const rejection = kycUploadRejection(file);
+                      if (rejection) {
+                        setError(rejection);
+                        toast.error(rejection);
+                        return;
+                      }
+                      uploadDoc.mutate({ category: cat, file });
                     }}
                   />
                   <p style={{ margin: 0, fontWeight: 600 }}>{t(`ops.wizard.doc.${cat}`, { defaultValue: cat })}</p>

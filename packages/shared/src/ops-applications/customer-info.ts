@@ -79,6 +79,33 @@ export const INDIVIDUAL_DOC_CATEGORIES = [
 ] as const;
 export const CORPORATE_DOC_CATEGORIES = ['cr', 'computer_card', 'rental_agreement', 'signatory_id'] as const;
 
+/**
+ * Must stay in step with StorageService.assertKycFile in the API, which accepts
+ * only these four types and 10 MB. The ops upload inputs used `accept=".pdf,
+ * image/*"`, which is far wider: a phone photo (HEIC/HEIF) or a screenshot
+ * (GIF/AVIF) passed the file picker and came back as an opaque 400
+ * invalid_file_type, with nothing on screen explaining which file was wrong.
+ */
+export const KYC_UPLOAD_ACCEPT = '.pdf,image/jpeg,image/png,image/webp';
+export const KYC_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+const KYC_UPLOAD_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+
+/**
+ * Why the API would refuse this file, or null when it will accept it. Checked
+ * client-side so the person uploading is told which file is wrong and why,
+ * rather than seeing a bare 400 after the upload round-trip.
+ */
+export function kycUploadRejection(file: { name: string; type: string; size: number }): string | null {
+  if (!KYC_UPLOAD_MIME.has(file.type)) {
+    const kind = file.type || 'unknown type';
+    return `${file.name} is a ${kind} file. Upload a PDF, JPG, PNG or WebP — a photo taken on an iPhone is usually HEIC and needs converting first.`;
+  }
+  if (file.size > KYC_UPLOAD_MAX_BYTES) {
+    return `${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is 10 MB.`;
+  }
+  return null;
+}
+
 export type IndividualDocCategory = (typeof INDIVIDUAL_DOC_CATEGORIES)[number];
 export type CorporateDocCategory = (typeof CORPORATE_DOC_CATEGORIES)[number];
 
