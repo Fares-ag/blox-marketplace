@@ -302,7 +302,21 @@ export class ApplicationsStaffService {
       actor.role === UserRole.super_admin ||
       actor.role === UserRole.credit_officer;
     if (!isDealer && !isOps) throw new ForbiddenException('forbidden_role');
-    if (!['draft', 'under_review', 'resubmission_required', 'contract_signing_required'].includes(app.status)) {
+    // `partner_processing` MUST be here. An application financed by a partner
+    // (Al Jazeera) enters that status the moment it is submitted — see
+    // submittedStatusForPartner — and the Add Application wizard creates with
+    // submit: true and only THEN uploads the documents. Without this status the
+    // wizard's own uploads were rejected with 400 validation_failed, so a
+    // partner-financed application could never carry a single document and the
+    // partner's CRM lead was permanently empty.
+    //
+    // It is also the state in which the partner asks for more paperwork, which
+    // is exactly when a dealer needs to attach it.
+    if (
+      !['draft', 'under_review', 'partner_processing', 'resubmission_required', 'contract_signing_required'].includes(
+        app.status,
+      )
+    ) {
       throw new BadRequestException('validation_failed');
     }
 

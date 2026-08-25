@@ -21,6 +21,7 @@ const CUSTOMER_UPLOAD_STATES = ['draft', 'resubmission_required'] as const;
 const STAFF_UPLOAD_STATES = [
   'draft',
   'under_review',
+  'partner_processing',
   'resubmission_required',
   'contract_signing_required',
 ] as const;
@@ -52,9 +53,17 @@ describe('document upload re-sync', () => {
     }
   });
 
-  it('covers under_review — the walk-in wizard case that lost attachments', () => {
-    // The dealer wizard creates at under_review, syncs, THEN uploads. This is
-    // the exact state the lost documents were uploaded in.
+  it('covers under_review — the walk-in wizard case for a Blox-financed deal', () => {
     expect(shouldSyncStatusToCrm('under_review' as never)).toBe(true);
+  });
+
+  it('covers partner_processing — the status every Al Jazeera application sits in', () => {
+    // submittedStatusForPartner() puts a partner-financed application straight
+    // into partner_processing on submit. The dealer wizard creates with
+    // submit: true and uploads documents AFTERWARDS, so this is the status the
+    // uploads actually happen in. It was missing from the staff upload guard,
+    // which rejected every one of those uploads with 400 validation_failed —
+    // a partner-financed application could not carry a single document.
+    expect(shouldSyncStatusToCrm('partner_processing' as never)).toBe(true);
   });
 });
