@@ -144,12 +144,39 @@ export class ZohoCrmService {
 
       if (!leadId) throw new Error('zoho_lead_resolution_failed');
 
-      const documentsUploaded = await this.syncDocuments(leadId, app.documents);
+      // Persist the lead id BEFORE uploading attachments. The walk-in path
+      // fires a sync on create and the wizard's first document upload fires
+      // another moments later; both previously read a still-null zohoLeadId
+      // and each created its own lead, leaving Al Jazeera with two records for
+      // one customer and Blox tracking only the second. Writing it here closes
+      // most of that window — attachment upload is by far the slowest part.
+      await this.prisma.application.update({
+        where: { id: applicationId },
+        data: { zohoLeadId: leadId },
+      });
+
+      const { uploaded: documentsUploaded, failed: documentsFailed } = await this.syncDocuments(
+        leadId,
+        app.documents,
+      );
+
+      // A lead whose attachments did not all arrive is NOT a success. Marking
+      // it synced hid the failure from /ops/zoho/failures and from the retry
+      // sweep, so Al Jazeera held a lead with no QID and every Blox screen
+      // reported it green. Recording the error leaves it visible and retryable;
+      // re-running is safe because uploads are de-duplicated by file name.
+      if (documentsFailed > 0) {
+        await this.recordFailure(
+          applicationId,
+          `zoho_attachments_incomplete:${documentsFailed}`,
+          actorUserId,
+        );
+        return { zohoLeadId: leadId, documentsUploaded, error: 'zoho_attachments_incomplete' };
+      }
 
       await this.prisma.application.update({
         where: { id: applicationId },
         data: {
-          zohoLeadId: leadId,
           zohoSyncedAt: new Date(),
           zohoSyncError: null,
           zohoSyncAttempts: 0,
@@ -312,11 +339,15 @@ export class ZohoCrmService {
     return body.data?.[0]?.id ?? null;
   }
 
-  private async syncDocuments(leadId: string, documents: ApplicationDocument[]): Promise<number> {
-    if (documents.length === 0) return 0;
+  private async syncDocuments(
+    leadId: string,
+    documents: ApplicationDocument[],
+  ): Promise<{ uploaded: number; failed: number }> {
+    if (documents.length === 0) return { uploaded: 0, failed: 0 };
 
     const existingNames = await this.listAttachmentNames(leadId);
     let uploaded = 0;
+    let failed = 0;
 
     for (const doc of documents) {
       // The storage key ends in a generated id, so deriving the name from it
@@ -340,10 +371,15 @@ export class ZohoCrmService {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'attachment_upload_failed';
         this.logger.warn(`Zoho attachment upload failed (${doc.category}): ${message}`);
+        // Counted, not just logged. The caller records an incomplete sync so
+        // the application stays visible in /ops/zoho/failures and is picked up
+        // by the retry sweep, instead of showing as green with a document
+        // missing on the partner's side.
+        failed += 1;
       }
     }
 
-    return uploaded;
+    return { uploaded, failed };
   }
 
   private async listAttachmentNames(leadId: string): Promise<Set<string>> {

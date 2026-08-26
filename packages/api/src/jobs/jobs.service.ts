@@ -16,6 +16,12 @@ import { JobHealthService } from './job-health.service';
 
 /** Statuses where a Zoho-partner application should already have a CRM lead. */
 const CRM_SYNC_STATUSES: ApplicationStatus[] = [
+  // Every partner-financed application sits in partner_processing by
+  // construction (submittedStatusForPartner), so omitting it made the retry
+  // sweep structurally incapable of recovering the one kind of application it
+  // exists to protect: an Al Jazeera lead that missed its single sync attempt
+  // was never retried, and the admin "run zoho-retry" button did nothing for it.
+  ApplicationStatus.partner_processing,
   ApplicationStatus.under_review,
   ApplicationStatus.resubmission_required,
   ApplicationStatus.contract_signing_required,

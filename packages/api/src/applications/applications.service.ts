@@ -695,7 +695,13 @@ export class ApplicationsService {
   ) {
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
-    if (!['draft', 'resubmission_required'].includes(app.status)) {
+    // `partner_processing` for the same reason it is on the staff guard: a
+    // customer who submits to an Al Jazeera offer lands in that status
+    // immediately (submittedStatusForPartner). Without it, when the partner
+    // comes back asking for an updated payslip the customer has no way to send
+    // it — the request fails with a bare 400 and only a dealer or admin can
+    // attach it on their behalf.
+    if (!['draft', 'partner_processing', 'resubmission_required'].includes(app.status)) {
       throw new BadRequestException('validation_failed');
     }
 
@@ -707,6 +713,10 @@ export class ApplicationsService {
         category: category as DocumentCategory,
         storagePath: key,
         mimeType: file.mimetype,
+        // Stored so the partner CRM can attach the file under the name the
+        // customer actually uploaded; without it the attachment is named from
+        // the generated storage key and arrives as an opaque uuid.
+        originalName: file.originalname,
         uploadedById: user.id,
       },
     });

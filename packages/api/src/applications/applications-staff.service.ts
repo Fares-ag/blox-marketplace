@@ -328,6 +328,10 @@ export class ApplicationsStaffService {
         category: category as DocumentCategory,
         storagePath: key,
         mimeType: file.mimetype,
+        // Stored so the partner CRM can attach the file under the name the
+        // customer actually uploaded; without it the attachment is named from
+        // the generated storage key and arrives as an opaque uuid.
+        originalName: file.originalname,
         uploadedById: actor.id,
       },
     });
