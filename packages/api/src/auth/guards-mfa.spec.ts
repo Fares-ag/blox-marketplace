@@ -39,7 +39,7 @@ describe('SessionAuthGuard MFA enforcement', () => {
     const guard = new SessionAuthGuard(
       prisma as never,
       new Reflector(),
-      mockConfig({}) as never,
+      mockConfig({ MFA_ENFORCE: 'true' }) as never,
       mockAuth(user.id) as never,
     );
 

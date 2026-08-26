@@ -279,7 +279,7 @@ export class ApplicationsService {
     if (nextStatus === ApplicationStatus.under_review) {
       await this.notifyOpsOnSubmit(app.companyId, id);
     }
-    void this.maybeSyncZoho(id, user.id);
+    await this.syncToCrmIfNeeded(id, nextStatus, user.id);
 
     this.analytics.track('application_submitted', {
       application_id: id,
@@ -628,7 +628,7 @@ export class ApplicationsService {
   async resubmit(user: User, id: string) {
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { documents: true },
+      include: { documents: true, financePartner: true },
     });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
     if (app.status !== 'resubmission_required') {
@@ -638,9 +638,10 @@ export class ApplicationsService {
       throw new BadRequestException('documents_incomplete');
     }
 
+    const nextStatus = submittedStatusForPartner(app.financePartner?.crmAdapter);
     const updated = await this.prisma.$transaction(async (tx) => {
       await transitionApplication(tx, id, ApplicationStatus.resubmission_required, {
-        status: ApplicationStatus.under_review,
+        status: nextStatus,
       });
       return tx.application.findUniqueOrThrow({ where: { id } });
     });
@@ -651,10 +652,10 @@ export class ApplicationsService {
       entityId: id,
       action: 'status_transition',
       fromValue: 'resubmission_required',
-      toValue: 'under_review',
+      toValue: nextStatus,
     });
 
-    void this.maybeSyncZoho(id, user.id);
+    await this.syncToCrmIfNeeded(id, nextStatus, user.id);
 
     this.analytics.track('application_submitted', {
       application_id: id,
@@ -752,9 +753,10 @@ export class ApplicationsService {
     // Push the new file to the partner CRM. Without this a document uploaded
     // after the lead already exists — the whole point of
     // `resubmission_required` — never reaches them: the lead was created and
-    // synced earlier, and nothing re-sent it. maybeSyncZoho skips `draft`, so
-    // a first-time applicant still syncs once on submit rather than per file.
-    await this.maybeSyncZoho(id, user.id);
+    // synced earlier, and nothing re-sent it. Draft uploads still skip sync —
+    // the submit/resubmit path sends every document in one awaited sync, same
+    // as the dealer wizard's per-file sync after the application is submitted.
+    await this.syncToCrmIfNeeded(id, app.status, user.id);
 
     return toApplicationDocumentDto(doc);
   }
@@ -796,17 +798,14 @@ export class ApplicationsService {
     }
   }
 
-  private async maybeSyncZoho(applicationId: string, actorUserId?: string) {
-    const app = await this.prisma.application.findUnique({
-      where: { id: applicationId },
-      select: { status: true },
-    });
-    if (!app || !shouldSyncStatusToCrm(app.status)) return;
-    try {
-      await this.zoho.syncApplicationToZoho(applicationId, actorUserId);
-    } catch {
-      /* logged inside zoho service */
-    }
+  /** Mirrors dealer/staff CRM sync — awaited, not fire-and-forget. */
+  private async syncToCrmIfNeeded(
+    applicationId: string,
+    status: ApplicationStatus,
+    actorUserId?: string,
+  ): Promise<void> {
+    if (!shouldSyncStatusToCrm(status)) return;
+    await this.zoho.syncApplicationToZoho(applicationId, actorUserId);
   }
 
   async deleteOps(user: User, id: string) {

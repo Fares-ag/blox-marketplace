@@ -244,9 +244,17 @@ export const en = {
     submitHint: 'Upload all four required documents before submitting.',
     submitHintReady: 'All documents uploaded. Submit when you are ready to confirm your plan.',
     submitFailed: 'Could not submit. Upload all four required documents first.',
+    submitSuccessTitle: 'Plan submitted!',
+    submitSuccessBody:
+      'Your ownership plan and documents have been sent for review. We will notify you when there is an update.',
+    resubmitSuccessTitle: 'Plan resubmitted!',
+    resubmitSuccessBody:
+      'Your updated documents have been sent. We will notify you when there is an update.',
+    submitSuccessDismiss: 'Got it',
     blockingApplication:
       'You already have an active application. Finish or withdraw it before applying again.',
     upload: 'Upload',
+    uploading: 'Uploading…',
     chooseFile: 'Choose file',
     noFileChosen: 'No file chosen',
     uploadMissingFile: 'Choose a file first.',
@@ -1200,9 +1208,17 @@ export const ar: typeof en = {
     submitHint: 'ارفع المستندات الأربعة المطلوبة قبل التقديم.',
     submitHintReady: 'تم رفع كل المستندات. قدّم عندما تكون جاهزاً لتأكيد خطتك.',
     submitFailed: 'تعذر التقديم. ارفع المستندات الأربعة المطلوبة أولاً.',
+    submitSuccessTitle: 'تم تقديم الخطة!',
+    submitSuccessBody:
+      'تم إرسال خطة الملكية والمستندات للمراجعة. سنُعلمك عند وجود تحديث.',
+    resubmitSuccessTitle: 'تم إعادة تقديم الخطة!',
+    resubmitSuccessBody:
+      'تم إرسال المستندات المحدّثة. سنُعلمك عند وجود تحديث.',
+    submitSuccessDismiss: 'حسناً',
     blockingApplication:
       'لديك طلب نشط بالفعل. أنهِه أو اسحبه قبل التقديم مرة أخرى.',
     upload: 'رفع',
+    uploading: 'جارٍ الرفع…',
     chooseFile: 'اختر ملفاً',
     noFileChosen: 'لم يُختر ملف',
     uploadMissingFile: 'اختر ملفاً أولاً.',

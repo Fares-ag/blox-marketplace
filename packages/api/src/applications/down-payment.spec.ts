@@ -71,9 +71,10 @@ describe('ApplicationsLifecycleService.activate down-payment guard', () => {
     return new ApplicationsLifecycleService(
       prisma as PrismaService,
       { log: vi.fn(), notify: vi.fn() } as unknown as ActivityService,
+      { track: vi.fn() } as unknown as AnalyticsService,
       {} as StorageService,
-      config,
       { assertPassedForApproval: vi.fn().mockResolvedValue(undefined) } as unknown as ComplianceService,
+      config,
     );
   }
 
@@ -196,9 +197,19 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
       { log: vi.fn(), notify: vi.fn() } as unknown as ActivityService,
       { track: vi.fn() } as unknown as AnalyticsService,
       {} as StorageService,
-      config,
       { assertPassedForApproval: vi.fn().mockResolvedValue(undefined) } as unknown as ComplianceService,
+      config,
     );
+  }
+
+  function companyScopePrisma(extra: Partial<PrismaService> = {}) {
+    return {
+      company: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'co-1', kind: 'dealership' }]),
+      },
+      financeOfficerCompany: { findMany: vi.fn().mockResolvedValue([{ companyId: 'co-1' }]) },
+      ...extra,
+    };
   }
 
   const baseApp = {
@@ -213,11 +224,10 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
     const paymentEventCreate = vi.fn();
     const applicationFindUniqueOrThrow = vi.fn().mockResolvedValue(submitted);
 
-    const prisma = {
+    const prisma = companyScopePrisma({
       application: {
         findUnique: vi.fn().mockResolvedValue(baseApp),
       },
-      financeOfficerCompany: { findMany: vi.fn().mockResolvedValue([{ companyId: 'co-1' }]) },
       $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
           paymentEvent: { create: paymentEventCreate },
@@ -227,7 +237,7 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
           },
         }),
       ),
-    };
+    });
 
     const service = buildService(prisma);
     const result = await service.recordDownPayment(financeUser, 'app-1', {
@@ -252,16 +262,15 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
   });
 
   it('rejects recording when the application is not awaiting down payment', async () => {
-    const prisma = {
+    const prisma = companyScopePrisma({
       application: {
         findUnique: vi.fn().mockResolvedValue({
           ...baseApp,
           status: ApplicationStatus.pending_finance_activation,
         }),
       },
-      financeOfficerCompany: { findMany: vi.fn().mockResolvedValue([{ companyId: 'co-1' }]) },
       $transaction: vi.fn(),
-    };
+    });
     const service = buildService(prisma);
 
     await expect(

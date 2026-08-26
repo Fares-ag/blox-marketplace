@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, apiFileUrl, apiUrl } from '@drivemarket/shared';
@@ -51,46 +51,97 @@ function documentDownloadUrl(appId: string, docId: string) {
   return apiFileUrl(`/applications/${appId}/documents/${docId}/file`);
 }
 
+function SuccessDialog({
+  open,
+  title,
+  message,
+  dismissLabel,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  dismissLabel: string;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="dm-success-dialog" role="dialog" aria-modal="true" aria-labelledby="dm-success-title">
+      <button type="button" className="dm-success-dialog__backdrop" aria-label={dismissLabel} onClick={onClose} />
+      <div className="dm-success-dialog__panel">
+        <div className="dm-success-dialog__icon" aria-hidden="true">
+          ✓
+        </div>
+        <h2 id="dm-success-title" className="dm-success-dialog__title">
+          {title}
+        </h2>
+        <p className="dm-success-dialog__message">{message}</p>
+        <button type="button" className="dm-btn-cta dm-success-dialog__btn" onClick={onClose}>
+          {dismissLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function DocumentUploadCard({
   category,
   title,
-  onSubmit,
-  submitLabel,
+  onUpload,
   accept = '.pdf,image/jpeg,image/png,image/webp',
 }: {
   category?: string;
   title?: string;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void | Promise<void>;
-  submitLabel: string;
+  onUpload: (file: File) => Promise<void>;
   accept?: string;
 }) {
   const { t } = useTranslation();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const label =
     title ??
     (category
       ? t(`application.docCategory.${category}`, { defaultValue: category })
       : t('application.upload'));
 
+  async function handleFileChange(file: File | undefined) {
+    if (!file || uploading) return;
+    setFileName(file.name);
+    setUploading(true);
+    try {
+      await onUpload(file);
+      setFileName(null);
+      if (inputRef.current) inputRef.current.value = '';
+    } catch {
+      /* parent sets error message */
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
-    <form className="dm-app-detail__upload" onSubmit={(e) => void onSubmit(e)}>
+    <div className="dm-app-detail__upload">
       <p className="dm-app-detail__upload-title">{label}</p>
-      <label className="dm-app-detail__file">
+      <label className={`dm-app-detail__file${uploading ? ' is-uploading' : ''}`}>
         <input
-          name="file"
+          ref={inputRef}
           type="file"
           accept={accept}
-          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+          disabled={uploading}
+          onChange={(e) => void handleFileChange(e.target.files?.[0])}
         />
-        <span className="dm-app-detail__file-btn">{t('application.chooseFile')}</span>
+        <span className="dm-app-detail__file-btn">
+          {uploading
+            ? t('application.uploading', { defaultValue: 'Uploading…' })
+            : t('application.chooseFile')}
+        </span>
         <span className={`dm-app-detail__file-name${fileName ? ' is-selected' : ''}`}>
           {fileName ?? t('application.noFileChosen')}
         </span>
       </label>
-      <button type="submit" className="dm-app-detail__upload-btn" disabled={!fileName}>
-        {submitLabel}
-      </button>
-    </form>
+    </div>
   );
 }
 
@@ -115,6 +166,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       app.status,
     );
   const [contractError, setContractError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<'submit' | 'resubmit' | null>(null);
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['app', app.id] });
@@ -125,7 +177,11 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const submitForReview = useMutation({
     mutationFn: () =>
       apiFetch(`/api/applications/${app.id}/submit`, { method: 'POST' }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setSubmitSuccess('submit');
+      setActionError(null);
+      invalidate();
+    },
     onError: (e: Error) => {
       const msg = e.message.includes('documents_incomplete')
         ? t('application.submitFailed')
@@ -137,7 +193,11 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const resubmit = useMutation({
     mutationFn: () =>
       apiFetch(`/api/applications/${app.id}/resubmit`, { method: 'POST' }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setSubmitSuccess('resubmit');
+      setActionError(null);
+      invalidate();
+    },
     onError: (e: Error) => {
       const msg = e.message.includes('documents_incomplete')
         ? t('application.submitFailed')
@@ -206,16 +266,8 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     (deferralStatus.data?.membership_active ?? false) &&
     (deferralStatus.data?.remaining ?? 0) > 0;
 
-  async function onUpload(e: FormEvent<HTMLFormElement>, category: (typeof UPLOAD_CATEGORIES)[number]) {
-    e.preventDefault();
+  async function uploadDocument(file: File, category: (typeof UPLOAD_CATEGORIES)[number]) {
     setUploadError(null);
-    const form = e.currentTarget;
-    const input = form.elements.namedItem('file') as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      setUploadError(t('application.uploadMissingFile'));
-      return;
-    }
     const body = new FormData();
     body.append('file', file);
     body.append('category', category);
@@ -234,25 +286,18 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           /* ignore */
         }
         setUploadError(message);
-        return;
+        throw new Error(message);
       }
-      input.value = '';
       invalidate();
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : t('application.uploadFailed'));
+      const message = err instanceof Error ? err.message : t('application.uploadFailed');
+      setUploadError(message);
+      throw err;
     }
   }
 
-  async function onSignedContractUpload(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function uploadSignedContract(file: File) {
     setContractError(null);
-    const form = e.currentTarget;
-    const input = form.elements.namedItem('file') as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      setContractError(t('application.uploadMissingFile'));
-      return;
-    }
     const body = new FormData();
     body.append('file', file);
     try {
@@ -263,17 +308,33 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       });
       if (!res.ok) {
         setContractError(t('application.contractUploadFailed'));
-        return;
+        throw new Error(t('application.contractUploadFailed'));
       }
-      input.value = '';
       invalidate();
     } catch (err) {
-      setContractError(err instanceof Error ? err.message : t('application.contractUploadFailed'));
+      const message = err instanceof Error ? err.message : t('application.contractUploadFailed');
+      setContractError(message);
+      throw err;
     }
   }
 
   return (
     <div className="dm-app-detail">
+      <SuccessDialog
+        open={submitSuccess !== null}
+        title={
+          submitSuccess === 'resubmit'
+            ? t('application.resubmitSuccessTitle')
+            : t('application.submitSuccessTitle')
+        }
+        message={
+          submitSuccess === 'resubmit'
+            ? t('application.resubmitSuccessBody')
+            : t('application.submitSuccessBody')
+        }
+        dismissLabel={t('application.submitSuccessDismiss')}
+        onClose={() => setSubmitSuccess(null)}
+      />
       <ApplicationStatusView app={app} />
 
       {(app.paymentSchedules?.length ?? 0) > 0 && (
@@ -329,8 +390,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
               <DocumentUploadCard
                 key={cat}
                 category={cat}
-                submitLabel={t('application.upload')}
-                onSubmit={(e) => onUpload(e, cat)}
+                onUpload={(file) => uploadDocument(file, cat)}
               />
             ))}
           </div>
@@ -354,8 +414,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
             <DocumentUploadCard
               title={t('application.uploadSignedContract')}
               accept="application/pdf"
-              submitLabel={t('application.submitSignedContract')}
-              onSubmit={(e) => onSignedContractUpload(e)}
+              onUpload={uploadSignedContract}
             />
           )}
           {contractError && <p className="dm-app-detail__error">{contractError}</p>}
@@ -560,9 +619,13 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           cursor: pointer;
           transition: border-color 150ms ease, background 150ms ease;
         }
-        .dm-app-detail__file:hover {
+        .dm-app-detail__file:hover:not(.is-uploading) {
           border-color: var(--dm-steel);
           background: var(--dm-steel-soft);
+        }
+        .dm-app-detail__file.is-uploading {
+          opacity: 0.7;
+          cursor: wait;
         }
         .dm-app-detail__file input[type="file"] {
           position: absolute;
@@ -667,6 +730,58 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           }
           .dm-app-detail__doc-list a { text-align: center; }
           .dm-app-detail__actions { max-width: none; }
+        }
+        .dm-success-dialog {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+        }
+        .dm-success-dialog__backdrop {
+          position: absolute;
+          inset: 0;
+          border: none;
+          background: rgba(15, 23, 42, 0.45);
+          cursor: pointer;
+        }
+        .dm-success-dialog__panel {
+          position: relative;
+          width: min(100%, 420px);
+          padding: 28px 24px 24px;
+          border-radius: 16px;
+          background: var(--dm-surface);
+          border: 1px solid var(--dm-slate-200);
+          box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+          text-align: center;
+        }
+        .dm-success-dialog__icon {
+          display: grid;
+          place-items: center;
+          width: 56px;
+          height: 56px;
+          margin: 0 auto 16px;
+          border-radius: 999px;
+          background: var(--dm-success-soft, rgba(0, 207, 162, 0.12));
+          color: var(--dm-success, #00cfa2);
+          font-size: 1.75rem;
+          font-weight: 700;
+          line-height: 1;
+        }
+        .dm-success-dialog__title {
+          margin: 0 0 8px;
+          font-size: 1.25rem;
+          color: var(--dm-ink);
+        }
+        .dm-success-dialog__message {
+          margin: 0 0 20px;
+          font-size: 0.9375rem;
+          line-height: 1.5;
+          color: var(--dm-slate-600);
+        }
+        .dm-success-dialog__btn {
+          width: 100%;
         }
       `}</style>
     </div>
