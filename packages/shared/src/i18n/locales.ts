@@ -319,8 +319,17 @@ export const en = {
     fullName: 'Full name',
     phone: 'Phone',
     qid: 'QID',
-    employment: 'Employment',
+    employment: 'Employer',
     monthlyIncome: 'Monthly income (QAR)',
+    // Collected so an application from the website reaches the finance partner
+    // with the same detail a dealer-entered one carries. Nationality matters
+    // most: the partner keeps separate salary fields for Qatari and expatriate
+    // applicants, and without it the figure goes to the wrong one.
+    nationality: 'Nationality',
+    city: 'City',
+    employmentType: 'Employment sector',
+    employmentDuration: 'Time with current employer',
+    selectPlaceholder: 'Select…',
   },
   auth: {
     signInLead: 'Continue to your ownership plans and saved progress.',
@@ -1268,6 +1277,11 @@ export const ar: typeof en = {
     qid: 'الهوية',
     employment: 'جهة العمل',
     monthlyIncome: 'الدخل الشهري (ر.ق)',
+    nationality: 'الجنسية',
+    city: 'المدينة',
+    employmentType: 'قطاع العمل',
+    employmentDuration: 'مدة العمل لدى جهة العمل الحالية',
+    selectPlaceholder: 'اختر…',
   },
   auth: {
     signInLead: 'تابع خطط ملكيتك وتقدمك المحفوظ.',

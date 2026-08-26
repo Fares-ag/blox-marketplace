@@ -83,12 +83,34 @@ export class ApplicationsService {
     dto: {
       productId: string;
       offerId: string;
+      // Widened to the shape the dealer journey already produces, so the
+      // partner CRM receives the same lead whichever way the application
+      // arrived. The snapshot is stored verbatim and read by zoho-lead.mapper.
       customerSnapshot: {
         full_name: string;
         phone: string;
         qid: string;
-        employment?: string;
+        employment?:
+          | string
+          | {
+              company?: string;
+              position?: string;
+              employmentType?: string;
+              employmentDuration?: string;
+              salary?: number;
+            };
         income?: number;
+        monthlyIncome?: number;
+        nationality?: string;
+        dateOfBirth?: string;
+        applicantType?: string;
+        firstName?: string;
+        lastName?: string;
+        city?: string;
+        street?: string;
+        country?: string;
+        postalCode?: string;
+        address?: { street?: string; city?: string; country?: string; postalCode?: string };
       };
       pricingSnapshot: Record<string, unknown>;
       quoteToken?: string;

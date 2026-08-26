@@ -238,4 +238,7 @@ export {
   DealerAgentsPanel,
 } from './ops-applications';
 export type { VehicleCardOption } from './ops-applications';
+// Shared by the dealer wizard and the customer apply form so the same question
+// cannot end up with two different sets of answers. Pure data — no components.
+export { EMPLOYMENT_TYPE_OPTIONS, EMPLOYMENT_DURATION_OPTIONS } from './ops-applications/customer-info';
 export type { OpsAudience, OpsAgent, OpsQueueItem, OpsWorkspace, StaffCreatePayload } from './ops-applications';

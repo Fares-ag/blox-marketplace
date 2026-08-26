@@ -17,6 +17,8 @@ import {
   clampTenureMonths,
   formatQar,
   getAppLocale,
+  EMPLOYMENT_DURATION_OPTIONS,
+  EMPLOYMENT_TYPE_OPTIONS,
   MAX_TENURE_MONTHS,
   MIN_TENURE_MONTHS,
   applicationMarketplacePillVariant,
@@ -479,6 +481,14 @@ function ApplyWizardPage() {
   const [qid, setQid] = useState('');
   const [employment, setEmployment] = useState('');
   const [income, setIncome] = useState('');
+  // Collected so a website application reaches the finance partner with the
+  // same detail a dealer-entered one carries. Nationality is required because
+  // the partner keeps separate salary fields for Qatari and expatriate
+  // applicants — without it the figure is filed under the wrong one.
+  const [nationality, setNationality] = useState('');
+  const [city, setCity] = useState('');
+  const [employmentType, setEmploymentType] = useState('');
+  const [employmentDuration, setEmploymentDuration] = useState('');
   const [tenure, setTenure] = useState(tenureParam);
   const [downPct, setDownPct] = useState(downPctParam);
   const [error, setError] = useState<string | null>(null);
@@ -527,12 +537,25 @@ function ApplyWizardPage() {
           productId: product.id,
           offerId: offer.id,
           quoteToken: params.get('quote') || undefined,
+          // Same shape buildCustomerSnapshot produces for the dealer journey,
+          // so zoho-lead.mapper reads both identically and the partner gets the
+          // same lead whichever channel it came through.
           customerSnapshot: {
             full_name: fullName,
             phone,
             qid,
-            employment,
+            applicantType: 'individual',
+            nationality: nationality.trim() || undefined,
+            city: city.trim() || undefined,
+            address: city.trim() ? { city: city.trim() } : undefined,
+            employment: {
+              company: employment.trim() || undefined,
+              employmentType: employmentType || undefined,
+              employmentDuration: employmentDuration || undefined,
+              salary: Number(income) || undefined,
+            },
             income: Number(income) || 0,
+            monthlyIncome: Number(income) || undefined,
           },
           pricingSnapshot,
         }),
@@ -621,6 +644,8 @@ function ApplyWizardPage() {
               { labelKey: 'apply.fullName', value: fullName, setter: setFullName, required: true },
               { labelKey: 'apply.phone', value: phone, setter: setPhone, required: true },
               { labelKey: 'apply.qid', value: qid, setter: setQid, required: true },
+              { labelKey: 'apply.nationality', value: nationality, setter: setNationality, required: true },
+              { labelKey: 'apply.city', value: city, setter: setCity, required: false },
               { labelKey: 'apply.employment', value: employment, setter: setEmployment, required: false },
               { labelKey: 'apply.monthlyIncome', value: income, setter: setIncome, required: false },
             ] as const
@@ -633,6 +658,28 @@ function ApplyWizardPage() {
                 onChange={(e) => setter(e.target.value)}
                 style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)' }}
               />
+            </label>
+          ))}
+          {/* The same option lists the dealer journey uses, so the two channels
+              cannot drift into different vocabularies for the same question. */}
+          {(
+            [
+              { labelKey: 'apply.employmentType', value: employmentType, setter: setEmploymentType, options: EMPLOYMENT_TYPE_OPTIONS },
+              { labelKey: 'apply.employmentDuration', value: employmentDuration, setter: setEmploymentDuration, options: EMPLOYMENT_DURATION_OPTIONS },
+            ] as const
+          ).map(({ labelKey, value, setter, options }) => (
+            <label key={labelKey} style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
+              {t(labelKey)}
+              <select
+                value={value}
+                onChange={(e) => setter(e.target.value)}
+                style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)', background: '#fff' }}
+              >
+                <option value="">{t('apply.selectPlaceholder')}</option>
+                {options.map((o) => (
+                  <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
+                ))}
+              </select>
             </label>
           ))}
           {error && <p style={{ color: 'var(--dm-danger)' }}>{error}</p>}

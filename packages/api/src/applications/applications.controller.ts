@@ -36,13 +36,61 @@ import {
 } from './application-documents';
 import { PaginationQueryDto } from '../common/pagination.dto';
 
+/**
+ * Employment as the dealer/ops journey records it. The customer journey used to
+ * send a single free-text `employment` string, which meant an application
+ * arriving through the website reached the finance partner without the work
+ * sector or employment duration a dealer-entered one carried. Both journeys now
+ * produce the same shape, so the partner receives the same lead either way.
+ */
+class CustomerEmploymentDto {
+  @IsOptional() @IsString() company?: string;
+  @IsOptional() @IsString() position?: string;
+  @IsOptional() @IsString() employmentType?: string;
+  @IsOptional() @IsString() employmentDuration?: string;
+  @IsOptional() @IsNumber() salary?: number;
+}
+
+class CustomerAddressDto {
+  @IsOptional() @IsString() street?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() country?: string;
+  @IsOptional() @IsString() postalCode?: string;
+}
+
 class CustomerSnapshotDto {
   @IsString() full_name!: string;
   @IsString() phone!: string;
   @Matches(QID_PATTERN, { message: QID_VALIDATION_MESSAGE })
   qid!: string;
-  @IsOptional() @IsString() employment?: string;
+
+  // Accepted as either the legacy free-text string or the structured object, so
+  // a browser still running the previous bundle keeps working through a deploy.
+  @IsOptional()
+  @ValidateIf((o: CustomerSnapshotDto) => typeof o.employment === 'object')
+  @ValidateNested()
+  @Type(() => CustomerEmploymentDto)
+  @ValidateIf((o: CustomerSnapshotDto) => typeof o.employment === 'string')
+  @IsString()
+  employment?: string | CustomerEmploymentDto;
+
   @IsOptional() @IsNumber() income?: number;
+  @IsOptional() @IsNumber() monthlyIncome?: number;
+
+  /** Drives which salary field the partner CRM receives — see zoho-lead.mapper. */
+  @IsOptional() @IsString() nationality?: string;
+  @IsOptional() @IsString() dateOfBirth?: string;
+  @IsOptional() @IsString() applicantType?: string;
+  @IsOptional() @IsString() firstName?: string;
+  @IsOptional() @IsString() lastName?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() street?: string;
+  @IsOptional() @IsString() country?: string;
+  @IsOptional() @IsString() postalCode?: string;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CustomerAddressDto)
+  address?: CustomerAddressDto;
 }
 
 class CreateApplicationDto {
