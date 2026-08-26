@@ -19,7 +19,7 @@ const HUMAN_MESSAGES: Record<string, string> = {
   not_implemented: 'This feature is not available yet.',
   forbidden: 'Access to this resource is forbidden.',
   documents_incomplete: 'Please upload all required documents before submitting.',
-  blocking_application_exists: 'You already have an active financing application.',
+  blocking_application_exists: 'You already have an active financing application for this vehicle.',
   listing_not_available: 'This listing is not available.',
   invalid_status_transition: 'This action is not allowed for the current application status.',
   stale_transition: 'This record was updated by another request. Refresh and try again.',

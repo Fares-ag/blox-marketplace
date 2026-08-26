@@ -92,12 +92,6 @@ export class ApplicationsStaffService {
       qid,
     });
 
-    const blocking = await this.prisma.application.findFirst({
-      where: { customerUserId: customer.id, status: { in: BLOCKING_APPLICATION_STATUSES } },
-      select: { id: true },
-    });
-    if (blocking) throw new BadRequestException('blocking_application_exists');
-
     const offer = await this.prisma.offer.findFirst({
       where: { id: dto.offerId, status: 'active' },
       include: { financePartner: { select: { crmAdapter: true } } },
@@ -145,6 +139,16 @@ export class ApplicationsStaffService {
       ) {
         throw new BadRequestException('listing_not_available');
       }
+
+      const blockingForProduct = await this.prisma.application.findFirst({
+        where: {
+          customerUserId: customer.id,
+          productId: product.id,
+          status: { in: BLOCKING_APPLICATION_STATUSES },
+        },
+        select: { id: true },
+      });
+      if (blockingForProduct) throw new BadRequestException('blocking_application_exists');
 
       if (initialStatus !== ApplicationStatus.draft) {
         if (product.listingStatus === ListingStatus.reserved) {

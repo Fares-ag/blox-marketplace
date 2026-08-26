@@ -252,7 +252,7 @@ export const en = {
       'Your updated documents have been sent. We will notify you when there is an update.',
     submitSuccessDismiss: 'Got it',
     blockingApplication:
-      'You already have an active application. Finish or withdraw it before applying again.',
+      'You already have an active plan for this vehicle. Finish or withdraw it before applying again for the same vehicle.',
     upload: 'Upload',
     uploading: 'Uploading…',
     chooseFile: 'Choose file',
@@ -367,7 +367,7 @@ export const en = {
     openCompare: 'Open compare',
     activeFinancing: 'Building toward fully yours',
     activeFinancingBody:
-      'You already have a plan in progress. Finish or withdraw it before starting another ownership plan.',
+      'You have ownership plans in progress. You can apply for other vehicles anytime — open a plan below or browse listings.',
     currentApplication: 'Current plan',
     viewAllApps: 'View all',
     viewApplication: 'View plan',
@@ -1216,7 +1216,7 @@ export const ar: typeof en = {
       'تم إرسال المستندات المحدّثة. سنُعلمك عند وجود تحديث.',
     submitSuccessDismiss: 'حسناً',
     blockingApplication:
-      'لديك طلب نشط بالفعل. أنهِه أو اسحبه قبل التقديم مرة أخرى.',
+      'لديك خطة نشطة لهذه المركبة. أنهِها أو اسحبها قبل التقديم على نفس المركبة مرة أخرى.',
     upload: 'رفع',
     uploading: 'جارٍ الرفع…',
     chooseFile: 'اختر ملفاً',
@@ -1327,7 +1327,7 @@ export const ar: typeof en = {
     openCompare: 'فتح المقارنة',
     activeFinancing: 'جاري الوصول إلى ملكية كاملة',
     activeFinancingBody:
-      'لديك خطة قيد المعالجة. أنهِها أو اسحبها قبل بدء خطة ملكية أخرى.',
+      'لديك خطط ملكية قيد المعالجة. يمكنك التقديم على مركبات أخرى في أي وقت — افتح خطة أدناه أو تصفح القوائم.',
     currentApplication: 'الخطة الحالية',
     viewAllApps: 'عرض الكل',
     viewApplication: 'عرض الخطة',

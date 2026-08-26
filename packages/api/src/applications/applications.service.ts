@@ -70,9 +70,13 @@ export class ApplicationsService {
     private readonly zoho: ZohoCrmService,
   ) {}
 
-  async hasBlocking(userId: string) {
+  async hasBlocking(userId: string, productId?: string) {
     const found = await this.prisma.application.findFirst({
-      where: { customerUserId: userId, status: { in: BLOCKING_APPLICATION_STATUSES } },
+      where: {
+        customerUserId: userId,
+        ...(productId ? { productId } : {}),
+        status: { in: BLOCKING_APPLICATION_STATUSES },
+      },
       select: { id: true },
     });
     return toApplicationBlockingDto({ blocking: !!found, applicationId: found?.id ?? null });
@@ -118,7 +122,7 @@ export class ApplicationsService {
   ) {
     if (user.role !== UserRole.customer) throw new ForbiddenException('forbidden_role');
 
-    const blocking = await this.hasBlocking(user.id);
+    const blocking = await this.hasBlocking(user.id, dto.productId);
     if (blocking.blocking) throw new BadRequestException('blocking_application_exists');
 
     const product = await this.prisma.product.findUnique({

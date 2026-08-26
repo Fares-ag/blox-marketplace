@@ -221,8 +221,9 @@ export class ApplicationsController {
 
   @Roles(UserRole.customer)
   @Get('applications/blocking')
-  blocking(@CurrentUser() user: User) {
-    return this.apps.hasBlocking(user.id);
+  blocking(@CurrentUser() user: User, @Query('productId') productId?: string) {
+    const scopedProductId = productId?.trim() || undefined;
+    return this.apps.hasBlocking(user.id, scopedProductId);
   }
 
   @Roles(UserRole.customer)

@@ -9,7 +9,7 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   bad_request: 'The request could not be processed.',
   documents_incomplete: 'Please upload all required documents before submitting.',
   blocking_application_exists:
-    'This customer already has an active financing application. Open the existing application or wait until it is closed.',
+    'You already have an active financing application for this vehicle. Open it or wait until it is closed.',
   listing_not_available: 'This vehicle listing is not available for financing.',
   invalid_status_transition: 'This action is not allowed for the current application status.',
   stale_transition: 'This record was updated by another request. Refresh and try again.',

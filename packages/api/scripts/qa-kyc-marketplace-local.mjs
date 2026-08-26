@@ -94,10 +94,14 @@ function buildPricing(listPrice) {
   return { list_price: listPrice, down_payment: downPayment, down_payment_pct: downPaymentPct, tenor, rate, monthly };
 }
 
-async function findProduct(session) {
+async function findProduct(session, excludeProductId) {
   const { data } = await json(session, '/api/v1/products?limit=20');
   const items = data.items ?? data;
-  const published = items.find((p) => p.listingStatus === 'published' || !p.listingStatus);
+  const published = items.find(
+    (p) =>
+      (p.listingStatus === 'published' || !p.listingStatus) &&
+      (!excludeProductId || p.id !== excludeProductId),
+  );
   if (!published?.id) throw new Error('No published product');
   return published;
 }
@@ -134,13 +138,17 @@ async function cancelApp(session, appId) {
 }
 
 async function clearBlocking(session) {
-  const { data } = await json(session, '/api/v1/applications/blocking');
-  if (!data.blocking && !data.blocking_application_exists) return;
-  const appId = data.applicationId ?? data.application_id;
-  if (!appId) return;
-  const { data: app } = await json(session, `/api/v1/applications/${appId}`);
-  if (['draft', 'under_review', 'resubmission_required'].includes(app.status)) {
-    await cancelApp(session, appId);
+  for (;;) {
+    const { data } = await json(session, '/api/v1/applications/blocking');
+    if (!data.blocking && !data.blocking_application_exists) return;
+    const appId = data.applicationId ?? data.application_id;
+    if (!appId) return;
+    const { data: app } = await json(session, `/api/v1/applications/${appId}`);
+    if (['draft', 'under_review', 'resubmission_required'].includes(app.status)) {
+      await cancelApp(session, appId);
+      continue;
+    }
+    return;
   }
 }
 
@@ -387,12 +395,12 @@ async function main() {
 
   await clearBlocking(customer);
   try {
-    await createDraft(customer);
+    const first = await createDraft(customer);
     const { res: blockRes, data: blockData } = await json(customer, '/api/v1/applications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        productId: (await findProduct(customer)).id,
+        productId: first.productId,
         offerId: 'seed-al-jazeera-offer',
         customerSnapshot: { full_name: 'QA Customer', phone: '+97455550099', qid: '28099998887' },
         pricingSnapshot: buildPricing(100000),
@@ -400,12 +408,32 @@ async function main() {
     });
     record(
       'W-10',
-      'Second apply blocked while blocking app exists',
+      'Second apply blocked for same vehicle while blocking app exists',
       blockRes.status === 400 && msg(blockData) === 'blocking_application_exists',
       msg(blockData),
     );
+
+    const otherProduct = await findProduct(customer, first.productId);
+    const { res: secondRes, data: secondData } = await json(customer, '/api/v1/applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productId: otherProduct.id,
+        offerId: 'seed-al-jazeera-offer',
+        customerSnapshot: { full_name: 'QA Customer', phone: '+97455550099', qid: '28099998887' },
+        pricingSnapshot: buildPricing(Number(otherProduct.price)),
+      }),
+    });
+    record(
+      'W-10b',
+      'Second apply allowed for a different vehicle',
+      secondRes.ok && Boolean(secondData.id),
+      msg(secondData),
+    );
+    if (secondRes.ok && secondData.id) await cancelApp(customer, secondData.id);
+    await cancelApp(customer, first.appId);
   } catch (err) {
-    record('W-10', 'Second apply blocked while blocking app exists', false, err.message);
+    record('W-10', 'Second apply blocked for same vehicle while blocking app exists', false, err.message);
   }
   await clearBlocking(customer);
 
