@@ -36,3 +36,17 @@ export function assertDownPaymentSatisfied(
   if (recorded.gte(required)) return;
   throw new BadRequestException('down_payment_incomplete');
 }
+
+/** Block contract_under_review → pending_finance_activation when a down payment is still owed. */
+export async function assertDownPaymentRecordedForDirectActivation(
+  db: Prisma.TransactionClient | { paymentEvent: Prisma.TransactionClient['paymentEvent'] },
+  applicationId: string,
+  pricingSnapshot: Record<string, unknown>,
+): Promise<void> {
+  const required = requiredDownPaymentAmount(pricingSnapshot);
+  if (required.lte(0)) return;
+  const recorded = await sumDownPaymentRecorded(db, applicationId);
+  if (recorded.lt(required)) {
+    throw new BadRequestException('down_payment_required_before_activation');
+  }
+}

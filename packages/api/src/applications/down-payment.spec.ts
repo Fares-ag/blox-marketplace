@@ -9,6 +9,7 @@ import { StorageService } from '../storage/storage.service';
 import { ComplianceService } from '../compliance/compliance.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 import {
+  assertDownPaymentRecordedForDirectActivation,
   assertDownPaymentSatisfied,
   requiredDownPaymentAmount,
   sumDownPaymentRecorded,
@@ -43,6 +44,32 @@ describe('down-payment helpers', () => {
     expect(() =>
       assertDownPaymentSatisfied(new Prisma.Decimal(20_000), new Prisma.Decimal(25_000)),
     ).not.toThrow();
+  });
+
+  it('blocks direct activation shortcut when down payment is still owed', async () => {
+    const db = {
+      paymentEvent: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    };
+    await expect(
+      assertDownPaymentRecordedForDirectActivation(db, 'app-1', {
+        list_price: 100_000,
+        down_payment: 20_000,
+      }),
+    ).rejects.toThrow('down_payment_required_before_activation');
+  });
+
+  it('allows direct activation shortcut when no down payment is required', async () => {
+    const db = {
+      paymentEvent: {
+        findMany: vi.fn(),
+      },
+    };
+    await expect(
+      assertDownPaymentRecordedForDirectActivation(db, 'app-1', { list_price: 100_000, down_payment: 0 }),
+    ).resolves.toBeUndefined();
+    expect(db.paymentEvent.findMany).not.toHaveBeenCalled();
   });
 
   it('sums down_payment PaymentEvents', async () => {

@@ -761,6 +761,11 @@ export function ApplicationWorkspace({
               {t('ops.credit.requireDownPayment')}
             </OpsGhostButton>
           )}
+          {actions.recoverDownPayment && (
+            <OpsGhostButton type="button" disabled={busy} onClick={() => transition.mutate('down_payment_required')}>
+              {t('ops.credit.collectDownPayment')}
+            </OpsGhostButton>
+          )}
           {actions.activate && (
             <OpsPrimaryButton
               type="button"

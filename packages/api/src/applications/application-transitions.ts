@@ -35,6 +35,8 @@ const RULES: TransitionRule[] = [
   { from: 'down_payment_required', to: 'rejected', actors: ['credit', 'admin'], reasonRequired: true },
   { from: 'down_payment_submitted', to: 'pending_finance_activation', actors: ['credit', 'finance', 'admin'] },
   { from: 'down_payment_submitted', to: 'down_payment_required', actors: ['credit', 'finance', 'admin'], reasonRequired: true },
+  // Recovery when pending_finance_activation was reached before down payment was collected.
+  { from: 'pending_finance_activation', to: 'down_payment_required', actors: ['credit', 'finance', 'admin'] },
   { from: 'rejected', to: 'under_review', actors: ['credit', 'admin'] },
   { from: 'active', to: 'completed', actors: ['admin'] },
 ];

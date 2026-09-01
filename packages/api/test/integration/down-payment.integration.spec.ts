@@ -134,4 +134,56 @@ describe('down payment (integration)', () => {
     expect(activateRes.status).toBe(400);
     expect(activateRes.body.error.code).toBe('down_payment_incomplete');
   });
+
+  it('blocks contract_under_review → pending_finance_activation when down payment is unpaid', async () => {
+    const company = await seedCompany(ctx.prisma, 'Direct Edge Co');
+    const offer = await seedOffer(ctx.prisma, company.id);
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
+    const customerEmail = await signUpFresh(createAgent(ctx), 'direct-edge-customer');
+    const customer = await ctx.prisma.user.findUniqueOrThrow({ where: { email: customerEmail } });
+    const pricingSnapshot = buildPricingSnapshot(Number(product.price));
+
+    const app = await ctx.prisma.application.create({
+      data: {
+        customerUserId: customer.id,
+        customerEmail: customer.email,
+        customerSnapshot: {
+          full_name: customer.name,
+          phone: '+97450000000',
+          qid: '28012345678',
+        },
+        productId: product.id,
+        companyId: company.id,
+        offerId: offer.id,
+        pricingSnapshot,
+        status: 'contract_under_review',
+      },
+    });
+
+    const creditEmail = await signUpFresh(createAgent(ctx), 'direct-edge-credit');
+    const creditUser = await ctx.prisma.user.findUniqueOrThrow({ where: { email: creditEmail } });
+    await setUserRole(ctx.prisma, creditUser.id, 'credit_officer', { creditScope: 'assigned' });
+    await assignCreditOfficer(ctx.prisma, creditUser.id, company.id);
+
+    const creditAgent = createAgent(ctx);
+    await signIn(creditAgent, creditEmail);
+
+    const shortcutRes = await authed(creditAgent)
+      .post(`/api/v1/ops/applications/${app.id}/transition`)
+      .send({ toStatus: 'pending_finance_activation' });
+    expect(shortcutRes.status).toBe(400);
+    expect(shortcutRes.body.error.code).toBe('down_payment_required_before_activation');
+
+    const recoverRes = await ctx.prisma.application.update({
+      where: { id: app.id },
+      data: { status: 'pending_finance_activation' },
+    });
+    expect(recoverRes.status).toBe('pending_finance_activation');
+
+    const escapeRes = await authed(creditAgent)
+      .post(`/api/v1/ops/applications/${app.id}/transition`)
+      .send({ toStatus: 'down_payment_required' });
+    expect(escapeRes.status).toBe(200);
+    expect(escapeRes.body.status).toBe('down_payment_required');
+  });
 });

@@ -6,28 +6,29 @@ import {
   SanctionsScreeningResult,
 } from './compliance-provider.interface';
 
-const DEV_NOTE =
-  'Non-production dev provider — records a synthetic pass for local testing only.';
+const SYNTHETIC_NOTE =
+  'Synthetic provider — records an ops-triggered pass. Use only until a real KYC/AML vendor is wired.';
 
 /**
- * Dev/test-only provider — returns pass so runCheck can persist a compliance row.
- * Never selected in production (see compliance-provider.resolve.ts).
+ * Synthetic provider — returns pass so runCheck can persist a compliance row.
+ * Selected when COMPLIANCE_PROVIDER=synthetic (any environment) or the legacy
+ * COMPLIANCE_DEV_PROVIDER flag outside production.
  */
 @Injectable()
 export class DevRecordedComplianceProvider implements ComplianceProvider {
-  readonly name = 'dev-recorded';
+  readonly name = 'synthetic';
 
   verifyIdentity(qid: string, applicantName: string): Promise<IdentityVerificationResult> {
     return Promise.resolve({
       status: ComplianceCheckStatus.pass,
-      raw: { dev: true, qid, applicantName, note: DEV_NOTE },
+      raw: { synthetic: true, qid, applicantName, note: SYNTHETIC_NOTE },
     });
   }
 
   screenSanctions(applicantName: string): Promise<SanctionsScreeningResult> {
     return Promise.resolve({
       status: ComplianceCheckStatus.pass,
-      raw: { dev: true, applicantName, note: DEV_NOTE },
+      raw: { synthetic: true, applicantName, note: SYNTHETIC_NOTE },
     });
   }
 }

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start:dev": "tsx watch src/main.ts",
+    "start:dev": "nest start --watch",
     "build": "prisma generate && npm run build:installment-plan -w @drivemarket/shared && npm run build:tenure -w @drivemarket/shared && nest build",
-    "start": "tsx dist/api/src/main.js",
+    "start": "node dist/api/src/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

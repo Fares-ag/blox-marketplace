@@ -25,6 +25,7 @@ export function visibleWorkspaceActions(status: ApplicationStatus, role?: UserRo
     startContractReview: credit && status === 'contracts_submitted',
     approveSignedContract: credit && status === 'contract_under_review',
     requireDownPayment: credit && status === 'contract_under_review',
+    recoverDownPayment: credit && status === 'pending_finance_activation',
     activate: credit && status === 'pending_finance_activation',
     directActivate: credit && status === 'under_review',
     reopen: credit && status === 'rejected',

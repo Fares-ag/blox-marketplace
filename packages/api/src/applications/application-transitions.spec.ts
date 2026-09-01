@@ -77,6 +77,17 @@ describe('application-transitions', () => {
     ).not.toThrow();
   });
 
+  it('allows recovery from pending_finance_activation to down_payment_required', () => {
+    expect(findTransitionRule('pending_finance_activation', 'down_payment_required')).toBeDefined();
+    expect(() =>
+      assertOpsTransitionAllowed(
+        'pending_finance_activation',
+        'down_payment_required',
+        UserRole.credit_officer,
+      ),
+    ).not.toThrow();
+  });
+
   it('forbids finance from completing or activating via transition', () => {
     expect(() =>
       assertOpsTransitionAllowed('active', 'completed', UserRole.finance_officer),

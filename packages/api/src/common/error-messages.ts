@@ -28,6 +28,8 @@ const HUMAN_MESSAGES: Record<string, string> = {
   quote_unavailable: 'This quote is no longer available.',
   schedule_already_settled: 'This payment schedule is already settled.',
   down_payment_incomplete: 'The recorded down payment does not meet the requirement.',
+  down_payment_required_before_activation:
+    'Collect the down payment before approving the contract for activation.',
   gateway_verification_required: 'Payment completion requires gateway verification.',
   file_too_large: 'The uploaded file exceeds the size limit.',
   mfa_required: 'Multi-factor authentication is required.',

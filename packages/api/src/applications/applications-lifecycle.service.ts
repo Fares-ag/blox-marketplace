@@ -29,6 +29,7 @@ import {
   verifySignedContractReferencesOriginal,
 } from './contract-pdf';
 import {
+  assertDownPaymentRecordedForDirectActivation,
   assertDownPaymentSatisfied,
   requiredDownPaymentAmount,
   sumDownPaymentRecorded,
@@ -317,6 +318,17 @@ export class ApplicationsLifecycleService {
 
     if (opsTransitionRequiresReason(app.status, toStatus) && !reason?.trim()) {
       throw new BadRequestException('validation_failed');
+    }
+
+    if (
+      app.status === ApplicationStatus.contract_under_review &&
+      toStatus === ApplicationStatus.pending_finance_activation
+    ) {
+      await assertDownPaymentRecordedForDirectActivation(
+        this.prisma,
+        id,
+        app.pricingSnapshot as Record<string, unknown>,
+      );
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
