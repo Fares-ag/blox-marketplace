@@ -29,7 +29,10 @@ import { HealthController } from './health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', '../../.env'] }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env', '.env.local', '../../.env', '../../.env.local'],
+    }),
     AppConfigModule,
     ScheduleModule.forRoot(),
     AnalyticsModule,

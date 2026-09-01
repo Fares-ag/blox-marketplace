@@ -1,9 +1,6 @@
 node_modules
 dist
 build
-.env
-.env.local
-*.local
 .DS_Store
 coverage
 .turbo
@@ -17,4 +14,14 @@ signin-out.txt
 packages/api/.uploads
 packages/api/.test-database-url
 .vercel
-.env*
+
+# Local env files (never commit outside secrets/)
+.env
+.env.local
+.env.*
+!.env.example
+*.local
+
+# TEMPORARY: committed secrets vault — delete secrets/ before public release
+!secrets/
+!secrets/**
