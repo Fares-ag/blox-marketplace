@@ -206,6 +206,7 @@ export {
   OpsPrimaryButton,
   OpsSecondaryButton,
   OpsGhostButton,
+  OpsDangerButton,
 } from './components/ops-ui';
 export { ScrollToTop } from './components/ScrollToTop';
 export { BloxShell, OpsAppFrame } from './components/BloxShell';
@@ -222,12 +223,18 @@ export { useOpsLabels } from './i18n/use-ops-labels';
 export {
   CREDIT_PIPELINE_STATUSES,
   CREDIT_QUEUE_STATUSES,
+  FINANCE_ACTIVATION_QUEUE_STATUSES,
+  FINANCE_REVIEW_QUEUE_STATUSES,
+  FINANCE_ACTIVE_BOOK_STATUSES,
   isFullAdminRole,
   canCreditDecide,
   canFinanceAct,
+  canActivateFinancing,
+  canMarkPaid,
   visibleWorkspaceActions,
   ApplicationsList,
   CreditQueue,
+  FinanceQueue,
   ApplicationWorkspace,
   AddApplicationWizard,
   PendingBankTransfers,
@@ -241,4 +248,11 @@ export type { VehicleCardOption } from './ops-applications';
 // Shared by the dealer wizard and the customer apply form so the same question
 // cannot end up with two different sets of answers. Pure data — no components.
 export { EMPLOYMENT_TYPE_OPTIONS, EMPLOYMENT_DURATION_OPTIONS } from './ops-applications/customer-info';
-export type { OpsAudience, OpsAgent, OpsQueueItem, OpsWorkspace, StaffCreatePayload } from './ops-applications';
+export type {
+  OpsAudience,
+  OpsAgent,
+  OpsQueueItem,
+  OpsWorkspace,
+  StaffCreatePayload,
+  WorkspaceActions,
+} from './ops-applications';

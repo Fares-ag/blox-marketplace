@@ -46,6 +46,7 @@ import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
 import { PaymentCalendarPage } from './pages/PaymentCalendarPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ApplicationDetailPanel, type ApplicationDetailData } from './components/ApplicationDetailPanel';
+import { normalizeCustomerApplication } from './lib/application-dto';
 
 function VehiclesBrowseRedirect() {
   const { search } = useLocation();
@@ -846,7 +847,10 @@ function ApplicationDetailPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['app', id],
-    queryFn: () => apiFetch<ApplicationDetailData>(`/api/applications/${id}`),
+    queryFn: () =>
+      apiFetch<Record<string, unknown>>(`/api/applications/${id}`).then(
+        (raw) => normalizeCustomerApplication(raw) as ApplicationDetailData,
+      ),
     enabled: !!id,
   });
 

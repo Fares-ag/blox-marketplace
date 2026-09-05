@@ -12,6 +12,7 @@ import {
   Prisma,
   PaymentEventType,
   ScheduleStatus,
+  PaymentTransactionStatus,
   User,
   UserRole,
 } from '@prisma/client';
@@ -74,8 +75,12 @@ export type MobileSkipCashVerifyInput = {
   idempotencyKey?: string;
 };
 
+// Mark-paid / bank-transfer recording is shared by credit, finance and admin
+// (blox-vercel `canMarkPaid`). Separation of duties still refuses the officer
+// who approved the application when it is enabled.
 const PAYMENT_ROLES: UserRole[] = [
   UserRole.finance_officer,
+  UserRole.credit_officer,
   UserRole.admin,
   UserRole.super_admin,
 ];
@@ -214,6 +219,142 @@ export class PaymentsService {
     if (!PAYMENT_ROLES.includes(user.role)) {
       throw new ForbiddenException('forbidden_role');
     }
+  }
+
+  /**
+   * Finance "Active Book" (blox-vercel `/finance/book`): one row per active
+   * financing with remaining principal and the next installment.
+   */
+  async listActiveBook(user: User, query: PaginationQueryDto & { q?: string }) {
+    if (!VIEW_ROLES.includes(user.role)) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
+    const companyFilter = await opsCompanyFilter(this.prisma, user);
+    const q = query.q?.trim();
+    const where: Prisma.ApplicationWhereInput = {
+      status: 'active',
+      ...(companyFilter ? { companyId: { in: companyFilter } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { customerEmail: { contains: q, mode: 'insensitive' } },
+              { customer: { name: { contains: q, mode: 'insensitive' } } },
+              { product: { make: { contains: q, mode: 'insensitive' } } },
+              { product: { model: { contains: q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+    const today = startOfTodayUtc();
+    const [total, apps] = await Promise.all([
+      this.prisma.application.count({ where }),
+      this.prisma.application.findMany({
+        where,
+        orderBy: { activatedAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          customer: { select: { name: true } },
+          product: { select: { make: true, model: true, modelYear: true } },
+          company: { select: { name: true } },
+          paymentSchedules: {
+            select: { dueDate: true, amount: true, remainingAmount: true, status: true, sequence: true },
+            orderBy: { dueDate: 'asc' },
+          },
+        },
+      }),
+    ]);
+    const items = apps.map((a) => {
+      const schedules = a.paymentSchedules;
+      const remaining = schedules.reduce((sum, s) => sum + Number(s.remainingAmount), 0);
+      const paid = schedules.filter((s) => s.status === ScheduleStatus.paid).length;
+      const overdue = schedules.filter(
+        (s) => s.status === ScheduleStatus.overdue || (s.status === ScheduleStatus.pending && s.dueDate < today),
+      ).length;
+      const next = schedules.find((s) => s.status === ScheduleStatus.pending || s.status === ScheduleStatus.overdue);
+      return {
+        application_id: a.id,
+        customer_name: a.customer?.name ?? null,
+        customer_email: a.customerEmail,
+        vehicle: `${a.product.make} ${a.product.model} ${a.product.modelYear ?? ''}`.trim(),
+        company_name: a.company.name,
+        activated_at: a.activatedAt?.toISOString() ?? null,
+        remaining_principal: Math.round(remaining * 100) / 100,
+        installments_total: schedules.length,
+        installments_paid: paid,
+        installments_overdue: overdue,
+        next_due_date: next ? next.dueDate.toISOString().slice(0, 10) : null,
+        next_amount: next ? Number(next.remainingAmount) : null,
+        next_sequence: next?.sequence ?? null,
+      };
+    });
+    const bookRemaining = items.reduce((s, i) => s + i.remaining_principal, 0);
+    return {
+      total,
+      limit,
+      offset,
+      summary: { active: total, remaining_principal: Math.round(bookRemaining * 100) / 100 },
+      items,
+    };
+  }
+
+  /** Finance "Payments → Transactions" tab: gateway/bank transactions in scope. */
+  async listTransactions(
+    user: User,
+    query: PaginationQueryDto & { status?: PaymentTransactionStatus; applicationId?: string },
+  ) {
+    if (!VIEW_ROLES.includes(user.role)) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 200 });
+    const companyFilter = await opsCompanyFilter(this.prisma, user);
+    const where: Prisma.PaymentTransactionWhereInput = {
+      ...(query.applicationId ? { applicationId: query.applicationId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(companyFilter ? { application: { companyId: { in: companyFilter } } } : {}),
+    };
+    const [total, rows] = await Promise.all([
+      this.prisma.paymentTransaction.count({ where }),
+      this.prisma.paymentTransaction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          schedule: { select: { sequence: true, dueDate: true } },
+          application: {
+            select: {
+              customerEmail: true,
+              customer: { select: { name: true } },
+              product: { select: { make: true, model: true, modelYear: true } },
+              company: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    ]);
+    return {
+      total,
+      limit,
+      offset,
+      items: rows.map((t) => ({
+        id: t.id,
+        application_id: t.applicationId,
+        gateway: t.gateway,
+        gateway_payment_id: t.gatewayPaymentId,
+        amount: Number(t.amount),
+        currency: t.currency,
+        status: t.status,
+        sequence: t.schedule?.sequence ?? null,
+        due_date: t.schedule?.dueDate ? t.schedule.dueDate.toISOString().slice(0, 10) : null,
+        customer_name: t.application.customer?.name ?? null,
+        customer_email: t.application.customerEmail,
+        vehicle: `${t.application.product.make} ${t.application.product.model} ${t.application.product.modelYear ?? ''}`.trim(),
+        company_name: t.application.company.name,
+        created_at: t.createdAt.toISOString(),
+      })),
+    };
   }
 
   async listSchedules(

@@ -328,24 +328,22 @@ export function AddApplicationWizard({
 
         return (
           <OpsFormSection title={t('ops.wizard.step.plan')}>
-            <OpsFormGrid>
-              <OpsField
-                label={t('ops.credit.tenure')}
-                type="number"
-                min={MIN_TENURE_MONTHS}
-                max={MAX_TENURE_MONTHS}
-                value={data.tenure}
-                onChange={(e) => updateData({ tenure: clampTenureMonths(Number(e.target.value)) })}
-              />
-              <OpsField
-                label={t('ops.wizard.downPaymentPct')}
-                type="number"
-                min={minDown}
-                max={80}
-                value={data.downPct}
-                onChange={(e) => updateData({ downPct: Number(e.target.value) })}
-              />
-            </OpsFormGrid>
+            <OpsField
+              label={t('ops.credit.tenure')}
+              type="number"
+              min={MIN_TENURE_MONTHS}
+              max={MAX_TENURE_MONTHS}
+              value={data.tenure}
+              onChange={(e) => updateData({ tenure: clampTenureMonths(Number(e.target.value)) })}
+            />
+            <OpsField
+              label={t('ops.wizard.downPaymentPct')}
+              type="number"
+              min={minDown}
+              max={80}
+              value={data.downPct}
+              onChange={(e) => updateData({ downPct: Number(e.target.value) })}
+            />
             <InstallmentPlanStep
               vehiclePrice={priceForPlan}
               offerRate={rate}

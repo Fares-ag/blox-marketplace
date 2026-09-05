@@ -14,6 +14,8 @@
     "dev:super-admin": "npm -w @drivemarket/super-admin run dev",
     "db:push": "npm -w @drivemarket/api run db:push",
     "db:seed": "npm -w @drivemarket/api run db:seed",
+    "ensure:seed-users": "node scripts/ensure-seed-users.mjs",
+    "ensure:qa-mobile": "node scripts/ensure-qa-mobile-users.mjs",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",

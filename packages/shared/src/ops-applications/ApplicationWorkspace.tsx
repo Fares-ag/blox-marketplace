@@ -22,6 +22,7 @@ import { InstallmentScheduleTable } from './InstallmentScheduleTable';
 import { OpsDangerButton, OpsGhostButton, OpsPrimaryButton, OpsSecondaryButton } from '../components/ops-ui';
 import type { OpsAgent, OpsAudience, OpsWorkspace } from './types';
 import { visibleWorkspaceActions } from './useApplicationActions';
+import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
 import { CustomerInfoOverview } from './CustomerInfoOverview';
 import {
   customerInfoFromSnapshot,
@@ -50,8 +51,12 @@ export function ApplicationWorkspace({
 }: {
   id: string;
   audience: OpsAudience;
-  backTo: string;
+  /** Override the back link; defaults to the portal-aware queue/list route. */
+  backTo?: string;
 }) {
+  const portalBase = usePortalBasePath();
+  const backHref = backTo ?? withPortalBase(audience === 'credit' ? '/queue' : '/applications', portalBase);
+  const backLabelKey = audience === 'credit' || audience === 'finance' ? 'ops.common.backToQueue' : 'ops.common.backToApplications';
   const { t, applicationStatus } = useOpsLabels();
   const user = useAuthStore((s) => s.user);
   const role = user?.role;
@@ -201,7 +206,7 @@ export function ApplicationWorkspace({
     mutationFn: () => apiFetch(`/api/ops/applications/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       toast.success('Application deleted');
-      window.location.href = backTo;
+      window.location.href = backHref;
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -340,8 +345,8 @@ export function ApplicationWorkspace({
   return (
     <>
       <OpsDetailPage
-        backTo={backTo}
-        backLabel={t('ops.common.backToQueue')}
+        backTo={backHref}
+        backLabel={t(backLabelKey)}
         title={t('ops.workspace.title')}
         idLabel={label}
         status={{ label: applicationStatus(data.status), variant: applicationOpsPillVariant(data.status) }}
@@ -516,6 +521,9 @@ export function ApplicationWorkspace({
             projected={data.status !== 'active' && data.status !== 'completed'}
             canConvertDaily={!!actions.convertDaily}
             onConvertDaily={() => convertDaily.mutate()}
+            markPaidBlockedReason={
+              data.separation_of_duties_blocked ? t('ops.workspace.markPaidSodBlocked') : undefined
+            }
             onMarkPaid={
               actions.markInstallmentPaid
                 ? (row) => {
@@ -746,6 +754,36 @@ export function ApplicationWorkspace({
               {t('ops.credit.approveSendContract')}
             </OpsPrimaryButton>
           )}
+          {actions.approveForFinance && (
+            <OpsSecondaryButton
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                setConfirm({
+                  title: t('ops.credit.approveForFinance'),
+                  message: t('ops.credit.approveForFinanceConfirm', { label }),
+                  onConfirm: () => transition.mutate('pending_finance_activation'),
+                })
+              }
+            >
+              {t('ops.credit.approveForFinance')}
+            </OpsSecondaryButton>
+          )}
+          {actions.activateAdmin && (
+            <OpsGhostButton
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                setConfirm({
+                  title: t('ops.credit.activateAdmin'),
+                  message: t('ops.credit.activateAdminConfirm', { label }),
+                  onConfirm: () => activate.mutate(false),
+                })
+              }
+            >
+              {t('ops.credit.activateAdmin')}
+            </OpsGhostButton>
+          )}
           {actions.startContractReview && (
             <OpsSecondaryButton type="button" disabled={busy} onClick={() => transition.mutate('contract_under_review')}>
               {t('ops.credit.startContractReview')}
@@ -820,6 +858,21 @@ export function ApplicationWorkspace({
             <OpsSecondaryButton type="button" disabled={busy} onClick={() => transition.mutate('under_review')}>
               {t('ops.credit.reopen')}
             </OpsSecondaryButton>
+          )}
+          {actions.cancel && (
+            <OpsDangerButton
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                setConfirm({
+                  title: t('ops.common.cancelApplication'),
+                  message: t('ops.common.cancelApplicationConfirm', { label }),
+                  onConfirm: () => transition.mutate('submission_cancelled'),
+                })
+              }
+            >
+              {t('ops.common.cancelApplication')}
+            </OpsDangerButton>
           )}
           {actions.recordDownPayment && data.status === 'down_payment_required' && (
             <OpsPrimaryButton type="button" onClick={() => downPay.mutate()}>

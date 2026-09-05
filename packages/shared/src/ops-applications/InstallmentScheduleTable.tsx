@@ -26,6 +26,8 @@ export type InstallmentScheduleTableProps = {
   vehiclePrice?: number;
   projected?: boolean;
   onMarkPaid?: (row: DisplayScheduleRow) => void;
+  /** When set, mark-paid is shown disabled with this explanation (e.g. separation of duties). */
+  markPaidBlockedReason?: string;
   onConvertDaily?: () => void;
   canConvertDaily?: boolean;
 };
@@ -53,6 +55,7 @@ export function InstallmentScheduleTable({
   vehiclePrice = 0,
   projected = false,
   onMarkPaid,
+  markPaidBlockedReason,
   onConvertDaily,
   canConvertDaily,
 }: InstallmentScheduleTableProps) {
@@ -165,15 +168,21 @@ export function InstallmentScheduleTable({
         id: 'actions',
         label: t('ops.workspace.col.actions'),
         format: (_, row) => {
+          // Live rows are display-mapped (`pending` → `upcoming`, `overdue` → `due`), so
+          // gate on the raw API status — otherwise no live row ever shows the button.
+          const payable = row.liveStatus ?? String(row.status);
           const canPay =
             row.source === 'live' &&
             row.id &&
-            (row.status === 'pending' || row.status === 'overdue' || row.status === 'due');
+            (payable === 'pending' || payable === 'overdue' || payable === 'due');
           return canPay ? (
             <button
               type="button"
               className="blox-btn blox-btn--ghost"
               onClick={() => onMarkPaid(row)}
+              disabled={!!markPaidBlockedReason}
+              title={markPaidBlockedReason}
+              aria-disabled={!!markPaidBlockedReason}
             >
               {t('ops.workspace.markPaid')}
             </button>
@@ -185,7 +194,7 @@ export function InstallmentScheduleTable({
     }
 
     return base;
-  }, [t, onMarkPaid, price, downPayment, tenureMonths, installmentPlan]);
+  }, [t, onMarkPaid, markPaidBlockedReason, price, downPayment, tenureMonths, installmentPlan]);
 
   if (rows.length === 0) {
     return (
@@ -201,6 +210,11 @@ export function InstallmentScheduleTable({
       {(projected || !isActive) && (
         <p className="blox-panel__hint" style={{ marginBottom: '0.75rem' }}>
           {t('ops.workspace.scheduleProjected')}
+        </p>
+      )}
+      {onMarkPaid && markPaidBlockedReason && (
+        <p className="blox-panel__hint" role="note" style={{ marginBottom: '0.75rem' }}>
+          {markPaidBlockedReason}
         </p>
       )}
       {showConvert && onConvertDaily && (

@@ -9,6 +9,7 @@ import {
   TwoFactorLoginPage,
   MfaSetupPage,
   BloxShell,
+  PortalBasePathProvider,
   OpsAppFrame,
   AddApplicationWizard,
   ApplicationWorkspace,
@@ -72,6 +73,7 @@ function App() {
         path="/*"
         element={
           <AuthGuard allowedRole={['admin', 'super_admin', 'group_admin']} reasonParam="not_admin">
+            <PortalBasePathProvider basePath="/main">
             <BloxShell title="Admin" nav={navItems} homePaths={['/main/dashboard']}>
               <Suspense fallback={<PageSkeleton variant="dashboard" />}>
               <Routes>
@@ -109,6 +111,7 @@ function App() {
               </Routes>
               </Suspense>
             </BloxShell>
+            </PortalBasePathProvider>
           </AuthGuard>
         }
       />

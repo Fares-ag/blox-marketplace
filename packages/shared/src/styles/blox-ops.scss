@@ -1829,7 +1829,10 @@ $bp-content-ultra: 2560px;
 }
 
 .blox-wizard-plan {
+  grid-column: 1 / -1;
   margin-top: var(--blox-space-lg);
+  width: 100%;
+  min-width: 0;
 
   &__summary {
     display: grid;
@@ -1869,6 +1872,12 @@ $bp-content-ultra: 2560px;
     font-size: 0.8125rem;
     color: var(--blox-slate);
   }
+}
+
+.blox-installment-schedule {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .blox-wizard-agent-invite {

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ListingStatus, User } from '@prisma/client';
+import { ListingStatus, User, VehicleCondition } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { ProductsService } from '../products/products.service';
@@ -31,13 +31,37 @@ export class MobileService {
     private readonly credits: CreditsService,
   ) {}
 
-  async listVehicles(query: Record<string, string | undefined>) {
+  async listVehicles(query: Record<string, string | string[] | undefined>) {
+    // Repeated query keys arrive as arrays; take the first value so a
+    // duplicated `limit` cannot reach Prisma as a non-number (was a 500).
+    const str = (v: string | string[] | undefined): string | undefined => {
+      const first = Array.isArray(v) ? v[0] : v;
+      const trimmed = first?.trim();
+      return trimmed ? trimmed : undefined;
+    };
+    const num = (v: string | string[] | undefined): number | undefined => {
+      const s = str(v);
+      if (s === undefined) return undefined;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const condition = str(query.condition)?.toLowerCase();
     const page = await this.products.listPublished({
-      make: query.make,
-      model: query.model,
-      q: query.q,
-      limit: query.limit ? Number(query.limit) : 25,
-      offset: query.offset ? Number(query.offset) : 0,
+      make: str(query.make),
+      model: str(query.model),
+      q: str(query.q),
+      condition:
+        condition === 'new' || condition === 'used'
+          ? (condition as VehicleCondition)
+          : condition === 'old'
+            ? VehicleCondition.used
+            : undefined,
+      priceMin: num(query.priceMin),
+      priceMax: num(query.priceMax),
+      yearMin: num(query.yearMin),
+      yearMax: num(query.yearMax),
+      limit: Math.min(Math.max(num(query.limit) ?? 25, 1), 100),
+      offset: Math.max(num(query.offset) ?? 0, 0),
     });
     return {
       ...page,

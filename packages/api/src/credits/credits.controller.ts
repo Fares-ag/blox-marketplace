@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
 import { IsNumber, IsOptional, IsPositive, IsString, ValidateIf } from 'class-validator';
 import { CurrentUser, Roles } from '../auth/guards';
@@ -56,20 +56,41 @@ export class CreditsController {
   }
 }
 
+/** Blox credits are a finance/admin money op (blox-vercel FINANCE_PORTAL.md). */
+const CREDITS_OPS_ROLES = [UserRole.finance_officer, UserRole.admin, UserRole.super_admin] as const;
+
+class ListCreditsQuery {
+  @IsOptional() @IsString() q?: string;
+  @IsOptional() @IsNumber() limit?: number;
+  @IsOptional() @IsNumber() offset?: number;
+}
+
 @Controller('ops/users')
 export class OpsCreditsController {
   constructor(private readonly credits: CreditsService) {}
 
-  @Roles(UserRole.admin, UserRole.super_admin)
+  @Roles(...CREDITS_OPS_ROLES)
   @Get(':id/credits')
   adminBalance(@Param('id') id: string) {
     return this.credits.adminBalance(id);
   }
 
-  @Roles(UserRole.admin, UserRole.super_admin)
+  @Roles(...CREDITS_OPS_ROLES)
   @HttpCode(200)
   @Post(':id/credits')
   adminAdjust(@CurrentUser() actor: User, @Param('id') id: string, @Body() dto: AdminCreditsDto) {
     return this.credits.adminAdjust(actor, id, dto.action, dto.amount, dto.description);
+  }
+}
+
+@Controller('ops/credits')
+export class OpsCreditsListController {
+  constructor(private readonly credits: CreditsService) {}
+
+  /** Finance `/credits` overview: every customer balance, searchable by email/name. */
+  @Roles(...CREDITS_OPS_ROLES)
+  @Get()
+  list(@Query() query: ListCreditsQuery) {
+    return this.credits.listBalances(query);
   }
 }

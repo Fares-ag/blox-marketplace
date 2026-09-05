@@ -25,6 +25,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { KycModule } from './kyc/kyc.module';
 import { MobileModule } from './mobile/mobile.module';
 import { MediaModule } from './media/media.module';
+import { SettlementsModule } from './settlements/settlements.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -56,6 +57,7 @@ import { HealthController } from './health.controller';
     KycModule,
     MobileModule,
     MediaModule,
+    SettlementsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

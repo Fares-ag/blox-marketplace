@@ -163,7 +163,6 @@ export function WizardReviewStep({
       {plan && (
         <section className="blox-detail-section blox-wizard-review__schedule">
           <h2 className="blox-panel__title">{t('ops.wizard.reviewSchedule')}</h2>
-          <p className="blox-wizard-plan__note">{t('ops.workspace.scheduleProjected')}</p>
           <InstallmentScheduleTable
             installmentPlan={plan}
             applicationStatus="draft"

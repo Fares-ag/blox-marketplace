@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Avatar,
+  Badge,
   Box,
   Divider,
   Drawer,
@@ -12,6 +14,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Popover,
   Typography,
   useMediaQuery,
 } from '@mui/material';
@@ -28,6 +31,7 @@ import {
   LocalOffer,
   Logout,
   Menu as MenuIcon,
+  Notifications as NotificationsIcon,
   People,
   ReceiptLong,
   RequestQuote,
@@ -36,10 +40,13 @@ import {
 } from '@mui/icons-material';
 import { useAuthStore } from '../auth/auth-store';
 import { getAppLocale, setAppLocale, type AppLocale } from '../i18n';
+import { apiFetch } from '../lib/api';
+import type { NotificationItem, PaginatedResponse } from '../types/domain';
 import { theme } from '../config/theme';
 import { bloxTokens } from '../config/blox-tokens';
 import { BloxLogo } from './BloxLogo';
 import { OpsSegmentedControl } from '../ops-ui-v2/OpsSegmentedControl';
+import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
 import '../styles/blox-ops.scss';
 
 export interface BloxNavItem {
@@ -107,6 +114,144 @@ function navIcon(kind?: BloxNavItem['icon']) {
     default:
       return <ListAlt fontSize="small" />;
   }
+}
+
+/**
+ * Staff inbox for the `notifications` rows the API writes on submissions,
+ * decisions and settlements. Polls the unread count; the list loads on open.
+ * Links are portal-relative (`/applications/:id`) and get the portal base path.
+ */
+function ShellNotifications({ collapsed, onNavigated }: { collapsed: boolean; onNavigated?: () => void }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const portalBase = usePortalBasePath();
+  const locale = getAppLocale();
+  const user = useAuthStore((s) => s.user);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const open = Boolean(anchor);
+
+  const unread = useQuery({
+    queryKey: ['shell-notifications-unread'],
+    queryFn: () => apiFetch<{ count: number }>('/api/notifications/unread-count'),
+    enabled: !!user,
+    refetchInterval: 60_000,
+  });
+  const list = useQuery({
+    queryKey: ['shell-notifications'],
+    queryFn: () => apiFetch<PaginatedResponse<NotificationItem>>('/api/notifications?limit=20'),
+    enabled: !!user && open,
+  });
+  const markRead = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/notifications/${id}/read`, { method: 'PATCH' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['shell-notifications'] });
+      void qc.invalidateQueries({ queryKey: ['shell-notifications-unread'] });
+    },
+  });
+
+  const count = unread.data?.count ?? 0;
+  const items = list.data?.items ?? [];
+
+  function openItem(item: NotificationItem) {
+    if (!item.read_at) markRead.mutate(item.id);
+    setAnchor(null);
+    if (item.link_path) {
+      navigate(withPortalBase(item.link_path, portalBase));
+      onNavigated?.();
+    }
+  }
+
+  return (
+    <>
+      <ListItemButton
+        onClick={(e) => setAnchor(e.currentTarget)}
+        aria-label={t('ops.shell.notifications')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="blox-shell-notifications"
+        sx={{
+          borderRadius: 1,
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+        }}
+      >
+        <ListItemIcon sx={{ color: 'rgba(255,255,255,0.8)', minWidth: collapsed ? 0 : 40 }}>
+          <Badge badgeContent={count} color="error" max={99} overlap="circular">
+            <NotificationsIcon fontSize="small" />
+          </Badge>
+        </ListItemIcon>
+        {!collapsed && (
+          <ListItemText
+            primary={t('ops.shell.notifications')}
+            secondary={count > 0 ? t('ops.shell.notificationsUnread', { count }) : undefined}
+            slotProps={{ secondary: { sx: { color: 'rgba(255,255,255,0.65)' } } }}
+          />
+        )}
+      </ListItemButton>
+      <Popover
+        open={open}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        slotProps={{ paper: { sx: { width: 380, maxWidth: '92vw', maxHeight: 520 } } }}
+      >
+        <Box
+          sx={{
+            px: 2,
+            py: 1.5,
+            borderBottom: '1px solid rgba(0,0,0,0.08)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          <Typography variant="subtitle2">{t('ops.shell.notifications')}</Typography>
+          {count > 0 && (
+            <Typography variant="caption" color="text.secondary">
+              {t('ops.shell.notificationsUnread', { count })}
+            </Typography>
+          )}
+        </Box>
+        {list.isLoading ? (
+          <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+            {t('ops.shell.notificationsLoading')}
+          </Typography>
+        ) : items.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+            {t('ops.shell.notificationsEmpty')}
+          </Typography>
+        ) : (
+          <List dense disablePadding>
+            {items.map((item) => (
+              <ListItem key={item.id} disablePadding divider>
+                <ListItemButton
+                  onClick={() => openItem(item)}
+                  sx={{ alignItems: 'flex-start', bgcolor: item.read_at ? 'transparent' : 'rgba(0,207,162,0.08)' }}
+                >
+                  <ListItemText
+                    primary={item.title}
+                    secondary={[
+                      item.body,
+                      new Date(item.created_at).toLocaleString(locale === 'ar' ? 'ar-QA' : 'en-QA'),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    slotProps={{
+                      primary: { sx: { fontWeight: item.read_at ? 400 : 600, fontSize: '0.875rem' } },
+                      secondary: { sx: { fontSize: '0.75rem' } },
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        )}
+      </Popover>
+    </>
+  );
 }
 
 export function BloxShell({ title, nav, children, homePaths = ['/'] }: BloxShellProps) {
@@ -266,8 +411,14 @@ export function BloxShell({ title, nav, children, homePaths = ['/'] }: BloxShell
             })}
           </List>
           <Box sx={{ p: 1.5, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+            <ShellNotifications
+              collapsed={collapsed}
+              onNavigated={() => {
+                if (isMobile) setCollapsed(true);
+              }}
+            />
             {!collapsed && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1, mt: 1 }}>
                 <OpsSegmentedControl
                   value={locale}
                   options={[

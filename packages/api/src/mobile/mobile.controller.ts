@@ -67,7 +67,7 @@ export class MobileController {
 
   @Public()
   @Get('catalog/vehicles')
-  catalog(@Query() query: Record<string, string | undefined>) {
+  catalog(@Query() query: Record<string, string | string[] | undefined>) {
     return this.mobile.listVehicles(query);
   }
 

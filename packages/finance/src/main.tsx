@@ -11,33 +11,46 @@ import {
   OpsAppFrame,
   ApplicationsList,
   ApplicationWorkspace,
-  PendingBankTransfers,
-  ScheduleLedger,
+  FinanceQueue,
   type BloxNavItem,
   useOpsLabels,
   mountPortalApp,
 } from '@drivemarket/shared';
 import '@drivemarket/shared/styles/global.scss';
 import { DashboardPage } from './pages/DashboardPage';
+import { FinanceBookPage } from './pages/FinanceBookPage';
+import { FinancePaymentsPage } from './pages/FinancePaymentsPage';
+import { FinanceSettlementsPage } from './pages/FinanceSettlementsPage';
+import { FinanceCreditsPage } from './pages/FinanceCreditsPage';
+import { FinanceExportsPage } from './pages/FinanceExportsPage';
 
 function ApplicationsPage() {
-  return <ApplicationsList audience="finance" basePath="/applications" />;
+  return <ApplicationsList audience="finance" />;
 }
 
 function FinanceWorkspace() {
   const { id } = useParams();
-  if (!id) return <Navigate to="/applications" replace />;
-  return <ApplicationWorkspace id={id} audience="finance" backTo="/applications" />;
+  if (!id) return <Navigate to="/queue" replace />;
+  return <ApplicationWorkspace id={id} audience="finance" backTo="/queue" />;
 }
 
+/**
+ * Finance portal — nav mirrors blox-vercel FINANCE_PORTAL.md:
+ * Queue (Activation view / Review) · Active Book · Payments · Settlements · Credits · Exports.
+ * Dashboard and Applications are marketplace extras kept for continuity.
+ */
 function App() {
   const { t } = useOpsLabels();
   const navItems = useMemo<BloxNavItem[]>(
     () => [
-      { to: '/', label: t('ops.finance.nav.dashboard'), icon: 'home' },
-      { to: '/schedules', label: t('ops.finance.nav.schedules'), icon: 'finance' },
+      { to: '/dashboard', label: t('ops.finance.nav.dashboard'), icon: 'home' },
+      { to: '/queue', label: t('ops.finance.nav.queue'), icon: 'queue' },
+      { to: '/book', label: t('ops.finance.nav.book'), icon: 'ledgers' },
+      { to: '/payments', label: t('ops.finance.nav.payments'), icon: 'finance' },
+      { to: '/settlements', label: t('ops.finance.nav.settlements'), icon: 'offers' },
+      { to: '/credits', label: t('ops.finance.nav.credits'), icon: 'packages' },
+      { to: '/exports', label: t('ops.finance.nav.exports'), icon: 'logs' },
       { to: '/applications', label: t('ops.finance.nav.applications'), icon: 'apps' },
-      { to: '/bank-transfers', label: t('ops.finance.nav.bankTransfers'), icon: 'ledgers' },
     ],
     [t],
   );
@@ -45,26 +58,32 @@ function App() {
   return (
     <OpsAppFrame>
       <Routes>
-        <Route path="/auth/login" element={<LoginPage portalKey="finance" homePath="/" />} />
+        <Route path="/auth/login" element={<LoginPage portalKey="finance" homePath="/queue" />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
-        <Route
-          path="/auth/two-factor"
-          element={<TwoFactorLoginPage portalKey="finance" homePath="/" />}
-        />
-        <Route path="/auth/mfa-setup" element={<MfaSetupPage portalKey="finance" homePath="/" />} />
+        <Route path="/auth/two-factor" element={<TwoFactorLoginPage portalKey="finance" homePath="/queue" />} />
+        <Route path="/auth/mfa-setup" element={<MfaSetupPage portalKey="finance" homePath="/queue" />} />
         <Route
           path="/*"
           element={
             <AuthGuard allowedRole="finance_officer" reasonParam="not_finance">
-              <BloxShell title="Finance" nav={navItems}>
+              <BloxShell title="Finance" nav={navItems} homePaths={['/queue']}>
                 <Routes>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/schedules" element={<ScheduleLedger />} />
+                  <Route path="/" element={<Navigate to="/queue" replace />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/queue" element={<FinanceQueue />} />
+                  <Route path="/book" element={<FinanceBookPage />} />
+                  <Route path="/payments" element={<FinancePaymentsPage />} />
+                  <Route path="/settlements" element={<FinanceSettlementsPage />} />
+                  <Route path="/credits" element={<FinanceCreditsPage />} />
+                  <Route path="/exports" element={<FinanceExportsPage />} />
                   <Route path="/applications" element={<ApplicationsPage />} />
                   <Route path="/applications/:id" element={<FinanceWorkspace />} />
-                  <Route path="/bank-transfers" element={<PendingBankTransfers />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                  {/* vercel-style deep links and legacy marketplace routes */}
+                  <Route path="/applications/view/:id" element={<FinanceWorkspace />} />
+                  <Route path="/schedules" element={<Navigate to="/payments?tab=schedules" replace />} />
+                  <Route path="/bank-transfers" element={<Navigate to="/payments?tab=bank" replace />} />
+                  <Route path="*" element={<Navigate to="/queue" replace />} />
                 </Routes>
               </BloxShell>
             </AuthGuard>

@@ -8,7 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ScheduleStatus, User, UserRole } from '@prisma/client';
+import { PaymentTransactionStatus, ScheduleStatus, User, UserRole } from '@prisma/client';
 import { IsEnum, IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
 import { CurrentUser, Public, Roles } from '../auth/guards';
 import { IDEMPOTENCY_KEY_HEADER, IDEMPOTENCY_SCOPES } from '../common/idempotency.constants';
@@ -31,6 +31,15 @@ class ListSchedulesQuery extends PaginationQueryDto {
   @IsOptional() @IsString() applicationId?: string;
 }
 
+class ActiveBookQuery extends PaginationQueryDto {
+  @IsOptional() @IsString() q?: string;
+}
+
+class ListTransactionsQuery extends PaginationQueryDto {
+  @IsOptional() @IsEnum(PaymentTransactionStatus) status?: PaymentTransactionStatus;
+  @IsOptional() @IsString() applicationId?: string;
+}
+
 class SkipCashCompleteDto {
   @IsString() idempotency_key!: string;
   @IsOptional() @IsString() gateway_payment_id?: string;
@@ -49,7 +58,22 @@ export class PaymentsController {
     return this.payments.listSchedules(user, query);
   }
 
-  @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  /** Finance Active Book (blox-vercel `/finance/book`). */
+  @Roles(UserRole.finance_officer, UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Get('ops/finance/book')
+  book(@CurrentUser() user: User, @Query() query: ActiveBookQuery) {
+    return this.payments.listActiveBook(user, query);
+  }
+
+  /** Finance Payments → Transactions tab. */
+  @Roles(UserRole.finance_officer, UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Get('ops/payment-transactions')
+  transactions(@CurrentUser() user: User, @Query() query: ListTransactionsQuery) {
+    return this.payments.listTransactions(user, query);
+  }
+
+  // Mark-paid is shared by credit, finance and admin (blox-vercel canMarkPaid).
+  @Roles(UserRole.finance_officer, UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/payment-schedules/:id/pay')
   pay(
@@ -87,13 +111,13 @@ export class PaymentsController {
     return this.payments.markOverdue(user);
   }
 
-  @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.finance_officer, UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
   @Get('ops/payments/pending-bank')
   pendingBank(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
     return this.payments.listPendingBank(user, query);
   }
 
-  @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.finance_officer, UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/payment-schedules/:id/bank-pending')
   createPendingBank(
@@ -104,7 +128,7 @@ export class PaymentsController {
     return this.payments.createPendingBank(user, id, dto);
   }
 
-  @Roles(UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.finance_officer, UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/payments/:id/confirm-bank')
   confirmBank(@CurrentUser() user: User, @Param('id') id: string) {

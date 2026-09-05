@@ -12,7 +12,11 @@ interface AuthState {
   enableTwoFactor: (password: string) => Promise<{ error?: string; totpURI?: string; backupCodes?: string[] }>;
   verifyTwoFactorSetup: (code: string) => Promise<{ error?: string }>;
   revokeAllSessions: () => Promise<{ error?: string }>;
-  signUp: (email: string, password: string, name: string) => Promise<{ error?: string }>;
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+  ) => Promise<{ error?: string; pendingVerification?: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -197,12 +201,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          // Where the emailed verification link lands once Better Auth confirms it.
+          // Without this the link falls back to the API root (404).
+          callbackURL: `${window.location.origin}/auth/verify-email`,
+        }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
         set({ loading: false });
         return { error: data.message ?? 'Sign up failed' };
+      }
+      const data = (await res.json().catch(() => ({}))) as { token?: string | null };
+      // With requireEmailVerification the API creates the account but no session
+      // (token null). Probing /api/me here would surface a 401 as a sign-up error.
+      if (!data.token) {
+        set({ loading: false });
+        return { pendingVerification: true };
       }
       const me = await apiFetch<Record<string, unknown>>('/api/me');
       set({ user: mapUser(me), loading: false });

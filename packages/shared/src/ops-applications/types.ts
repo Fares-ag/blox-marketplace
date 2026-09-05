@@ -74,6 +74,8 @@ export type OpsWorkspace = {
   allow_direct_activate?: boolean;
   rejection_reason?: string | null;
   resubmission_comment?: string | null;
+  /** True when the current user is the credit approver and SoD blocks them from payments. */
+  separation_of_duties_blocked?: boolean;
 };
 
 export type StaffCreatePayload = {

@@ -23,6 +23,25 @@ export type MailInput = {
   authCritical?: boolean;
 };
 
+const LOCAL_SMTP_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+/**
+ * STARTTLS policy for plain SMTP. `SMTP_REQUIRE_TLS=true|false` wins; otherwise
+ * TLS is required on submission ports against remote hosts, but not on port 25
+ * or against a local sink (Mailpit/MailHog) that speaks plain SMTP only.
+ */
+export function resolveSmtpRequireTls(
+  raw: string | undefined,
+  opts: { host: string; port: number; secure: boolean },
+): boolean {
+  const flag = raw?.trim().toLowerCase();
+  if (flag === 'true' || flag === '1') return true;
+  if (flag === 'false' || flag === '0') return false;
+  if (opts.secure) return false;
+  if (opts.port === 25) return false;
+  return !LOCAL_SMTP_HOSTS.has(opts.host.trim().toLowerCase());
+}
+
 export class MailDeliveryError extends Error {
   constructor(
     message: string,
@@ -96,7 +115,11 @@ export class MailService {
           host,
           port,
           secure,
-          requireTLS: !secure && port !== 25,
+          requireTLS: resolveSmtpRequireTls(this.config.get<string>('SMTP_REQUIRE_TLS'), {
+            host,
+            port,
+            secure,
+          }),
           auth: this.config.get<string>('SMTP_USER')
             ? {
                 user: this.config.get<string>('SMTP_USER'),

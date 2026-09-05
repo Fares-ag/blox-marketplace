@@ -16,6 +16,7 @@ import { MarketplaceNav } from '../components/MarketplaceNav';
 import { ListingCard } from '../components/ListingCard';
 import { OwnershipProgress } from '../components/OwnershipProgress';
 import { useCompareStore } from '../lib/compare-store';
+import { normalizeCustomerApplication, normalizeCustomerApplicationList } from '../lib/application-dto';
 
 type MyApplication = {
   id: string;
@@ -66,7 +67,9 @@ export function CustomerDashboardPage() {
   const apps = useQuery({
     queryKey: ['my-apps'],
     queryFn: () =>
-      apiFetch<{ total: number; items: MyApplication[] }>('/api/applications/mine?limit=100'),
+      apiFetch<{ total: number; items: Record<string, unknown>[] }>('/api/applications/mine?limit=100').then(
+        (res) => normalizeCustomerApplicationList(res) as { total: number; items: MyApplication[] },
+      ),
   });
 
   const blocking = useQuery({
@@ -106,7 +109,10 @@ export function CustomerDashboardPage() {
 
   const spotlightDetail = useQuery({
     queryKey: ['app', spotlight?.id, 'dashboard'],
-    queryFn: () => apiFetch<AppDetail>(`/api/applications/${spotlight!.id}`),
+    queryFn: () =>
+      apiFetch<Record<string, unknown>>(`/api/applications/${spotlight!.id}`).then(
+        (raw) => normalizeCustomerApplication(raw) as AppDetail,
+      ),
     enabled:
       !!spotlight?.id &&
       (spotlight.status === 'active' ||

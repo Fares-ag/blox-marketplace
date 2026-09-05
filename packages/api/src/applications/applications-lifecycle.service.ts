@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -19,8 +20,11 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import { ComplianceService } from '../compliance/compliance.service';
 import { StorageService } from '../storage/storage.service';
 import {
+  ACTIVATE_FROM_STATUSES,
+  ADMIN_ACTIVATE_FROM_STATUSES,
   assertOpsTransitionAllowed,
   opsTransitionRequiresReason,
+  roleToActor,
 } from './application-transitions';
 import {
   buildContractAmortizationSchedule,
@@ -43,6 +47,18 @@ import { transitionApplication } from './guarded-transitions';
 import { toApplicationDto, toOpsApplicationDto } from './application-response.dto';
 
 const OPS_ROLES: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
+
+/**
+ * Review decisions (generate contract, contract review, reject, resubmit,
+ * reopen, approve for finance). Finance has credit parity here — blox-vercel
+ * FINANCE_PORTAL.md — but is still refused by `activate()`.
+ */
+const DECISION_ROLES: UserRole[] = [
+  UserRole.credit_officer,
+  UserRole.finance_officer,
+  UserRole.admin,
+  UserRole.super_admin,
+];
 
 const DOWN_PAYMENT_ROLES: UserRole[] = [
   UserRole.credit_officer,
@@ -80,6 +96,12 @@ export class ApplicationsLifecycleService {
     }
   }
 
+  private assertDecisionRole(user: User) {
+    if (!DECISION_ROLES.includes(user.role)) {
+      throw new ForbiddenException('forbidden_role');
+    }
+  }
+
   private assertDownPaymentRole(user: User) {
     if (!DOWN_PAYMENT_ROLES.includes(user.role)) {
       throw new ForbiddenException('forbidden_role');
@@ -87,7 +109,7 @@ export class ApplicationsLifecycleService {
   }
 
   async approveWithContract(user: User, id: string) {
-    this.assertOps(user);
+    this.assertDecisionRole(user);
     const app = await this.prisma.application.findUnique({
       where: { id },
       include: {
@@ -251,7 +273,7 @@ export class ApplicationsLifecycleService {
    * uploading officer as actor.
    */
   async submitSignedContractOps(user: User, id: string, file: Express.Multer.File) {
-    this.assertOps(user);
+    this.assertDecisionRole(user);
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException();
     await assertCompanyScope(this.prisma, user, app.companyId);
@@ -291,12 +313,9 @@ export class ApplicationsLifecycleService {
   }
 
   async opsTransition(user: User, id: string, toStatus: ApplicationStatus, reason?: string) {
-    // Finance officers participate in the down-payment edges; the per-edge
-    // actor table in application-transitions.ts is the authoritative gate.
-    const transitionRoles: UserRole[] = [...OPS_ROLES, UserRole.finance_officer];
-    if (!transitionRoles.includes(user.role)) {
-      throw new ForbiddenException('forbidden_role');
-    }
+    // The per-edge actor table in application-transitions.ts is the
+    // authoritative gate; this only rejects roles that never transition.
+    this.assertDecisionRole(user);
     const app = await this.prisma.application.findUnique({
       where: { id },
       include: { financePartner: { select: { crmAdapter: true } } },
@@ -320,6 +339,15 @@ export class ApplicationsLifecycleService {
       throw new BadRequestException('validation_failed');
     }
 
+    // "Approve for Finance" straight from review is an approval: the same
+    // compliance gate as approve-contract applies.
+    if (
+      toStatus === ApplicationStatus.pending_finance_activation &&
+      (app.status === ApplicationStatus.under_review || app.status === ApplicationStatus.draft)
+    ) {
+      await this.compliance.assertPassedForApproval(id);
+    }
+
     if (
       app.status === ApplicationStatus.contract_under_review &&
       toStatus === ApplicationStatus.pending_finance_activation
@@ -331,19 +359,47 @@ export class ApplicationsLifecycleService {
       );
     }
 
+    const releasesListing =
+      toStatus === 'rejected' ||
+      (toStatus === 'submission_cancelled' && app.status !== ApplicationStatus.active);
+    const reopensListing =
+      toStatus === 'under_review' &&
+      (app.status === ApplicationStatus.rejected || app.status === ApplicationStatus.submission_cancelled);
+
     const updated = await this.prisma.$transaction(async (tx) => {
+      if (reopensListing) {
+        // Reopening re-reserves the vehicle; refuse if it was sold meanwhile.
+        const product = await tx.product.findUniqueOrThrow({
+          where: { id: app.productId },
+          select: { listingStatus: true },
+        });
+        if (product.listingStatus === ListingStatus.sold) {
+          throw new ConflictException('vehicle_unavailable');
+        }
+        if (product.listingStatus === ListingStatus.published) {
+          await tx.product.update({
+            where: { id: app.productId },
+            data: { listingStatus: ListingStatus.reserved },
+          });
+        }
+      }
+
       const next = await tx.application.update({
         where: { id },
         data: {
           status: toStatus,
           statusReason: reason,
           rejectionReason: toStatus === 'rejected' ? reason : app.rejectionReason,
+          // The customer-facing DTO only exposes resubmissionComment (statusReason
+          // is ops-only), so the reason must land here for resubmission requests too.
           resubmissionComment:
-            toStatus === 'contract_signing_required' ? reason : app.resubmissionComment,
+            toStatus === 'contract_signing_required' || toStatus === 'resubmission_required'
+              ? reason
+              : app.resubmissionComment,
         },
       });
 
-      if (toStatus === 'rejected') {
+      if (releasesListing) {
         await this.unreserveIfNeeded(tx, app.productId, id);
       }
 
@@ -363,11 +419,17 @@ export class ApplicationsLifecycleService {
     const notifyTitle =
       toStatus === 'rejected'
         ? 'Application rejected'
-        : toStatus === 'contract_signing_required'
-          ? 'Contract needs re-signing'
-          : toStatus === 'pending_finance_activation'
-            ? 'Contract approved'
-            : 'Application update';
+        : toStatus === 'submission_cancelled'
+          ? 'Application cancelled'
+          : toStatus === 'contract_signing_required'
+            ? 'Contract needs re-signing'
+            : toStatus === 'pending_finance_activation'
+              ? app.status === ApplicationStatus.under_review
+                ? 'Application approved'
+                : 'Contract approved'
+              : reopensListing
+                ? 'Application reopened'
+                : 'Application update';
     await this.activity.notify(app.customerUserId, notifyTitle, reason, `/app/applications/${id}`);
 
     if (toStatus === 'rejected') {
@@ -485,7 +547,10 @@ export class ApplicationsLifecycleService {
     }
 
     let expectedFromStatus: ApplicationStatus;
+    let adminOverride = false;
     if (opts?.direct) {
+      // Company-policy shortcut: credit/admin activate from review when the
+      // dealer company opted in and contract + compliance are already in place.
       if (app.status !== 'under_review') {
         throw new BadRequestException('invalid_status_transition');
       }
@@ -500,11 +565,20 @@ export class ApplicationsLifecycleService {
         throw new BadRequestException('signed_contract_required');
       }
       expectedFromStatus = ApplicationStatus.under_review;
+    } else if (ACTIVATE_FROM_STATUSES.includes(app.status)) {
+      // vercel: credit/admin "Activate Financing" from the handoff states.
+      expectedFromStatus = app.status;
+    } else if (
+      roleToActor(user.role) === 'admin' &&
+      ADMIN_ACTIVATE_FROM_STATUSES.includes(app.status)
+    ) {
+      // vercel: admin "Activate (Admin)" / "Activate draft" — still behind the
+      // compliance gate, which is a marketplace P0 control.
+      await this.compliance.assertPassedForApproval(id);
+      expectedFromStatus = app.status;
+      adminOverride = true;
     } else {
-      if (app.status !== 'pending_finance_activation') {
-        throw new BadRequestException('invalid_status_transition');
-      }
-      expectedFromStatus = ApplicationStatus.pending_finance_activation;
+      throw new BadRequestException('invalid_status_transition');
     }
 
     const pricing = app.pricingSnapshot as Record<string, unknown>;
@@ -558,7 +632,7 @@ export class ApplicationsLifecycleService {
       action: 'status_transition',
       fromValue: app.status,
       toValue: 'active',
-      metadata: opts?.direct ? { direct: true } : undefined,
+      metadata: opts?.direct ? { direct: true } : adminOverride ? { admin_override: true } : undefined,
     });
     await this.activity.notify(
       app.customerUserId,

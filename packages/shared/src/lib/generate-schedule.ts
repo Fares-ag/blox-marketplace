@@ -248,7 +248,6 @@ export function buildPlanFromPricingSnapshot(args: {
   const downPayment = Number(snap.down_payment ?? 0);
   const rate = Number(snap.rate ?? 0);
   const monthly = Number(snap.monthly ?? 0);
-  const financedTotal = Number(snap.financed_total ?? monthly * tenor);
 
   const startDate = addMonths(startOfMonth(new Date()), 1);
   const schedule = generateInstallmentSchedule({

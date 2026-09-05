@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Box, Chip } from '@mui/material';
 import { apiFetch, buildPaginationQuery, DEFAULT_PAGE_SIZE, paginationWindow } from '../lib/api';
+import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
 import { formatQar } from '../lib/format';
 import { applicationOpsPillVariant } from '../config/status-styles';
 import { useOpsLabels } from '../i18n/use-ops-labels';
@@ -42,13 +43,16 @@ function listOwnershipPct(status: string): { customer: number; blox: number } | 
 
 export function ApplicationsList({
   audience,
-  basePath,
+  basePath: basePathProp,
   createPath,
 }: {
   audience: OpsAudience;
-  basePath: string;
+  /** Detail route prefix; defaults to the portal-aware `/applications`. */
+  basePath?: string;
   createPath?: string;
 }) {
+  const portalBase = usePortalBasePath();
+  const basePath = basePathProp ?? withPortalBase('/applications', portalBase);
   const { t, applicationStatus } = useOpsLabels();
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(0);

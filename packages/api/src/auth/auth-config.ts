@@ -88,12 +88,13 @@ export function resolveCookieDomain(config: ConfigService): string | undefined {
  * Postgres — it does NOT affect authorization in this API, because
  * `SessionAuthGuard` always reloads the `User` row from the database.
  *
- * Default: 300 (5 minutes). Set lower in production if you want faster session
- * revocation propagation without paying a DB read on every request.
+ * Default: 60 (1 minute). This bounds how long a revoked session (revoke-all,
+ * password reset, wrong-portal bounce) keeps answering from the cache cookie.
+ * Raise it to trade slower revocation for fewer DB reads; 0 disables the cache.
  */
 export function resolveSessionCookieCacheMaxAge(config: ConfigService): number {
   const raw = config.get<string>('SESSION_COOKIE_CACHE_MAX_AGE_SEC')?.trim();
-  if (!raw) return 300;
+  if (!raw) return 60;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new Error('SESSION_COOKIE_CACHE_MAX_AGE_SEC must be a non-negative number.');

@@ -338,7 +338,7 @@ export class ApplicationsController {
     return this.lifecycle.submitSignedContract(user, id, file);
   }
 
-  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/applications/:id/contract/signed')
   @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
@@ -416,14 +416,14 @@ export class ApplicationsController {
     return this.apps.transition(user, id, dto.toStatus, dto.reason);
   }
 
-  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/applications/:id/compliance-check')
   runComplianceCheck(@CurrentUser() user: User, @Param('id') id: string) {
     return this.compliance.runCheck(user, id);
   }
 
-  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/applications/:id/approve-contract')
   approveContract(@CurrentUser() user: User, @Param('id') id: string) {

@@ -37,6 +37,11 @@ import {
 } from './company-scope';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
 import {
+  resolveCreditApproverId,
+  separationOfDutiesEnabled,
+  violatesSeparationOfDuties,
+} from './separation-of-duties';
+import {
   convertInstallmentPlanDailyToMonthly,
   syncPaymentSchedulesFromInstallmentPlan,
 } from './installment-plan-sync';
@@ -122,7 +127,10 @@ export class ApplicationsService {
   ) {
     if (user.role !== UserRole.customer) throw new ForbiddenException('forbidden_role');
 
-    const blocking = await this.hasBlocking(user.id, dto.productId);
+    // One-loan rule: a customer may hold at most one in-flight application,
+    // whichever vehicle it is for. The per-product scope only exists for the
+    // `GET /applications/blocking?productId=` pre-check.
+    const blocking = await this.hasBlocking(user.id);
     if (blocking.blocking) throw new BadRequestException('blocking_application_exists');
 
     const product = await this.prisma.product.findUnique({
@@ -319,7 +327,9 @@ export class ApplicationsService {
       include: {
         product: true,
         documents: true,
-        company: { select: { id: true, name: true, allowDirectActivate: true } },
+        company: {
+          select: { id: true, name: true, allowDirectActivate: true, separationOfDutiesEnabled: true },
+        },
         customer: { select: { name: true, email: true, phone: true } },
         offer: true,
         financePartner: { select: { name: true, code: true, crmAdapter: true } },
@@ -350,6 +360,14 @@ export class ApplicationsService {
     }
 
     if (audience === 'ops') {
+      // Let the workspace disable mark-paid up front instead of failing on click
+      // with `separation_of_duties` (the approver may not record payments).
+      const sodEnabled = separationOfDutiesEnabled({
+        companyFlag: app.company?.separationOfDutiesEnabled,
+      });
+      const creditApproverId = sodEnabled ? await resolveCreditApproverId(this.prisma, id) : null;
+      dto.separation_of_duties_blocked = violatesSeparationOfDuties(user.id, creditApproverId);
+
       const logs = await this.prisma.activityLog.findMany({
         where: { entityType: 'application', entityId: id },
         include: { actor: { select: { email: true, name: true, role: true } } },
@@ -781,23 +799,33 @@ export class ApplicationsService {
     return { ...file, filename };
   }
 
+  /**
+   * Staff who should hear about a new submission: every credit/finance officer
+   * who can see the company (global scope or assigned, holdings included via
+   * the assignment rows), the dealer's agents, and admins. The link is
+   * portal-relative; BloxShell prefixes the portal base path when rendering.
+   */
   private async notifyOpsOnSubmit(companyId: string, appId: string) {
     const notifyTargets = await this.prisma.user.findMany({
       where: {
         isActive: true,
         OR: [
           { role: UserRole.credit_officer, creditScope: 'all' },
+          { role: UserRole.credit_officer, creditCompanies: { some: { companyId } } },
+          { role: UserRole.finance_officer, financeScope: 'all' },
+          { role: UserRole.finance_officer, financeCompanies: { some: { companyId } } },
           { role: UserRole.dealer_agent, companyId },
           { role: { in: [UserRole.admin, UserRole.super_admin] } },
         ],
       },
+      select: { id: true, role: true },
     });
     for (const t of notifyTargets) {
       await this.activity.notify(
         t.id,
         t.role === UserRole.dealer_agent ? 'New lead on your stock' : 'New financing application',
         'A customer submitted a financing application.',
-        t.role === UserRole.dealer_agent ? `/applications/${appId}` : `/applications/${appId}`,
+        `/applications/${appId}`,
       );
     }
   }

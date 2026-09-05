@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, buildPaginationQuery, DEFAULT_PAGE_SIZE, paginationWindow } from '../lib/api';
+import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
 import { applicationOpsPillVariant } from '../config/status-styles';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsStatusPill } from '../components/ops-ui';
@@ -25,7 +26,9 @@ function queueAgeHours(iso?: string | null) {
   return Number.isFinite(ms) && ms >= 0 ? ms / 3_600_000 : 0;
 }
 
-export function CreditQueue({ detailBase = '/applications' }: { detailBase?: string }) {
+export function CreditQueue({ detailBase: detailBaseProp }: { detailBase?: string }) {
+  const portalBase = usePortalBasePath();
+  const detailBase = detailBaseProp ?? withPortalBase('/applications', portalBase);
   const { t, applicationStatus } = useOpsLabels();
   const [page, setPage] = useState(0);
   const [q, setQ] = useState('');

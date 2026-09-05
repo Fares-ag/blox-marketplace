@@ -18,6 +18,8 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
   variant?: 'danger' | 'warning' | 'info';
+  /** Optional form controls rendered under the message (e.g. a required reason). */
+  children?: React.ReactNode;
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -29,6 +31,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel,
   variant = 'info',
+  children,
 }) => {
   return (
     <Dialog
@@ -43,6 +46,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <Typography variant="body1" className="dialog-message">
           {message}
         </Typography>
+        {children ? <div style={{ marginTop: 16 }}>{children}</div> : null}
       </DialogContent>
       <DialogActions className="dialog-actions">
         <Button variant="secondary" onClick={onCancel}>

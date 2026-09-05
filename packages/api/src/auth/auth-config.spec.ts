@@ -78,8 +78,8 @@ describe('resolveCookieDomain', () => {
 });
 
 describe('resolveSessionCookieCacheMaxAge', () => {
-  it('defaults to 300 seconds', () => {
-    expect(resolveSessionCookieCacheMaxAge(mockConfig({}) as never)).toBe(300);
+  it('defaults to 60 seconds', () => {
+    expect(resolveSessionCookieCacheMaxAge(mockConfig({}) as never)).toBe(60);
   });
 
   it('parses SESSION_COOKIE_CACHE_MAX_AGE_SEC', () => {

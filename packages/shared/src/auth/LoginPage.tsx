@@ -28,6 +28,7 @@ const reasonCopy: Record<string, string> = {
   not_admin: 'This is the admin portal — sign in with your admin account.',
   not_super_admin: 'This is the ops portal — sign in with your super-admin account.',
   unverified: 'Verify your email before continuing.',
+  password_reset: 'Your password has been updated. Sign in with your new password.',
 };
 
 interface LoginPageProps {
@@ -223,10 +224,15 @@ export function RegisterPage({
       setError(result.error);
       return;
     }
-    const verifyPath = returnUrl
-      ? `/auth/verify-email?returnUrl=${returnUrl}`
-      : '/auth/verify-email';
-    navigate(verifyPath);
+    // No session yet when verification is required: carry the address so the
+    // verify page can show "check your inbox" and offer a resend without a login.
+    const query = [
+      returnUrl ? `returnUrl=${returnUrl}` : null,
+      result.pendingVerification ? `email=${encodeURIComponent(email.trim().toLowerCase())}` : null,
+    ]
+      .filter(Boolean)
+      .join('&');
+    navigate(`/auth/verify-email${query ? `?${query}` : ''}`);
   }
 
   return (
@@ -393,6 +399,7 @@ export function ResetPasswordPage({
   tagline?: string;
 }) {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const token = params.get('token');
   const tokenError = params.get('error');
   const [password, setPassword] = useState('');
@@ -426,6 +433,8 @@ export function ResetPasswordPage({
         return;
       }
       setDone(true);
+      // Sessions were revoked server-side; send the user straight to sign in.
+      navigate('/auth/login?reason=password_reset', { replace: true });
     } catch {
       setError('Could not reset password. Check your connection and try again.');
     } finally {
@@ -515,6 +524,10 @@ export function VerifyEmailPage({
   const { user, initialized, init, loading, refreshProfile, signOut } = useAuthStore();
   const [params] = useSearchParams();
   const returnUrl = params.get('returnUrl');
+  // Set by RegisterPage when sign-up created the account but (verification
+  // required) no session yet — we still want to show "check your inbox".
+  const pendingEmail = params.get('email')?.trim().toLowerCase() || null;
+  const targetEmail = user?.email ?? pendingEmail;
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -526,7 +539,7 @@ export function VerifyEmailPage({
   }, [init]);
 
   async function resendVerification() {
-    if (!user?.email) return;
+    if (!targetEmail) return;
     setError(null);
     setPendingNotice(null);
     setBusy(true);
@@ -539,7 +552,7 @@ export function VerifyEmailPage({
           Origin: window.location.origin,
         },
         body: JSON.stringify({
-          email: user.email.trim().toLowerCase(),
+          email: targetEmail.trim().toLowerCase(),
           callbackURL: `${window.location.origin}/auth/verify-email`,
         }),
       });
@@ -579,13 +592,50 @@ export function VerifyEmailPage({
     );
   }
 
-  if (!user) {
+  if (!user && !pendingEmail) {
     const loginReturn = returnUrl ? `?returnUrl=${returnUrl}` : '';
     return <Navigate to={`/auth/login${loginReturn}`} replace />;
   }
 
-  if (user.email_verified) {
+  if (user?.email_verified) {
     return <Navigate to={returnUrl ? decodeURIComponent(returnUrl) : homePath} replace />;
+  }
+
+  // Fresh sign-up, no session: the sign-up already sent the first email.
+  if (!user && pendingEmail) {
+    const loginReturn = returnUrl ? `?returnUrl=${returnUrl}` : '';
+    return (
+      <div className="dm-auth-layout">
+        <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel={portalLabel} />
+        <main className="dm-auth-card">
+          <div className="dm-auth-card__inner">
+            <p className="dm-auth-card__eyebrow">{portalLabel}</p>
+            <h1>{t('auth.verifyEmailTitle')}</h1>
+            <p className="dm-auth-card__lead">{t('auth.verifyEmailPendingLead', { email: pendingEmail })}</p>
+            <div className="dm-auth-banner" role="status">
+              <p>{sent ? t('auth.verifyEmailSent') : t('auth.verifyEmailPendingHint')}</p>
+            </div>
+            {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+            <button
+              type="button"
+              className="dm-btn-cta dm-auth-submit blox-auth-submit"
+              disabled={busy}
+              onClick={() => void resendVerification()}
+            >
+              {busy ? t('auth.verifyEmailSending') : t('auth.verifyEmailResend')}
+            </button>
+            <p className="dm-auth-foot" style={{ marginTop: 14 }}>
+              <Link to={`/auth/login${loginReturn}`}>{t('auth.verifyEmailPendingSignIn')}</Link>
+              <span className="dm-auth-foot__sep" aria-hidden>
+                ·
+              </span>
+              <Link to="/auth/register">{t('auth.verifyEmailPendingWrongEmail')}</Link>
+            </p>
+          </div>
+        </main>
+        <AuthPageStyles />
+      </div>
+    );
   }
 
   return (
@@ -596,7 +646,7 @@ export function VerifyEmailPage({
           <p className="dm-auth-card__eyebrow">{portalLabel}</p>
           <h1>{t('auth.verifyEmailTitle')}</h1>
           <p className="dm-auth-card__lead">
-            {t('auth.verifyEmailLead', { email: user.email })}
+            {t('auth.verifyEmailLead', { email: targetEmail })}
           </p>
           {sent && (
             <div className="dm-auth-banner" role="status">

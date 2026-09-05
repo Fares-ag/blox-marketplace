@@ -4,6 +4,8 @@ import { generatePaymentScheduleFallback } from './generate-schedule';
 export type DisplayScheduleRow = PaymentScheduleRow & {
   sequence?: number;
   source: 'plan' | 'live' | 'merged';
+  /** Raw API status for live rows (`pending`, `overdue`, …); `status` is the display mapping. */
+  liveStatus?: string;
   customerShare?: number;
   bloxShare?: number;
 };
@@ -42,6 +44,7 @@ export function resolveDisplaySchedule(args: {
       paidAmount: row.paid_amount != null ? Number(row.paid_amount) : undefined,
       remainingAmount: row.remaining_amount != null ? Number(row.remaining_amount) : undefined,
       status: mapLiveStatus(row.status),
+      liveStatus: row.status,
       paidDate: row.paid_at ? String(row.paid_at).slice(0, 10) : undefined,
       source: 'live' as const,
     }));

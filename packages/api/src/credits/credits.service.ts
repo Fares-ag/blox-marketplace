@@ -67,6 +67,44 @@ export class CreditsService {
     });
   }
 
+  async listBalances(query: { q?: string; limit?: number; offset?: number }) {
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
+    const offset = Math.max(Number(query.offset) || 0, 0);
+    const q = query.q?.trim();
+    const where: Prisma.UserCreditWhereInput = q
+      ? {
+          user: {
+            OR: [
+              { email: { contains: q, mode: 'insensitive' } },
+              { name: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+        }
+      : {};
+    const [total, rows] = await Promise.all([
+      this.prisma.userCredit.count({ where }),
+      this.prisma.userCredit.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        skip: offset,
+        take: limit,
+        include: { user: { select: { id: true, email: true, name: true } } },
+      }),
+    ]);
+    return {
+      total,
+      limit,
+      offset,
+      items: rows.map((r) => ({
+        user_id: r.userId,
+        email: r.user.email,
+        name: r.user.name,
+        balance: Number(r.balance),
+        updated_at: r.updatedAt.toISOString(),
+      })),
+    };
+  }
+
   async adminBalance(userId: string) {
     await this.ensureRow(userId);
     const [row, transactions] = await Promise.all([

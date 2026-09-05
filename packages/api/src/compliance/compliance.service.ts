@@ -10,7 +10,13 @@ import {
 import { toComplianceCheckDto } from './compliance-response.dto';
 import { assertCompliancePassed, deriveOverallComplianceStatus } from './compliance-gate';
 
-const OPS_ROLES: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
+// Finance shares review decisions with credit (blox-vercel parity), so it may run the check that gates them.
+const OPS_ROLES: UserRole[] = [
+  UserRole.credit_officer,
+  UserRole.finance_officer,
+  UserRole.admin,
+  UserRole.super_admin,
+];
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;

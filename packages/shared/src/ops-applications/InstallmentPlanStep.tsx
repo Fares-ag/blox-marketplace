@@ -83,7 +83,7 @@ export function InstallmentPlanStep({
   }, [plan]);
 
   return (
-    <div className="blox-wizard-plan">
+    <div className="blox-wizard-plan blox-form-grid__full">
       <OpsSelect
         label={t('ops.wizard.paymentInterval')}
         value={interval}
@@ -108,8 +108,6 @@ export function InstallmentPlanStep({
           <div>{plan.plan.tenure}</div>
         </div>
       </div>
-
-      <p className="blox-wizard-plan__note">{t('ops.workspace.scheduleProjected')}</p>
 
       <InstallmentScheduleTable
         installmentPlan={plan.plan}

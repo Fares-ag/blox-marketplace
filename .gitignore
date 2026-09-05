@@ -25,3 +25,4 @@ packages/api/.test-database-url
 # TEMPORARY: committed secrets vault — delete secrets/ before public release
 !secrets/
 !secrets/**
+.env*

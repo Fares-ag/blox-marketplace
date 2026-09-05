@@ -449,6 +449,7 @@ model Application {
   redeemedQuote     DealerQuote?      @relation("QuoteRedemption")
   complianceChecks  ComplianceCheck[]
   paymentDeferrals  PaymentDeferral[]
+  settlements       ApplicationSettlement[]
 
   @@index([customerUserId, status])
   @@index([companyId, status])
@@ -755,6 +756,38 @@ model Package {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("packages")
+}
+
+enum SettlementStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+/// Early-settlement request on an active financing (blox-vercel `application_settlements`).
+/// Customer requests; finance/admin approve or reject. Money movement stays on the schedule ledger.
+model ApplicationSettlement {
+  id                 String           @id @default(cuid())
+  applicationId      String           @map("application_id")
+  application        Application      @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  customerUserId     String           @map("customer_user_id")
+  customerEmail      String           @map("customer_email")
+  status             SettlementStatus @default(pending)
+  settlementAmount   Decimal          @map("settlement_amount") @db.Decimal(12, 2)
+  remainingPrincipal Decimal          @map("remaining_principal") @db.Decimal(12, 2)
+  discountAmount     Decimal          @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  forgivenRent       Decimal          @default(0) @map("forgiven_rent") @db.Decimal(12, 2)
+  requestedAt        DateTime         @default(now()) @map("requested_at")
+  decidedAt          DateTime?        @map("decided_at")
+  decidedByUserId    String?          @map("decided_by_user_id")
+  decisionReason     String?          @map("decision_reason")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  @@index([status, requestedAt])
+  @@index([applicationId])
+  @@map("application_settlements")
 }
 
 model SettlementDiscountSettings {
