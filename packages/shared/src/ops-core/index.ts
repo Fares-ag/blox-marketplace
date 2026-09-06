@@ -18,6 +18,7 @@ export { PDFViewer } from './shared/PDFViewer/PDFViewer';
 export { SearchBar } from './shared/SearchBar/SearchBar';
 export { Skeleton, TableSkeleton, CardSkeleton } from './shared/Skeleton/Skeleton';
 export { Table, type Column, type TableProps } from './shared/Table/Table';
+export { Alert, type AlertProps } from './shared/Alert/Alert';
 
 // Utils
 export { formatCurrency, getStatusColor } from './utils/formatters';

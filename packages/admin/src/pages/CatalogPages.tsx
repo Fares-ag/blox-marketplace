@@ -158,7 +158,7 @@ function CatalogEdit({ kind }: { kind: CatalogKind }) {
   return (
     <div className="blox-page">
       <OpsPageHeader title={`${isNew ? 'Add' : 'Edit'} ${META[kind].title}`} />
-      <form className="blox-form" onSubmit={onSubmit} style={{ maxWidth: 480 }}>
+      <form className="blox-form blox-form--narrow" onSubmit={onSubmit}>
         {META[kind].fields.map((field) => (
           <label key={field.key}>
             {field.label}

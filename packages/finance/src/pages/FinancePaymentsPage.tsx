@@ -69,7 +69,7 @@ function TransactionsTable() {
   );
   return (
     <>
-      {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
+      {error && <p className="blox-form-error" role="alert">{(error as Error).message}</p>}
       <OpsCoreTable
         columns={columns}
         rows={data?.items ?? []}

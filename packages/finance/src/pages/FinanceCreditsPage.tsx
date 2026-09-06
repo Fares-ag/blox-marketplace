@@ -97,7 +97,7 @@ export function FinanceCreditsPage() {
     <OpsListPage
       title={t('ops.finance.creditsTitle')}
       subtitle={t('ops.finance.creditsSubtitle')}
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           search={

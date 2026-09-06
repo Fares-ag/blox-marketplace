@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Box, Stepper, Step, StepLabel } from '@mui/material';
 import { Button as CustomButton } from '../../core/Button/Button';
-import './MultiStepForm.scss';
 
 export interface StepConfig<TData = any> {
   label: string;
   component: React.ComponentType<StepProps<TData>>;
+  /** When set, blocks Next/Submit until this returns null. */
+  validate?: (data: TData) => string | null;
 }
 
 export interface StepProps<TData = any> {
@@ -23,42 +23,49 @@ interface MultiStepFormProps<TData = any> {
   onSubmit: (data: TData) => void | Promise<void>;
   onCancel?: () => void;
   isSubmitting?: boolean;
+  labels?: { cancel?: string; previous?: string; next?: string; submit?: string };
 }
 
+/** Multi-step form with a native stepper — no MUI (Phase 2). Steps are 1-based in the rail because order carries meaning here. */
 export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   steps,
   initialData = {} as any,
   onSubmit,
   onCancel,
   isSubmitting = false,
+  labels,
 }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState<any>(initialData);
+  const [stepError, setStepError] = useState<string | null>(null);
 
   const CurrentStepComponent = steps[activeStep].component;
 
+  const validateCurrentStep = () => {
+    const message = steps[activeStep].validate?.(formData) ?? null;
+    setStepError(message);
+    return message == null;
+  };
+
   const handleNext = () => {
-    if (activeStep < steps.length - 1) {
-      setActiveStep((prevActiveStep) => prevActiveStep + 1);
-    }
+    if (!validateCurrentStep()) return;
+    if (activeStep < steps.length - 1) setActiveStep((prev) => prev + 1);
   };
-
   const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
+    setStepError(null);
+    setActiveStep((prev) => Math.max(0, prev - 1));
   };
-
   const handleUpdateData = (stepData: any) => {
+    setStepError(null);
     setFormData((prev: any) => ({ ...(prev || {}), ...(stepData || {}) }));
   };
-
   const handleSubmit = async () => {
     if (isSubmitting) return;
+    if (!validateCurrentStep()) return;
     try {
       await onSubmit(formData);
     } catch (error: unknown) {
-      if (import.meta.env.DEV) {
-        console.error('Form submission error:', error);
-      }
+      if (import.meta.env.DEV) console.error('Form submission error:', error);
     }
   };
 
@@ -66,16 +73,20 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   const isLastStep = activeStep === steps.length - 1;
 
   return (
-    <Box className="multi-step-form">
-      <Stepper activeStep={activeStep} alternativeLabel className="form-stepper">
-        {steps.map((step, index) => (
-          <Step key={index}>
-            <StepLabel>{step.label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+    <div className="blox-stepper-form">
+      <ol className="blox-stepper" aria-label="Steps">
+        {steps.map((step, index) => {
+          const state = index < activeStep ? 'done' : index === activeStep ? 'active' : 'todo';
+          return (
+            <li key={index} className={`blox-stepper__step is-${state}`} aria-current={state === 'active' ? 'step' : undefined}>
+              <span className="blox-stepper__index">{state === 'done' ? '✓' : index + 1}</span>
+              <span className="blox-stepper__label">{step.label}</span>
+            </li>
+          );
+        })}
+      </ol>
 
-      <Box className="form-content">
+      <div className="blox-stepper-form__content">
         <CurrentStepComponent
           data={formData}
           updateData={handleUpdateData}
@@ -84,31 +95,37 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
           isFirstStep={isFirstStep}
           isLastStep={isLastStep}
         />
-      </Box>
+      </div>
 
-      <Box className="form-actions">
+      {stepError && (
+        <div className="blox-form-error blox-stepper-form__error" role="alert">
+          {stepError}
+        </div>
+      )}
+
+      <div className="blox-stepper-form__actions">
         {onCancel && (
-          <CustomButton variant="secondary" onClick={onCancel}>
-            Cancel
+          <CustomButton variant="ghost" onClick={onCancel}>
+            {labels?.cancel ?? 'Cancel'}
           </CustomButton>
         )}
-        <Box className="navigation-buttons">
+        <div className="blox-stepper-form__nav">
           {!isFirstStep && (
             <CustomButton variant="secondary" onClick={handleBack}>
-              Previous
+              {labels?.previous ?? 'Previous'}
             </CustomButton>
           )}
           {!isLastStep ? (
             <CustomButton variant="primary" disabled={isSubmitting} onClick={handleNext}>
-              Next
+              {labels?.next ?? 'Next'}
             </CustomButton>
           ) : (
             <CustomButton variant="primary" disabled={isSubmitting} loading={isSubmitting} onClick={handleSubmit}>
-              Submit
+              {labels?.submit ?? 'Submit'}
             </CustomButton>
           )}
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 };

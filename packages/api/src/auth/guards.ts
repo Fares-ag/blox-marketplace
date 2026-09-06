@@ -19,6 +19,7 @@ import { fromNodeHeaders } from 'better-auth/node';
 import { isMfaEnforcementActive, resolveMfaEnforcement, resolveAuthSecret } from './auth-config';
 import { isMfaRequiredRole } from './privileged-roles';
 import { bearerFromHeader, verifyMobileAccessToken } from './mobile/mobile-token';
+import { resolveSessionPolicy, sessionPastAbsoluteLimit, type SessionPolicy } from './session-policy';
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
@@ -37,14 +38,35 @@ export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionConte
   return req.user;
 });
 
+type CookieSession = { session: { id: string; createdAt: Date | string }; user: { id: string } };
+
+/**
+ * Absolute session ceiling (LOS FSD §11.2): a cookie session older than the
+ * configured limit is deleted and treated as signed out, whatever its idle
+ * refresh state. Returns true when the session was retired.
+ */
+async function retireIfPastAbsoluteLimit(
+  prisma: PrismaService,
+  session: CookieSession | null | undefined,
+  policy: SessionPolicy,
+): Promise<boolean> {
+  if (!session?.session || !sessionPastAbsoluteLimit(session.session.createdAt, policy)) return false;
+  await prisma.session.deleteMany({ where: { id: session.session.id } }).catch(() => undefined);
+  return true;
+}
+
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
+  private readonly sessionPolicy: SessionPolicy;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
     private readonly config: ConfigService,
     @Inject(AUTH_INSTANCE) private readonly auth: DmAuth,
-  ) {}
+  ) {
+    this.sessionPolicy = resolveSessionPolicy(config);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -58,10 +80,14 @@ export class SessionAuthGuard implements CanActivate {
 
     const req = context.switchToHttp().getRequest<AuthRequest>();
     const session = await this.auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+    let retired = false;
     if (session?.user) {
-      const user = await this.prisma.user.findUnique({ where: { id: session.user.id } });
-      if (user?.isActive) {
-        req.user = user;
+      retired = await retireIfPastAbsoluteLimit(this.prisma, session as unknown as CookieSession, this.sessionPolicy);
+      if (!retired) {
+        const user = await this.prisma.user.findUnique({ where: { id: session.user.id } });
+        if (user?.isActive) {
+          req.user = user;
+        }
       }
     }
 
@@ -82,7 +108,7 @@ export class SessionAuthGuard implements CanActivate {
 
     if (!req.user) {
       if (isPublic) return true;
-      throw new UnauthorizedException();
+      throw new UnauthorizedException(retired ? 'session_absolute_timeout' : undefined);
     }
 
     const roles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
@@ -108,17 +134,24 @@ export class SessionAuthGuard implements CanActivate {
 
 @Injectable()
 export class OptionalSessionGuard implements CanActivate {
+  private readonly sessionPolicy: SessionPolicy;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @Inject(AUTH_INSTANCE) private readonly auth: DmAuth,
-  ) {}
+  ) {
+    this.sessionPolicy = resolveSessionPolicy(config);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<AuthRequest>();
     try {
       const session = await this.auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-      if (session?.user) {
+      if (
+        session?.user &&
+        !(await retireIfPastAbsoluteLimit(this.prisma, session as unknown as CookieSession, this.sessionPolicy))
+      ) {
         const user = await this.prisma.user.findUnique({ where: { id: session.user.id } });
         if (user?.isActive) req.user = user;
       }

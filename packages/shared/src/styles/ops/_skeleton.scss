@@ -1,0 +1,74 @@
+// Skeletons — Phase 1 §05. Shimmer on the muted ground; static under reduced motion.
+.blox-skel {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--blox-muted, #e8efef) 25%, #f5f9f9 50%, var(--blox-muted, #e8efef) 75%);
+  background-size: 200% 100%;
+  animation: blox-shimmer 1.4s linear infinite;
+
+  &--text {
+    height: 1em;
+    border-radius: 4px;
+  }
+
+  &--circular {
+    border-radius: 50%;
+  }
+
+  &--static {
+    animation: none;
+    background: var(--blox-muted, #e8efef);
+  }
+}
+
+.blox-skel-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.blox-skel-table {
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-card, 12px);
+  overflow: hidden;
+  background: var(--blox-surface);
+
+  &__row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: center;
+    height: 44px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--blox-border);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    &--header {
+      height: 40px;
+      background: var(--blox-deep-green);
+
+      .blox-skel {
+        background: rgba(255, 255, 255, 0.18);
+        animation: none;
+      }
+    }
+  }
+}
+
+.blox-skel-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px 20px;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-card, 12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blox-skel {
+    animation: none;
+  }
+}

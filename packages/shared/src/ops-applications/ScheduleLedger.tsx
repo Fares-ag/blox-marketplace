@@ -6,8 +6,17 @@ import { scheduleOpsPillVariant } from '../config/status-styles';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsPrimaryButton, OpsSecondaryButton, OpsStatusPill } from '../components/ops-ui';
 import { chartColorAt } from '../config/chart-palette';
-import { FilterPanel, OpsListPage, OpsToolbar, Table, VerticalBarChart, type Column, type FilterConfig } from '../ops-ui-v2';
+import {
+  FilterPanel,
+  OpsListPage,
+  OpsToolbar,
+  Table,
+  VerticalBarChart,
+  type Column,
+  type FilterConfig,
+} from '../ops-ui-v2';
 import type { ScheduleListResponse } from '../types/domain';
+import { RecordPaymentDialog } from './RecordPaymentDialog';
 
 type ScheduleRow = {
   id: string;
@@ -29,9 +38,6 @@ export function ScheduleLedger() {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
   const [payTarget, setPayTarget] = useState<ScheduleRow | null>(null);
-  const [payAmount, setPayAmount] = useState(0);
-  const [reference, setReference] = useState('');
-  const [method, setMethod] = useState('bank_transfer');
 
   useEffect(() => {
     setPage(0);
@@ -49,7 +55,11 @@ export function ScheduleLedger() {
     mutationFn: (payload: { id: string; method: string; reference: string; amount: number }) =>
       apiFetch(`/api/ops/payment-schedules/${payload.id}/pay`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          method: payload.method,
+          reference: payload.reference || undefined,
+          amount: payload.amount,
+        }),
       }),
     onSuccess: () => {
       setPayTarget(null);
@@ -76,6 +86,7 @@ export function ScheduleLedger() {
     () => [
       {
         id: 'customer',
+        cardTitle: true,
         label: t('ops.col.customer'),
         format: (_, r) => r.customer_name ?? r.customer_email,
       },
@@ -84,16 +95,21 @@ export function ScheduleLedger() {
       { id: 'due_date', label: t('ops.col.due'), format: (_, r) => r.due_date },
       {
         id: 'amount',
+        sortable: true,
+        numeric: true,
         label: t('ops.col.amount'),
         format: (_, r) => <span className="blox-money">QAR {r.amount.toLocaleString()}</span>,
       },
       {
         id: 'remaining_amount',
+        numeric: true,
         label: t('ops.col.remaining'),
         format: (_, r) => <span className="blox-money">QAR {r.remaining_amount.toLocaleString()}</span>,
       },
       {
         id: 'effective_status',
+        sortable: true,
+        cardStatus: true,
         label: t('ops.col.status'),
         format: (_, r) => (
           <OpsStatusPill label={scheduleStatus(r.effective_status)} variant={scheduleOpsPillVariant(r.effective_status)} />
@@ -101,14 +117,15 @@ export function ScheduleLedger() {
       },
       {
         id: 'actions',
+        actions: true,
         label: '',
         format: (_, r) =>
           r.effective_status === 'pending' || r.effective_status === 'overdue' ? (
             <OpsPrimaryButton
               type="button"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setPayTarget(r);
-                setPayAmount(r.remaining_amount);
               }}
             >
               {t('ops.finance.recordPayment')}
@@ -130,7 +147,7 @@ export function ScheduleLedger() {
           {sweep.isPending ? t('ops.finance.sweeping') : t('ops.finance.runOverdueSweep')}
         </OpsSecondaryButton>
       }
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       metrics={[
         { label: t('ops.finance.pending'), value: String(summary?.pending ?? '—') },
         { label: t('ops.scheduleStatus.overdue'), value: String(summary?.overdue ?? '—') },
@@ -183,36 +200,15 @@ export function ScheduleLedger() {
         onPageChange={setPage}
         emptyMessage={t('ops.finance.noSchedules')}
       />
-      {payTarget && (
-        <section className="blox-content-card blox-content-card--static" style={{ marginTop: 16, maxWidth: 480 }}>
-          <h3 className="blox-panel__title">Record payment — #{payTarget.sequence}</h3>
-          <div className="blox-form-grid">
-            <label className="blox-field">
-              <span className="blox-field__label">Amount</span>
-              <input type="number" value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} />
-            </label>
-            <label className="blox-field">
-              <span className="blox-field__label">Method</span>
-              <select value={method} onChange={(e) => setMethod(e.target.value)}>
-                <option value="bank_transfer">Bank transfer</option>
-                <option value="card">Card</option>
-                <option value="cash">Cash</option>
-              </select>
-            </label>
-            <label className="blox-field blox-form-grid__full">
-              <span className="blox-field__label">Reference</span>
-              <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference" />
-            </label>
-          </div>
-          <OpsPrimaryButton
-            type="button"
-            style={{ marginTop: 12 }}
-            onClick={() => pay.mutate({ id: payTarget.id, method, reference, amount: payAmount })}
-          >
-            Confirm payment
-          </OpsPrimaryButton>
-        </section>
-      )}
+      <RecordPaymentDialog
+        target={payTarget}
+        busy={pay.isPending}
+        onClose={() => setPayTarget(null)}
+        onConfirm={({ method, reference, amount }) => {
+          if (!payTarget) return;
+          pay.mutate({ id: payTarget.id, method, reference, amount });
+        }}
+      />
     </OpsListPage>
   );
 }

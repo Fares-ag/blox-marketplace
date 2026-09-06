@@ -120,7 +120,7 @@ export function InstallmentScheduleTable({
         format: (_, row) => (
           <OpsStatusPill
             label={scheduleStatusLabel(String(row.status), t)}
-            variant={scheduleOpsPillVariant(String(row.status))}
+            variant={scheduleOpsPillVariant(row.liveStatus ?? String(row.status))}
           />
         ),
       },
@@ -207,20 +207,20 @@ export function InstallmentScheduleTable({
 
   return (
     <div className="blox-installment-schedule">
-      {(projected || !isActive) && (
-        <p className="blox-panel__hint" style={{ marginBottom: '0.75rem' }}>
-          {t('ops.workspace.scheduleProjected')}
-        </p>
-      )}
-      {onMarkPaid && markPaidBlockedReason && (
-        <p className="blox-panel__hint" role="note" style={{ marginBottom: '0.75rem' }}>
-          {markPaidBlockedReason}
-        </p>
-      )}
-      {showConvert && onConvertDaily && (
-        <button type="button" className="blox-btn blox-btn--secondary" onClick={onConvertDaily} style={{ marginBottom: '0.75rem' }}>
-          {t('ops.workspace.convertDailyToMonthly')}
-        </button>
+      {((projected || !isActive) || (onMarkPaid && markPaidBlockedReason) || (showConvert && onConvertDaily)) && (
+        <div className="blox-installment-schedule__notes">
+          {(projected || !isActive) && <p className="blox-panel__hint">{t('ops.workspace.scheduleProjected')}</p>}
+          {onMarkPaid && markPaidBlockedReason && (
+            <p className="blox-panel__hint" role="note">
+              {markPaidBlockedReason}
+            </p>
+          )}
+          {showConvert && onConvertDaily && (
+            <button type="button" className="blox-btn blox-btn--secondary blox-btn--sm" onClick={onConvertDaily}>
+              {t('ops.workspace.convertDailyToMonthly')}
+            </button>
+          )}
+        </div>
       )}
       <Table columns={columns} rows={tableRows} emptyMessage={t('ops.workspace.scheduleEmpty')} />
     </div>

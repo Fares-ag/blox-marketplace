@@ -1,0 +1,594 @@
+// Phase 2 — page templates, tabs, dashboard sections, charts, filters, stepper, export.
+@use 'vars' as *;
+
+.blox-page__metrics {
+  margin-bottom: var(--blox-space-xl);
+}
+
+.blox-form-page__footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 0;
+  margin-top: var(--blox-space-lg);
+  background: color-mix(in srgb, var(--blox-canvas) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid var(--blox-border);
+}
+
+// ── Tabs (status + workspace) ────────────────────────────────────────────────
+.blox-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  &__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--blox-slate);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--blox-motion-fast) var(--blox-ease-standard);
+
+    &:hover {
+      color: var(--blox-deep-green);
+    }
+
+    &.is-active {
+      color: var(--blox-deep-green);
+      border-bottom-color: var(--blox-emerald);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--blox-emerald);
+      border-radius: 6px;
+    }
+  }
+
+  &__count {
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--blox-muted, #e8efef);
+    font-family: var(--blox-font-mono);
+    font-size: 0.6875rem;
+    color: var(--blox-slate);
+  }
+}
+
+.blox-status-tabs .blox-tabs {
+  border-bottom: 1px solid var(--blox-border);
+}
+
+.blox-workspace-tabs {
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-card, 12px);
+  background: var(--blox-surface);
+  padding: 0 12px;
+  margin-bottom: var(--blox-space-lg);
+}
+
+// ── Segmented control on dark chrome: active thumb ──────────────────────────
+.blox-segmented:not(.blox-segmented--light) button.is-active {
+  background: var(--blox-emerald);
+  color: var(--blox-deep-green);
+}
+
+// ── Dashboard grid + section card ───────────────────────────────────────────
+.blox-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--blox-space-lg);
+  margin-bottom: var(--blox-space-xl);
+
+  @media (max-width: $bp-lg) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: $bp-md) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blox-dashboard-card {
+  min-width: 0;
+
+  &--span-2 {
+    grid-column: span 2;
+  }
+
+  &--span-3 {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: $bp-lg) {
+    &--span-2,
+    &--span-3 {
+      grid-column: 1 / -1;
+    }
+  }
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+
+    .blox-panel__title {
+      margin-bottom: 4px;
+    }
+  }
+
+  &__subtitle {
+    margin: 0 0 12px;
+    font-size: 0.75rem;
+    color: var(--blox-slate);
+  }
+
+  &__actions {
+    display: flex;
+    gap: 6px;
+    flex: none;
+  }
+
+  &__skeleton {
+    display: grid;
+    gap: 10px;
+    padding-top: 6px;
+  }
+
+  &__body {
+    min-width: 0;
+  }
+}
+
+// ── Charts without MUI ──────────────────────────────────────────────────────
+.blox-chart__title {
+  margin: 0 0 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--blox-deep-green);
+}
+
+.blox-chart__empty {
+  margin: 0;
+  color: var(--blox-slate);
+}
+
+.blox-hbar {
+  margin-bottom: 12px;
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 0.8125rem;
+  }
+
+  &__label {
+    color: var(--blox-ink);
+  }
+
+  &__value {
+    font-family: var(--blox-font-mono);
+    color: var(--blox-slate);
+  }
+
+  &__track {
+    display: flex;
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--blox-muted, #e8efef);
+
+    &--stacked {
+      height: 12px;
+    }
+  }
+
+  &__fill,
+  &__segment {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+    transition: width var(--blox-motion-slow) var(--blox-ease-standard);
+  }
+
+  &__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--blox-slate);
+  }
+
+  &__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.blox-vbar {
+  &__plot {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    min-height: 200px;
+  }
+
+  &__col {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-rows: auto 150px auto;
+    justify-items: center;
+    gap: 4px;
+    text-align: center;
+  }
+
+  &__value {
+    font-family: var(--blox-font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+  }
+
+  &__stem {
+    width: 70%;
+    max-width: 48px;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  &__bar {
+    display: block;
+    width: 100%;
+    min-height: 3px;
+    border-radius: 4px 4px 0 0;
+    transition: height var(--blox-motion-slow) var(--blox-ease-standard);
+  }
+
+  &__label {
+    max-width: 100%;
+    font-size: 0.6875rem;
+    color: var(--blox-slate);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.blox-funnel {
+  &__stages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+
+  &__stage {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+  }
+
+  &__head {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.8125rem;
+  }
+
+  &__label {
+    font-weight: 600;
+    color: var(--blox-ink);
+  }
+
+  &__meta {
+    font-family: var(--blox-font-mono);
+    color: var(--blox-slate);
+  }
+
+  &__bar {
+    display: block;
+    height: 24px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(22, 83, 91, 0.08);
+  }
+
+  &__drop {
+    font-family: var(--blox-font-mono);
+    font-size: 0.6875rem;
+    color: var(--blox-danger);
+  }
+}
+
+.blox-ownership-bar {
+  &__customer {
+    background: var(--blox-emerald);
+  }
+
+  &__blox {
+    background: var(--blox-deep-green);
+  }
+}
+
+// ── Filters ─────────────────────────────────────────────────────────────────
+.blox-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+
+  &__item {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  &__label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--blox-slate);
+  }
+
+  &__control {
+    height: 32px;
+    min-width: 140px;
+    padding: 0 10px;
+    border: 1px solid var(--blox-field-border, #a9b8ba);
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-surface);
+    color: var(--blox-deep-green);
+    font-family: var(--blox-font-ui);
+    font-size: 0.8125rem;
+    font-weight: 500;
+
+    &--num {
+      min-width: 88px;
+      font-family: var(--blox-font-mono);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--blox-deep-green);
+      box-shadow: 0 0 0 3px var(--blox-emerald-soft), 0 0 0 4px var(--blox-emerald);
+    }
+  }
+
+  &__item.is-active &__control {
+    background: var(--blox-emerald-soft);
+    border-color: var(--blox-emerald);
+  }
+
+  &__range {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--blox-slate);
+  }
+
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    font-size: 0.8125rem;
+    color: var(--blox-deep-green);
+
+    input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--blox-emerald);
+    }
+  }
+
+  &__clear {
+    align-self: end;
+  }
+
+  @media (max-width: $bp-sm) {
+    &__item,
+    &__control {
+      width: 100%;
+    }
+  }
+}
+
+.blox-fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--blox-field-border, #a9b8ba);
+  border-radius: var(--blox-radius-control, 8px);
+  background: var(--blox-surface);
+  color: var(--blox-deep-green);
+  font-family: var(--blox-font-ui);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+
+  &.is-on {
+    background: var(--blox-emerald-soft);
+    border-color: var(--blox-emerald);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--blox-focus-ring);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+// ── Stepper ─────────────────────────────────────────────────────────────────
+.blox-stepper-form {
+  display: grid;
+  gap: var(--blox-space-lg);
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: var(--blox-space-md);
+    border-top: 1px solid var(--blox-border);
+  }
+
+  &__nav {
+    margin-inline-start: auto;
+    display: flex;
+    gap: 8px;
+  }
+}
+
+.blox-stepper {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  counter-reset: step;
+
+  &__step {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px 12px 0;
+    min-width: 0;
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+    border-bottom: 2px solid var(--blox-border);
+
+    &.is-active {
+      color: var(--blox-deep-green);
+      font-weight: 600;
+      border-bottom-color: var(--blox-emerald);
+    }
+
+    &.is-done {
+      color: var(--blox-emerald-ink, #0b7a63);
+      border-bottom-color: var(--blox-emerald);
+    }
+  }
+
+  &__index {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    font-family: var(--blox-font-mono);
+    font-size: 0.75rem;
+    flex: none;
+
+    .is-active > & {
+      background: var(--blox-emerald);
+      border-color: var(--blox-emerald);
+      color: var(--blox-deep-green);
+    }
+
+    .is-done > & {
+      background: var(--blox-emerald-soft);
+      border-color: var(--blox-emerald-soft);
+    }
+  }
+
+  &__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: $bp-sm) {
+    &__label {
+      display: none;
+    }
+
+    .is-active &__label {
+      display: block;
+    }
+  }
+}
+
+.blox-export {
+  display: inline-flex;
+  gap: 6px;
+}
+.blox-cell-stack { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.blox-cell-row { display: inline-flex; align-items: center; gap: 6px; }
+.blox-cell-row--wrap { flex-wrap: wrap; }
+
+// Phase 3 helpers
+.blox-upload-dropzone { display: block; cursor: pointer; }
+.blox-form-hint { margin: 8px 0 0; font-size: 0.8125rem; color: var(--blox-slate); }
+.blox-installment-schedule__notes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.blox-installment-schedule__notes .blox-panel__hint { margin: 0; }
+.blox-panel__subtitle { margin: 16px 0 8px; font-size: 0.875rem; font-weight: 600; color: var(--blox-deep-green); }
+
+// Phase 4 utilities (replace inline styles in portal pages)
+.blox-link-reset { text-decoration: none; }
+.blox-chart-donut { max-width: 280px; margin: 0 auto 12px; }
+.blox-muted { margin: 0; font-size: 0.875rem; color: var(--blox-slate); }
+.blox-m-0 { margin: 0; }
+.blox-mt-3 { margin-top: 12px; }
+.blox-mb-4 { margin-bottom: 16px; }
+.blox-break { overflow-wrap: anywhere; margin: 0; }
+.blox-pre { white-space: pre-wrap; margin: 0; font-family: var(--blox-font-mono); font-size: 0.75rem; }
+.blox-form--narrow { max-width: 480px; }
+.blox-form-block { max-width: 640px; margin-bottom: 24px; }
+.blox-form-block--narrow { max-width: 480px; }
+.blox-detail-section--narrow { max-width: 520px; }
+.blox-inline-actions--wrap { flex-wrap: wrap; gap: 12px; }
+.blox-swatch { display: inline-block; width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--blox-border); flex: none; }
+.blox-company-logo { max-height: 72px; max-width: 200px; object-fit: contain; margin-bottom: 20px; display: block; }
+.blox-company-name { display: inline-flex; align-items: center; gap: 8px; }
+.blox-company-name.is-child { padding-inline-start: 24px; }
+.blox-company-name__arrow { color: var(--blox-slate); }
+.blox-media-panel { display: grid; gap: 12px; max-width: 560px; }
+.blox-dialog--wide { width: 720px; }
+.blox-field--w180 { min-width: 180px; }

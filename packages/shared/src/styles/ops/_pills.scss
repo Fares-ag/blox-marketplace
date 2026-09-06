@@ -1,0 +1,117 @@
+// Status pills (.blox-pill) — Phase 1 §06.
+// Six semantic variants carry every state; a 6px dot in the pure hue leads each pill so
+// the state still reads in monochrome. Text sits in the *-ink tokens (AA on the soft grounds).
+// Legacy variant names (active, published, paid, approved, pending, draft, rejected, expired,
+// reserved, sold) stay valid and alias onto the semantic ones.
+.blox-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px 0 7px;
+  border-radius: var(--blox-radius-pill, 999px);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: var(--blox-muted, #e8efef);
+  color: var(--blox-slate);
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+  }
+
+  // neutral — draft, completed, cancelled, waived, archived, inactive
+  &--neutral,
+  &--draft,
+  &--expired {
+    background: var(--blox-muted, #e8efef);
+    color: var(--blox-slate);
+  }
+
+  // info — waiting on Blox: under review, contract under review, pending activation, due
+  &--info,
+  &--pending {
+    background: var(--blox-emerald-soft);
+    color: var(--blox-emerald-ink, #0b7a63);
+
+    &::before {
+      background: var(--blox-emerald);
+    }
+  }
+
+  // progress — contract stage: contract signing required, contracts submitted
+  &--progress {
+    background: var(--blox-emerald-soft);
+    color: var(--blox-deep-green);
+
+    &::before {
+      background: var(--blox-deep-green);
+    }
+  }
+
+  // success — active, down payment submitted, paid, confirmed, published
+  &--success,
+  &--active,
+  &--published,
+  &--paid,
+  &--approved {
+    background: var(--blox-success-soft, var(--blox-emerald-soft));
+    color: var(--blox-emerald-ink, #0b7a63);
+
+    &::before {
+      background: var(--blox-emerald);
+      box-shadow: 0 0 0 2px rgba(0, 207, 162, 0.28);
+    }
+  }
+
+  // warning — waiting on the customer: resubmission, down payment required, partially paid, reserved
+  &--warning,
+  &--reserved {
+    background: var(--blox-warning-soft, #fbf1df);
+    color: var(--blox-warning-ink, #8a5400);
+
+    &::before {
+      background: var(--blox-warning, #c47a00);
+    }
+  }
+
+  // danger — rejected, overdue, failed
+  &--danger,
+  &--rejected {
+    background: var(--blox-danger-soft, #fbebe9);
+    color: var(--blox-danger);
+  }
+
+  // ink — terminal states owned by Blox: sold
+  &--ink,
+  &--sold {
+    background: var(--blox-deep-green);
+    color: #fff;
+
+    &::before {
+      background: var(--blox-emerald);
+    }
+  }
+
+  // outline — the state lives elsewhere: partner processing, upcoming installments
+  &--outline {
+    background: transparent;
+    border: 1px dashed var(--blox-field-border, #a9b8ba);
+    color: var(--blox-slate);
+
+    &::before {
+      width: 5px;
+      height: 5px;
+      background: transparent;
+      border: 1px solid currentColor;
+    }
+  }
+}

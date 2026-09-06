@@ -47,6 +47,12 @@ import { PaymentCalendarPage } from './pages/PaymentCalendarPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ApplicationDetailPanel, type ApplicationDetailData } from './components/ApplicationDetailPanel';
 import { normalizeCustomerApplication } from './lib/application-dto';
+import { EligibilityPage } from './pages/EligibilityPage';
+import { ConsentsPage } from './pages/ConsentsPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { AssistPage } from './pages/AssistPage';
+import { BrandedEntryPage } from './pages/BrandedEntryPage';
+import { BrandProvider } from './components/BrandProvider';
 
 function VehiclesBrowseRedirect() {
   const { search } = useLocation();
@@ -888,12 +894,16 @@ function ApplicationDetailPage() {
 
 export function AppRoutes() {
   return (
+    <BrandProvider>
     <Routes>
       <Route path="/" element={<VehiclesPage />} />
       <Route path="/vehicles" element={<VehiclesBrowseRedirect />} />
       <Route path="/vehicles/:slug" element={<VehicleDetailPage />} />
       <Route path="/dealers" element={<DealersDirectoryPage />} />
       <Route path="/dealers/:code" element={<DealerShowroomPage />} />
+      <Route path="/dealers/:code/apply" element={<BrandedEntryPage />} />
+      <Route path="/eligibility" element={<EligibilityPage />} />
+      <Route path="/assist/:token" element={<AssistPage />} />
       <Route path="/compare" element={<ComparePage />} />
       <Route path="/help" element={<HelpPage />} />
       <Route path="/quotes/:token" element={<QuoteRedeemPage />} />
@@ -925,7 +935,10 @@ export function AppRoutes() {
       <Route path="/app/applications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplicationsListPage /></AuthGuard>} />
       <Route path="/app/applications/new" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplyWizardPage /></AuthGuard>} />
       <Route path="/app/applications/:id" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplicationDetailPage /></AuthGuard>} />
+      <Route path="/app/consents" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ConsentsPage /></AuthGuard>} />
+      <Route path="/app/profile" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ProfilePage /></AuthGuard>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </BrandProvider>
   );
 }

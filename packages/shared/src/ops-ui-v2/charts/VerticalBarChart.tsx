@@ -1,4 +1,3 @@
-import { Box, Typography } from '@mui/material';
 import { chartColorAt, chartColors } from '../../config/chart-palette';
 
 export type VerticalBar = {
@@ -7,6 +6,7 @@ export type VerticalBar = {
   color?: string;
 };
 
+/** Column chart drawn to one scale — no MUI (Phase 2). Values sit above bars, labels below. */
 export function VerticalBarChart({
   title,
   bars,
@@ -17,51 +17,30 @@ export function VerticalBarChart({
   maxValue?: number;
 }) {
   const calculatedMax = maxValue || Math.max(...bars.map((bar) => bar.value), 1);
-  const maxBarHeight = 150;
 
   return (
-    <Box>
-      {title && (
-        <Typography variant="h4" sx={{ mb: 1.5 }}>
-          {title}
-        </Typography>
-      )}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-around',
-          gap: 1,
-          minHeight: maxBarHeight + 48,
-        }}
-      >
+    <div className="blox-vbar">
+      {title && <h3 className="blox-chart__title">{title}</h3>}
+      <div className="blox-vbar__plot" role="img" aria-label={title ?? 'Bar chart'}>
         {bars.map((bar, index) => {
-          const height = calculatedMax > 0 ? (bar.value / calculatedMax) * maxBarHeight : 0;
+          const pct = calculatedMax > 0 ? (bar.value / calculatedMax) * 100 : 0;
           const color = bar.color ?? chartColorAt(index);
           return (
-            <Box key={bar.label} sx={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-              <Box sx={{ height: maxBarHeight, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                <Box
-                  sx={{
-                    width: '70%',
-                    maxWidth: 48,
-                    height: `${height}px`,
-                    backgroundColor: bar.value > 0 ? color : chartColors.track,
-                    minHeight: bar.value > 0 ? 8 : 0,
-                    borderRadius: '4px 4px 0 0',
-                  }}
+            <div key={bar.label} className="blox-vbar__col">
+              <span className="blox-vbar__value">{bar.value.toLocaleString()}</span>
+              <div className="blox-vbar__stem">
+                <span
+                  className="blox-vbar__bar"
+                  style={{ height: `${pct}%`, background: bar.value > 0 ? color : chartColors.track }}
                 />
-              </Box>
-              <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
-                {bar.value}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap>
+              </div>
+              <span className="blox-vbar__label" title={bar.label}>
                 {bar.label}
-              </Typography>
-            </Box>
+              </span>
+            </div>
           );
         })}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

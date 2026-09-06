@@ -1,8 +1,6 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
-import { Inbox } from '@mui/icons-material';
+import { Inbox } from 'lucide-react';
 import { Button } from '../../core/Button/Button';
-import './EmptyState.scss';
 
 interface EmptyStateProps {
   title?: string;
@@ -12,29 +10,26 @@ interface EmptyStateProps {
   icon?: React.ReactNode;
 }
 
+/** Empty region — Phase 1 §07: dashed border, emerald-soft glyph, one line of guidance, at most one action. */
 export const EmptyState: React.FC<EmptyStateProps> = ({
-  title = 'No data available',
+  title = 'Nothing here yet',
   message = 'There is no data to display at the moment.',
   actionLabel,
   onAction,
   icon,
 }) => {
   return (
-    <Box className="empty-state">
-      <Box className="empty-state-icon">
-        {icon || <Inbox sx={{ fontSize: 64, color: 'var(--custom-text-color)' }} />}
-      </Box>
-      <Typography variant="h4" className="empty-state-title">
-        {title}
-      </Typography>
-      <Typography variant="body2" className="empty-state-message">
-        {message}
-      </Typography>
+    <div className="blox-empty" role="status">
+      <div className="blox-empty__glyph">{icon ?? <Inbox size={20} strokeWidth={1.75} aria-hidden />}</div>
+      <p className="blox-empty__title">{title}</p>
+      {message && <p className="blox-empty__body">{message}</p>}
       {actionLabel && onAction && (
-        <Button variant="primary" onClick={onAction} sx={{ mt: 2 }}>
-          {actionLabel}
-        </Button>
+        <div className="blox-empty__action">
+          <Button variant="secondary" size="sm" onClick={onAction}>
+            {actionLabel}
+          </Button>
+        </div>
       )}
-    </Box>
+    </div>
   );
 };

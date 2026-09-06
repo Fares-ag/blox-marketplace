@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { trackProductEvent } from '../analytics/track';
@@ -29,6 +29,8 @@ const reasonCopy: Record<string, string> = {
   not_super_admin: 'This is the ops portal — sign in with your super-admin account.',
   unverified: 'Verify your email before continuing.',
   password_reset: 'Your password has been updated. Sign in with your new password.',
+  idle_timeout: 'You were signed out after a period of inactivity. Sign in again to continue.',
+  absolute_timeout: 'Your session reached its maximum length. Sign in again to continue.',
 };
 
 interface LoginPageProps {
@@ -184,7 +186,8 @@ export function LoginPage({
             </p>
           )}
       </OpsAuthCardInner>
-      <AuthPageStyles />
+      {/* Ops portals are styled by styles/ops/_auth.scss; the marketplace keeps the inline block. */}
+      {!portalKey && <AuthPageStyles />}
     </OpsAuthLayout>
   );
 }
@@ -297,11 +300,56 @@ export function RegisterPage({
   );
 }
 
+/**
+ * Auth frame shared by forgot / reset (Phase 1 §09). With a `portalKey` it renders the ops
+ * layout (brand panel + card from OpsAuthLayout, styled by _auth.scss); without one it keeps
+ * the marketplace's own dm-auth markup and inline styles untouched.
+ */
+function AuthFrame({
+  portalKey,
+  portalLabel,
+  brandName,
+  tagline,
+  children,
+}: {
+  portalKey?: OpsPortalKey;
+  portalLabel: string;
+  brandName: string;
+  tagline: string;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  if (portalKey) {
+    const keys = opsPortalAuthKeys(portalKey);
+    return (
+      <OpsAuthLayout
+        portalLabel={t(keys.portalLabelKey)}
+        tagline={t(keys.taglineKey)}
+        brandPoints={keys.brandPointKeys.map((key) => t(key))}
+      >
+        <OpsAuthCardInner>{children}</OpsAuthCardInner>
+      </OpsAuthLayout>
+    );
+  }
+  return (
+    <div className="dm-auth-layout">
+      <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel={portalLabel} />
+      <main className="dm-auth-card">
+        <div className="dm-auth-card__inner">{children}</div>
+      </main>
+      <AuthPageStyles />
+    </div>
+  );
+}
+
 /** P0-3: request a password-reset email (Better Auth requestPasswordReset). */
 export function ForgotPasswordPage({
+  portalKey,
   brandName = bloxMeta.name,
   tagline = bloxMeta.tagline,
 }: {
+  /** Ops portals pass their key to get the ops auth layout. */
+  portalKey?: OpsPortalKey;
   brandName?: string;
   tagline?: string;
 }) {
@@ -340,61 +388,60 @@ export function ForgotPasswordPage({
   }
 
   return (
-    <div className="dm-auth-layout">
-      <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel="Account recovery" />
-      <main className="dm-auth-card">
-        <div className="dm-auth-card__inner">
-          <p className="dm-auth-card__eyebrow">Account recovery</p>
-          <h1>Reset password</h1>
-          {sent ? (
-            <>
-              <p className="dm-auth-card__lead">
-                If an account exists for <strong>{email}</strong>, a reset link is on its way.
-                Check your inbox (and spam folder).
-              </p>
-              <p className="dm-auth-foot">
-                <Link to="/auth/login">Back to sign in</Link>
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="dm-auth-card__lead">
-                Enter your account email and we&apos;ll send you a link to set a new password.
-              </p>
-              <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    placeholder="you@example.com"
-                  />
-                </label>
-                {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
-                <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={busy}>
-                  {busy ? 'Sending…' : 'Send reset link'}
-                </button>
-              </form>
-              <p className="dm-auth-foot">
-                <Link to="/auth/login">Back to sign in</Link>
-              </p>
-            </>
-          )}
-        </div>
-      </main>
-      <AuthPageStyles />
-    </div>
+    <AuthFrame portalKey={portalKey} portalLabel="Account recovery" brandName={brandName} tagline={tagline}>
+      <p className="dm-auth-card__eyebrow blox-auth-card__eyebrow">Account recovery</p>
+      <h1>Reset password</h1>
+      {sent ? (
+        <>
+          <div className="dm-auth-banner blox-auth-banner" role="status">
+            <p>
+              If an account exists for <strong>{email}</strong>, a reset link is on its way. Check your inbox
+              (and spam folder).
+            </p>
+          </div>
+          <p className="dm-auth-foot blox-auth-foot">
+            <Link to="/auth/login">Back to sign in</Link>
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="dm-auth-card__lead blox-auth-card__lead">
+            Enter your account email and we&apos;ll send you a link to set a new password.
+          </p>
+          <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
+            <label>
+              Email
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="you@example.com"
+              />
+            </label>
+            {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+            <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={busy}>
+              {busy ? 'Sending…' : 'Send reset link'}
+            </button>
+          </form>
+          <p className="dm-auth-foot blox-auth-foot">
+            <Link to="/auth/login">Back to sign in</Link>
+          </p>
+        </>
+      )}
+    </AuthFrame>
   );
 }
 
 /** P0-3: set a new password from the emailed token. */
 export function ResetPasswordPage({
+  portalKey,
   brandName = bloxMeta.name,
   tagline = bloxMeta.tagline,
 }: {
+  /** Ops portals pass their key to get the ops auth layout. */
+  portalKey?: OpsPortalKey;
   brandName?: string;
   tagline?: string;
 }) {
@@ -445,64 +492,60 @@ export function ResetPasswordPage({
   const invalidLink = !token || tokenError;
 
   return (
-    <div className="dm-auth-layout">
-      <AuthBrandPanel brandName={brandName} tagline={tagline} portalLabel="Account recovery" />
-      <main className="dm-auth-card">
-        <div className="dm-auth-card__inner">
-          <p className="dm-auth-card__eyebrow">Account recovery</p>
-          <h1>Choose a new password</h1>
-          {done ? (
-            <>
-              <p className="dm-auth-card__lead">Your password has been updated.</p>
-              <p className="dm-auth-foot">
-                <Link to="/auth/login">Sign in with your new password</Link>
-              </p>
-            </>
-          ) : invalidLink ? (
-            <>
-              <p className="dm-auth-card__lead">
-                This reset link is invalid or has expired.
-              </p>
-              <p className="dm-auth-foot">
-                <Link to="/auth/forgot-password">Request a new link</Link>
-              </p>
-            </>
-          ) : (
-            <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
-              <label>
-                New password
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  placeholder="At least 8 characters"
-                />
-              </label>
-              <label>
-                Confirm new password
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                  minLength={8}
-                  placeholder="Repeat the password"
-                />
-              </label>
-              {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
-              <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={busy}>
-                {busy ? 'Saving…' : 'Set new password'}
-              </button>
-            </form>
-          )}
-        </div>
-      </main>
-      <AuthPageStyles />
-    </div>
+    <AuthFrame portalKey={portalKey} portalLabel="Account recovery" brandName={brandName} tagline={tagline}>
+      <p className="dm-auth-card__eyebrow blox-auth-card__eyebrow">Account recovery</p>
+      <h1>Choose a new password</h1>
+      {done ? (
+        <>
+          <div className="dm-auth-banner blox-auth-banner" role="status">
+            <p>Your password has been updated.</p>
+          </div>
+          <p className="dm-auth-foot blox-auth-foot">
+            <Link to="/auth/login">Sign in with your new password</Link>
+          </p>
+        </>
+      ) : invalidLink ? (
+        <>
+          <p className="dm-auth-error blox-auth-error" role="alert">
+            This reset link is invalid or has expired.
+          </p>
+          <p className="dm-auth-foot blox-auth-foot">
+            <Link to="/auth/forgot-password">Request a new link</Link>
+          </p>
+        </>
+      ) : (
+        <form onSubmit={onSubmit} className="dm-auth-form blox-auth-form">
+          <label>
+            New password
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              placeholder="At least 8 characters"
+            />
+          </label>
+          <label>
+            Confirm new password
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              minLength={8}
+              placeholder="Repeat the password"
+            />
+          </label>
+          {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
+          <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={busy}>
+            {busy ? 'Saving…' : 'Set new password'}
+          </button>
+        </form>
+      )}
+    </AuthFrame>
   );
 }
 

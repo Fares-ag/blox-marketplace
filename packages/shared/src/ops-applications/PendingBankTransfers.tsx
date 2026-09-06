@@ -43,6 +43,7 @@ export function PendingBankTransfers() {
     () => [
       {
         id: 'customer',
+        cardTitle: true,
         label: t('ops.col.customer'),
         format: (_, row) => row.customer_name ?? row.customer_email,
       },
@@ -50,16 +51,20 @@ export function PendingBankTransfers() {
       { id: 'company_name', label: t('ops.col.dealer'), format: (_, row) => row.company_name },
       {
         id: 'amount',
+        sortable: true,
+        numeric: true,
         label: t('ops.col.amount'),
         format: (_, row) => `QAR ${row.amount.toLocaleString()}`,
       },
       {
         id: 'sequence',
+        numeric: true,
         label: t('ops.col.seq'),
         format: (_, row) => (row.sequence != null ? String(row.sequence) : '—'),
       },
       {
         id: 'actions',
+        actions: true,
         label: '',
         format: (_, row) => (
           <button
@@ -80,7 +85,7 @@ export function PendingBankTransfers() {
     <OpsListPage
       title={t('ops.finance.bankTitle')}
       subtitle={t('ops.finance.bankSubtitle')}
-      error={(loadError || error) ? <p style={{ color: 'var(--blox-danger)' }}>{(loadError as Error | null)?.message ?? error}</p> : undefined}
+      error={(loadError as Error | null)?.message ?? error ?? undefined}
     >
       <Table
         columns={columns}

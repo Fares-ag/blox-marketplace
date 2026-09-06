@@ -95,12 +95,87 @@ enum DocumentCategory {
   salary
   bank
   passport
+  selfie
   license
   other
   cr
   computer_card
   rental_agreement
   signatory_id
+  credit_bureau
+  residence_proof
+  employment_contract
+  trade_license
+  audited_financials
+  tax_card
+  business_bank
+  guarantor_qid
+  guarantor_salary
+  guarantor_bank
+  vehicle_quotation
+  takaful_policy
+}
+
+enum Gender {
+  male
+  female
+  prefer_not_to_say
+}
+
+/// The four mandatory consents captured before an application is submitted.
+enum ConsentCode {
+  credit_bureau
+  terms
+  kyc_biometric
+  aml
+}
+
+enum ConsentChannel {
+  web
+  mobile
+  assisted
+}
+
+/// Identity and supporting documents a customer keeps in their vault, reusable across applications.
+enum CustomerDocumentCategory {
+  qid_front
+  qid_back
+  passport
+  driving_licence
+  residence_proof
+  salary_certificate
+  bank_statement
+  other
+}
+
+enum TakafulStatus {
+  declared
+  pending_verification
+  active
+  expired
+  closed
+}
+
+/// Sales-executive assisted journey: the customer completes OTP, consents and identity on their own device.
+enum AssistedSessionStatus {
+  pending
+  otp_verified
+  consents_done
+  identity_started
+  completed
+  expired
+  cancelled
+}
+
+/// How a finance provider engages with underwriting (LOS FSD §5.8).
+enum FinancePartnerEngagementMode {
+  full_los_underwriting
+  credit_file_handoff
+}
+
+enum BreOwnership {
+  blox_bre_only
+  blox_plus_partner_bre
 }
 
 enum CrmAdapter {
@@ -158,7 +233,23 @@ model User {
   financeScope OfficerScope @default(assigned)
   phone        String?
   qid          String?
+  /// HMAC blind index of the QID — lets us de-duplicate identities without querying plaintext.
+  qidHash      String?      @map("qid_hash")
   isActive     Boolean      @default(true)
+
+  /// Customer profile (self-service, see MeController)
+  firstName               String?   @map("first_name")
+  lastName                String?   @map("last_name")
+  gender                  Gender?
+  dateOfBirth             DateTime? @map("date_of_birth") @db.Date
+  nationality             String?
+  preferredLanguage       String    @default("en") @map("preferred_language")
+  notificationPreferences Json?     @map("notification_preferences")
+  address                 Json?
+
+  /// Dealer staff: the branch they work from (drives lead attribution and branch-scoped views).
+  homeBranchId String? @map("home_branch_id")
+  homeBranch   Branch? @relation("BranchStaff", fields: [homeBranchId], references: [id], onDelete: SetNull)
 
   /// Better Auth two-factor plugin
   twoFactorEnabled    Boolean   @default(false)
@@ -186,7 +277,14 @@ model User {
   deviceTokens         DeviceToken[]
   mobileRefreshTokens  MobileRefreshToken[]
   paymentDeferrals     PaymentDeferral[]
+  consentRecords       ConsentRecord[]       @relation("ConsentSubject")
+  consentsCaptured     ConsentRecord[]       @relation("ConsentActor")
+  customerDocuments    CustomerDocument[]    @relation("VaultOwner")
+  assistedSessions     AssistedSession[]     @relation("AssistedCustomer")
+  assistedSessionsRun  AssistedSession[]     @relation("AssistedCreator")
+  takafulPolicies      TakafulPolicy[]       @relation("TakafulCreator")
 
+  @@index([qidHash])
   @@map("users")
 }
 
@@ -276,9 +374,32 @@ model Company {
   creditOfficers   CreditOfficerCompany[]
   financeOfficers  FinanceOfficerCompany[]
   dealerQuotes     DealerQuote[]
+  branches         Branch[]
 
   @@index([parentCompanyId])
   @@map("companies")
+}
+
+/// A physical branch/showroom of a dealership. Sales executives belong to exactly one home branch.
+model Branch {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
+  city      String?
+  address   String?
+  phone     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  staff        User[]        @relation("BranchStaff")
+  applications Application[]
+
+  @@unique([companyId, code])
+  @@index([companyId, active])
+  @@map("branches")
 }
 
 model CreditOfficerCompany {
@@ -309,13 +430,40 @@ model FinancePartner {
   name       String
   active     Boolean    @default(true)
   crmAdapter CrmAdapter @default(none)
+  /// Finance Provider Master (LOS FSD §5.8): fixed per provider, never per application.
+  engagementMode  FinancePartnerEngagementMode @default(full_los_underwriting) @map("engagement_mode")
+  breOwnership    BreOwnership                 @default(blox_bre_only) @map("bre_ownership")
+  /// Lender of record for offers that carry no explicit finance partner.
+  isDefaultLender Boolean                      @default(false) @map("is_default_lender")
+  contactName     String?                      @map("contact_name")
+  contactEmail    String?                      @map("contact_email")
+  contactPhone    String?                      @map("contact_phone")
+  notes           String?
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
   offers       Offer[]
   applications Application[]
+  branches     FinancePartnerBranch[]
 
   @@map("finance_partners")
+}
+
+model FinancePartnerBranch {
+  id        String         @id @default(cuid())
+  partnerId String         @map("partner_id")
+  partner   FinancePartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
+  city      String?
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  applications Application[]
+
+  @@unique([partnerId, code])
+  @@map("finance_partner_branches")
 }
 
 model Offer {
@@ -364,6 +512,8 @@ model Product {
   mileage         Int?
   vin             String?
   chassisNumber   String?
+  /// Required together with VIN and chassis before a listing can be reserved by a submitted application.
+  engineNumber    String?          @map("engine_number")
   description     String?
   attributes      Json?
   price           Decimal          @db.Decimal(12, 2)
@@ -442,6 +592,22 @@ model Application {
   kycStatus          String?           @map("kyc_status")
   bloxMembership     Json?             @map("blox_membership")
 
+  /// Branch the application was originated from (sales executive's home branch or the dealer quote's branch).
+  branchId               String?               @map("branch_id")
+  branch                 Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  financePartnerBranchId String?               @map("finance_partner_branch_id")
+  financePartnerBranch   FinancePartnerBranch? @relation(fields: [financePartnerBranchId], references: [id], onDelete: SetNull)
+
+  /// Identity-level de-duplication (LOS FSD §5.3.1). Blind index of the applicant QID.
+  qidHash                 String?   @map("qid_hash")
+  /// MISMATCHED_IDENTITY hold: the QID matches another customer with a different name or date of birth.
+  identityHoldReason      String?   @map("identity_hold_reason")
+  identityHoldAt          DateTime? @map("identity_hold_at")
+  identityHoldClearedAt   DateTime? @map("identity_hold_cleared_at")
+  identityHoldClearedById String?   @map("identity_hold_cleared_by_id")
+  /// Set when all four mandatory consents were captured for this application.
+  consentsCompletedAt     DateTime? @map("consents_completed_at")
+
   documents         ApplicationDocument[]
   paymentSchedules  PaymentSchedule[]
   paymentTransactions PaymentTransaction[]
@@ -450,13 +616,141 @@ model Application {
   complianceChecks  ComplianceCheck[]
   paymentDeferrals  PaymentDeferral[]
   settlements       ApplicationSettlement[]
+  consentRecords    ConsentRecord[]
+  takafulPolicies   TakafulPolicy[]
+  assistedSessions  AssistedSession[]
 
   @@index([customerUserId, status])
   @@index([companyId, status])
   @@index([productId, status])
   @@index([status, createdAt])
   @@index([kycCaseId])
+  @@index([qidHash])
+  @@index([branchId])
   @@map("applications")
+}
+
+/// Immutable consent ledger — one row per consent code per capture. Never updated or deleted.
+model ConsentRecord {
+  id            String         @id @default(cuid())
+  userId        String         @map("user_id")
+  user          User           @relation("ConsentSubject", fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String?        @map("application_id")
+  application   Application?   @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  code          ConsentCode
+  /// Version of the consent text the customer saw (from the shared consent catalog).
+  version       String
+  /// SHA-256 of the exact text shown, so the wording can be proven later.
+  textHash      String         @map("text_hash")
+  locale        String         @default("en")
+  channel       ConsentChannel @default(web)
+  acceptedAt    DateTime       @default(now()) @map("accepted_at")
+  ipAddress     String?        @map("ip_address")
+  userAgent     String?        @map("user_agent")
+  sessionId     String?        @map("session_id")
+  deviceInfo    Json?          @map("device_info")
+  /// Staff member present when the consent was captured on the customer's device (assisted journey).
+  actorUserId   String?        @map("actor_user_id")
+  actor         User?          @relation("ConsentActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId, code, acceptedAt])
+  @@index([applicationId, code])
+  @@map("consent_records")
+}
+
+/// Customer document vault — identity and income documents kept on the profile and reusable across applications.
+model CustomerDocument {
+  id                 String                   @id @default(cuid())
+  userId             String                   @map("user_id")
+  user               User                     @relation("VaultOwner", fields: [userId], references: [id], onDelete: Cascade)
+  category           CustomerDocumentCategory
+  storagePath        String                   @map("storage_path")
+  mimeType           String?                  @map("mime_type")
+  originalName       String?                  @map("original_name")
+  sizeBytes          Int?                     @map("size_bytes")
+  /// AES-256-GCM encrypted document number (QID, passport or licence number).
+  documentNumberEnc  String?                  @map("document_number_enc")
+  issuedAt           DateTime?                @map("issued_at") @db.Date
+  expiresAt          DateTime?                @map("expires_at") @db.Date
+  verifiedAt         DateTime?                @map("verified_at")
+  verifiedById       String?                  @map("verified_by_id")
+  lastReminderKind   String?                  @map("last_reminder_kind")
+  lastReminderAt     DateTime?                @map("last_reminder_at")
+  deletedAt          DateTime?                @map("deleted_at")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+
+  @@index([userId, category])
+  @@index([expiresAt])
+  @@map("customer_documents")
+}
+
+/// Takaful (vehicle insurance) declaration and policy details captured at signing; renewals tracked on expiry.
+model TakafulPolicy {
+  id                    String        @id @default(cuid())
+  applicationId         String        @map("application_id")
+  application           Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  provider              String
+  policyNumber          String?       @map("policy_number")
+  coverageType          String?       @map("coverage_type")
+  coverageAmount        Decimal?      @map("coverage_amount") @db.Decimal(12, 2)
+  premiumAmount         Decimal?      @map("premium_amount") @db.Decimal(12, 2)
+  issuedAt              DateTime?     @map("issued_at") @db.Date
+  effectiveFrom         DateTime?     @map("effective_from") @db.Date
+  expiresAt             DateTime?     @map("expires_at") @db.Date
+  riders                Json?
+  status                TakafulStatus @default(declared)
+  declarationAcceptedAt DateTime?     @map("declaration_accepted_at")
+  declarationVersion    String?       @map("declaration_version")
+  documentPath          String?       @map("document_path")
+  documentMime          String?       @map("document_mime")
+  verifiedAt            DateTime?     @map("verified_at")
+  verifiedById          String?       @map("verified_by_id")
+  closedAt              DateTime?     @map("closed_at")
+  lastReminderKind      String?       @map("last_reminder_kind")
+  lastReminderAt        DateTime?     @map("last_reminder_at")
+  createdByUserId       String        @map("created_by_user_id")
+  createdBy             User          @relation("TakafulCreator", fields: [createdByUserId], references: [id])
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  @@index([applicationId, status])
+  @@index([expiresAt])
+  @@map("takaful_policies")
+}
+
+/// Sales-executive assisted application: the customer verifies by OTP, consents and starts identity checks on their own phone.
+model AssistedSession {
+  id                   String                @id @default(cuid())
+  token                String                @unique
+  applicationId        String                @map("application_id")
+  application          Application           @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  customerUserId       String                @map("customer_user_id")
+  customer             User                  @relation("AssistedCustomer", fields: [customerUserId], references: [id], onDelete: Cascade)
+  createdByUserId      String                @map("created_by_user_id")
+  createdBy            User                  @relation("AssistedCreator", fields: [createdByUserId], references: [id])
+  phone                String
+  email                String?
+  status               AssistedSessionStatus @default(pending)
+  otpCodeHash          String?               @map("otp_code_hash")
+  otpExpiresAt         DateTime?             @map("otp_expires_at")
+  otpAttempts          Int                   @default(0) @map("otp_attempts")
+  otpLockedUntil       DateTime?             @map("otp_locked_until")
+  otpResendCount       Int                   @default(0) @map("otp_resend_count")
+  otpResendWindowStart DateTime?             @map("otp_resend_window_start")
+  otpVerifiedAt        DateTime?             @map("otp_verified_at")
+  /// Hash of the browser proof issued after OTP verification; required on every later call.
+  proofHash            String?               @map("proof_hash")
+  consentsCompletedAt  DateTime?             @map("consents_completed_at")
+  identityStartedAt    DateTime?             @map("identity_started_at")
+  completedAt          DateTime?             @map("completed_at")
+  expiresAt            DateTime              @map("expires_at")
+  lastOpenedAt         DateTime?             @map("last_opened_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  @@index([applicationId, status])
+  @@map("assisted_sessions")
 }
 
 model ApplicationDocument {

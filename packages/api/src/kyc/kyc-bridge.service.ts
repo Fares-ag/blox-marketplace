@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import path from 'node:path';
 import {
   BadRequestException,
   Injectable,
@@ -9,17 +10,20 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentCategory, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { IDENTITY_SLOTS, KycPlatformClient, type KycDocument } from './kyc-platform.client';
+import { buildKycVerificationSummary } from './kyc-verification-summary';
 
 const SLOT_CATEGORY: Record<string, DocumentCategory> = {
   qid_front: DocumentCategory.qid,
   qid_back: DocumentCategory.qid,
   passport: DocumentCategory.passport,
+  selfie: DocumentCategory.selfie,
 };
 
 const SLOT_LABELS: Record<string, string> = {
   qid_front: 'QID Front',
   qid_back: 'QID Back',
   passport: 'Passport',
+  selfie: 'Face liveness',
 };
 
 function metricScore(value: KycDocument['quality']): number | null {
@@ -166,7 +170,7 @@ export class KycBridgeService {
       const data = {
         category,
         storagePath: `kyc://${doc.id}`,
-        mimeType: 'application/octet-stream',
+        mimeType: doc.mime_type ?? 'application/octet-stream',
         uploadedById,
         kycDocumentId: doc.id,
         kycDocumentType: doc.type,
@@ -174,7 +178,7 @@ export class KycBridgeService {
         quality: metricScore(doc.quality),
         authenticity: metricScore(doc.authenticity),
         reviewStatus: doc.review_status,
-        originalName: SLOT_LABELS[doc.type] ?? doc.type,
+        originalName: SLOT_LABELS[doc.type] ?? doc.original_filename ?? doc.type,
       };
       if (existing) {
         await this.prisma.applicationDocument.update({ where: { id: existing.id }, data });
@@ -197,5 +201,60 @@ export class KycBridgeService {
       where: { id: applicationId },
       data: { kycStatus },
     });
+  }
+
+  /** Pull the latest identity + liveness docs from the KYC platform into the application. */
+  async syncDocumentsForApplication(applicationId: string) {
+    if (!this.kyc.configured()) return;
+    const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
+    if (!app?.kycCaseId) return;
+    const kase = await this.kyc.getCaseDetail(app.kycCaseId);
+    await this.syncDocuments(applicationId, app.customerUserId, kase.documents, kase.status);
+  }
+
+  /** Resolve bytes for documents synced from the KYC platform (`kyc://…` storage paths). */
+  async readApplicationDocumentBytes(
+    applicationId: string,
+    doc: {
+      storagePath: string;
+      mimeType?: string | null;
+      originalName?: string | null;
+      category: string;
+      kycDocumentId?: string | null;
+    },
+  ): Promise<{ buffer: Buffer; contentType: string; filename: string }> {
+    if (!doc.storagePath.startsWith('kyc://')) {
+      throw new BadRequestException('not_kyc_document');
+    }
+    if (!this.kyc.configured()) throw new BadRequestException('kyc_not_configured');
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { kycCaseId: true },
+    });
+    if (!app?.kycCaseId) throw new NotFoundException('kyc_case_not_linked');
+    const kycDocId = doc.kycDocumentId ?? doc.storagePath.slice('kyc://'.length);
+    const file = await this.kyc.fetchCaseDocumentFile(app.kycCaseId, kycDocId);
+    const ext =
+      path.extname(file.filename) ||
+      (file.contentType === 'image/jpeg'
+        ? '.jpg'
+        : file.contentType === 'image/png'
+          ? '.png'
+          : file.contentType === 'application/pdf'
+            ? '.pdf'
+            : '');
+    const baseName = doc.originalName?.trim() || doc.category;
+    const filename = path.extname(baseName) ? baseName : `${baseName}${ext}`;
+    return {
+      buffer: file.buffer,
+      contentType: doc.mimeType ?? file.contentType,
+      filename,
+    };
+  }
+
+  async getVerificationSummary(_applicationId: string, kycCaseId: string, kycStatus: string | null) {
+    if (!this.kyc.configured()) return null;
+    const kase = await this.kyc.getCaseDetail(kycCaseId);
+    return buildKycVerificationSummary(kase, kycStatus);
   }
 }

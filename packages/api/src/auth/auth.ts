@@ -21,6 +21,7 @@ import {
 } from './login-lockout';
 import { isMfaRequiredRole } from './privileged-roles';
 import { emitProductEvent } from '../analytics/emit-product-event';
+import { resolveSessionPolicy } from './session-policy';
 
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -38,6 +39,7 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
   const requireEmailVerification = resolveRequireEmailVerification(config);
   const sessionCookieCacheMaxAge = resolveSessionCookieCacheMaxAge(config);
   const loginLockout = resolvePrivilegedLoginLockout(config);
+  const sessionPolicy = resolveSessionPolicy(config);
   mail.assertProductionReady(requireEmailVerification);
 
   return betterAuth({
@@ -107,11 +109,18 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
       },
     },
     session: {
+      // LOS FSD §11.2 idle timeout: a session expires `idleTimeoutSec` after its
+      // last refresh, and any request older than `updateAge` refreshes it — so
+      // an active user stays signed in while an abandoned tab does not. The
+      // absolute ceiling and single-session rule live in SessionAuthGuard and
+      // the `after` hook below.
+      expiresIn: sessionPolicy.idleTimeoutSec,
+      updateAge: Math.max(5, Math.min(60, Math.floor(sessionPolicy.idleTimeoutSec / 10))),
       // Short-lived in-process cache for session row reads. Authorization in
       // this API always re-loads User from Postgres in SessionAuthGuard.
       cookieCache: {
         enabled: sessionCookieCacheMaxAge > 0,
-        maxAge: sessionCookieCacheMaxAge,
+        maxAge: Math.min(sessionCookieCacheMaxAge, sessionPolicy.idleTimeoutSec),
       },
     },
     plugins: [
@@ -144,6 +153,16 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
         });
       }),
       after: createAuthMiddleware(async (ctx) => {
+        // Single session per user (LOS FSD §11.2): a new sign-in (including the
+        // second factor of a 2FA sign-in) closes every other session. Mobile
+        // bearer tokens are separate and unaffected.
+        const newSession = ctx.context.newSession;
+        if (sessionPolicy.singleSession && newSession?.session?.id && newSession.user?.id) {
+          await prisma.session.deleteMany({
+            where: { userId: newSession.user.id, id: { not: newSession.session.id } },
+          });
+        }
+
         if (ctx.path === '/sign-up/email') {
           const email = normalizeEmail(ctx.body?.email);
           const sessionUserId = ctx.context.newSession?.user?.id;

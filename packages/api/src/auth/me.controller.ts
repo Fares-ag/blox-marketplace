@@ -7,6 +7,7 @@ import { CurrentUser, MfaExempt } from './guards';
 import { PrismaService } from '../prisma/prisma.service';
 import { isMfaEnforcementActive, resolveMfaEnforcement } from './auth-config';
 import { isMfaRequiredRole } from './privileged-roles';
+import { resolveSessionPolicy, sessionPolicyDto } from './session-policy';
 
 class UpdateProfileDto {
   @IsOptional()
@@ -75,6 +76,8 @@ export class MeController {
       two_factor_enabled: user.twoFactorEnabled,
       mfa_required: mfaRequired,
       mfa_setup_required: mfaEnforced && mfaRequired && !user.twoFactorEnabled,
+      // Lets every portal run the same idle-timeout countdown the API enforces.
+      session_policy: sessionPolicyDto(resolveSessionPolicy(this.config)),
     };
   }
 }

@@ -30,6 +30,7 @@ import {
 
   useOpsLabels,
 
+  useNavCounts,
 } from '@drivemarket/shared';
 
 import '@drivemarket/shared/styles/global.scss';
@@ -56,19 +57,14 @@ function App() {
 
   const { t } = useOpsLabels();
 
+  const counts = useNavCounts<{ in_review: number; zoho_failures: number }>('/api/ops/metrics/credit');
   const nav = useMemo<BloxNavItem[]>(
-
     () => [
-
       { to: '/', label: t('ops.credit.nav.dashboard'), icon: 'home' },
-
-      { to: '/queue', label: t('ops.credit.nav.queue'), icon: 'queue' },
-
-      { to: '/zoho-failures', label: t('ops.credit.nav.zohoFailures'), icon: 'logs' },
-
+      { to: '/queue', label: t('ops.credit.nav.queue'), icon: 'queue', count: counts?.in_review },
+      { to: '/zoho-failures', label: t('ops.credit.nav.zohoFailures'), icon: 'logs', count: counts?.zoho_failures },
     ],
-
-    [t],
+    [t, counts],
 
   );
 
@@ -82,9 +78,9 @@ function App() {
 
       <Route path="/auth/login" element={<LoginPage portalKey="credit" homePath="/" />} />
 
-      <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/auth/forgot-password" element={<ForgotPasswordPage portalKey="credit" />} />
 
-      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/auth/reset-password" element={<ResetPasswordPage portalKey="credit" />} />
 
       <Route path="/auth/two-factor" element={<TwoFactorLoginPage portalKey="credit" homePath="/" />} />
 
@@ -98,7 +94,7 @@ function App() {
 
           <AuthGuard allowedRole="credit_officer" reasonParam="not_credit">
 
-            <BloxShell title="Credit" nav={nav}>
+            <BloxShell title="Credit" nav={nav} searchPath="/queue">
 
               <Routes>
 

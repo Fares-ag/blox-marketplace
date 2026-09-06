@@ -2,7 +2,6 @@ import { useState } from 'react';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { Chip } from '@mui/material';
 
 import {
   ConfirmDialog,
@@ -46,12 +45,13 @@ function CompanyNameCell({
 
   return (
 
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, paddingLeft: isChild ? 24 : 0 }}>
-
-      {isChild && <span aria-hidden style={{ color: 'var(--blox-slate)' }}>↳</span>}
-
+    <span className={`blox-company-name${isChild ? ' is-child' : ''}`}>
+      {isChild && (
+        <span aria-hidden className="blox-company-name__arrow">
+          ↳
+        </span>
+      )}
       {name}
-
     </span>
 
   );
@@ -66,7 +66,7 @@ function KindBadge({ kind }: { kind?: string | null }) {
 
   if (value === 'holding') {
 
-    return <Chip size="small" label="Holding" color="info" variant="outlined" />;
+    return <OpsStatusPill label="Holding" variant="outline" />;
 
   }
 
@@ -226,7 +226,7 @@ export function CompaniesPage() {
 
     <OpsFormPage title="Companies" subtitle="Dealer companies and activation flags" wide>
 
-      {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
+      {error && <p className="blox-form-error" role="alert">{(error as Error).message}</p>}
 
       <OpsFormSection title="Create company">
         <OpsField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -248,7 +248,7 @@ export function CompaniesPage() {
           </OpsSelect>
         )}
         {msg && (
-          <p className="blox-form-grid__full" style={{ margin: 0 }}>
+          <p className="blox-form-grid__full blox-m-0">
             {msg}
           </p>
         )}

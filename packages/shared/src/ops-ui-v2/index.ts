@@ -8,6 +8,7 @@ export {
   FilterPanel,
   MultiStepForm,
   Table,
+  Alert,
   Button,
   Input,
   Select,
@@ -35,12 +36,14 @@ export { PortalBasePathProvider, usePortalBasePath, withPortalBase } from './Por
 export { OpsSegmentedControl } from './OpsSegmentedControl';
 export { OpsTabs, OpsTab } from './OpsTabs';
 export { OpsToolbar } from './OpsToolbar';
-export { OpsMetricRow, type OpsMetricItem } from './OpsMetricRow';
+export { OpsMetricRow, Sparkline, type OpsMetricItem } from './OpsMetricRow';
 export { OpsFormSection } from './OpsFormSection';
 export { UserCredentialsDialog } from './UserCredentialsDialog';
+export { SetPasswordDialog } from './SetPasswordDialog';
 export { OpsField, OpsSelect, OpsTextarea, OpsFormGrid, OpsContentCard } from './OpsField';
 export { OwnershipBar } from './OwnershipBar';
 export { OpsListPage } from './templates/OpsListPage';
+export { DashboardSection, DashboardGrid } from './DashboardSection';
 export { OpsDashboardPage } from './templates/OpsDashboardPage';
 export { OpsDetailPage, OpsDetailGrid } from './templates/OpsDetailPage';
 export { OpsFormPage } from './templates/OpsFormPage';

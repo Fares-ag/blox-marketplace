@@ -132,7 +132,7 @@ export function FinanceSettlementsPage() {
       title={t('ops.finance.settlementsTitle')}
       subtitle={t('ops.finance.settlementsSubtitle')}
       metrics={[{ label: t('ops.finance.pendingSettlements'), value: String(data?.summary.pending ?? '—') }]}
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           tabs={

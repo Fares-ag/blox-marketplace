@@ -1,0 +1,222 @@
+// List sections, metrics, workspace tabs, detail sections, timeline, document cards and dropzone.
+/* List page sections */
+.blox-list-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.blox-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.blox-metric-card {
+  background: var(--card-background);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-card);
+  padding: var(--spacing-lg);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow var(--transition-base);
+
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: var(--card-shadow-hover);
+    }
+  }
+
+  &--hero {
+    background: linear-gradient(135deg, var(--blox-deep-green) 0%, var(--blox-deep-green-dark) 100%);
+    border-color: transparent;
+    color: #fff;
+
+    .blox-metric-card__label,
+    .blox-metric-card__delta {
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .blox-metric-card__value {
+      color: var(--primary-color);
+    }
+  }
+
+  &__icon {
+    color: var(--primary-color);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  &__label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--secondary-text);
+    margin: 0 0 var(--spacing-xs);
+  }
+
+  &__value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+    color: var(--primary-text);
+  }
+
+  &__delta {
+    font-size: 12px;
+    color: var(--secondary-text);
+    margin: var(--spacing-xs) 0 0;
+  }
+}
+
+.blox-status-tabs {
+  margin-bottom: var(--spacing-md);
+}
+
+/* Workspace tabs */
+.blox-workspace-tabs {
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-card);
+  background: var(--card-background);
+  margin-bottom: var(--spacing-lg);
+
+  .MuiTabs-root {
+    border-bottom: 1px solid var(--divider-color);
+  }
+}
+
+/* Detail sections */
+.blox-detail-section {
+  background: var(--card-background);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-card);
+  padding: var(--spacing-lg);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow var(--transition-base);
+
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: var(--card-shadow-hover);
+    }
+  }
+}
+
+.blox-info-item {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  font-size: 14px;
+
+  strong {
+    color: var(--secondary-text);
+    font-weight: 500;
+  }
+}
+
+/* Timeline (workspace logs) */
+.blox-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    position: relative;
+    padding-left: 24px;
+    padding-bottom: var(--spacing-md);
+    border-left: 2px solid var(--divider-color);
+    margin-left: 8px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: -7px;
+      top: 4px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      border: 2px solid var(--card-background);
+    }
+
+    &:last-child {
+      border-left-color: transparent;
+      padding-bottom: 0;
+    }
+  }
+}
+
+/* Document cards */
+.blox-document-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-md);
+  background: var(--card-background);
+  transition: box-shadow var(--transition-base);
+
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: var(--card-shadow-hover);
+    }
+  }
+}
+
+.blox-document-card--image {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+
+  .blox-document-card__thumb {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+    background: var(--surface-raised, #f1f5f9);
+  }
+
+  .blox-document-card__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+  }
+
+  .blox-document-card__action {
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    text-decoration: underline;
+  }
+}
+
+.blox-document-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Dashed upload area */
+/* Dashed upload area */
+.blox-upload-dropzone {
+  border: 2px dashed var(--field-border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-xl);
+  text-align: center;
+  background: var(--card-background);
+  transition: border-color var(--transition-base), background var(--transition-base);
+
+  &:hover {
+    border-color: var(--primary-color);
+    background: rgba(0, 207, 162, 0.04);
+  }
+}
+

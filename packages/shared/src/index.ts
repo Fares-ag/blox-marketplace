@@ -1,10 +1,16 @@
 export { brandTokens, brandMeta, cssVarNames } from './config/brand-tokens';
 export { bloxTokens, bloxMeta, bloxSpacing, bloxRadius, bloxElevation, bloxMotion } from './config/blox-tokens';
 export { chartPalette, chartColors, chartColorAt } from './config/chart-palette';
-export { applicationStatusStyles, listingStatusStyles, applicationStatusLabel, listingStatusLabel, applicationOpsPillVariant, applicationMarketplacePillVariant, listingOpsPillVariant, scheduleOpsPillVariant, type OpsPillVariant, type MarketplacePillVariant } from './config/status-styles';
+export { applicationStatusStyles, listingStatusStyles, applicationStatusLabel, listingStatusLabel, applicationOpsPillVariant, applicationMarketplacePillVariant, listingOpsPillVariant, scheduleOpsPillVariant, transactionOpsPillVariant, companyOpsPillVariant, type OpsPillVariant, type OpsPillSemanticVariant, type MarketplacePillVariant } from './config/status-styles';
+export {
+  applicationDocumentLabel,
+  isPreviewableImageDocument,
+  type ApplicationDocumentLike,
+} from './application-document-label';
 export { apiFetch, ApiError, getApiBase, apiUrl, apiFileUrl, resolveListingImageUrl, assertApiBaseConfigured, registerUnauthorizedHandler, resetUnauthorizedLatch, DEFAULT_PAGE_SIZE, buildPaginationQuery, paginationWindow } from './lib/api';
 export { listingImageMediaPath } from './lib/listing-image-url';
 export { createQueryClient } from './lib/query-client';
+export { useNavCounts } from './lib/use-nav-counts';
 export { mountPortalApp, AuthBootstrap } from './lib/app-bootstrap';
 export { initAppSentry } from './lib/sentry';
 export { formatQar, formatPercent } from './lib/format';
@@ -133,7 +139,7 @@ export {
   type ProductAnalyticsEvent,
   type ProductAnalyticsProps,
 } from './analytics/events';
-export { trackProductEvent } from './analytics/track';
+export { canManageUserAccess } from './users/admin-user-access';
 export { MoneyText, MarketplaceTopNav } from './components/ui';
 export { theme, brandColors } from './config/theme';
 export {
@@ -142,6 +148,7 @@ export {
   exportToJSON,
   ConfirmDialog,
   UserCredentialsDialog,
+  SetPasswordDialog,
   EmptyState,
   StatusBadge,
   SearchBar,
@@ -156,10 +163,13 @@ export {
   OpsTab,
   OpsToolbar,
   OpsMetricRow,
+  Sparkline,
   OpsFormSection,
   OwnershipBar,
   OpsListPage,
   OpsDashboardPage,
+  DashboardSection,
+  DashboardGrid,
   OpsDetailPage,
   OpsDetailGrid,
   OpsFormPage,
@@ -239,12 +249,13 @@ export {
   AddApplicationWizard,
   PendingBankTransfers,
   ScheduleLedger,
+  RecordPaymentDialog,
   VehicleCardGrid,
   InstallmentScheduleTable,
   InstallmentPlanStep,
   DealerAgentsPanel,
 } from './ops-applications';
-export type { VehicleCardOption } from './ops-applications';
+export type { VehicleCardOption, RecordPaymentTarget } from './ops-applications';
 // Shared by the dealer wizard and the customer apply form so the same question
 // cannot end up with two different sets of answers. Pure data — no components.
 export { EMPLOYMENT_TYPE_OPTIONS, EMPLOYMENT_DURATION_OPTIONS } from './ops-applications/customer-info';
@@ -256,3 +267,112 @@ export type {
   StaffCreatePayload,
   WorkspaceActions,
 } from './ops-applications';
+// Customer-platform domain rules — the same module the API bundles as
+// `@drivemarket/shared/domain-rules`, so web, dealer, ops and server agree.
+export {
+  PRODUCT_RULES,
+  RESIDENCE_DURATION_OPTIONS,
+  allowedTenureOptions,
+  employerCategoryFromEmploymentType,
+  financingCapFor,
+  hasHardViolation,
+  maxTenureFor,
+  minDownPaymentPctFor,
+  requiredApprovalAuthority,
+  residenceMonthsFromOption,
+  residencyFromNationality,
+  resolveProductVariant,
+  validateFinancingRequest,
+  vehicleAgeAtTenureEnd,
+  type ApplicantKind,
+  type EmployerCategory,
+  type FinancingRequest,
+  type ProductRuleCode,
+  type ProductRuleViolation,
+  type ProductVariant,
+  type ResidencyClass,
+  type ResidenceDurationValue,
+  type RuleVehicleCondition,
+  type VehicleCategory,
+} from './lib/product-rules';
+export {
+  assessAffordability,
+  dbrCapFor,
+  maxFinancingForInstallment,
+  preCheckEligibility,
+  type AffordabilityInput,
+  type AffordabilityResult,
+  type DbrStatus,
+  type EligibilityCheck,
+  type EligibilityCheckCode,
+  type EligibilityInput,
+  type EligibilityOutcome,
+  type EligibilityResult,
+} from './lib/affordability';
+export {
+  ISO_NUMERIC_COUNTRIES,
+  QID_LENGTH,
+  ageFromDateOfBirth,
+  dateOfBirthMatchesQid,
+  normalizeQid,
+  parseQid,
+  type ParsedQid,
+} from './lib/qid';
+export {
+  CONSENT_CATALOG,
+  CONSENT_CATALOG_VERSION,
+  CONSENT_CODES,
+  consentDefinition,
+  consentFullText,
+  isConsentCode,
+  missingConsents,
+  type ConsentAcceptance,
+  type ConsentCodeValue,
+  type ConsentDefinition,
+} from './lib/consents';
+export {
+  DOCUMENT_SLOT_CATEGORIES,
+  DOCUMENT_UPLOAD_ACCEPT,
+  DOCUMENT_UPLOAD_MAX_BYTES,
+  documentSlotsFor,
+  documentUploadRejection,
+  isSelfEmployed,
+  missingDocumentCategories,
+  requiredDocumentCategoriesFor,
+  type DocumentSlot,
+  type DocumentSlotCategory,
+  type DocumentSlotGroup,
+  type DocumentSlotProfile,
+  type UploadRejection,
+} from './lib/document-slots';
+export { maskEmail, maskIban, maskName, maskPhone, maskQid, maskCustomerSnapshot } from './lib/masking';
+export type {
+  AssistedSessionDto,
+  AssistedSessionPublicDto,
+  AssistedSessionStatusDto,
+  BranchDto,
+  BreOwnershipDto,
+  CompanyBrandingDto,
+  ConsentChannelDto,
+  ConsentCodeDto,
+  ConsentRecordDto,
+  ConsentStatusDto,
+  CustomerAddressDto,
+  CustomerDocumentCategoryDto,
+  CustomerDocumentDto,
+  CustomerProfileDto,
+  FinancePartnerAdminDto,
+  FinancePartnerBranchDto,
+  FinancePartnerEngagementModeDto,
+  GenderDto,
+  IdentityHoldDto,
+  NotificationPreferencesDto,
+  OriginationFunnelDto,
+  OriginationFunnelGroupBy,
+  OriginationFunnelRow,
+  SessionPolicyDto,
+  TakafulPolicyDto,
+  TakafulStatusDto,
+} from './types/customer-platform';
+export { SessionTimeoutGuard } from './auth/SessionTimeoutGuard';
+export { trackProductEvent } from './analytics/track';

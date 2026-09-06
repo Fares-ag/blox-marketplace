@@ -1,0 +1,64 @@
+// Confirm dialog — Phase 1 §08. Portaled scrim + panel; the only surface besides popovers that casts a shadow.
+.blox-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  background: rgba(15, 63, 69, 0.45);
+  min-height: 0;
+}
+
+.blox-dialog {
+  width: 480px;
+  max-width: 100%;
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  background: var(--blox-surface);
+  border-radius: var(--blox-radius-dialog, 16px);
+  box-shadow: var(--blox-shadow-modal);
+  color: var(--blox-ink);
+
+  &__title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+    text-wrap: balance;
+  }
+
+  &__message {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  &__body {
+    display: grid;
+    gap: 12px;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 20px 16px;
+    border-radius: var(--blox-radius-card, 12px);
+
+    &__actions {
+      flex-direction: column-reverse;
+
+      .blox-btn {
+        width: 100%;
+      }
+    }
+  }
+}

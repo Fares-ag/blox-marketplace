@@ -3,6 +3,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { AppConfigModule } from './config/app-config.module';
+import { SecurityModule } from './common/security.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -35,6 +36,7 @@ import { HealthController } from './health.controller';
       envFilePath: ['.env', '.env.local', '../../.env', '../../.env.local'],
     }),
     AppConfigModule,
+    SecurityModule,
     ScheduleModule.forRoot(),
     AnalyticsModule,
     PrismaModule,

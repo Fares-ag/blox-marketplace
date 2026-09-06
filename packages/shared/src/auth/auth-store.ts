@@ -37,6 +37,7 @@ function mapUser(raw: Record<string, unknown>): DmUser {
     two_factor_enabled: Boolean(raw.two_factor_enabled ?? false),
     mfa_required: Boolean(raw.mfa_required ?? false),
     mfa_setup_required: Boolean(raw.mfa_setup_required ?? false),
+    session_policy: (raw.session_policy as DmUser['session_policy']) ?? null,
   };
 }
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CommonModule } from '../common/common.module';
 import { ComplianceModule } from '../compliance/compliance.module';
+import { KycModule } from '../kyc/kyc.module';
 import { StorageModule } from '../storage/storage.module';
 import { ZohoModule } from '../integrations/zoho/zoho.module';
 import { ApplicationsController } from './applications.controller';
@@ -11,7 +12,7 @@ import { PaymentsModule } from '../payments/payments.module';
 import { QuotesModule } from '../quotes/quotes.module';
 
 @Module({
-  imports: [CommonModule, ComplianceModule, StorageModule, QuotesModule, ZohoModule, PaymentsModule],
+  imports: [CommonModule, ComplianceModule, KycModule, StorageModule, QuotesModule, ZohoModule, PaymentsModule],
   controllers: [ApplicationsController],
   providers: [ApplicationsService, ApplicationsLifecycleService, ApplicationsStaffService],
   exports: [ApplicationsService, ApplicationsStaffService],

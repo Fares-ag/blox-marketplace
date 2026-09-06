@@ -2,36 +2,37 @@ import { Link } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  DEFAULT_PAGE_SIZE,
   FilterPanel,
-  OpsCoreTable,
   OpsListPage,
   OpsPrimaryButton,
   OpsToolbar,
   SearchBar,
   StatusBadge,
+  VehicleCardGrid,
   apiFetch,
   buildPaginationQuery,
-  formatQar,
+  paginationWindow,
   useOpsLabels,
   type DealerInventoryItem,
   type FilterConfig,
-  type OpsTableColumn,
+  type VehicleCardOption,
 } from '@drivemarket/shared';
+
+const ROWS_PER_PAGE_OPTIONS = [12, 24, 48] as const;
+const DEFAULT_INVENTORY_PAGE_SIZE = ROWS_PER_PAGE_OPTIONS[0];
 
 export function InventoryListPage() {
   const { t, listingStatus } = useOpsLabels();
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [rowsPerPage, setRowsPerPage] = useState<(typeof ROWS_PER_PAGE_OPTIONS)[number]>(DEFAULT_INVENTORY_PAGE_SIZE);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const { data, error, isLoading } = useQuery({
     queryKey: ['dealer-inventory', page, rowsPerPage],
     queryFn: () =>
-      apiFetch<{
-        total: number;
-        items: Array<Pick<DealerInventoryItem, 'id' | 'make' | 'model' | 'model_year' | 'price' | 'listing_status'>>;
-      }>(`/api/dealer/inventory?${buildPaginationQuery(page, rowsPerPage)}`),
+      apiFetch<{ total: number; items: DealerInventoryItem[] }>(
+        `/api/dealer/inventory?${buildPaginationQuery(page, rowsPerPage)}`,
+      ),
   });
 
   const statusFilter = typeof filters.listingStatus === 'string' ? filters.listingStatus : '';
@@ -59,56 +60,38 @@ export function InventoryListPage() {
     });
   }, [data?.items, search, statusFilter]);
 
-  type Row = (typeof filteredItems)[number];
-  const columns: OpsTableColumn<Row>[] = useMemo(
-    () => [
-      {
-        id: 'vehicle',
-        label: t('ops.col.vehicle'),
-        minWidth: 180,
-        format: (_, row) => (
-          <Link to={`/inventory/${row.id}`}>
-            {row.make} {row.model} {row.model_year}
-          </Link>
-        ),
-      },
-      {
-        id: 'price',
-        label: t('ops.col.price'),
-        align: 'right',
-        minWidth: 120,
-        format: (value) => <span className="blox-money">{formatQar(Number(value))}</span>,
-      },
-      {
-        id: 'listing_status',
-        label: t('ops.col.status'),
-        minWidth: 120,
-        format: (value) => (
-          <StatusBadge status={String(value)} type="listing" label={listingStatus(String(value))} />
-        ),
-      },
-    ],
-    [listingStatus, t],
+  const cardItems: VehicleCardOption[] = useMemo(
+    () =>
+      filteredItems.map((p) => ({
+        id: p.id,
+        make: p.make,
+        model: p.model,
+        model_year: p.model_year,
+        price: Number(p.price),
+        listing_status: p.listing_status,
+        primary_image: p.primary_image ?? p.images?.[0]?.storage_path ?? null,
+      })),
+    [filteredItems],
   );
+
+  const total = data?.total ?? 0;
+  const { from, to } = paginationWindow(total, page, rowsPerPage);
+  const pageCount = Math.max(1, Math.ceil(total / rowsPerPage));
 
   return (
     <OpsListPage
       title={t('ops.dealer.inventoryTitle')}
       subtitle={t('ops.dealer.inventorySubtitle')}
       headerActions={
-        <Link to="/inventory/new" style={{ textDecoration: 'none' }}>
+        <Link to="/inventory/new" className="blox-link-reset">
           <OpsPrimaryButton>{t('ops.dealer.newListing')}</OpsPrimaryButton>
         </Link>
       }
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           search={
-            <SearchBar
-              value={search}
-              onChange={setSearch}
-              placeholder={t('ops.common.search')}
-            />
+            <SearchBar value={search} onChange={setSearch} placeholder={t('ops.common.search')} />
           }
           filters={
             <FilterPanel
@@ -121,20 +104,68 @@ export function InventoryListPage() {
         />
       }
     >
-      <OpsCoreTable
-        columns={columns}
-        rows={filteredItems}
+      <VehicleCardGrid
+        items={cardItems}
         loading={isLoading}
-        page={page}
-        rowsPerPage={rowsPerPage}
-        totalRows={data?.total ?? 0}
-        onPageChange={setPage}
-        onRowsPerPageChange={(next) => {
-          setRowsPerPage(next);
-          setPage(0);
-        }}
-        emptyMessage={t('ops.dealer.noListings')}
+        searchable={false}
+        hrefFor={(item) => `/inventory/${item.id}`}
+        statusFor={(item) => (
+          <StatusBadge
+            status={item.listing_status ?? 'draft'}
+            type="listing"
+            label={listingStatus(item.listing_status ?? 'draft')}
+          />
+        )}
+        emptyTitle={t('ops.dealer.noListings')}
       />
+
+      {total > 0 && (
+        <div className="blox-pagination blox-inventory-pagination">
+          <span className="blox-pagination__range">
+            {t('ops.pagination.showing', { from, to, total })}
+          </span>
+          <label className="blox-pagination__size">
+            <span>{t('ops.pagination.rowsPerPage')}</span>
+            <span className="blox-segmented blox-segmented--light" role="group">
+              {ROWS_PER_PAGE_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={n === rowsPerPage ? 'is-active' : undefined}
+                  aria-pressed={n === rowsPerPage}
+                  onClick={() => {
+                    setRowsPerPage(n);
+                    setPage(0);
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+            </span>
+          </label>
+          <div className="blox-pagination__nav">
+            <button
+              type="button"
+              className="blox-btn blox-btn--ghost blox-btn--sm"
+              disabled={page <= 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              ‹ {t('ops.pagination.previous')}
+            </button>
+            <span className="blox-pagination__page">
+              {page + 1} / {pageCount}
+            </span>
+            <button
+              type="button"
+              className="blox-btn blox-btn--ghost blox-btn--sm"
+              disabled={page + 1 >= pageCount}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              {t('ops.pagination.next')} ›
+            </button>
+          </div>
+        </div>
+      )}
     </OpsListPage>
   );
 }

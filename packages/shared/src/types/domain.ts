@@ -1,3 +1,5 @@
+import type { SessionPolicyDto } from './customer-platform';
+
 export type UserRole =
   | 'customer'
   | 'dealer_agent'
@@ -156,6 +158,8 @@ export interface DmUser {
   two_factor_enabled: boolean;
   mfa_required: boolean;
   mfa_setup_required: boolean;
+  /** Idle/absolute timeout the API enforces; drives the client countdown. */
+  session_policy?: SessionPolicyDto | null;
 }
 
 export interface Company {
@@ -186,6 +190,9 @@ export interface ApplicationDocument {
   category: string;
   mime_type?: string | null;
   created_at: string;
+  original_name?: string | null;
+  kyc_document_type?: string | null;
+  verification_status?: string | null;
 }
 
 export interface ApplicationPaymentSchedule {
@@ -285,6 +292,7 @@ export interface DealerInventoryItem {
   default_offer_id: string | null;
   listing_status: string;
   published_at: string | null;
+  primary_image?: string | null;
   created_at: string;
   updated_at: string;
   images: Array<{

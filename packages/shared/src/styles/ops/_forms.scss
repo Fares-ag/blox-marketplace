@@ -1,0 +1,133 @@
+// Legacy .blox-form and empty state.
+.blox-form {
+  display: grid;
+  gap: 12px;
+  max-width: 640px;
+
+  &--wide {
+    max-width: none;
+  }
+
+  &--2col {
+    max-width: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    @media (max-width: 700px) {
+      grid-template-columns: 1fr;
+    }
+
+    > .blox-form__span,
+    > button,
+    > .blox-form__full {
+      grid-column: 1 / -1;
+    }
+  }
+
+  label {
+    display: grid;
+    gap: 5px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--blox-ink);
+  }
+
+  // Same control metrics as .blox-field (Phase 1 §04) so legacy forms match OpsField.
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    padding: 0 12px;
+    border: 1px solid var(--blox-field-border, #a9b8ba);
+    border-radius: var(--blox-radius-control, 8px);
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--blox-ink);
+    background: var(--blox-surface);
+    height: 36px;
+    width: 100%;
+    transition: border-color var(--blox-motion-fast, 150ms), box-shadow var(--blox-motion-fast, 150ms);
+
+    &::placeholder {
+      color: var(--blox-slate);
+    }
+
+    &:hover:not(:disabled) {
+      border-color: var(--blox-deep-green);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--blox-deep-green);
+      box-shadow: 0 0 0 3px var(--blox-emerald-soft), 0 0 0 4px var(--blox-emerald);
+    }
+
+    &:disabled {
+      background: var(--blox-canvas);
+      color: var(--blox-slate);
+      border-color: var(--blox-border);
+      cursor: not-allowed;
+    }
+  }
+
+  textarea {
+    height: auto;
+    min-height: 88px;
+    padding: 9px 12px;
+    line-height: 1.45;
+    resize: vertical;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--blox-emerald);
+  }
+}
+
+// Empty state — Phase 1 §07: dashed field-border, 44px emerald-soft glyph, one line, one action.
+.blox-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--blox-slate);
+  background: var(--blox-surface);
+  border: 1px dashed var(--blox-field-border, #a9b8ba);
+  border-radius: var(--blox-radius-card, 12px);
+  font-size: 0.875rem;
+
+  &__glyph,
+  &__icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--blox-emerald-soft);
+    color: var(--blox-emerald-ink, #0b7a63);
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  &__title {
+    margin: 0;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+    font-size: 0.9375rem;
+  }
+
+  &__body {
+    margin: 0;
+    color: var(--blox-slate);
+    max-width: 44ch;
+  }
+
+  &__action {
+    margin-top: 6px;
+  }
+}
+

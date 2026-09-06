@@ -1,0 +1,108 @@
+// App shell backdrop, page header type, centered auth, toast, scrollbar and side panel nav.
+/* App shell backdrop — CSS gradients only (no fixed attachment; avoids scroll jank) */
+.blox-ops-app-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  background-color: var(--blox-canvas, #f0f5f5);
+  background-image:
+    radial-gradient(ellipse 90% 50% at 100% 0%, rgba(0, 207, 162, 0.1), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(22, 83, 91, 0.06), transparent 50%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+.blox-shell-main {
+  background: transparent !important;
+  padding: var(--spacing-lg);
+}
+
+/* Page header — vercel uses 32px h2 page titles */
+.blox-page-header h1,
+.blox-page-header h2 {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--primary-text);
+}
+
+.blox-page-header__subtitle {
+  margin: var(--spacing-xs) 0 0;
+  color: var(--secondary-text);
+  font-size: 14px;
+}
+
+/* Centered auth (vercel LoginPage) */
+.blox-auth-centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--spacing-md);
+  background: linear-gradient(135deg, var(--blox-deep-green-dark) 0%, var(--blox-deep-green) 100%);
+}
+
+.blox-auth-centered__card {
+  background: var(--card-background);
+  border-radius: var(--radius-large-card);
+  padding: var(--spacing-2xl) var(--spacing-xl);
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 16px 48px rgba(15, 63, 69, 0.28);
+}
+
+.blox-auth-centered__header {
+  text-align: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.blox-auth-centered__title {
+  color: var(--primary-text);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.2;
+  margin: var(--spacing-sm) 0;
+}
+
+.blox-auth-centered__subtitle {
+  color: var(--secondary-text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* Toast bottom-center */
+.Toastify__toast-container--bottom-center {
+  bottom: 24px;
+}
+
+/* Scrollbar (vercel global) */
+.blox-ops * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--blox-border) transparent;
+}
+
+.blox-ops *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.blox-ops *::-webkit-scrollbar-thumb {
+  background: rgba(22, 83, 91, 0.25);
+  border-radius: 4px;
+}
+
+/* Side panel nav (teal active inset) */
+.side-panel {
+  .menu-item.active {
+    background-color: rgba(0, 207, 162, 0.18);
+    color: var(--primary-color);
+    box-shadow: inset 3px 0 0 var(--primary-color);
+  }
+
+  .menu-item:hover {
+    transform: translateX(4px);
+  }
+}
+

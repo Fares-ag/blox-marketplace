@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, apiFileUrl, apiUrl } from '@drivemarket/shared';
+import { apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel } from '@drivemarket/shared';
 import { ApplicationStatusView } from './ApplicationStatusView';
 import { OwnershipProgress } from './OwnershipProgress';
 
@@ -10,6 +10,9 @@ type AppDocument = {
   category: string;
   mimeType?: string | null;
   createdAt: string;
+  originalName?: string | null;
+  kycDocumentType?: string | null;
+  verificationStatus?: string | null;
 };
 
 export type ApplicationDetailData = {
@@ -351,7 +354,11 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           <ul className="dm-app-detail__doc-list">
             {app.documents!.map((doc) => (
               <li key={doc.id}>
-                <span>{t(`application.docCategory.${doc.category}`, { defaultValue: doc.category })}</span>
+                <span>
+                  {applicationDocumentLabel(doc, (category) =>
+                    t(`application.docCategory.${category}`, { defaultValue: category }),
+                  )}
+                </span>
                 <a href={documentDownloadUrl(app.id, doc.id)} target="_blank" rel="noreferrer">
                   {t('application.download')}
                 </a>

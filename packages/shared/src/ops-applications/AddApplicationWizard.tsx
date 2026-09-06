@@ -21,7 +21,9 @@ import {
   buildCustomerSnapshot,
   docCategoriesForApplicant,
   emptyCustomerInfo,
+  requiredDocCategoriesForApplicant,
   validateCustomerInfo,
+  validateRequiredWizardDocuments,
   KYC_UPLOAD_ACCEPT,
   kycUploadRejection,
   type CustomerInfoFormValue,
@@ -224,6 +226,7 @@ export function AddApplicationWizard({
   const steps: StepConfig<WizardData>[] = [
     {
       label: t('ops.wizard.step.customer'),
+      validate: (data) => validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo()),
       component: ({ data, updateData }: StepProps<WizardData>) => (
         <CustomerInfoForm
           value={data.customerInfo ?? emptyCustomerInfo()}
@@ -359,12 +362,15 @@ export function AddApplicationWizard({
     },
     {
       label: t('ops.wizard.step.documents'),
+      validate: (data) =>
+        validateRequiredWizardDocuments(data.files, data.customerInfo?.applicantType ?? 'individual'),
       component: ({ data, updateData }: StepProps<WizardData>) => {
         const docCategories = docCategoriesForApplicant(data.customerInfo.applicantType);
+        const requiredDocs = new Set(requiredDocCategoriesForApplicant(data.customerInfo.applicantType));
         return (
           <>
             {docCategories.map((cat) => (
-              <label key={cat} className="blox-upload-dropzone" style={{ display: 'block', cursor: 'pointer' }}>
+              <label key={cat} className="blox-upload-dropzone">
                 <input
                   type="file"
                   accept={KYC_UPLOAD_ACCEPT}
@@ -386,12 +392,17 @@ export function AddApplicationWizard({
                     updateData({ files: { ...data.files, [cat]: file } });
                   }}
                 />
-                <p style={{ margin: 0, fontWeight: 600 }}>{t(`ops.wizard.doc.${cat}`, { defaultValue: cat })}</p>
-                {data.files[cat] && (
-                  <p style={{ margin: '4px 0 0', color: 'var(--secondary-text)', fontSize: '0.875rem' }}>
-                    {data.files[cat]?.name}
+                <p className="blox-upload-dropzone__title">
+                  {t(`ops.wizard.doc.${cat}`, { defaultValue: cat })}
+                  {requiredDocs.has(cat) && <span className="blox-field__req"> *</span>}
+                </p>
+                {data.files[cat] ? (
+                  <p className="blox-upload-dropzone__hint">{data.files[cat]?.name}</p>
+                ) : requiredDocs.has(cat) ? (
+                  <p className="blox-upload-dropzone__hint blox-upload-dropzone__hint--required">
+                    {t('ops.wizard.documentRequired', { defaultValue: 'Required' })}
                   </p>
-                )}
+                ) : null}
               </label>
             ))}
           </>
@@ -400,6 +411,19 @@ export function AddApplicationWizard({
     },
     {
       label: t('ops.wizard.step.review'),
+      validate: (data) => {
+        const customerError = validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo());
+        if (customerError) return customerError;
+        const docsError = validateRequiredWizardDocuments(
+          data.files,
+          data.customerInfo?.applicantType ?? 'individual',
+        );
+        if (docsError) return docsError;
+        if (!data.productIds.length) return t('ops.wizard.selectVehicle');
+        if (!data.offerId) return t('ops.wizard.selectOffer');
+        if (!data.planPricingSnapshot || !data.installmentPlan) return t('ops.wizard.completePlan');
+        return null;
+      },
       component: ({ data, updateData }: StepProps<WizardData>) => {
         const vehicleItems = filterVehicleItems(vehicles.data?.items ?? [], isAdmin, data.companyId);
         const selectedVehicles = vehicleItems.filter((v) => data.productIds.includes(v.id));
@@ -423,13 +447,15 @@ export function AddApplicationWizard({
 
   async function onSubmit(data: WizardData) {
     if (busy) return;
-    if (!data.planPricingSnapshot || !data.installmentPlan || !data.offerId || data.productIds.length === 0) return;
 
-    const validationError = validateCustomerInfo(data.customerInfo);
+    const validationError =
+      validateCustomerInfo(data.customerInfo) ??
+      validateRequiredWizardDocuments(data.files, data.customerInfo.applicantType);
     if (validationError) {
       setError(validationError);
       return;
     }
+    if (!data.planPricingSnapshot || !data.installmentPlan || !data.offerId || data.productIds.length === 0) return;
 
     setBusy(true);
     setError(null);
@@ -497,7 +523,7 @@ export function AddApplicationWizard({
           onSubmit={onSubmit}
           isSubmitting={busy}
         />
-        {busy && <p style={{ marginTop: 8 }}>{t('ops.common.saving')}</p>}
+        {busy && <p className="blox-form-hint">{t('ops.common.saving')}</p>}
       </OpsContentCard>
     </div>
   );

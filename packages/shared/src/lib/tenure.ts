@@ -1,4 +1,5 @@
-export const MIN_TENURE_MONTHS = 1;
+// LMS product configuration §1: shortest Diminishing Musharakah tenure is 3 months.
+export const MIN_TENURE_MONTHS = 3;
 export const MAX_TENURE_MONTHS = 60;
 
 export const TENURE_PRESET_MONTHS = [12, 24, 36, 48, 60] as const;

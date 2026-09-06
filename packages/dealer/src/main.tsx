@@ -15,6 +15,7 @@ import {
   mountPortalApp,
   type BloxNavItem,
   useOpsLabels,
+  useNavCounts,
 } from '@drivemarket/shared';
 import '@drivemarket/shared/styles/global.scss';
 import { CompanyPage, DashboardPage, InventoryEditor, InventoryList, QuotesPage } from './pages';
@@ -27,31 +28,33 @@ function DealerWorkspace() {
 
 function App() {
   const { t } = useOpsLabels();
-  const nav = useMemo<BloxNavItem[]>(
-    () => [
-      { to: '/', label: t('ops.dealer.nav.dashboard'), icon: 'home' },
-      { to: '/applications', label: t('ops.dealer.nav.applications'), icon: 'apps' },
-      { to: '/applications/new', label: t('ops.dealer.nav.newApplication'), icon: 'apps' },
-      { to: '/inventory', label: t('ops.dealer.nav.inventory'), icon: 'inventory' },
-      { to: '/quotes', label: t('ops.dealer.nav.quotes'), icon: 'quotes' },
-      { to: '/company', label: t('ops.dealer.nav.company'), icon: 'company' },
-    ],
-    [t],
-  );
+  const counts = useNavCounts<{ open_applications: number; quotes_active: number }>('/api/ops/metrics/dealer');
+  const nav = useMemo<BloxNavItem[]>(() => {
+    const work = t('ops.shell.groupWork');
+    const company = t('ops.shell.groupCompany');
+    return [
+      { to: '/', label: t('ops.dealer.nav.dashboard'), icon: 'home', group: work },
+      { to: '/applications', label: t('ops.dealer.nav.applications'), icon: 'apps', group: work, count: counts?.open_applications },
+      { to: '/applications/new', label: t('ops.dealer.nav.newApplication'), icon: 'apps', group: work },
+      { to: '/quotes', label: t('ops.dealer.nav.quotes'), icon: 'quotes', group: work, count: counts?.quotes_active },
+      { to: '/inventory', label: t('ops.dealer.nav.inventory'), icon: 'inventory', group: company },
+      { to: '/company', label: t('ops.dealer.nav.company'), icon: 'company', group: company },
+    ];
+  }, [t, counts]);
 
   return (
     <OpsAppFrame>
     <Routes>
       <Route path="/auth/login" element={<LoginPage portalKey="dealer" homePath="/" />} />
-      <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/auth/forgot-password" element={<ForgotPasswordPage portalKey="dealer" />} />
+      <Route path="/auth/reset-password" element={<ResetPasswordPage portalKey="dealer" />} />
       <Route path="/auth/two-factor" element={<TwoFactorLoginPage portalKey="dealer" homePath="/" />} />
       <Route path="/auth/mfa-setup" element={<MfaSetupPage portalKey="dealer" homePath="/" />} />
       <Route
         path="/*"
         element={
           <AuthGuard allowedRole="dealer_agent" reasonParam="not_dealer">
-            <BloxShell title="Dealer" nav={nav}>
+            <BloxShell title="Dealer" nav={nav} searchPath="/applications">
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
                 <Route

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Box, Chip } from '@mui/material';
 import { apiFetch, buildPaginationQuery, DEFAULT_PAGE_SIZE, paginationWindow } from '../lib/api';
 import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
 import { formatQar } from '../lib/format';
@@ -124,24 +123,26 @@ export function ApplicationsList({
     () => [
       {
         id: 'vehicle',
+        cardTitle: true,
         label: t('ops.col.vehicle'),
         format: (_, a) => {
           const ownership = listOwnershipPct(a.status);
           return (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <div className="blox-cell-stack">
               <Link to={`${basePath}/${a.id}`}>
                 {a.product ? `${a.product.make} ${a.product.model}` : a.id.slice(0, 8)}
               </Link>
               {ownership && <OwnershipBar customerPct={ownership.customer} bloxPct={ownership.blox} />}
               {a.deal_summary && (
-                <small>{formatQar(a.deal_summary.selling_price)} · {a.deal_summary.rate}%</small>
+                <small className="blox-table__id">{formatQar(a.deal_summary.selling_price)} · {a.deal_summary.rate}%</small>
               )}
-            </Box>
+            </div>
           );
         },
       },
       {
         id: 'customer',
+        cardTitle: true,
         label: t('ops.col.customer'),
         format: (_, a) => a.customer?.name ?? a.customer?.email ?? '—',
       },
@@ -152,14 +153,16 @@ export function ApplicationsList({
       },
       {
         id: 'status',
+        sortable: true,
+        cardStatus: true,
         label: t('ops.col.status'),
         format: (_, a) => (
-          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <div className="blox-cell-row">
             <OpsStatusPill label={applicationStatus(a.status)} variant={applicationOpsPillVariant(a.status)} />
             {a.status === 'active' && a.payment_health === 'on_track' && (
-              <Chip size="small" label={t('ops.workspace.onTrack')} />
+              <OpsStatusPill label={t('ops.workspace.onTrack')} variant="outline" />
             )}
-          </Box>
+          </div>
         ),
       },
       {
@@ -179,6 +182,7 @@ export function ApplicationsList({
       },
       {
         id: 'created_at',
+        sortable: true,
         label: t('ops.col.created'),
         format: (_, a) => new Date(a.created_at).toLocaleDateString(),
       },
@@ -198,7 +202,7 @@ export function ApplicationsList({
         ) : undefined
       }
       metrics={listMetrics}
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           search={

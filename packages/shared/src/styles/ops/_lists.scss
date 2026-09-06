@@ -1,0 +1,153 @@
+// Action bar, pagination, chart rows, product grid and lists.
+.blox-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius);
+}
+
+// Pagination footer attached to the table — Phase 1 §05.
+.blox-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  color: var(--blox-slate);
+  border-top: 1px solid var(--blox-border);
+  background: var(--blox-surface);
+
+  &__range,
+  &__page {
+    font-family: var(--blox-font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--blox-ink);
+  }
+
+  &__size {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__nav {
+    margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.blox-chart-row {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 12px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blox-chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+  }
+
+  &__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+}
+
+.blox-product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.blox-product-card {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius);
+  overflow: hidden;
+  box-shadow: var(--blox-shadow);
+
+  &__image {
+    aspect-ratio: 16 / 10;
+    background: linear-gradient(135deg, var(--blox-canvas), var(--blox-border));
+    object-fit: cover;
+    width: 100%;
+    display: block;
+  }
+
+  &__body {
+    padding: 14px;
+  }
+
+  &__title {
+    margin: 0 0 4px;
+    font-weight: 600;
+    font-size: 0.9375rem;
+  }
+
+  &__meta {
+    margin: 0 0 12px;
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+}
+
+.blox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius);
+  overflow: hidden;
+  box-shadow: var(--blox-shadow);
+
+  li {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--blox-border);
+    font-size: 0.8125rem;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    a {
+      color: var(--blox-deep-green);
+      font-weight: 600;
+      text-decoration: none;
+
+      &:hover {
+        color: var(--blox-emerald);
+      }
+    }
+  }
+}
+

@@ -82,12 +82,12 @@ function splitName(fullName: string, email: string): { first?: string; last: str
  *
  * DELIBERATELY NOT MAPPED: `Monthly_Commitments`. It means the customer's
  * EXISTING monthly obligations and feeds Al Jazeera's affordability calculation.
- * Writing our instalment there would silently corrupt their credit decision.
+ * Current obligations from Blox go to `Reason_for_Request` instead.
  */
 export function mapApplicationToZohoLead(
   app: ApplicationForZoho,
   requestSubmittedTo: string,
-  leadSource = 'Partner',
+  leadSource = 'Partners',
 ): Record<string, unknown> {
   const customer = (app.customerSnapshot ?? {}) as Record<string, unknown>;
   const pricing = (app.pricingSnapshot ?? {}) as Record<string, unknown>;
@@ -102,12 +102,17 @@ export function mapApplicationToZohoLead(
 
   const financeAmount = num(pricing.selling_price) ?? num(pricing.list_price);
   const tenor = num(pricing.tenor) ?? num(pricing.tenure);
+  const usedOrNew = formatUsedOrNewCar(app.product.condition);
+  const age = ageFromDateOfBirth(customer.dateOfBirth);
+  const obligations = readCurrentObligations(customer, pricing);
 
   // Everything Al Jazeera's layout cannot hold structurally.
   const details = [
     `Blox application: ${app.id}`,
     `Status: ${app.status}`,
     customer.qid ? `QID: ${customer.qid}` : null,
+    usedOrNew ? `Used / New Car: ${usedOrNew}` : null,
+    age != null ? `Age: ${age}` : null,
     vehicle ? `Vehicle: ${vehicle}` : null,
     pricing.list_price ? `List price: ${qar(pricing.list_price)}` : null,
     financeAmount != null ? `Finance amount: ${qar(financeAmount)}` : null,
@@ -132,18 +137,21 @@ export function mapApplicationToZohoLead(
     Lead_Source: leadSource,
     Request_Submitted_To: requestSubmittedTo,
 
-    // ── Free text carrying what the layout has no field for ─────────────────
-    // Both of these were OBSERVED rendering on Al Jazeera's "Retail" layout in
-    // a real record. That matters more than the field metadata, which reports
-    // every field as visible=true regardless of layout membership: a value
-    // written to a field their layout omits is stored but invisible to the
-    // reviewer, which is indistinguishable from never sending it.
+    // Prospect Owner / Sales Agent — intentionally omitted so Zoho leaves them empty.
+
+    // ── Free text carrying what the layout has no dedicated field for ─────────
+    // Subject_of_Message_from_Customer + Sales_Agent_Comments ("Message from
+    // Customer") hold Used/New Car, Age, vehicle, and application metadata.
     Subject_of_Message_from_Customer: clamp(
       vehicle ? `Blox finance request — ${vehicle}` : 'Blox finance request',
       LEN.reference,
     ),
     Sales_Agent_Comments: clamp(details, LEN.textarea),
   };
+
+  if (obligations) {
+    payload.Reason_for_Request = clamp(obligations, LEN.textarea);
+  }
 
   if (first) payload.First_Name = first;
   if (customer.phone) {
@@ -201,6 +209,48 @@ export function mapApplicationToZohoLead(
   }
 
   return payload;
+}
+
+/** Vehicle listing condition → Al Jazeera "Used / New Car" label (also in Sales_Agent_Comments). */
+function formatUsedOrNewCar(condition: unknown): string {
+  const c = String(condition ?? '').trim().toLowerCase();
+  if (c === 'new') return 'New Car';
+  if (c === 'used') return 'Used Car';
+  return c ? humanise(c) : '';
+}
+
+function ageFromDateOfBirth(dob: unknown): number | null {
+  const raw = String(dob ?? '').trim();
+  if (!raw) return null;
+  const born = new Date(raw);
+  if (Number.isNaN(born.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - born.getFullYear();
+  const monthDelta = today.getMonth() - born.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < born.getDate())) age--;
+  return age >= 0 && age < 150 ? age : null;
+}
+
+/** Current obligations / liabilities → Reason_for_Request when captured on the snapshot. */
+function readCurrentObligations(
+  customer: Record<string, unknown>,
+  pricing: Record<string, unknown>,
+): string | undefined {
+  for (const key of [
+    'currentObligations',
+    'current_obligations',
+    'liabilities',
+    'monthlyObligations',
+    'monthly_obligations',
+    'reasonForRequest',
+    'reason_for_request',
+  ]) {
+    const value = customer[key] ?? pricing[key];
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return undefined;
 }
 
 /** "more-than-12-months" -> "More than 12 months". */

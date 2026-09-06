@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { Dialog, DialogActions, DialogContent, DialogTitle, Button } from '@mui/material';
+import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Button } from '../ops-core';
+import { OpsField } from './OpsField';
 import type { AdminUserProvision } from '../types/domain';
 
 type UserCredentialsDialogProps = {
@@ -27,6 +29,7 @@ function formatAccountDetails(account: AdminUserProvision): string {
     .join('\n');
 }
 
+/** Shows freshly provisioned credentials once, with copy-all — no MUI (Phase 2). */
 export function UserCredentialsDialog({
   open,
   account,
@@ -40,6 +43,18 @@ export function UserCredentialsDialog({
   onClose,
 }: UserCredentialsDialogProps) {
   const [copied, setCopied] = useState(false);
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    panelRef.current?.querySelector<HTMLElement>('button')?.focus();
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
 
   async function copyAll() {
     if (!account) return;
@@ -48,46 +63,34 @@ export function UserCredentialsDialog({
     window.setTimeout(() => setCopied(false), 2000);
   }
 
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
+  if (!open || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="blox-ops blox-dialog-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={panelRef} className="blox-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <h3 id={titleId} className="blox-dialog__title">
+          {title}
+        </h3>
+        <p className="blox-dialog__message">{hint}</p>
         {account && (
-          <div className="blox-form" style={{ marginTop: 8 }}>
-            <p style={{ fontSize: '0.875rem', opacity: 0.85 }}>{hint}</p>
-            <label>
-              Email
-              <input readOnly value={account.email} />
-            </label>
-            <label>
-              {passwordLabel}
-              <input readOnly value={account.temporary_password} />
-            </label>
-            <label>
-              {loginUrlLabel}
-              <input readOnly value={account.login_url} />
-            </label>
-            {account.company_name && (
-              <label>
-                Company
-                <input readOnly value={account.company_name} />
-              </label>
-            )}
-            <label>
-              Role
-              <input readOnly value={account.role} />
-            </label>
+          <div className="blox-dialog__body">
+            <OpsField label="Email" readOnly value={account.email} mono />
+            <OpsField label={passwordLabel} readOnly value={account.temporary_password} mono />
+            <OpsField label={loginUrlLabel} readOnly value={account.login_url} mono />
+            {account.company_name && <OpsField label="Company" readOnly value={account.company_name} />}
+            <OpsField label="Role" readOnly value={account.role} />
           </div>
         )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={copyAll} color="primary" disabled={!account}>
-          {copied ? copiedLabel : copyAllLabel}
-        </Button>
-        <Button onClick={onClose} variant="contained">
-          {closeLabel}
-        </Button>
-      </DialogActions>
-    </Dialog>
+        <div className="blox-dialog__actions">
+          <Button variant="secondary" onClick={copyAll} disabled={!account}>
+            {copied ? copiedLabel : copyAllLabel}
+          </Button>
+          <Button variant="primary" onClick={onClose}>
+            {closeLabel}
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

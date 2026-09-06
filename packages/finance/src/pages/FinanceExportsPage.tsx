@@ -50,7 +50,7 @@ export function FinanceExportsPage() {
     <OpsListPage title={t('ops.finance.exportsTitle')} subtitle={t('ops.finance.exportsSubtitle')}>
       <OpsContentCard>
         <p>{t('ops.finance.exportNote', { max: MAX_ROWS.toLocaleString() })}</p>
-        <div className="blox-inline-actions" style={{ flexWrap: 'wrap', gap: 12 }}>
+        <div className="blox-inline-actions blox-inline-actions--wrap">
           {items.map((item) => (
             <OpsPrimaryButton
               key={item.key}

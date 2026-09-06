@@ -5,7 +5,8 @@ export {
   FINANCE_REVIEW_QUEUE_STATUSES,
   FINANCE_ACTIVE_BOOK_STATUSES,
 } from './constants';
-export type { OpsAudience, OpsAgent, OpsQueueItem, OpsWorkspace, StaffCreatePayload } from './types';
+export type { OpsAudience, OpsAgent, OpsQueueItem, OpsWorkspace, StaffCreatePayload, KycVerificationSummary } from './types';
+export { KycVerificationPanel } from './KycVerificationPanel';
 export {
   isFullAdminRole,
   canCreditDecide,
@@ -28,6 +29,7 @@ export type { VehicleCardOption } from './VehicleSelectionCards';
 export { PendingBankTransfers } from './PendingBankTransfers';
 export { InstallmentScheduleTable } from './InstallmentScheduleTable';
 export { InstallmentPlanStep } from './InstallmentPlanStep';
+export { RecordPaymentDialog, type RecordPaymentTarget } from './RecordPaymentDialog';
 export { ScheduleLedger } from './ScheduleLedger';
 export { DealerAgentsPanel } from './DealerAgentsPanel';
 export { WizardReviewStep } from './WizardReviewStep';

@@ -90,6 +90,7 @@ export function MarketplaceTopNav({
         {compareCount > 0 && <span className="dm-topnav__badge">{compareCount}</span>}
       </Link>
       <Link to="/help" onClick={() => setMenuOpen(false)}>{t('nav.help')}</Link>
+      <Link to="/eligibility" onClick={() => setMenuOpen(false)}>{t('nav.eligibility')}</Link>
       <div className="dm-topnav__locale">
         <button type="button" className={locale === 'en' ? 'is-active' : ''} onClick={() => toggleLocale('en')}>
           {t('nav.localeEn')}
@@ -101,6 +102,7 @@ export function MarketplaceTopNav({
       {user ? (
         <>
           <Link to="/app/dashboard" onClick={() => setMenuOpen(false)}>{t('nav.account')}</Link>
+          <Link to="/app/profile" onClick={() => setMenuOpen(false)}>{t('nav.profile')}</Link>
           <Link to="/app/notifications" onClick={() => setMenuOpen(false)}>
             {t('notifications.title', { defaultValue: 'Notifications' })}
           </Link>

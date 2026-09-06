@@ -1,0 +1,358 @@
+// Filter bar, unified data table, card fallback and KYC rows — Phase 1 §05.
+@use 'vars' as *;
+
+.blox-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-card, 12px);
+
+  input,
+  select,
+  textarea {
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--blox-field-border, #a9b8ba);
+    border-radius: var(--blox-radius-control, 8px);
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    color: var(--blox-ink);
+    background: var(--blox-surface);
+    min-width: 132px;
+
+    &:hover {
+      border-color: var(--blox-deep-green);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--blox-deep-green);
+      box-shadow: 0 0 0 3px var(--blox-emerald-soft), 0 0 0 4px var(--blox-emerald);
+    }
+  }
+
+  @media (max-width: $bp-sm) {
+    flex-direction: column;
+    align-items: stretch;
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+}
+
+.blox-data-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &.is-loading .blox-table tbody {
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  &__empty-action {
+    justify-self: center;
+    text-align: center;
+  }
+}
+
+.blox-table-wrap {
+  overflow-x: auto;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-card, 12px);
+}
+
+.blox-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+
+  th,
+  td {
+    padding: 0 12px;
+    text-align: start;
+    vertical-align: middle;
+  }
+
+  td {
+    height: 44px;
+    border-bottom: 1px solid var(--blox-border);
+    color: var(--blox-ink);
+  }
+
+  &--compact td {
+    height: 36px;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 40px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #cfede6;
+    background: var(--blox-deep-green);
+    white-space: nowrap;
+
+    &.is-sorted {
+      color: var(--blox-emerald);
+    }
+  }
+
+  tbody tr {
+    transition: background var(--blox-motion-fast, 150ms) var(--blox-ease-standard, ease);
+  }
+
+  tbody tr:hover {
+    background: #f5faf9;
+  }
+
+  tbody tr.is-selected td {
+    background: var(--blox-emerald-soft);
+  }
+
+  tbody tr.is-selected td:first-child {
+    box-shadow: inset 3px 0 0 var(--blox-emerald);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  &--clickable tbody tr {
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--blox-emerald);
+    }
+  }
+
+  td.blox-table__num,
+  th.blox-table__num,
+  td.blox-table__end,
+  th.blox-table__end {
+    text-align: end;
+  }
+
+  td.blox-table__num,
+  td.blox-table__mono,
+  .blox-table__mono {
+    font-family: var(--blox-font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  td.blox-table__center,
+  th.blox-table__center {
+    text-align: center;
+  }
+
+  td.blox-table__actions,
+  th.blox-table__actions {
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  td.blox-table__check,
+  th.blox-table__check {
+    width: 36px;
+    padding-inline-end: 0;
+
+    input[type='checkbox'] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--blox-emerald);
+      vertical-align: middle;
+    }
+  }
+
+  &__id {
+    display: block;
+    font-family: var(--blox-font-mono);
+    font-size: 0.75rem;
+    color: var(--blox-slate);
+  }
+
+  a {
+    color: var(--blox-deep-green);
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+      text-decoration-color: var(--blox-emerald);
+    }
+  }
+}
+
+// Bulk bar replaces the toolbar while a selection exists.
+.blox-table__bulk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--blox-emerald-soft);
+  border: 1px solid #bfefe2;
+  border-radius: var(--blox-radius-control, 8px);
+  font-size: 0.8125rem;
+  color: var(--blox-deep-green);
+
+  &-count {
+    font-weight: 600;
+  }
+
+  &-actions {
+    margin-inline-start: auto;
+    display: flex;
+    gap: 8px;
+  }
+}
+
+.blox-table-cards {
+  display: none;
+  gap: 10px;
+}
+
+.blox-table-card {
+  display: grid;
+  gap: 8px;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-card, 12px);
+  padding: 12px 14px;
+
+  &.is-selected {
+    border-color: var(--blox-emerald);
+    background: var(--blox-emerald-soft);
+  }
+
+  &__top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+
+    input[type='checkbox'] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--blox-emerald);
+    }
+  }
+
+  &__title {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__status {
+    flex: none;
+  }
+
+  &__fields {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    margin: 0;
+    font-size: 0.75rem;
+  }
+
+  &__field {
+    display: contents;
+
+    dt {
+      margin: 0;
+      color: var(--blox-slate);
+    }
+
+    dd {
+      margin: 0;
+      color: var(--blox-ink);
+      min-width: 0;
+      overflow-wrap: anywhere;
+
+      > * {
+        max-width: 100%;
+      }
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    align-items: center;
+    padding-top: 8px;
+    border-top: 1px solid var(--blox-border);
+  }
+}
+
+@media (max-width: $bp-md) {
+  .blox-table-wrap {
+    display: none;
+  }
+
+  .blox-table-cards {
+    display: grid;
+  }
+
+  .blox-data-table .blox-pagination {
+    background: var(--blox-surface);
+    border: 1px solid var(--blox-border);
+    border-radius: var(--blox-radius-card, 12px);
+  }
+}
+
+@media (min-width: $bp-md + 1px) {
+  .blox-table-cards {
+    display: none;
+  }
+}
+
+.blox-kyc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8125rem;
+  padding: 10px 12px;
+  background: var(--blox-surface-muted);
+  border-radius: 8px;
+  min-width: 0;
+
+  > span {
+    text-transform: capitalize;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: $bp-xs) {
+    flex-wrap: wrap;
+
+    > a,
+    > button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+}

@@ -18,6 +18,9 @@ export type CustomerApplicationDocument = {
   category: string;
   mimeType?: string | null;
   createdAt: string;
+  originalName?: string | null;
+  kycDocumentType?: string | null;
+  verificationStatus?: string | null;
 };
 
 export type CustomerApplicationSchedule = {
@@ -31,6 +34,18 @@ export type CustomerApplicationSchedule = {
   paidAt?: string | null;
 };
 
+export type CustomerApplicationTakaful = {
+  id: string;
+  provider?: string | null;
+  policyNumber?: string | null;
+  coverageType?: string | null;
+  expiresAt?: string | null;
+  daysToExpiry?: number | null;
+  status: string;
+  declarationAcceptedAt?: string | null;
+  hasDocument?: boolean;
+};
+
 export type CustomerApplication = {
   id: string;
   status: string;
@@ -42,6 +57,13 @@ export type CustomerApplication = {
   rejectionReason?: string | null;
   resubmissionComment?: string | null;
   contractGenerated?: boolean;
+  /** Identity-level dedup hold (QID on file with different name/DOB). */
+  identityHold?: { reason: string; heldAt: string; clearedAt: string | null } | null;
+  consentsCompletedAt?: string | null;
+  lenderName?: string | null;
+  branchName?: string | null;
+  takafulPolicies?: CustomerApplicationTakaful[];
+  customerSnapshot?: Record<string, unknown> | null;
   product?: {
     make?: string;
     model?: string;
@@ -68,6 +90,8 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
   const documents = pick<Raw[]>(raw, 'documents', 'documents');
   const schedules = pick<Raw[]>(raw, 'paymentSchedules', 'payment_schedules');
   const price = product ? pick<unknown>(product, 'price', 'price') : undefined;
+  const identityHoldReason = pick<string | null>(raw, 'identityHoldReason', 'identity_hold_reason') ?? null;
+  const takaful = pick<Raw[]>(raw, 'takafulPolicies', 'takaful_policies');
 
   return {
     ...raw,
@@ -81,6 +105,28 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
     rejectionReason: pick<string | null>(raw, 'rejectionReason', 'rejection_reason') ?? null,
     resubmissionComment: pick<string | null>(raw, 'resubmissionComment', 'resubmission_comment') ?? null,
     contractGenerated: Boolean(pick(raw, 'contractGenerated', 'contract_generated') ?? false),
+    identityHold: identityHoldReason
+      ? {
+          reason: identityHoldReason,
+          heldAt: asIso(pick(raw, 'identityHoldAt', 'identity_hold_at')),
+          clearedAt: asNullableIso(pick(raw, 'identityHoldClearedAt', 'identity_hold_cleared_at')),
+        }
+      : null,
+    consentsCompletedAt: asNullableIso(pick(raw, 'consentsCompletedAt', 'consents_completed_at')),
+    lenderName: pick<string | null>(raw, 'financePartnerName', 'finance_partner_name') ?? null,
+    branchName: pick<string | null>(raw, 'branchName', 'branch_name') ?? null,
+    customerSnapshot: pick<Record<string, unknown> | null>(raw, 'customerSnapshot', 'customer_snapshot') ?? null,
+    takafulPolicies: takaful?.map((p) => ({
+      id: String(p.id),
+      provider: (p.provider as string | null) ?? null,
+      policyNumber: pick<string | null>(p, 'policyNumber', 'policy_number') ?? null,
+      coverageType: pick<string | null>(p, 'coverageType', 'coverage_type') ?? null,
+      expiresAt: asNullableIso(pick(p, 'expiresAt', 'expires_at')),
+      daysToExpiry: pick<number | null>(p, 'daysToExpiry', 'days_to_expiry') ?? null,
+      status: String(p.status ?? 'declared'),
+      declarationAcceptedAt: asNullableIso(pick(p, 'declarationAcceptedAt', 'declaration_accepted_at')),
+      hasDocument: Boolean(pick(p, 'hasDocument', 'has_document') ?? false),
+    })),
     product: product
       ? {
           ...product,
@@ -96,6 +142,9 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
       id: String(doc.id),
       category: String(doc.category),
       mimeType: pick<string | null>(doc, 'mimeType', 'mime_type') ?? null,
+      originalName: pick<string | null>(doc, 'originalName', 'original_name') ?? null,
+      kycDocumentType: pick<string | null>(doc, 'kycDocumentType', 'kyc_document_type') ?? null,
+      verificationStatus: pick<string | null>(doc, 'verificationStatus', 'verification_status') ?? null,
       createdAt: asIso(pick(doc, 'createdAt', 'created_at')),
     })),
     paymentSchedules: schedules?.map((row) => ({

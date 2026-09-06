@@ -1,0 +1,259 @@
+// Page templates and shell polish: sticky headers, segmented control, toolbar, detail and form pages, portal error.
+/* ── Page templates & shell polish ── */
+
+.blox-page-header--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--blox-canvas) 92%, transparent);
+  backdrop-filter: blur(8px);
+  margin: calc(-1 * var(--blox-space-xl)) calc(-1 * var(--blox-space-xl)) var(--blox-space-lg);
+  padding: var(--blox-space-xl);
+  border-bottom: 1px solid var(--blox-border);
+}
+
+.blox-stat-card {
+  transition: transform var(--blox-motion-fast) var(--blox-ease-standard), box-shadow var(--blox-motion-fast) var(--blox-ease-standard);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--blox-shadow-hover);
+  }
+}
+
+.blox-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.12);
+
+  button {
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    font-family: var(--blox-font-ui);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 999px;
+    transition: background var(--blox-motion-fast) var(--blox-ease-standard);
+
+    &.is-active {
+      color: var(--blox-deep-green);
+    }
+  }
+
+  &--md button {
+    font-size: 0.8125rem;
+    padding: 6px 14px;
+  }
+
+  // On light surfaces (toolbars, pagination): muted track, surface thumb — Phase 1 §08.
+  &--light {
+    border-color: transparent;
+    background: var(--blox-muted, #e8efef);
+    border-radius: var(--blox-radius-control, 8px);
+    padding: 3px;
+
+    button {
+      color: var(--blox-slate);
+      border-radius: 6px;
+      padding: 3px 9px;
+
+      &:hover {
+        color: var(--blox-deep-green);
+      }
+
+      &.is-active {
+        background: var(--blox-surface);
+        color: var(--blox-deep-green);
+        box-shadow: 0 1px 2px rgba(22, 83, 91, 0.12);
+      }
+
+      &:focus-visible {
+        outline: none;
+        box-shadow: var(--blox-focus-ring);
+      }
+    }
+  }
+}
+
+.blox-toolbar {
+  &__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--blox-space-md);
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__search {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  &__actions {
+    display: flex;
+    gap: var(--blox-space-sm);
+    align-items: center;
+  }
+
+  &__filters {
+    margin-top: var(--blox-space-md);
+  }
+}
+
+.blox-ownership-bar {
+  display: flex;
+  width: 100%;
+  max-width: 120px;
+  overflow: hidden;
+  background: var(--blox-border);
+
+  span {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+  }
+}
+
+.blox-detail-header {
+  &__start {
+    display: flex;
+    flex-direction: column;
+    gap: var(--blox-space-sm);
+  }
+
+  &__actions {
+    display: flex;
+    gap: var(--blox-space-sm);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+}
+
+.blox-detail-back {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--blox-slate);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--blox-deep-green);
+  }
+}
+
+.blox-detail-id {
+  margin: 4px 0 0;
+  font-family: var(--blox-font-mono);
+  font-size: 0.75rem;
+  color: var(--blox-slate);
+}
+
+.blox-detail-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: var(--blox-space-xl);
+  align-items: start;
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blox-form-page {
+  max-width: 640px;
+
+  &--wide {
+    max-width: none;
+  }
+}
+
+.blox-form-section {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-md);
+  box-shadow: var(--blox-shadow-rest);
+  padding: var(--blox-space-xl);
+  margin-bottom: var(--blox-space-xl);
+
+  .blox-form-page--wide > & {
+    max-width: 720px;
+  }
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--blox-space-lg);
+    margin-bottom: var(--blox-space-lg);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__desc {
+    margin: 4px 0 0;
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+  }
+
+  &__body {
+    margin-top: var(--blox-space-md);
+  }
+}
+
+.blox-portal-error {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--blox-space-xxl);
+  background: var(--blox-canvas);
+  font-family: var(--blox-font-ui);
+  color: var(--blox-ink);
+
+  &__card {
+    max-width: 28rem;
+    width: 100%;
+    padding: var(--blox-space-xxl);
+    border-radius: var(--blox-radius-lg);
+    background: var(--blox-surface);
+    box-shadow: var(--blox-shadow-modal);
+    text-align: center;
+  }
+
+  h1 {
+    margin: 0 0 0.75rem;
+    font-family: var(--blox-font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  &__lead {
+    margin: 0 0 1.5rem;
+    color: var(--blox-slate);
+    line-height: 1.5;
+  }
+
+  &__detail {
+    margin: 0 0 1.5rem;
+    font-size: 0.875rem;
+    color: var(--blox-slate);
+    word-break: break-word;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+

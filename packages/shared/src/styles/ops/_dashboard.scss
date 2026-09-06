@@ -1,0 +1,133 @@
+// Stat grid, stat cards, panels and section grid.
+@use 'vars' as *;
+
+.blox-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: $bp-sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blox-stat-card {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-lg, var(--blox-radius));
+  padding: 16px 18px;
+  box-shadow: var(--blox-shadow-rest, var(--blox-shadow));
+
+  &--hero {
+    background: linear-gradient(135deg, var(--blox-emerald) 0%, #00b890 100%);
+    border-color: transparent;
+    color: var(--blox-deep-green);
+
+    .blox-stat-card__label {
+      color: rgba(22, 83, 91, 0.75);
+    }
+
+    .blox-stat-card__value {
+      color: var(--blox-deep-green);
+    }
+
+    .blox-stat-card__delta {
+      color: var(--blox-deep-green-dark);
+    }
+  }
+
+  &--dark {
+    background: linear-gradient(135deg, var(--blox-deep-green-dark) 0%, var(--blox-deep-green) 100%);
+    border-color: transparent;
+    color: #fff;
+
+    .blox-stat-card__label {
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .blox-stat-card__value {
+      color: #fff;
+    }
+
+    .blox-stat-card__delta {
+      color: var(--blox-emerald);
+    }
+  }
+
+  &:not(.blox-stat-card--hero):not(.blox-stat-card--dark) {
+    border-inline-start: 3px solid var(--blox-emerald);
+  }
+
+  &__label {
+    margin: 0 0 6px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--blox-slate);
+  }
+
+  &__value {
+    margin: 0;
+    font-family: var(--blox-font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--blox-ink);
+    letter-spacing: -0.02em;
+  }
+
+  &__delta {
+    margin: 6px 0 0;
+    font-size: 0.75rem;
+    color: var(--blox-emerald);
+    font-weight: 500;
+  }
+}
+
+.blox-panel {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius);
+  padding: 18px 20px;
+  box-shadow: var(--blox-shadow);
+
+  &__title {
+    margin: 0 0 14px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--blox-ink);
+    padding-inline-start: 12px;
+    border-inline-start: 3px solid var(--blox-emerald);
+  }
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+
+    .blox-panel__title {
+      margin: 0;
+    }
+  }
+}
+
+.blox-section-grid {
+  display: grid;
+  gap: 16px;
+
+  &--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    @media (max-width: 800px) {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+

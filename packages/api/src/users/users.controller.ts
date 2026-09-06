@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Inject,
@@ -12,7 +13,16 @@ import {
   Query,
 } from '@nestjs/common';
 import { CompanyKind, OfficerScope, User, UserRole } from '@prisma/client';
-import { IsArray, IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { randomBytes } from 'node:crypto';
 import { CurrentUser, Roles } from '../auth/guards';
 import { AUTH_INSTANCE, type AuthInstance } from '../auth/auth.constants';
@@ -21,6 +31,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
 import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
+import { isForeignKeyConstraintError } from '../common/prisma-errors';
 import { toAdminUserDto, toAdminUserListResponse, toAdminUserProvisionDto, toAdminUserUpdateDto } from './user-response.dto';
 import { resolveDescendantCompanyIds } from '../companies/company-hierarchy';
 import {
@@ -29,6 +40,7 @@ import {
 } from './user-provisioning.policy';
 
 class UpdateUserDto {
+  @IsOptional() @IsString() @IsNotEmpty() name?: string;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsEnum(UserRole) role?: UserRole;
   @IsOptional() @IsString() companyId?: string | null;
@@ -52,6 +64,11 @@ class CreateUserDto {
 class InviteDealerAgentDto {
   @IsEmail() @IsNotEmpty() email!: string;
   @IsString() @IsNotEmpty() name!: string;
+}
+
+class SetPasswordDto {
+  @IsOptional() @IsString() @MinLength(12) password?: string;
+  @IsOptional() @IsBoolean() sendEmail?: boolean;
 }
 
 @Controller('users')
@@ -251,7 +268,17 @@ export class UsersController {
     const loginUrl = this.appConfig.portalSignInUrl(dto.role);
     if (staffProvisioned) {
       try {
-        await this.mail.sendStaffAccountCreatedEmail(email, dto.name.trim(), loginUrl);
+        if (dto.role === UserRole.dealer_agent && companyName) {
+          await this.mail.sendDealerAgentWelcomeEmail({
+            to: email,
+            name: dto.name.trim(),
+            loginUrl,
+            temporaryPassword: password,
+            dealerName: companyName,
+          });
+        } else {
+          await this.mail.sendStaffAccountCreatedEmail(email, dto.name.trim(), loginUrl);
+        }
       } catch {
         // Admin receives credentials in the API response; email is best-effort.
       }
@@ -327,6 +354,7 @@ export class UsersController {
       const next = await tx.user.update({
         where: { id },
         data: {
+          name: dto.name?.trim() ?? undefined,
           isActive: dto.isActive ?? undefined,
           role: dto.role ?? undefined,
           companyId: dto.companyId === undefined ? undefined : dto.companyId,
@@ -376,5 +404,115 @@ export class UsersController {
     });
 
     return toAdminUserUpdateDto(updated);
+  }
+
+  /** Admin sets a new password (generates one when omitted) and revokes all sessions. */
+  @Roles(UserRole.admin, UserRole.super_admin, UserRole.group_admin)
+  @Post(':id/set-password')
+  async setPassword(
+    @CurrentUser() actor: User,
+    @Param('id') id: string,
+    @Body() dto: SetPasswordDto,
+  ) {
+    const target = await this.loadManagedUser(actor, id);
+    if (target.id === actor.id) throw new BadRequestException('cannot_modify_own_access');
+
+    const password = dto.password?.trim() || `Tmp!${randomBytes(18).toString('base64url')}`;
+    const ctx = await this.auth.$context;
+    const hash = await ctx.password.hash(password);
+    await ctx.internalAdapter.updatePassword(target.id, hash);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.session.deleteMany({ where: { userId: target.id } });
+      await tx.mobileRefreshToken.updateMany({
+        where: { userId: target.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+
+    const loginUrl = this.appConfig.portalSignInUrl(target.role);
+    if (dto.sendEmail !== false) {
+      try {
+        await this.mail.sendAdminPasswordResetEmail({
+          to: target.email,
+          name: target.name,
+          loginUrl,
+          temporaryPassword: password,
+        });
+      } catch {
+        // Admin receives credentials in the response; email is best-effort.
+      }
+    }
+
+    await this.activity.log({
+      actorUserId: actor.id,
+      entityType: 'user',
+      entityId: target.id,
+      action: 'user_password_reset',
+      metadata: { emailed: dto.sendEmail !== false },
+    });
+
+    return toAdminUserProvisionDto(target, {
+      temporaryPassword: password,
+      loginUrl,
+      companyName: target.company?.name ?? null,
+    });
+  }
+
+  /** Remove a user with no linked applications or other blocking records. */
+  @Roles(UserRole.admin, UserRole.super_admin, UserRole.group_admin)
+  @Delete(':id')
+  async remove(@CurrentUser() actor: User, @Param('id') id: string) {
+    const target = await this.loadManagedUser(actor, id);
+    if (target.id === actor.id) throw new BadRequestException('cannot_modify_own_access');
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.creditOfficerCompany.deleteMany({ where: { userId: id } });
+        await tx.financeOfficerCompany.deleteMany({ where: { userId: id } });
+        await tx.session.deleteMany({ where: { userId: id } });
+        await tx.mobileRefreshToken.deleteMany({ where: { userId: id } });
+        await tx.deviceToken.deleteMany({ where: { userId: id } });
+        await tx.account.deleteMany({ where: { userId: id } });
+        await tx.user.delete({ where: { id } });
+      });
+    } catch (err) {
+      if (isForeignKeyConstraintError(err)) {
+        throw new BadRequestException('user_has_dependencies');
+      }
+      throw err;
+    }
+
+    await this.activity.log({
+      actorUserId: actor.id,
+      entityType: 'user',
+      entityId: id,
+      action: 'user_deleted',
+      fromValue: target.email,
+    });
+
+    return { ok: true };
+  }
+
+  private async loadManagedUser(actor: User, id: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id },
+      include: { company: { select: { name: true } } },
+    });
+    if (!target) throw new NotFoundException();
+    assertCanManageUserRole(actor, target.role);
+    if (actor.role === UserRole.group_admin && actor.companyId) {
+      const allowed = await resolveDescendantCompanyIds(this.prisma, actor.companyId);
+      const inTree =
+        (target.companyId && allowed.includes(target.companyId)) ||
+        (await this.prisma.creditOfficerCompany.count({
+          where: { userId: id, companyId: { in: allowed } },
+        })) > 0 ||
+        (await this.prisma.financeOfficerCompany.count({
+          where: { userId: id, companyId: { in: allowed } },
+        })) > 0;
+      if (!inTree) throw new NotFoundException();
+    }
+    return target;
   }
 }

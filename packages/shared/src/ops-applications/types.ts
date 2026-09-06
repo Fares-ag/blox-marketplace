@@ -22,6 +22,66 @@ export type OpsQueueItem = {
   finance_partner_name?: string | null;
 };
 
+export type VerificationCheckSummary = {
+  score: number | null;
+  passed: boolean | null;
+  status: 'passed' | 'failed' | 'processing' | 'not_submitted';
+  reasons: string[];
+  vendor_status?: string | null;
+};
+
+export type DiditStepSummary = {
+  status: string | null;
+  score: number | null;
+  warnings: string[];
+};
+
+export type DiditCaseSummary = {
+  session_id: string;
+  session_status: string;
+  updated_at: string;
+  document_type: string | null;
+  image_quality_score: number | null;
+  liveness_method: string | null;
+  id_verification: DiditStepSummary;
+  liveness: DiditStepSummary;
+  face_match: DiditStepSummary;
+  poa: DiditStepSummary & { submitted: boolean };
+};
+
+export type ExtractedIdentityField = {
+  name: string;
+  label: string;
+  value: string;
+  confidence: number;
+  source: string;
+  document_type: string;
+};
+
+export type KycVerificationSummary = {
+  case_id: string;
+  case_status: string;
+  kyc_status: string | null;
+  provider: 'didit' | 'native' | null;
+  didit_session_id: string | null;
+  didit_session_status: string | null;
+  didit_verified_at: string | null;
+  document_type: string | null;
+  image_quality_score: number | null;
+  liveness_method: string | null;
+  extracted_identity: ExtractedIdentityField[];
+  didit_steps: DiditCaseSummary | null;
+  overall_status: 'approved' | 'declined' | 'processing' | 'not_started';
+  checks: {
+    id_document: VerificationCheckSummary;
+    liveness: VerificationCheckSummary;
+    face_match: VerificationCheckSummary;
+    authenticity: VerificationCheckSummary;
+    ocr: VerificationCheckSummary;
+  };
+  warnings: string[];
+};
+
 export type OpsWorkspace = {
   id: string;
   status: ApplicationStatus;
@@ -36,7 +96,15 @@ export type OpsWorkspace = {
   offer?: PublicOffer;
   financing_source?: 'blox' | 'partner';
   finance_partner_name?: string | null;
-  documents?: Array<{ id: string; category: string; mime_type?: string | null }>;
+  kyc_verification?: KycVerificationSummary | null;
+  documents?: Array<{
+    id: string;
+    category: string;
+    mime_type?: string | null;
+    original_name?: string | null;
+    kyc_document_type?: string | null;
+    verification_status?: string | null;
+  }>;
   payment_schedules?: Array<{
     id: string;
     sequence: number;

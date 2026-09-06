@@ -1,0 +1,79 @@
+// Money text, page container and page header.
+@use 'vars' as *;
+
+.blox-money {
+  font-family: var(--blox-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.blox-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--blox-space);
+  max-width: min(100%, var(--bp-content-max));
+  width: 100%;
+}
+
+@media (min-width: $bp-xl) {
+  .blox-page {
+    max-width: min(100%, var(--bp-content-wide));
+  }
+}
+
+@media (min-width: $bp-xxl) {
+  .blox-page {
+    max-width: min(100%, var(--bp-content-ultra));
+  }
+}
+
+@media (min-width: 2560px) {
+  .blox-page {
+    max-width: min(100%, 2800px);
+  }
+}
+
+.blox-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+
+  // Phase 1 §02: page title 28/32/600.
+  h1,
+  h2 {
+    margin: 0;
+    font-family: var(--blox-font-ui);
+    font-size: 1.75rem;
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--blox-deep-green);
+    text-wrap: balance;
+  }
+
+  &__subtitle {
+    margin: 4px 0 0;
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+    max-width: 52ch;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  @media (max-width: $bp-sm) {
+    flex-direction: column;
+    align-items: stretch;
+
+    &__actions {
+      width: 100%;
+    }
+  }
+}
+

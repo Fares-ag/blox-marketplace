@@ -32,6 +32,8 @@ import {
   BLOCKING_APPLICATION_STATUSES,
 } from './application-access';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
+import { KycBridgeService } from '../kyc/kyc-bridge.service';
+import type { KycVerificationSummaryDto } from '../kyc/kyc-verification-summary';
 import {
   opsCompanyFilter,
 } from './company-scope';
@@ -73,18 +75,11 @@ export class ApplicationsService {
     private readonly storage: StorageService,
     private readonly lifecycle: ApplicationsLifecycleService,
     private readonly zoho: ZohoCrmService,
+    private readonly kycBridge: KycBridgeService,
   ) {}
 
-  async hasBlocking(userId: string, productId?: string) {
-    const found = await this.prisma.application.findFirst({
-      where: {
-        customerUserId: userId,
-        ...(productId ? { productId } : {}),
-        status: { in: BLOCKING_APPLICATION_STATUSES },
-      },
-      select: { id: true },
-    });
-    return toApplicationBlockingDto({ blocking: !!found, applicationId: found?.id ?? null });
+  async hasBlocking(_userId: string, _productId?: string) {
+    return toApplicationBlockingDto({ blocking: false, applicationId: null });
   }
 
   async create(
@@ -126,12 +121,6 @@ export class ApplicationsService {
     },
   ) {
     if (user.role !== UserRole.customer) throw new ForbiddenException('forbidden_role');
-
-    // One-loan rule: a customer may hold at most one in-flight application,
-    // whichever vehicle it is for. The per-product scope only exists for the
-    // `GET /applications/blocking?productId=` pre-check.
-    const blocking = await this.hasBlocking(user.id);
-    if (blocking.blocking) throw new BadRequestException('blocking_application_exists');
 
     const product = await this.prisma.product.findUnique({
       where: { id: dto.productId },
@@ -243,6 +232,20 @@ export class ApplicationsService {
     return toApplicationDto(app);
   }
 
+  private async loadDocumentsForSubmit(applicationId: string, kycCaseId: string | null) {
+    if (kycCaseId) {
+      try {
+        await this.kycBridge.syncDocumentsForApplication(applicationId);
+      } catch {
+        // Non-fatal — validate whatever was synced via webhook or prior uploads.
+      }
+    }
+    return this.prisma.applicationDocument.findMany({
+      where: { applicationId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   async submit(user: User, id: string) {
     const app = await this.prisma.application.findUnique({
       where: { id },
@@ -252,7 +255,8 @@ export class ApplicationsService {
     if (app.status !== 'draft' && app.status !== 'resubmission_required') {
       throw new BadRequestException('invalid_status_transition');
     }
-    if (!hasAllRequiredDocuments(app.documents)) {
+    const documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
+    if (!hasAllRequiredDocuments(documents)) {
       throw new BadRequestException('documents_incomplete');
     }
 
@@ -342,9 +346,29 @@ export class ApplicationsService {
     if (!app) throw new NotFoundException();
     await assertApplicationCanView(this.prisma, user, app);
     const audience = this.audienceForUser(user, app);
+
+    let kycVerification: KycVerificationSummaryDto | null = null;
+    if ((audience === 'ops' || audience === 'dealer') && app.kycCaseId) {
+      try {
+        await this.kycBridge.syncDocumentsForApplication(id);
+        app.documents = await this.prisma.applicationDocument.findMany({
+          where: { applicationId: id },
+          orderBy: { createdAt: 'asc' },
+        });
+        kycVerification = await this.kycBridge.getVerificationSummary(
+          id,
+          app.kycCaseId,
+          app.kycStatus,
+        );
+      } catch {
+        // Non-fatal: show whatever was synced via webhooks.
+      }
+    }
+
     const dto = mapApplicationDto(app, audience) as Record<string, unknown>;
 
     if (audience === 'ops' || audience === 'dealer') {
+      if (kycVerification) dto.kyc_verification = kycVerification;
       dto.agent = app.agent
         ? { id: app.agent.id, name: app.agent.name, email: app.agent.email }
         : null;
@@ -656,7 +680,8 @@ export class ApplicationsService {
     if (app.status !== 'resubmission_required') {
       throw new BadRequestException('invalid_status_transition');
     }
-    if (!hasAllRequiredDocuments(app.documents)) {
+    const documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
+    if (!hasAllRequiredDocuments(documents)) {
       throw new BadRequestException('documents_incomplete');
     }
 
@@ -793,9 +818,14 @@ export class ApplicationsService {
     });
     if (!doc) throw new NotFoundException();
 
+    if (doc.storagePath.startsWith('kyc://')) {
+      const kycFile = await this.kycBridge.readApplicationDocumentBytes(appId, doc);
+      return kycFile;
+    }
+
     const file = await this.storage.readKyc(doc.storagePath);
     const ext = path.extname(doc.storagePath) || '.pdf';
-    const filename = `${doc.category}${ext}`;
+    const filename = doc.originalName?.trim() || `${doc.category}${ext}`;
     return { ...file, filename };
   }
 

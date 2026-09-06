@@ -42,7 +42,7 @@ export function OffersPage() {
           Add offer
         </Link>
       }
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
     >
       <OpsDataTable
         columns={['Name', 'Annual rate', 'Profit', 'Tenures', 'Min down', 'Status']}
@@ -150,11 +150,11 @@ export function OfferEditPage() {
             Min down payment %
             <input type="number" value={minDown} onChange={(e) => setMinDown(Number(e.target.value))} />
           </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <label className="blox-checkbox-row">
             <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
             Default offer
           </label>
-          {error && <p style={{ color: 'var(--blox-danger)' }}>{error}</p>}
+          {error && <p className="blox-form-error" role="alert">{error}</p>}
           <button type="submit" className="blox-btn blox-btn--primary" disabled={save.isPending}>
             Save
           </button>

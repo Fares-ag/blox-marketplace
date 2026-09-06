@@ -245,7 +245,7 @@ export function InventoryEditorPage() {
           Description
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <label className="blox-checkbox-row">
           <input
             type="checkbox"
             checked={financeEligible}
@@ -253,7 +253,7 @@ export function InventoryEditorPage() {
           />
           Finance eligible
         </label>
-        {error && <p style={{ color: '#b42318', margin: 0 }}>{error}</p>}
+        {error && <p className="blox-form-error" role="alert">{error}</p>}
         <button type="submit" className="blox-btn blox-btn--primary" disabled={inventoryBusy}>
           {save.isPending ? 'Saving…' : 'Save'}
         </button>
@@ -261,31 +261,31 @@ export function InventoryEditorPage() {
       </OpsFormSection>
       {!isNew && (
         <OpsFormSection title={t('ops.dealer.publishMedia')}>
-        <div className="blox-panel" style={{ maxWidth: 560, boxShadow: 'none', border: 'none', padding: 0 }}>
-          <label style={{ display: 'grid', gap: 6, fontSize: '0.875rem', fontWeight: 600 }}>
+        <div className="blox-media-panel">
+          <label className="blox-field">
             Upload image
             <input type="file" accept="image/*" onChange={onUpload} />
           </label>
-          <button
-            type="button"
-            className="blox-btn blox-btn--secondary"
-            style={{ marginTop: 12 }}
-            disabled={inventoryBusy}
-            onClick={() => publish.mutate()}
-          >
-            {publish.isPending ? 'Publishing…' : 'Publish'}
-          </button>
-          <button
-            type="button"
-            className="blox-btn blox-btn--ghost"
-            style={{ marginTop: 12, marginLeft: 8 }}
-            disabled={inventoryBusy}
-            onClick={() => unpublish.mutate()}
-          >
-            {unpublish.isPending ? 'Unpublishing…' : 'Unpublish'}
-          </button>
+          <div className="blox-inline-actions">
+            <button
+              type="button"
+              className="blox-btn blox-btn--secondary"
+              disabled={inventoryBusy}
+              onClick={() => publish.mutate()}
+            >
+              {publish.isPending ? 'Publishing…' : 'Publish'}
+            </button>
+            <button
+              type="button"
+              className="blox-btn blox-btn--ghost"
+              disabled={inventoryBusy}
+              onClick={() => unpublish.mutate()}
+            >
+              {unpublish.isPending ? 'Unpublishing…' : 'Unpublish'}
+            </button>
+          </div>
           {error && error.includes('listing_has_active_financing') && (
-            <p style={{ color: '#b42318', marginTop: 8 }}>
+            <p className="blox-form-error" role="alert">
               This listing has an in-flight financing application and cannot be unpublished.
             </p>
           )}

@@ -1,5 +1,3 @@
-import { bloxTokens } from '../config/blox-tokens';
-
 export function OwnershipBar({
   customerPct,
   bloxPct,
@@ -20,8 +18,8 @@ export function OwnershipBar({
       aria-label={`Customer ${customerPct}%, Blox ${bloxPct}%`}
       style={{ height, borderRadius: height / 2 }}
     >
-      <span style={{ width: `${customerWidth}%`, background: bloxTokens.emerald }} />
-      <span style={{ width: `${bloxWidth}%`, background: bloxTokens.deepGreen }} />
+      <span className="blox-ownership-bar__customer" style={{ width: `${customerWidth}%` }} />
+      <span className="blox-ownership-bar__blox" style={{ width: `${bloxWidth}%` }} />
     </div>
   );
 }

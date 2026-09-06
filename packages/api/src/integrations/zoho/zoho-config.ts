@@ -93,12 +93,11 @@ export class ZohoConfig implements OnModuleInit {
   }
 
   /**
-   * Picklist value on the standard `Lead_Source` field. Their layout has no
-   * "Blox Marketplace" option; "Partner" is the closest valid one. Change this
-   * only to another option that exists on their picklist.
+   * Picklist value on the standard `Lead_Source` field (Prospect Source on the
+   * Al Jazeera layout). Valid option: "Partners".
    */
   get leadSource(): string {
-    return this.config.get<string>('ZOHO_LEAD_SOURCE') ?? 'Partner';
+    return this.config.get<string>('ZOHO_LEAD_SOURCE') ?? 'Partners';
   }
 
   /** Outbound Zoho CRM + OAuth HTTP timeout (default 8s). */

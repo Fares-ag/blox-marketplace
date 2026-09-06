@@ -1,6 +1,4 @@
 import React from 'react';
-import { Box, Skeleton as MuiSkeleton } from '@mui/material';
-import './Skeleton.scss';
 
 interface SkeletonProps {
   variant?: 'text' | 'circular' | 'rectangular';
@@ -11,6 +9,7 @@ interface SkeletonProps {
   className?: string;
 }
 
+/** Shimmer placeholder — Phase 1 §05. Same geometry as the content it stands in for, so nothing shifts when data lands. */
 export const Skeleton: React.FC<SkeletonProps> = ({
   variant = 'rectangular',
   width,
@@ -19,32 +18,27 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   animation = 'wave',
   className = '',
 }) => {
-  if (count === 1) {
-    return (
-      <MuiSkeleton
-        variant={variant}
-        width={width}
-        height={height}
-        animation={animation}
-        className={`custom-skeleton ${className}`}
-      />
-    );
-  }
+  const style: React.CSSProperties = {
+    width,
+    height: height ?? (variant === 'text' ? '1em' : undefined),
+  };
+  const classes = [
+    'blox-skel',
+    `blox-skel--${variant}`,
+    animation === false ? 'blox-skel--static' : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  if (count === 1) return <span className={classes} style={style} aria-hidden />;
 
   return (
-    <Box className={`skeleton-container ${className}`}>
+    <div className="blox-skel-stack">
       {Array.from({ length: count }).map((_, index) => (
-        <MuiSkeleton
-          key={index}
-          variant={variant}
-          width={width}
-          height={height}
-          animation={animation}
-          className="custom-skeleton"
-          sx={{ mb: index < count - 1 ? 1 : 0 }}
-        />
+        <span key={index} className={classes} style={style} aria-hidden />
       ))}
-    </Box>
+    </div>
   );
 };
 
@@ -55,20 +49,20 @@ interface TableSkeletonProps {
 
 export const TableSkeleton: React.FC<TableSkeletonProps> = ({ rows = 5, columns = 4 }) => {
   return (
-    <Box className="table-skeleton">
-      <Box className="skeleton-header">
+    <div className="blox-skel-table" aria-hidden>
+      <div className="blox-skel-table__row blox-skel-table__row--header">
         {Array.from({ length: columns }).map((_, index) => (
-          <Skeleton key={index} height={40} width="100%" variant="rectangular" />
+          <Skeleton key={index} height={12} width="60%" />
         ))}
-      </Box>
+      </div>
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <Box key={rowIndex} className="skeleton-row">
+        <div key={rowIndex} className="blox-skel-table__row">
           {Array.from({ length: columns }).map((_, colIndex) => (
-            <Skeleton key={colIndex} height={50} width="100%" variant="rectangular" />
+            <Skeleton key={colIndex} height={12} width={colIndex === 0 ? '80%' : '55%'} />
           ))}
-        </Box>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 };
 
@@ -80,14 +74,12 @@ export const CardSkeleton: React.FC<CardSkeletonProps> = ({ count = 1 }) => {
   return (
     <>
       {Array.from({ length: count }).map((_, index) => (
-        <Box key={index} className="card-skeleton">
-          <Skeleton variant="rectangular" height={200} width="100%" />
-          <Box sx={{ p: 2 }}>
-            <Skeleton variant="text" width="60%" height={24} />
-            <Skeleton variant="text" width="40%" height={20} />
-            <Skeleton variant="text" width="80%" height={20} />
-          </Box>
-        </Box>
+        <div key={index} className="blox-skel-card" aria-hidden>
+          <Skeleton variant="text" width="40%" height={16} />
+          <Skeleton variant="text" width="70%" height={12} />
+          <Skeleton variant="text" width="55%" height={12} />
+          <Skeleton variant="text" width="65%" height={12} />
+        </div>
       ))}
     </>
   );

@@ -8,6 +8,7 @@ import type { OpsAgent } from './types';
 import {
   buildCustomerSnapshot,
   docCategoriesForApplicant,
+  requiredDocCategoriesForApplicant,
   type CustomerInfoFormValue,
 } from './customer-info';
 import { CustomerInfoOverview, InfoItem } from './CustomerInfoOverview';
@@ -60,6 +61,7 @@ export function WizardReviewStep({
   const priceForPlan =
     data.sellingPrice || data.listPrice || Number(selectedVehicles[0]?.price ?? 0);
   const docCategories = docCategoriesForApplicant(data.customerInfo.applicantType);
+  const requiredDocs = new Set(requiredDocCategoriesForApplicant(data.customerInfo.applicantType));
   const isCorporateMulti = data.customerInfo.applicantType === 'corporate' && selectedVehicles.length > 1;
   const financeLabel =
     offer?.crm_adapter === 'zoho' ? t('ops.common.partnerFinance') : t('ops.common.bloxFinance');
@@ -150,10 +152,15 @@ export function WizardReviewStep({
         <h2 className="blox-panel__title">{t('ops.wizard.step.documents')}</h2>
         {docCategories.map((cat) => {
           const file = data.files[cat];
+          const isRequired = requiredDocs.has(cat);
           return (
             <InfoItem
               key={cat}
-              label={t(`ops.wizard.doc.${cat}`, { defaultValue: cat })}
+              label={
+                isRequired
+                  ? `${t(`ops.wizard.doc.${cat}`, { defaultValue: cat })} *`
+                  : t(`ops.wizard.doc.${cat}`, { defaultValue: cat })
+              }
               value={file ? file.name : t('ops.wizard.documentMissing')}
             />
           );

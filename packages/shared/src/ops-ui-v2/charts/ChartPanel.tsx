@@ -1,4 +1,3 @@
-import { Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 
 export function ChartPanel({
@@ -29,9 +28,5 @@ export function ChartLegendItem({ color, label }: { color: string; label: string
 }
 
 export function ChartPanelTitle({ children }: { children: ReactNode }) {
-  return (
-    <Typography variant="h4" sx={{ mb: 1.5 }}>
-      {children}
-    </Typography>
-  );
+  return <h3 className="blox-chart__title">{children}</h3>;
 }

@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react';
 import { OpsPageHeader } from '../../components/ops-ui';
+import { Alert } from '../../ops-core';
 import { OpsMetricRow, type OpsMetricItem } from '../OpsMetricRow';
+import { PageSkeleton } from '../PageSkeleton';
 
+/**
+ * Dashboard page template — Phase 2. Header → metric row (one hero) → sections.
+ * Pair with `DashboardGrid` + `DashboardSection` for the chart boilerplate.
+ */
 export function OpsDashboardPage({
   title,
   subtitle,
@@ -11,6 +17,7 @@ export function OpsDashboardPage({
   toolbar,
   children,
   error,
+  loading,
 }: {
   title: string;
   subtitle?: string;
@@ -20,18 +27,19 @@ export function OpsDashboardPage({
   toolbar?: ReactNode;
   children: ReactNode;
   error?: ReactNode;
+  loading?: boolean;
 }) {
   return (
     <div className="blox-page">
       <OpsPageHeader title={title} subtitle={subtitle} actions={headerActions} />
-      {error}
+      {typeof error === 'string' ? <Alert variant="error">{error}</Alert> : error}
       {metrics && metrics.length > 0 && (
-        <div style={{ marginBottom: 'var(--blox-space-xl)' }}>
+        <div className="blox-page__metrics">
           <OpsMetricRow metrics={metrics} heroIndex={heroIndex} />
         </div>
       )}
       {toolbar}
-      {children}
+      {loading ? <PageSkeleton variant="dashboard" /> : children}
     </div>
   );
 }

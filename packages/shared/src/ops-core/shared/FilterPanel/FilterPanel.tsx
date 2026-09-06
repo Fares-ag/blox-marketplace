@@ -1,21 +1,6 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Typography,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Chip,
-  Checkbox,
-  FormControlLabel,
-  Slider,
-} from '@mui/material';
-import { ExpandMore, Clear } from '@mui/icons-material';
+import React from 'react';
 import { Button } from '../../core/Button/Button';
-import { Input } from '../../core/Input/Input';
-import { Select, type SelectOption } from '../../core/Select/Select';
-import { DatePicker } from '../../core/DatePicker/DatePicker';
-import './FilterPanel.scss';
+import type { SelectOption } from '../../core/Select/Select';
 
 export interface FilterConfig {
   id: string;
@@ -35,171 +20,101 @@ interface FilterPanelProps {
   title?: string;
 }
 
-export const FilterPanel: React.FC<FilterPanelProps> = ({
-  filters,
-  values,
-  onChange,
-  onClear,
-  title = 'Filters',
-}) => {
-  const [expanded, setExpanded] = useState<string | false>(false);
+function isActive(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'object') return Object.values(value as Record<string, unknown>).some((v) => v !== null && v !== undefined && v !== '');
+  return true;
+}
 
-  const handleFilterChange = (filterId: string, value: any) => {
-    onChange({ ...values, [filterId]: value });
-  };
-
-  const handleClearFilter = (filterId: string) => {
-    const newValues = { ...values };
-    delete newValues[filterId];
-    onChange(newValues);
-  };
-
-  const getActiveFiltersCount = () => {
-    return Object.keys(values).filter((key) => {
-      const value = values[key];
-      if (value === null || value === undefined || value === '') return false;
-      if (Array.isArray(value) && value.length === 0) return false;
-      if (typeof value === 'boolean') return value;
-      if (typeof value === 'object' && !Array.isArray(value)) {
-        return Object.values(value).some((entry) => entry !== null && entry !== undefined && entry !== '');
-      }
-      return true;
-    }).length;
-  };
-
-  const activeFiltersCount = getActiveFiltersCount();
+/**
+ * Filter panel — Phase 1 §08 / Phase 2. Inline controls in a toolbar row (native inputs,
+ * no MUI); active filters show a count and a single "Clear all". Filter state belongs to
+ * the page (usually the URL) — this component is controlled.
+ */
+export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, values, onChange, onClear, title = 'Filters' }) => {
+  const set = (id: string, value: any) => onChange({ ...values, [id]: value });
+  const activeCount = filters.filter((f) => isActive(values[f.id])).length;
 
   return (
-    <Box className="filter-panel">
-      <Accordion expanded={expanded === 'filters'} onChange={(_, isExpanded) => setExpanded(isExpanded ? 'filters' : false)}>
-        <AccordionSummary expandIcon={<ExpandMore />}>
-          <Typography variant="h4">
-            {title} {activeFiltersCount > 0 && <Chip label={activeFiltersCount} size="small" />}
-          </Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Box className="filter-content">
-            {filters.map((filter) => {
-              const filterValue = values[filter.id];
-
-              return (
-                <Box key={filter.id} className="filter-item">
-                  {filter.type !== 'checkbox' && (
-                    <Box className="filter-header">
-                      <Typography variant="body2" className="filter-label">
-                        {filter.label}
-                      </Typography>
-                      {filterValue !== undefined && filterValue !== null && filterValue !== '' && filterValue !== false && (
-                        <Chip
-                          icon={<Clear />}
-                          label="Clear"
-                          size="small"
-                          onClick={() => handleClearFilter(filter.id)}
-                          className="clear-chip"
-                        />
-                      )}
-                    </Box>
-                  )}
-
-                  {filter.type === 'text' && (
-                    <Input
-                      value={filterValue || ''}
-                      onChange={(e) => handleFilterChange(filter.id, e.target.value)}
-                      placeholder={`Enter ${filter.label.toLowerCase()}`}
-                    />
-                  )}
-
-                  {filter.type === 'select' && filter.options && (
-                    <Select
-                      value={filterValue || ''}
-                      onChange={(e) => handleFilterChange(filter.id, e.target.value)}
-                      options={filter.options}
-                      label={filter.label}
-                    />
-                  )}
-
-                  {filter.type === 'multiselect' && filter.options && (
-                    <Select
-                      multiple
-                      value={Array.isArray(filterValue) ? filterValue : []}
-                      onChange={(e) => handleFilterChange(filter.id, e.target.value)}
-                      options={filter.options}
-                      label={filter.label}
-                    />
-                  )}
-
-                  {filter.type === 'date' && (
-                    <DatePicker
-                      value={filterValue || null}
-                      onChange={(value) => handleFilterChange(filter.id, value)}
-                      label={filter.label}
-                    />
-                  )}
-
-                  {filter.type === 'daterange' && (
-                    <Box className="date-range">
-                      <DatePicker
-                        value={filterValue?.startDate || null}
-                        onChange={(value) =>
-                          handleFilterChange(filter.id, {
-                            ...filterValue,
-                            startDate: value,
-                          })
-                        }
-                        label="Start Date"
-                      />
-                      <DatePicker
-                        value={filterValue?.endDate || null}
-                        onChange={(value) =>
-                          handleFilterChange(filter.id, {
-                            ...filterValue,
-                            endDate: value,
-                          })
-                        }
-                        label="End Date"
-                      />
-                    </Box>
-                  )}
-
-                  {filter.type === 'range' && (
-                    <Box className="range-slider">
-                      <Slider
-                        value={filterValue || [filter.min || 0, filter.max || 100]}
-                        onChange={(_, newValue) => handleFilterChange(filter.id, newValue)}
-                        min={filter.min || 0}
-                        max={filter.max || 100}
-                        step={filter.step || 1}
-                        valueLabelDisplay="auto"
-                      />
-                    </Box>
-                  )}
-
-                  {filter.type === 'checkbox' && (
-                    <FormControlLabel
-                      className="filter-checkbox"
-                      control={
-                        <Checkbox
-                          checked={Boolean(filterValue)}
-                          onChange={(e) => handleFilterChange(filter.id, e.target.checked)}
-                        />
-                      }
-                      label={filter.label}
-                    />
-                  )}
-                </Box>
-              );
-            })}
-
-            {activeFiltersCount > 0 && onClear && (
-              <Box className="filter-actions">
-                <Button variant="secondary" onClick={onClear}>
-                  Clear All Filters
-                </Button>
-              </Box>
+    <div className="blox-filters" role="group" aria-label={title}>
+      {filters.map((filter) => {
+        const value = values[filter.id];
+        const active = isActive(value);
+        const id = `filter-${filter.id}`;
+        return (
+          <div key={filter.id} className={`blox-filters__item${active ? ' is-active' : ''}`}>
+            {filter.type !== 'checkbox' && (
+              <label className="blox-filters__label" htmlFor={id}>
+                {filter.label}
+              </label>
             )}
-          </Box>
-        </AccordionDetails>
-      </Accordion>
-    </Box>
+            {filter.type === 'text' && (
+              <input id={id} className="blox-filters__control" value={value ?? ''} onChange={(e) => set(filter.id, e.target.value)} placeholder={filter.label} />
+            )}
+            {filter.type === 'select' && (
+              <select id={id} className="blox-filters__control" value={value ?? ''} onChange={(e) => set(filter.id, e.target.value)}>
+                <option value="">{title === 'Filters' ? 'All' : title}</option>
+                {(filter.options ?? []).map((opt) => (
+                  <option key={String(opt.value)} value={String(opt.value)} disabled={opt.disabled}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            {filter.type === 'multiselect' && (
+              <div className="blox-filters__chips">
+                {(filter.options ?? []).map((opt) => {
+                  const selected = Array.isArray(value) && value.includes(opt.value);
+                  return (
+                    <button
+                      key={String(opt.value)}
+                      type="button"
+                      className={`blox-fchip${selected ? ' is-on' : ''}`}
+                      aria-pressed={selected}
+                      disabled={opt.disabled}
+                      onClick={() =>
+                        set(filter.id, selected ? (value as unknown[]).filter((v) => v !== opt.value) : [...(Array.isArray(value) ? value : []), opt.value])
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {filter.type === 'date' && (
+              <input id={id} type="date" className="blox-filters__control" value={value ?? ''} onChange={(e) => set(filter.id, e.target.value)} />
+            )}
+            {filter.type === 'daterange' && (
+              <div className="blox-filters__range">
+                <input id={id} type="date" className="blox-filters__control" value={value?.startDate ?? ''} onChange={(e) => set(filter.id, { ...(value ?? {}), startDate: e.target.value })} aria-label={`${filter.label} from`} />
+                <span aria-hidden>–</span>
+                <input type="date" className="blox-filters__control" value={value?.endDate ?? ''} onChange={(e) => set(filter.id, { ...(value ?? {}), endDate: e.target.value })} aria-label={`${filter.label} to`} />
+              </div>
+            )}
+            {filter.type === 'range' && (
+              <div className="blox-filters__range">
+                <input id={id} type="number" className="blox-filters__control blox-filters__control--num" min={filter.min} max={filter.max} step={filter.step} value={Array.isArray(value) ? value[0] ?? '' : ''} onChange={(e) => set(filter.id, [Number(e.target.value), Array.isArray(value) ? value[1] ?? filter.max : filter.max])} aria-label={`${filter.label} min`} />
+                <span aria-hidden>–</span>
+                <input type="number" className="blox-filters__control blox-filters__control--num" min={filter.min} max={filter.max} step={filter.step} value={Array.isArray(value) ? value[1] ?? '' : ''} onChange={(e) => set(filter.id, [Array.isArray(value) ? value[0] ?? filter.min : filter.min, Number(e.target.value)])} aria-label={`${filter.label} max`} />
+              </div>
+            )}
+            {filter.type === 'checkbox' && (
+              <label className="blox-filters__check">
+                <input type="checkbox" checked={Boolean(value)} onChange={(e) => set(filter.id, e.target.checked)} />
+                <span>{filter.label}</span>
+              </label>
+            )}
+          </div>
+        );
+      })}
+      {activeCount > 0 && onClear && (
+        <Button variant="ghost" size="sm" onClick={onClear} className="blox-filters__clear">
+          Clear all ({activeCount})
+        </Button>
+      )}
+    </div>
   );
 };

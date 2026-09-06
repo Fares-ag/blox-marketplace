@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start:dev": "nest start --watch",
-    "build": "prisma generate && npm run build:installment-plan -w @drivemarket/shared && npm run build:tenure -w @drivemarket/shared && nest build",
+    "build": "prisma generate && npm run build:installment-plan -w @drivemarket/shared && npm run build:tenure -w @drivemarket/shared && npm run build:domain-rules -w @drivemarket/shared && nest build",
     "start": "node dist/api/src/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",

@@ -80,6 +80,7 @@ export function CreditQueue({ detailBase: detailBaseProp }: { detailBase?: strin
     () => [
       {
         id: 'id',
+        mono: true,
         label: t('ops.col.application'),
         format: (_, a) => (
           <Link to={`${detailBase}/${a.id}`}>
@@ -103,6 +104,7 @@ export function CreditQueue({ detailBase: detailBaseProp }: { detailBase?: strin
       },
       {
         id: 'customer',
+        cardTitle: true,
         label: t('ops.col.customer'),
         format: (_, a) => (
           <>
@@ -124,6 +126,8 @@ export function CreditQueue({ detailBase: detailBaseProp }: { detailBase?: strin
       },
       {
         id: 'status',
+        sortable: true,
+        cardStatus: true,
         label: t('ops.col.status'),
         format: (_, a) => (
           <OpsStatusPill label={applicationStatus(a.status)} variant={applicationOpsPillVariant(a.status)} />
@@ -148,7 +152,7 @@ export function CreditQueue({ detailBase: detailBaseProp }: { detailBase?: strin
       title={t('ops.credit.queueTitle')}
       subtitle={subtitle}
       metrics={queueMetrics}
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           search={

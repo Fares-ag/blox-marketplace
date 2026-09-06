@@ -1,89 +1,97 @@
 import React from 'react';
-import { Button as MuiButton, CircularProgress } from '@mui/material';
-import type { ButtonProps as MuiButtonProps } from '@mui/material';
-import './Button.scss';
 
+/**
+ * Ops button — Phase 1 §03. Native <button> styled by `styles/ops/_buttons.scss`.
+ * Legacy MUI-era variant names are still accepted and alias onto the five real ones.
+ */
 export type ButtonVariant =
   | 'primary'
   | 'secondary'
+  | 'ghost'
+  | 'danger'
+  | 'icon'
+  // legacy aliases
   | 'secondary-neutral'
   | 'destructive'
   | 'tertiary'
   | 'outlined'
   | 'contained'
   | 'text'
-  | 'icon'
   | 'small';
 
-export interface ButtonProps extends Omit<MuiButtonProps, 'variant'> {
+export type ButtonSize = 'md' | 'sm';
+
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** Shows the spinner, swaps out the leading icon and disables the button. */
   loading?: boolean;
+  /** Danger only: solid red fill, reserved for the confirm step of a destructive dialog. */
+  solid?: boolean;
+  startIcon?: React.ReactNode;
+  endIcon?: React.ReactNode;
 }
 
-export const Button: React.FC<ButtonProps> = React.memo(({
-  variant = 'primary',
-  loading = false,
-  disabled,
-  children,
-  className = '',
-  ...props
-}) => {
-  const getVariantClass = () => {
-    switch (variant) {
-      case 'primary':
-        return 'btn-primary';
-      case 'secondary':
-        return 'btn-secondary';
-      case 'secondary-neutral':
-        return 'btn-secondary-neutral';
-      case 'destructive':
-        return 'btn-destructive';
-      case 'tertiary':
-        return 'btn-tertiary';
-      case 'outlined':
-        return 'btn-secondary-neutral';
-      case 'contained':
-        return 'btn-primary';
-      case 'text':
-        return 'btn-tertiary';
-      case 'icon':
-        return 'btn-icon';
-      case 'small':
-        return 'btn-small';
-      default:
-        return 'btn-primary';
-    }
-  };
+const VARIANT_CLASS: Record<ButtonVariant, 'primary' | 'secondary' | 'ghost' | 'danger'> = {
+  primary: 'primary',
+  contained: 'primary',
+  small: 'primary',
+  secondary: 'secondary',
+  'secondary-neutral': 'secondary',
+  outlined: 'secondary',
+  danger: 'danger',
+  destructive: 'danger',
+  ghost: 'ghost',
+  tertiary: 'ghost',
+  text: 'ghost',
+  icon: 'ghost',
+};
 
-  const isIconButton = variant === 'icon';
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    variant = 'primary',
+    size,
+    loading = false,
+    solid = false,
+    disabled,
+    className = '',
+    children,
+    type = 'button',
+    startIcon,
+    endIcon,
+    ...rest
+  },
+  ref,
+) {
+  const resolvedSize = size ?? (variant === 'small' ? 'sm' : 'md');
+  const classes = [
+    'blox-btn',
+    `blox-btn--${VARIANT_CLASS[variant] ?? 'primary'}`,
+    resolvedSize === 'sm' ? 'blox-btn--sm' : '',
+    variant === 'icon' ? 'blox-btn--icon' : '',
+    solid ? 'blox-btn--solid' : '',
+    loading ? 'is-loading' : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <MuiButton
-      className={`custom-button ${getVariantClass()} ${className}`}
+    <button
+      ref={ref}
+      type={type}
+      className={classes}
       disabled={disabled || loading}
-      {...props}
-      sx={
-        isIconButton
-          ? {
-              minWidth: '40px',
-              width: '40px',
-              height: '40px',
-              padding: 0,
-            }
-          : undefined
-      }
+      aria-busy={loading || undefined}
+      {...rest}
     >
       {loading ? (
-        <CircularProgress size={20} color={variant === 'primary' ? 'inherit' : 'primary'} />
-      ) : (
-        children
-      )}
-    </MuiButton>
+        <span className="blox-btn__spinner" aria-hidden />
+      ) : startIcon ? (
+        <span className="blox-btn__icon">{startIcon}</span>
+      ) : null}
+      {children}
+      {endIcon && !loading ? <span className="blox-btn__icon">{endIcon}</span> : null}
+    </button>
   );
-}, (prevProps, nextProps) => {
-  return prevProps.variant === nextProps.variant &&
-         prevProps.loading === nextProps.loading &&
-         prevProps.disabled === nextProps.disabled &&
-         prevProps.children === nextProps.children &&
-         prevProps.onClick === nextProps.onClick;
 });

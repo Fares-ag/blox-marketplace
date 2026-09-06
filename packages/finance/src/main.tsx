@@ -15,6 +15,7 @@ import {
   type BloxNavItem,
   useOpsLabels,
   mountPortalApp,
+  useNavCounts,
 } from '@drivemarket/shared';
 import '@drivemarket/shared/styles/global.scss';
 import { DashboardPage } from './pages/DashboardPage';
@@ -41,33 +42,35 @@ function FinanceWorkspace() {
  */
 function App() {
   const { t } = useOpsLabels();
-  const navItems = useMemo<BloxNavItem[]>(
-    () => [
-      { to: '/dashboard', label: t('ops.finance.nav.dashboard'), icon: 'home' },
-      { to: '/queue', label: t('ops.finance.nav.queue'), icon: 'queue' },
-      { to: '/book', label: t('ops.finance.nav.book'), icon: 'ledgers' },
-      { to: '/payments', label: t('ops.finance.nav.payments'), icon: 'finance' },
-      { to: '/settlements', label: t('ops.finance.nav.settlements'), icon: 'offers' },
-      { to: '/credits', label: t('ops.finance.nav.credits'), icon: 'packages' },
-      { to: '/exports', label: t('ops.finance.nav.exports'), icon: 'logs' },
-      { to: '/applications', label: t('ops.finance.nav.applications'), icon: 'apps' },
-    ],
-    [t],
-  );
+  const counts = useNavCounts<{ pending_bank_transfers: number; schedules_overdue: number }>('/api/ops/metrics/finance');
+  const navItems = useMemo<BloxNavItem[]>(() => {
+    const work = t('ops.shell.groupWork');
+    const reference = t('ops.shell.groupReference');
+    return [
+      { to: '/dashboard', label: t('ops.finance.nav.dashboard'), icon: 'home', group: work },
+      { to: '/queue', label: t('ops.finance.nav.queue'), icon: 'queue', group: work },
+      { to: '/book', label: t('ops.finance.nav.book'), icon: 'ledgers', group: work },
+      { to: '/payments', label: t('ops.finance.nav.payments'), icon: 'finance', group: work, count: counts?.pending_bank_transfers },
+      { to: '/settlements', label: t('ops.finance.nav.settlements'), icon: 'offers', group: work },
+      { to: '/credits', label: t('ops.finance.nav.credits'), icon: 'packages', group: reference },
+      { to: '/exports', label: t('ops.finance.nav.exports'), icon: 'logs', group: reference },
+      { to: '/applications', label: t('ops.finance.nav.applications'), icon: 'apps', group: reference },
+    ];
+  }, [t, counts]);
 
   return (
     <OpsAppFrame>
       <Routes>
         <Route path="/auth/login" element={<LoginPage portalKey="finance" homePath="/queue" />} />
-        <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/auth/forgot-password" element={<ForgotPasswordPage portalKey="finance" />} />
+        <Route path="/auth/reset-password" element={<ResetPasswordPage portalKey="finance" />} />
         <Route path="/auth/two-factor" element={<TwoFactorLoginPage portalKey="finance" homePath="/queue" />} />
         <Route path="/auth/mfa-setup" element={<MfaSetupPage portalKey="finance" homePath="/queue" />} />
         <Route
           path="/*"
           element={
             <AuthGuard allowedRole="finance_officer" reasonParam="not_finance">
-              <BloxShell title="Finance" nav={navItems} homePaths={['/queue']}>
+              <BloxShell title="Finance" nav={navItems} homePaths={['/queue']} searchPath="/applications">
                 <Routes>
                   <Route path="/" element={<Navigate to="/queue" replace />} />
                   <Route path="/dashboard" element={<DashboardPage />} />

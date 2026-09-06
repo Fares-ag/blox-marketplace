@@ -54,20 +54,34 @@ export function DashboardPage() {
       title={t('ops.finance.dashboardTitle')}
       subtitle={t('ops.finance.dashboardSubtitle')}
       headerActions={
-        <Link to="/schedules" style={{ textDecoration: 'none' }}>
+        <Link to="/schedules" className="blox-link-reset">
           <OpsPrimaryButton>{t('ops.finance.nav.schedules')}</OpsPrimaryButton>
         </Link>
       }
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       heroIndex={1}
       metrics={[
         { label: t('ops.dashboard.pendingSchedules'), value: String(data?.schedules_pending ?? '—') },
-        { label: t('ops.admin.overdue'), value: String(data?.schedules_overdue ?? '—') },
+        {
+          label: t('ops.admin.overdue'),
+          value: String(data?.schedules_overdue ?? '—'),
+          trend: data?.overdue_trend.map((w) => w.count),
+          deltaTone: data && data.schedules_overdue > 0 ? 'down' : 'up',
+          delta: data ? (data.schedules_overdue > 0 ? t('ops.dashboard.needsCollection') : t('ops.dashboard.allCurrent')) : undefined,
+        },
         {
           label: t('ops.dashboard.collectedMonth'),
           value: data ? formatQar(data.collected_this_month) : '—',
+          trend: data?.collections_by_week.map((w) => w.amount),
+          deltaTone: 'up',
+          delta: data ? t('ops.dashboard.lastWeeks', { count: data.collections_by_week.length }) : undefined,
         },
-        { label: t('ops.dashboard.pendingTransfers'), value: String(data?.pending_bank_transfers ?? '—') },
+        {
+          label: t('ops.dashboard.pendingTransfers'),
+          value: String(data?.pending_bank_transfers ?? '—'),
+          deltaTone: data && data.pending_bank_transfers > 0 ? 'neutral' : 'up',
+          delta: data && data.pending_bank_transfers > 0 ? t('ops.dashboard.awaitingConfirmation') : undefined,
+        },
         { label: t('ops.dashboard.activeFinancings'), value: String(data?.active_financings ?? '—') },
       ]}
     >
@@ -82,7 +96,7 @@ export function DashboardPage() {
             </>
           }
         >
-          <div style={{ maxWidth: 280, margin: '0 auto' }}>
+          <div className="blox-chart-donut">
             <Doughnut
               data={{
                 labels: ['Pending', 'Overdue', 'Paid'],
@@ -136,7 +150,7 @@ export function DashboardPage() {
               `#${row.sequence}`,
               row.due_date,
               formatQar(row.amount),
-              <Link key={row.id} to={`/applications/${row.application_id}`} style={{ textDecoration: 'none' }}>
+              <Link key={row.id} to={`/applications/${row.application_id}`} className="blox-link-reset">
                 <OpsGhostButton>{t('ops.dashboard.open')}</OpsGhostButton>
               </Link>,
             ])}

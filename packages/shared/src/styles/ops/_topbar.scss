@@ -1,0 +1,397 @@
+// BloxShell chrome — Phase 1 §10: sidebar (nav only), 56px top bar, notifications drawer, account menu.
+@use 'vars' as *;
+
+// ── Sidebar ─────────────────────────────────────────────────────────────────
+.blox-side {
+  padding: 12px 10px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px 14px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+    min-height: 56px;
+
+    &.is-collapsed {
+      flex-direction: column;
+      padding-inline: 0;
+    }
+  }
+
+  &__brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    cursor: pointer;
+    border-radius: 6px;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--blox-emerald);
+    }
+  }
+
+  &__portal {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--blox-emerald);
+  }
+
+  &__toggle.MuiIconButton-root {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+  }
+
+  &__group {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  &__group-label {
+    display: block;
+    padding: 12px 12px 4px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  &__group-rule.MuiDivider-root {
+    margin: 8px 12px;
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  &__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  &__item.MuiListItemButton-root {
+    position: relative;
+    margin: 2px 0;
+    padding: 0 12px;
+    height: 40px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.88);
+    gap: 12px;
+    transition: background var(--blox-motion-fast) var(--blox-ease-standard);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    &.active {
+      background: rgba(0, 207, 162, 0.16);
+      color: var(--blox-emerald);
+      box-shadow: inset 3px 0 0 var(--blox-emerald);
+
+      [dir='rtl'] & {
+        box-shadow: inset -3px 0 0 var(--blox-emerald);
+      }
+    }
+
+    &.is-collapsed {
+      justify-content: center;
+      padding: 0;
+      gap: 0;
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--blox-emerald);
+    }
+  }
+
+  &__icon.MuiListItemIcon-root {
+    min-width: 0;
+    color: inherit;
+    opacity: 0.9;
+  }
+
+  &__label .MuiTypography-root {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  &__count {
+    margin-inline-start: auto;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    font-family: var(--blox-font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+
+    &.is-collapsed {
+      position: absolute;
+      top: 4px;
+      inset-inline-end: 8px;
+      margin: 0;
+      padding: 0 5px;
+      background: var(--blox-danger);
+      color: #fff;
+    }
+  }
+}
+
+// ── Top bar ─────────────────────────────────────────────────────────────────
+.blox-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 20px;
+  background: var(--blox-surface);
+  border-bottom: 1px solid var(--blox-border);
+
+  &__crumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    b {
+      color: var(--blox-deep-green);
+      font-weight: 600;
+    }
+  }
+
+  &__crumb-sep {
+    color: var(--blox-border);
+  }
+
+  &__right {
+    margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__ibtn.MuiIconButton-root {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    color: var(--blox-deep-green);
+
+    &:hover {
+      background: var(--blox-canvas);
+    }
+
+    &:focus-visible {
+      box-shadow: var(--blox-focus-ring);
+    }
+
+    .MuiBadge-badge {
+      font-family: var(--blox-font-mono);
+      font-size: 0.625rem;
+      font-weight: 700;
+      min-width: 16px;
+      height: 16px;
+      background: var(--blox-danger);
+    }
+  }
+
+  &__locale {
+    margin-inline: 6px;
+  }
+
+  &__avatar.MuiIconButton-root {
+    padding: 3px;
+    margin-inline-start: 2px;
+
+    &:focus-visible {
+      box-shadow: var(--blox-focus-ring);
+    }
+  }
+
+  @media (max-width: $bp-sm) {
+    padding: 0 12px;
+  }
+}
+
+.blox-avatar.MuiAvatar-root {
+  width: 30px;
+  height: 30px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--blox-emerald);
+  color: var(--blox-deep-green);
+}
+
+.blox-account-menu {
+  min-width: 240px;
+  border-radius: var(--blox-radius-card, 12px) !important;
+  box-shadow: var(--blox-shadow-pop) !important;
+  border: 1px solid var(--blox-border);
+
+  &__head {
+    display: grid;
+    gap: 2px;
+    padding: 10px 16px 12px;
+    color: var(--blox-ink);
+  }
+
+  &__role {
+    display: inline-block;
+    justify-self: start;
+    margin-top: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--blox-emerald-soft);
+    color: var(--blox-emerald-ink, #0b7a63);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  &__locale {
+    padding: 4px 16px 10px;
+    display: flex;
+  }
+}
+
+// ── Notifications drawer ────────────────────────────────────────────────────
+.blox-ndrawer {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  height: 100%;
+  background: var(--blox-surface);
+  font-family: var(--blox-font-ui);
+  color: var(--blox-ink);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 12px 12px 16px;
+    border-bottom: 1px solid var(--blox-border);
+
+    b {
+      font-size: 0.9375rem;
+      color: var(--blox-deep-green);
+    }
+  }
+
+  &__unread {
+    font-size: 0.75rem;
+    color: var(--blox-slate);
+  }
+
+  &__head-actions {
+    margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__filters {
+    padding: 10px 16px 6px;
+  }
+
+  &__list {
+    overflow-y: auto;
+  }
+
+  &__empty {
+    margin: 0;
+    padding: 24px 16px;
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+  }
+
+  &__item {
+    display: grid;
+    grid-template-columns: 8px 1fr auto;
+    gap: 12px;
+    align-items: start;
+    width: 100%;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--blox-border);
+    background: rgba(0, 207, 162, 0.06);
+    text-align: start;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--blox-canvas);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--blox-emerald);
+    }
+
+    &.is-read {
+      background: transparent;
+
+      b {
+        font-weight: 500;
+      }
+
+      .blox-ndrawer__dot {
+        background: transparent;
+        border: 1px solid var(--blox-border);
+      }
+    }
+  }
+
+  &__dot {
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: var(--blox-emerald);
+  }
+
+  &__text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    font-size: 0.8125rem;
+
+    b {
+      color: var(--blox-deep-green);
+      font-weight: 600;
+    }
+  }
+
+  &__body {
+    color: var(--blox-slate);
+    overflow-wrap: anywhere;
+  }
+
+  &__when {
+    font-family: var(--blox-font-mono);
+    font-size: 0.6875rem;
+    color: var(--blox-slate);
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+}

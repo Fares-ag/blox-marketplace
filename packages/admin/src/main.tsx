@@ -16,6 +16,7 @@ import {
   PageSkeleton,
   mountPortalApp,
   type BloxNavItem,
+  useNavCounts,
 } from '@drivemarket/shared';
 import '@drivemarket/shared/styles/global.scss';
 import { DashboardPage } from './pages/DashboardPage';
@@ -43,30 +44,34 @@ function AdminWorkspace() {
 
 function App() {
   const { t } = useTranslation();
-  const navItems = useMemo<BloxNavItem[]>(
-    () => [
-      { to: '/main/dashboard', label: t('ops.admin.nav.dashboard'), icon: 'home' },
-      { to: '/main/applications', label: t('ops.admin.nav.applications'), icon: 'apps' },
-      { to: '/main/bank-transfers', label: t('ops.admin.nav.bankTransfers'), icon: 'finance' },
-      { to: '/main/users', label: t('ops.admin.nav.users'), icon: 'users' },
-      { to: '/main/companies', label: t('ops.admin.nav.companies'), icon: 'company' },
-      { to: '/main/vehicles', label: t('ops.admin.nav.vehicles'), icon: 'products' },
-      { to: '/main/offers', label: t('ops.admin.nav.offers'), icon: 'offers' },
-      { to: '/main/promotions', label: t('ops.admin.nav.promotions'), icon: 'promotions' },
-      { to: '/main/insurance-rates', label: t('ops.admin.nav.insurance'), icon: 'insurance' },
-      { to: '/main/packages', label: t('ops.admin.nav.packages'), icon: 'packages' },
-      { to: '/main/ledgers', label: t('ops.admin.nav.ledgers'), icon: 'ledgers' },
-      { to: '/main/settings/settlement-discounts', label: t('ops.admin.nav.settings'), icon: 'settings' },
-    ],
-    [t],
-  );
+  const counts = useNavCounts<{ applications_by_status?: Record<string, number>; schedules_overdue?: number }>('/api/ops/metrics');
+  const navItems = useMemo<BloxNavItem[]>(() => {
+    const operations = t('ops.shell.groupOperations');
+    const people = t('ops.shell.groupPeople');
+    const catalog = t('ops.shell.groupCatalog');
+    const platform = t('ops.shell.groupPlatform');
+    return [
+      { to: '/main/dashboard', label: t('ops.admin.nav.dashboard'), icon: 'home', group: operations },
+      { to: '/main/applications', label: t('ops.admin.nav.applications'), icon: 'apps', group: operations, count: counts?.applications_by_status?.under_review },
+      { to: '/main/bank-transfers', label: t('ops.admin.nav.bankTransfers'), icon: 'finance', group: operations },
+      { to: '/main/ledgers', label: t('ops.admin.nav.ledgers'), icon: 'ledgers', group: operations, count: counts?.schedules_overdue },
+      { to: '/main/users', label: t('ops.admin.nav.users'), icon: 'users', group: people },
+      { to: '/main/companies', label: t('ops.admin.nav.companies'), icon: 'company', group: people },
+      { to: '/main/vehicles', label: t('ops.admin.nav.vehicles'), icon: 'products', group: catalog },
+      { to: '/main/offers', label: t('ops.admin.nav.offers'), icon: 'offers', group: catalog },
+      { to: '/main/promotions', label: t('ops.admin.nav.promotions'), icon: 'promotions', group: catalog },
+      { to: '/main/insurance-rates', label: t('ops.admin.nav.insurance'), icon: 'insurance', group: catalog },
+      { to: '/main/packages', label: t('ops.admin.nav.packages'), icon: 'packages', group: catalog },
+      { to: '/main/settings/settlement-discounts', label: t('ops.admin.nav.settings'), icon: 'settings', group: platform },
+    ];
+  }, [t, counts]);
 
   return (
     <OpsAppFrame>
     <Routes>
       <Route path="/auth/login" element={<LoginPage portalKey="admin" homePath="/main/dashboard" />} />
-      <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/auth/forgot-password" element={<ForgotPasswordPage portalKey="admin" />} />
+      <Route path="/auth/reset-password" element={<ResetPasswordPage portalKey="admin" />} />
       <Route path="/auth/two-factor" element={<TwoFactorLoginPage portalKey="admin" homePath="/main/dashboard" />} />
       <Route path="/auth/mfa-setup" element={<MfaSetupPage portalKey="admin" homePath="/main/dashboard" />} />
       <Route
@@ -74,7 +79,7 @@ function App() {
         element={
           <AuthGuard allowedRole={['admin', 'super_admin', 'group_admin']} reasonParam="not_admin">
             <PortalBasePathProvider basePath="/main">
-            <BloxShell title="Admin" nav={navItems} homePaths={['/main/dashboard']}>
+            <BloxShell title="Admin" nav={navItems} homePaths={['/main/dashboard']} searchPath="/applications">
               <Suspense fallback={<PageSkeleton variant="dashboard" />}>
               <Routes>
                 <Route path="/" element={<Navigate to="/main/dashboard" replace />} />

@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
 import { AppConfigService } from '../config/app-config.service';
+import { MailService } from '../mail/mail.service';
 import { assertRowsUpdated } from '../applications/guarded-transitions';
 import { normalizeEmail, resolveQuoteGate } from './quote-pricing';
 import {
@@ -38,6 +39,7 @@ export class QuotesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly appConfig: AppConfigService,
+    private readonly mail: MailService,
   ) {}
 
   /**
@@ -84,7 +86,10 @@ export class QuotesService {
 
     const product = await this.prisma.product.findUnique({
       where: { id: dto.productId },
-      include: { defaultOffer: true },
+      include: {
+        defaultOffer: true,
+        company: { select: { name: true } },
+      },
     });
     if (!product || product.companyId !== user.companyId) {
       throw new NotFoundException('listing_not_available');
@@ -137,10 +142,31 @@ export class QuotesService {
       },
     });
 
+    const quoteUrl = this.marketplaceUrl(quote.token);
+    const vehicleLabel = [quote.product.make, quote.product.model, quote.product.modelYear]
+      .filter(Boolean)
+      .join(' ');
+    const dealerName = product.company.name;
+
+    void this.mail
+      .sendDealerQuoteEmail({
+        to: email,
+        url: quoteUrl,
+        dealerName,
+        vehicleLabel,
+        negotiatedPrice,
+        expiresAt,
+      })
+      .catch((err) => {
+        this.logger.warn(
+          `Quote email failed quote=${quote.id} to=${email}: ${err instanceof Error ? err.message : err}`,
+        );
+      });
+
     return toDealerQuoteDto({
       id: quote.id,
       token: quote.token,
-      url: this.marketplaceUrl(quote.token),
+      url: quoteUrl,
       customerEmail: quote.customerEmail,
       negotiatedPrice: quote.negotiatedPrice,
       listPriceSnapshot: quote.listPriceSnapshot,

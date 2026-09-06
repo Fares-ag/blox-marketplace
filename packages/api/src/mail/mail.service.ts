@@ -10,6 +10,9 @@ export type MailTemplate =
   | 'email_verification'
   | 'walk_in_invite'
   | 'staff_account_created'
+  | 'assisted_session'
+  | 'document_expiry'
+  | 'takaful_renewal'
   | 'transactional';
 
 export type MailInput = {
@@ -360,6 +363,84 @@ export class MailService {
     });
   }
 
+  async sendDealerAgentWelcomeEmail(input: {
+    to: string;
+    name: string;
+    loginUrl: string;
+    temporaryPassword: string;
+    dealerName: string;
+  }): Promise<void> {
+    const subject = `You're invited to ${input.dealerName} on Blox`;
+    const text =
+      `Hi ${input.name},\n\n` +
+      `${input.dealerName} invited you to the Blox dealer portal to create vehicle financing applications.\n\n` +
+      `Sign in with:\n` +
+      `Email: ${input.to}\n` +
+      `Temporary password: ${input.temporaryPassword}\n\n` +
+      `Dealer portal: ${input.loginUrl}\n\n` +
+      `Change your password after your first sign-in.\n\n` +
+      `If you were not expecting this invitation, contact ${input.dealerName} or ignore this email.`;
+    const html =
+      `<p>Hi ${input.name},</p>` +
+      `<p><strong>${input.dealerName}</strong> invited you to the Blox dealer portal to create vehicle financing applications.</p>` +
+      `<p><strong>Email:</strong> ${input.to}<br>` +
+      `<strong>Temporary password:</strong> <code>${input.temporaryPassword}</code></p>` +
+      `<p><a href="${input.loginUrl}">Open the dealer portal</a></p>` +
+      `<p style="color:#64748b;font-size:14px;">Change your password after your first sign-in. ` +
+      `If you were not expecting this invitation, contact ${input.dealerName} or ignore this email.</p>`;
+
+    await this.send({
+      to: input.to,
+      subject,
+      text,
+      html,
+      template: 'transactional',
+      payload: {
+        loginUrl: input.loginUrl,
+        dealerName: input.dealerName,
+        temporaryPassword: input.temporaryPassword,
+      },
+    });
+  }
+
+  async sendAdminPasswordResetEmail(input: {
+    to: string;
+    name: string;
+    loginUrl: string;
+    temporaryPassword: string;
+  }): Promise<void> {
+    const subject = 'Your Blox password was reset';
+    const text =
+      `Hi ${input.name},\n\n` +
+      `An administrator reset your Blox account password.\n\n` +
+      `Sign in with:\n` +
+      `Email: ${input.to}\n` +
+      `Temporary password: ${input.temporaryPassword}\n\n` +
+      `Sign-in URL: ${input.loginUrl}\n\n` +
+      `Change your password after signing in.\n\n` +
+      `If you did not expect this change, contact your administrator immediately.`;
+    const html =
+      `<p>Hi ${input.name},</p>` +
+      `<p>An administrator reset your Blox account password.</p>` +
+      `<p><strong>Email:</strong> ${input.to}<br>` +
+      `<strong>Temporary password:</strong> <code>${input.temporaryPassword}</code></p>` +
+      `<p><a href="${input.loginUrl}">Sign in to Blox</a></p>` +
+      `<p style="color:#64748b;font-size:14px;">Change your password after signing in. ` +
+      `If you did not expect this change, contact your administrator immediately.</p>`;
+
+    await this.send({
+      to: input.to,
+      subject,
+      text,
+      html,
+      template: 'transactional',
+      payload: {
+        loginUrl: input.loginUrl,
+        temporaryPassword: input.temporaryPassword,
+      },
+    });
+  }
+
   async sendStaffAccountCreatedEmail(to: string, name: string, loginUrl: string): Promise<void> {
     await this.send({
       to,
@@ -373,6 +454,56 @@ export class MailService {
       template: 'staff_account_created',
       payload: { name, loginUrl },
       authCritical: true,
+    });
+  }
+
+  async sendDealerQuoteEmail(input: {
+    to: string;
+    url: string;
+    dealerName: string;
+    vehicleLabel: string;
+    negotiatedPrice: number;
+    expiresAt: Date;
+  }): Promise<void> {
+    const price = `QAR ${Math.round(input.negotiatedPrice).toLocaleString('en-QA')}`;
+    const expires = input.expiresAt.toLocaleString('en-QA', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Qatar',
+    });
+    const subject = `Your vehicle financing quote from ${input.dealerName}`;
+    const text =
+      `${input.dealerName} prepared a financing quote for you on Blox.\n\n` +
+      `Vehicle: ${input.vehicleLabel}\n` +
+      `Quoted price: ${price}\n` +
+      `Valid until: ${expires}\n\n` +
+      `Review the quote and start your application here:\n${input.url}\n\n` +
+      `This link is tied to your email address and expires on the date above. ` +
+      `If you were not expecting this quote, contact the dealer or ignore this email.`;
+    const html =
+      `<p>${input.dealerName} prepared a financing quote for you on Blox.</p>` +
+      `<ul>` +
+      `<li><strong>Vehicle:</strong> ${input.vehicleLabel}</li>` +
+      `<li><strong>Quoted price:</strong> ${price}</li>` +
+      `<li><strong>Valid until:</strong> ${expires}</li>` +
+      `</ul>` +
+      `<p><a href="${input.url}">Review your quote</a></p>` +
+      `<p style="color:#64748b;font-size:14px;">This link is tied to your email address. ` +
+      `If you were not expecting this quote, contact the dealer or ignore this email.</p>`;
+
+    await this.send({
+      to: input.to,
+      subject,
+      text,
+      html,
+      template: 'transactional',
+      payload: {
+        url: input.url,
+        dealerName: input.dealerName,
+        vehicleLabel: input.vehicleLabel,
+        negotiatedPrice: input.negotiatedPrice,
+        expiresAt: input.expiresAt.toISOString(),
+      },
     });
   }
 }

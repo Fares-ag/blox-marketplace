@@ -1,0 +1,292 @@
+// Enhancement pass — sortable headers, density toggle, sparklines, delta tones, top-bar search,
+// alert icons, toast theming, Arabic face under RTL.
+@use 'vars' as *;
+
+// ── Table: sorting + density ────────────────────────────────────────────────
+.blox-table thead th.is-sortable {
+  padding: 0;
+}
+
+.blox-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: start;
+  cursor: pointer;
+
+  .blox-table__num & {
+    justify-content: flex-end;
+  }
+
+  &:hover {
+    color: #fff;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--blox-emerald);
+  }
+}
+
+.blox-table__sort-idle {
+  opacity: 0.45;
+}
+
+.blox-table thead th.is-sorted .blox-table__sort {
+  color: var(--blox-emerald);
+}
+
+.blox-table thead th.is-sorted::after {
+  content: none;
+}
+
+.blox-pagination-wrap {
+  display: contents;
+}
+
+.blox-pagination--tools {
+  justify-content: flex-end;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.blox-pagination__density {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--blox-radius-control, 8px);
+  background: transparent;
+  color: var(--blox-slate);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--blox-canvas);
+    color: var(--blox-deep-green);
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--blox-emerald-soft);
+    color: var(--blox-emerald-ink, #0b7a63);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--blox-focus-ring);
+  }
+}
+
+// ── Metric cards: sparkline + delta tone ────────────────────────────────────
+.blox-metric-card__row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.blox-metric-card__value {
+  font-family: var(--blox-font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.blox-sparkline {
+  flex: none;
+  overflow: visible;
+
+  &__area {
+    fill: var(--blox-emerald);
+    fill-opacity: 0.16;
+  }
+
+  &__line {
+    stroke: var(--blox-emerald);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  &__end {
+    fill: var(--blox-emerald);
+    stroke: var(--blox-surface);
+    stroke-width: 1.5;
+  }
+
+  .blox-metric-card--hero & {
+    &__area {
+      fill: var(--blox-emerald);
+      fill-opacity: 0.22;
+    }
+
+    &__end {
+      stroke: var(--blox-deep-green);
+    }
+  }
+}
+
+.blox-metric-card__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  &--up {
+    color: var(--blox-emerald-ink, #0b7a63);
+  }
+
+  &--down {
+    color: var(--blox-danger);
+  }
+
+  &--neutral {
+    color: var(--blox-slate);
+  }
+
+  .blox-metric-card--hero &--up {
+    color: var(--blox-emerald);
+  }
+
+  .blox-metric-card--hero &--down {
+    color: #ffb4ac;
+  }
+}
+
+// ── Top bar search ──────────────────────────────────────────────────────────
+.blox-topbar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 260px;
+  margin-inline-end: 6px;
+
+  > svg {
+    position: absolute;
+    inset-inline-start: 10px;
+    color: var(--blox-slate);
+    pointer-events: none;
+  }
+
+  input {
+    width: 100%;
+    height: 34px;
+    padding: 0 30px 0 32px;
+    padding-inline-start: 32px;
+    padding-inline-end: 30px;
+    border: 1px solid var(--blox-border);
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-canvas);
+    color: var(--blox-ink);
+    font-family: var(--blox-font-ui);
+    font-size: 0.8125rem;
+    transition: border-color var(--blox-motion-fast), background var(--blox-motion-fast), box-shadow var(--blox-motion-fast);
+
+    &::placeholder {
+      color: var(--blox-slate);
+    }
+
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+
+    &:hover {
+      border-color: var(--blox-field-border, #a9b8ba);
+    }
+
+    &:focus {
+      outline: none;
+      background: var(--blox-surface);
+      border-color: var(--blox-deep-green);
+      box-shadow: 0 0 0 3px var(--blox-emerald-soft), 0 0 0 4px var(--blox-emerald);
+    }
+  }
+
+  kbd {
+    position: absolute;
+    inset-inline-end: 8px;
+    padding: 1px 6px;
+    border: 1px solid var(--blox-border);
+    border-radius: 4px;
+    background: var(--blox-surface);
+    color: var(--blox-slate);
+    font-family: var(--blox-font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.2;
+  }
+
+  @media (max-width: $bp-lg) {
+    width: 200px;
+  }
+}
+
+// ── Alert icon ──────────────────────────────────────────────────────────────
+.blox-alert__icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+// ── Toasts (react-toastify) ─────────────────────────────────────────────────
+.Toastify__toast {
+  font-family: var(--blox-font-ui);
+  font-size: 0.8125rem;
+  color: var(--blox-ink);
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-card, 12px);
+  box-shadow: var(--blox-shadow-pop);
+  padding: 10px 12px;
+  min-height: 0;
+
+  &--success {
+    border-inline-start: 3px solid var(--blox-emerald);
+  }
+
+  &--error {
+    border-inline-start: 3px solid var(--blox-danger);
+  }
+
+  &--warning {
+    border-inline-start: 3px solid var(--blox-warning, #c47a00);
+  }
+
+  &--info {
+    border-inline-start: 3px solid var(--blox-deep-green);
+  }
+}
+
+.Toastify__toast-body {
+  padding: 0;
+}
+
+.Toastify__progress-bar {
+  height: 2px;
+}
+
+.Toastify__progress-bar--success {
+  background: var(--blox-emerald);
+}
+
+.Toastify__progress-bar--error {
+  background: var(--blox-danger);
+}
+
+.Toastify__close-button {
+  color: var(--blox-slate);
+  opacity: 0.8;
+}
+
+// ── Arabic face under RTL ───────────────────────────────────────────────────
+[dir='rtl'] .blox-ops,
+.blox-ops[dir='rtl'] {
+  --blox-font-ui: 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --blox-font-display: 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', sans-serif;
+}

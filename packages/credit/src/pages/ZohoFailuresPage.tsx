@@ -59,7 +59,7 @@ export function ZohoFailuresPage() {
     <OpsListPage
       title={t('ops.credit.zohoTitle')}
       subtitle={t('ops.credit.zohoSubtitle')}
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           search={<SearchBar value={search} onChange={setSearch} placeholder={t('ops.common.search')} />}

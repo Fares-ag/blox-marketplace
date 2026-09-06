@@ -6,6 +6,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 import { StorageService } from '../../storage/storage.service';
 
+import { KycBridgeService } from '../../kyc/kyc-bridge.service';
+
 import { ActivityService } from '../../common/activity.service';
 import { fetchWithTimeout } from '../../common/fetch-with-timeout';
 
@@ -59,6 +61,7 @@ export class ZohoCrmService {
     private readonly config: ZohoConfig,
     private readonly activity: ActivityService,
     private readonly storage: StorageService,
+    private readonly kycBridge: KycBridgeService,
   ) {}
 
   async syncApplicationToZoho(
@@ -156,6 +159,7 @@ export class ZohoCrmService {
       });
 
       const { uploaded: documentsUploaded, failed: documentsFailed } = await this.syncDocuments(
+        applicationId,
         leadId,
         app.documents,
       );
@@ -340,6 +344,7 @@ export class ZohoCrmService {
   }
 
   private async syncDocuments(
+    applicationId: string,
     leadId: string,
     documents: ApplicationDocument[],
   ): Promise<{ uploaded: number; failed: number }> {
@@ -364,8 +369,14 @@ export class ZohoCrmService {
       if (existingNames.has(fileName)) continue;
 
       try {
-        const { buffer, contentType } = await this.storage.readKyc(doc.storagePath);
-        await this.uploadAttachment(leadId, fileName, buffer, contentType);
+        const file = doc.storagePath.startsWith('kyc://')
+          ? await this.kycBridge.readApplicationDocumentBytes(applicationId, doc)
+          : await this.storage.readKyc(doc.storagePath).then(({ buffer, contentType }) => ({
+              buffer,
+              contentType,
+              filename: doc.originalName?.trim() || doc.category,
+            }));
+        await this.uploadAttachment(leadId, fileName, file.buffer, file.contentType);
         existingNames.add(fileName);
         uploaded += 1;
       } catch (err) {

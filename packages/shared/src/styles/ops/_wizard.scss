@@ -1,0 +1,209 @@
+// Dashboard sections, mini tables, application wizard and agent invite.
+@use 'vars' as *;
+
+.blox-dashboard-section {
+  margin-bottom: var(--blox-space-xl, 24px);
+}
+
+.blox-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--blox-border);
+    text-align: start;
+  }
+
+  thead th {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--blox-emerald);
+    background: var(--blox-deep-green);
+  }
+}
+
+.blox-wizard-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+
+  &__title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    letter-spacing: -0.02em;
+  }
+
+  &__note {
+    margin: 0;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    background: var(--light-grey);
+    color: var(--primary-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    margin: var(--spacing-md) 0 var(--spacing-xs);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__vehicle + &__vehicle {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--divider-color);
+  }
+
+  &__schedule .blox-wizard-plan__note {
+    margin: 0 0 var(--spacing-md);
+  }
+
+  &__submit p {
+    margin: 0 0 var(--spacing-sm);
+    color: var(--secondary-text);
+    font-size: 0.875rem;
+  }
+}
+
+.blox-wizard-plan {
+  grid-column: 1 / -1;
+  margin-top: var(--blox-space-lg);
+  width: 100%;
+  min-width: 0;
+
+  &__summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--blox-space-md);
+    margin: var(--blox-space-lg) 0;
+    padding: var(--blox-space-lg);
+    background: var(--blox-canvas);
+    border: 1px solid var(--blox-border);
+    border-radius: var(--blox-radius-card);
+
+    @media (max-width: $bp-sm) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__metric {
+    small {
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--blox-slate);
+      margin-bottom: 4px;
+    }
+
+    div {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--blox-deep-green);
+    }
+  }
+
+  &__note {
+    margin: 0 0 var(--blox-space-md);
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+  }
+}
+
+.blox-installment-schedule {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.blox-wizard-agent-invite {
+  margin-top: var(--blox-space-md);
+  padding-top: var(--blox-space-md);
+  border-top: 1px solid var(--blox-border);
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--blox-space-md);
+  }
+
+  &__link {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--blox-emerald);
+      text-decoration: underline;
+    }
+  }
+
+  &__feedback {
+    margin: var(--blox-space-sm) 0 0;
+    font-size: 0.875rem;
+    color: var(--blox-emerald);
+  }
+
+  &__form {
+    margin-top: var(--blox-space-md);
+    padding: var(--blox-space-md);
+    background: var(--blox-canvas);
+    border: 1px solid var(--blox-border);
+    border-radius: var(--blox-radius-card);
+  }
+}
+
+.blox-agent-list {
+  list-style: none;
+  margin: 0 0 var(--blox-space-lg);
+  padding: 0;
+  display: grid;
+  gap: var(--blox-space-sm);
+
+  &__item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--blox-space-md);
+    border: 1px solid var(--blox-border);
+    border-radius: var(--blox-radius-sm);
+    background: var(--blox-canvas);
+
+    strong {
+      color: var(--blox-ink);
+    }
+
+    span {
+      font-size: 0.8125rem;
+      color: var(--blox-slate);
+    }
+  }
+}
+
+.blox-agent-invite-form {
+  margin-top: var(--blox-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--blox-space-sm);
+}
+
+.blox-form-success {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--blox-emerald);
+}
+

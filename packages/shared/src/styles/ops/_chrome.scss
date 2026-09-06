@@ -1,0 +1,102 @@
+// Blox ops chrome tokens and reset, scoped to .blox-ops.
+@use 'vars' as *;
+
+/* Blox ops chrome — used by admin, dealer, credit, finance, super-admin */
+
+
+.blox-ops {
+  --blox-deep-green: #16535B;
+  --blox-deep-green-dark: #0F3F45;
+  --blox-emerald: #00CFA2;
+  --blox-emerald-soft: #E6FBF5;
+  --blox-lime: #00CFA2;
+  --blox-slate: #708090;
+  --blox-slate-soft: #D8E2E2;
+  --blox-canvas: #F0F5F5;
+  --blox-surface: #ffffff;
+  --blox-ink: #16535B;
+  --blox-border: #D8E2E2;
+  --blox-surface-muted: #F0F5F5;
+  --blox-danger: #b42318;
+  /* Phase 1 semantic additions — docs/design/blox-ops-design-system-phase1.html §01 */
+  --blox-emerald-ink: #0B7A63;
+  --blox-muted: #E8EFEF;
+  --blox-field-border: #A9B8BA;
+  --blox-success: #00CFA2;
+  --blox-success-soft: #E6FBF5;
+  --blox-warning: #C47A00;
+  --blox-warning-ink: #8A5400;
+  --blox-warning-soft: #FBF1DF;
+  --blox-danger-soft: #FBEBE9;
+  --blox-focus-ring: 0 0 0 2px #FFFFFF, 0 0 0 4px #00CFA2;
+  --blox-radius-control: 8px;
+  --blox-radius-card: 12px;
+  --blox-radius-dialog: 16px;
+  --blox-radius-pill: 999px;
+  --blox-shadow-pop: 0 8px 24px rgba(22, 83, 91, 0.12);
+  --blox-radius: 10px;
+  --blox-radius-sm: 8px;
+  --blox-space: 20px;
+  --blox-font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --blox-font-display: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --blox-shadow: 0 1px 2px rgba(15, 63, 69, 0.04);
+  --bp-xs: #{$bp-xs};
+  --bp-sm: #{$bp-sm};
+  --bp-md: #{$bp-md};
+  --bp-lg: #{$bp-lg};
+  --bp-xl: #{$bp-xl};
+  --bp-xxl: #{$bp-xxl};
+  --bp-content-max: #{$bp-content-max};
+  --bp-content-wide: #{$bp-content-wide};
+  --bp-content-ultra: #{$bp-content-ultra};
+
+  /* Bridge legacy DriveMarket CSS vars used in dealer/credit pages */
+  --dm-font-display: var(--blox-font-display);
+  --dm-font-ui: var(--blox-font-ui);
+  --dm-slate-600: var(--blox-slate);
+  --dm-slate-400: var(--blox-slate-soft);
+  --dm-danger: var(--blox-danger);
+  --dm-canvas: var(--blox-canvas);
+  --dm-surface: var(--blox-surface);
+  --dm-ink: var(--blox-ink);
+  --dm-amber: var(--blox-emerald);
+  --dm-steel: var(--blox-emerald);
+  --dm-graphite-900: var(--blox-deep-green);
+  --dm-graphite-800: var(--blox-deep-green-dark);
+  --dm-graphite-700: #0F3F45;
+
+  min-height: 100vh;
+  background: var(--blox-canvas);
+  color: var(--blox-ink);
+  font-family: var(--blox-font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+
+  .dm-btn-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--blox-emerald);
+    color: var(--blox-deep-green);
+    border: none;
+    border-radius: var(--blox-radius-sm);
+    min-height: 36px;
+    padding: 0 14px;
+    font-family: var(--blox-font-ui);
+    font-weight: 600;
+    font-size: 0.8125rem;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover {
+      filter: brightness(0.97);
+    }
+  }
+}
+
+.blox-ops *,
+.blox-ops *::before,
+.blox-ops *::after {
+  box-sizing: border-box;
+}
+

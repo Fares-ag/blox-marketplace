@@ -35,6 +35,12 @@
       "import": "./src/lib/tenure.ts",
       "require": "./dist/lib/tenure.cjs",
       "default": "./src/lib/tenure.ts"
+    },
+    "./domain-rules": {
+      "types": "./src/lib/domain-rules-server.ts",
+      "import": "./src/lib/domain-rules-server.ts",
+      "require": "./dist/lib/domain-rules.cjs",
+      "default": "./src/lib/domain-rules-server.ts"
     }
   },
   "scripts": {
@@ -43,7 +49,8 @@
     "build:installment-plan": "npx --yes esbuild@0.25.0 src/lib/installment-plan-server.ts --bundle --platform=node --format=cjs --outfile=dist/lib/installment-plan.cjs",
     "test": "vitest run",
     "lint": "eslint .",
-    "build:tenure": "npx --yes esbuild@0.25.0 src/lib/tenure.ts --bundle --platform=node --format=cjs --outfile=dist/lib/tenure.cjs"
+    "build:tenure": "npx --yes esbuild@0.25.0 src/lib/tenure.ts --bundle --platform=node --format=cjs --outfile=dist/lib/tenure.cjs",
+    "build:domain-rules": "npx --yes esbuild@0.25.0 src/lib/domain-rules-server.ts --bundle --platform=node --format=cjs --outfile=dist/lib/domain-rules.cjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -55,6 +62,7 @@
     "@tanstack/react-query": "^5.66.0",
     "chart.js": "^4.5.1",
     "i18next": "^26.3.6",
+    "lucide-react": "^1.41.0",
     "react": "^19.0.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.0.0",

@@ -54,11 +54,7 @@ export function CompanyPage() {
         <>
           <section className="blox-detail-section">
             {data.logo_url && (
-              <img
-                src={data.logo_url}
-                alt={data.name}
-                style={{ maxHeight: 72, maxWidth: 200, objectFit: 'contain', marginBottom: 20 }}
-              />
+              <img src={data.logo_url} alt={data.name} className="blox-company-logo" />
             )}
             <InfoItem label={t('ops.dealer.companyName')}>{data.name}</InfoItem>
             {data.code && <InfoItem label={t('ops.dealer.companyCode')}>{data.code}</InfoItem>}
@@ -70,36 +66,20 @@ export function CompanyPage() {
             {data.address && <InfoItem label={t('ops.dealer.companyAddress')}>{data.address}</InfoItem>}
             {(branding.primary || branding.accent) && (
               <>
-                <h3 style={{ margin: '16px 0 8px', fontSize: '0.875rem' }}>{t('ops.dealer.companyBranding')}</h3>
+                <h3 className="blox-panel__subtitle">{t('ops.dealer.companyBranding')}</h3>
                 {branding.primary && (
                   <InfoItem label={t('ops.dealer.brandingPrimary')}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <span
-                        style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: 4,
-                          background: branding.primary,
-                          border: '1px solid var(--blox-border)',
-                        }}
-                      />
-                      {branding.primary}
+                    <span className="blox-cell-row">
+                      <span className="blox-swatch" style={{ background: branding.primary }} aria-hidden />
+                      <span className="blox-table__mono">{branding.primary}</span>
                     </span>
                   </InfoItem>
                 )}
                 {branding.accent && (
                   <InfoItem label={t('ops.dealer.brandingAccent')}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <span
-                        style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: 4,
-                          background: branding.accent,
-                          border: '1px solid var(--blox-border)',
-                        }}
-                      />
-                      {branding.accent}
+                    <span className="blox-cell-row">
+                      <span className="blox-swatch" style={{ background: branding.accent }} aria-hidden />
+                      <span className="blox-table__mono">{branding.accent}</span>
                     </span>
                   </InfoItem>
                 )}

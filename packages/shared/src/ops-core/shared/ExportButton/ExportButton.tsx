@@ -1,69 +1,37 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '../../core/Button/Button';
-import { Menu, MenuItem } from '@mui/material';
-import { GetApp, FileDownload } from '@mui/icons-material';
 import { exportToCSV, exportToJSON } from '../../utils/export';
-import './ExportButton.scss';
 
 interface ExportButtonProps {
   data: any[];
   filename: string;
   onExport?: (format: 'csv' | 'json') => void;
+  /** Formats to offer; defaults to CSV only (JSON is rarely what ops staff want). */
+  formats?: Array<'csv' | 'json'>;
 }
 
-export const ExportButton: React.FC<ExportButtonProps> = ({ data, filename, onExport }) => {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleExport = (format: 'csv' | 'json') => {
-    if (format === 'csv') {
-      exportToCSV(data, filename);
-    } else {
-      exportToJSON(data, filename);
-    }
-    onExport?.(format);
-    handleClose();
-  };
-
+function DownloadIcon() {
   return (
-    <>
-      <Button
-        variant="secondary"
-        startIcon={<GetApp />}
-        onClick={handleClick}
-        className="export-button"
-      >
-        Export
-      </Button>
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-      >
-        <MenuItem onClick={() => handleExport('csv')}>
-          <FileDownload sx={{ mr: 1 }} />
-          Export as CSV
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('json')}>
-          <FileDownload sx={{ mr: 1 }} />
-          Export as JSON
-        </MenuItem>
-      </Menu>
-    </>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+      <path d="M8 2v8m-3.5-3L8 10.5 11.5 7M3 13h10" />
+    </svg>
+  );
+}
+
+/** Export control — no MUI (Phase 2). One button per format; no menu to open first. */
+export const ExportButton: React.FC<ExportButtonProps> = ({ data, filename, onExport, formats = ['csv'] }) => {
+  const run = (format: 'csv' | 'json') => {
+    if (format === 'csv') exportToCSV(data, filename);
+    else exportToJSON(data, filename);
+    onExport?.(format);
+  };
+  return (
+    <span className="blox-export">
+      {formats.map((format) => (
+        <Button key={format} variant="secondary" size="sm" startIcon={<DownloadIcon />} onClick={() => run(format)} disabled={!data?.length}>
+          {format === 'csv' ? 'Export CSV' : 'Export JSON'}
+        </Button>
+      ))}
+    </span>
   );
 };

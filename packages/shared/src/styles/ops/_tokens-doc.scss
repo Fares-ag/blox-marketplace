@@ -1,0 +1,69 @@
+// Document-level ops tokens (:root). Marketplace never imports this file.
+/* Ops-only document tokens. Marketplace never imports this file. */
+:root {
+  --blox-deep-green: #16535B;
+  --blox-deep-green-dark: #0F3F45;
+  --blox-emerald: #00CFA2;
+  --blox-emerald-soft: #E6FBF5;
+  --blox-lime: #00CFA2;
+  --blox-slate: #708090;
+  --blox-slate-soft: #D8E2E2;
+  --blox-canvas: #F0F5F5;
+  --blox-surface: #ffffff;
+  --blox-ink: #16535B;
+  --blox-border: #D8E2E2;
+  --blox-surface-muted: #F0F5F5;
+  --blox-danger: #b42318;
+  /* Phase 1 semantic additions — docs/design/blox-ops-design-system-phase1.html §01 */
+  --blox-emerald-ink: #0B7A63;
+  --blox-muted: #E8EFEF;
+  --blox-field-border: #A9B8BA;
+  --blox-success: #00CFA2;
+  --blox-success-soft: #E6FBF5;
+  --blox-warning: #C47A00;
+  --blox-warning-ink: #8A5400;
+  --blox-warning-soft: #FBF1DF;
+  --blox-danger-soft: #FBEBE9;
+  --blox-focus-ring: 0 0 0 2px #FFFFFF, 0 0 0 4px #00CFA2;
+  --blox-radius-control: 8px;
+  --blox-radius-card: 12px;
+  --blox-radius-dialog: 16px;
+  --blox-radius-pill: 999px;
+  --blox-shadow-pop: 0 8px 24px rgba(22, 83, 91, 0.12);
+  --dm-amber: #00CFA2;
+  --dm-amber-deep: #0F3F45;
+  --dm-steel: #00CFA2;
+  --dm-steel-soft: #E6FBF5;
+  --dm-graphite-980: #0F3F45;
+  --dm-graphite-900: #16535B;
+  --dm-graphite-800: #0F3F45;
+  --dm-graphite-700: #0F3F45;
+  --dm-ink: #16535B;
+  --dm-slate-600: #708090;
+  --dm-slate-400: #8a9aa2;
+  --dm-slate-200: #D8E2E2;
+  --dm-canvas: #F0F5F5;
+  --dm-surface: #ffffff;
+  --dm-surface-muted: #E6FBF5;
+  --toastify-color-progress-success: #00CFA2;
+  --toastify-color-success: #00CFA2;
+  --blox-space-xs: 4px;
+  --blox-space-sm: 8px;
+  --blox-space-md: 12px;
+  --blox-space-lg: 16px;
+  --blox-space-xl: 24px;
+  --blox-space-xxl: 32px;
+  --blox-space-xxxl: 48px;
+  --blox-radius-md: 12px;
+  --blox-radius-lg: 16px;
+  --blox-shadow-rest: 0 1px 3px 0 rgba(22, 83, 91, 0.08), 0 1px 2px -1px rgba(22, 83, 91, 0.04);
+  --blox-shadow-hover: 0 8px 24px rgba(22, 83, 91, 0.12);
+  --blox-shadow-modal: 0 16px 48px rgba(15, 63, 69, 0.18);
+  --blox-motion-fast: 150ms;
+  --blox-motion-normal: 200ms;
+  --blox-motion-slow: 300ms;
+  --blox-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --blox-font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+  --bp-content-max: 1600px;
+}
+

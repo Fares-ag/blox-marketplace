@@ -64,13 +64,17 @@ export function DashboardPage() {
       title={t('ops.credit.dashboardTitle')}
       subtitle={t('ops.credit.dashboardSubtitle')}
       headerActions={
-        <Link to="/queue" style={{ textDecoration: 'none' }}>
+        <Link to="/queue" className="blox-link-reset">
           <OpsPrimaryButton>{t('ops.credit.nav.queue')}</OpsPrimaryButton>
         </Link>
       }
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       metrics={[
-        { label: t('ops.dashboard.inReview'), value: String(data?.in_review ?? '—') },
+        {
+          label: t('ops.dashboard.inReview'),
+          value: String(data?.in_review ?? '—'),
+          trend: data?.review_volume_by_week?.map((w: { count: number }) => w.count),
+        },
         { label: t('ops.dashboard.resubmissions'), value: String(data?.resubmissions_pending ?? '—') },
         { label: t('ops.dashboard.approvedToday'), value: String(data?.approved_today ?? '—') },
         { label: t('ops.dashboard.rejected30d'), value: String(data?.rejected_30d ?? '—') },
@@ -123,7 +127,7 @@ export function DashboardPage() {
                 variant={applicationOpsPillVariant(row.status)}
               />,
               new Date(row.updated_at).toLocaleDateString(),
-              <Link key={`${row.id}-link`} to={`/applications/${row.id}`} style={{ textDecoration: 'none' }}>
+              <Link key={`${row.id}-link`} to={`/applications/${row.id}`} className="blox-link-reset">
                 <OpsGhostButton>{t('ops.dashboard.open')}</OpsGhostButton>
               </Link>,
             ])}

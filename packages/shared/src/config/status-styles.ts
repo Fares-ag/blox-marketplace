@@ -1,6 +1,30 @@
 import type { ApplicationStatus, CompanyStatus, ListingStatus } from '../types/domain';
 
-export type OpsPillVariant =
+/**
+ * Semantic pill variants (Phase 1 §06). Each maps to a contrast-checked
+ * ground/text/dot triple in `styles/ops/_pills.scss`.
+ *
+ *   neutral  — draft, completed, cancelled, waived, archived, inactive
+ *   info     — waiting on Blox (under review, pending activation, due)
+ *   progress — contract stage (signing required, contracts submitted)
+ *   success  — active, paid, published, down payment submitted
+ *   warning  — waiting on the customer (resubmission, down payment required)
+ *   danger   — rejected, overdue, failed
+ *   ink      — terminal state owned by Blox (sold)
+ *   outline  — state lives elsewhere (partner processing, upcoming)
+ */
+export type OpsPillSemanticVariant =
+  | 'neutral'
+  | 'info'
+  | 'progress'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'ink'
+  | 'outline';
+
+/** @deprecated legacy names; still styled, alias onto the semantic variants. */
+export type OpsPillLegacyVariant =
   | 'active'
   | 'published'
   | 'paid'
@@ -11,6 +35,8 @@ export type OpsPillVariant =
   | 'expired'
   | 'reserved'
   | 'sold';
+
+export type OpsPillVariant = OpsPillSemanticVariant | OpsPillLegacyVariant;
 
 export type MarketplacePillVariant = 'approved' | 'pending' | 'rejected' | 'action';
 
@@ -95,16 +121,30 @@ export function companyStatusLabel(status: string | undefined | null): string {
 
 /** Ops portal pill variant for company statuses. */
 export function companyOpsPillVariant(status: string | undefined | null): OpsPillVariant {
-  if (status === 'active') return 'approved';
-  if (status === 'inactive') return 'draft';
-  return 'pending';
+  if (status === 'active') return 'success';
+  return 'neutral';
 }
 
-/** Ops portal pill variant for financing application statuses. */
+const APPLICATION_PILL_VARIANTS: Record<ApplicationStatus, OpsPillSemanticVariant> = {
+  draft: 'neutral',
+  under_review: 'info',
+  resubmission_required: 'warning',
+  contract_signing_required: 'progress',
+  contracts_submitted: 'progress',
+  contract_under_review: 'info',
+  down_payment_required: 'warning',
+  down_payment_submitted: 'success',
+  pending_finance_activation: 'info',
+  partner_processing: 'outline',
+  active: 'success',
+  completed: 'neutral',
+  rejected: 'danger',
+  submission_cancelled: 'neutral',
+};
+
+/** Ops portal pill variant for financing application statuses (Phase 1 §06 mapping). */
 export function applicationOpsPillVariant(status: string): OpsPillVariant {
-  if (status === 'active' || status === 'completed') return 'approved';
-  if (status === 'rejected' || status === 'submission_cancelled') return 'rejected';
-  return 'pending';
+  return APPLICATION_PILL_VARIANTS[status as ApplicationStatus] ?? 'neutral';
 }
 
 /** Marketplace customer-facing pill variant for application statuses. */
@@ -117,17 +157,37 @@ export function applicationMarketplacePillVariant(status: string): MarketplacePi
 
 /** Ops portal pill variant for inventory listing statuses. */
 export function listingOpsPillVariant(status: string): OpsPillVariant {
-  if (status === 'published') return 'published';
-  if (status === 'draft') return 'draft';
-  if (status === 'reserved') return 'reserved';
-  if (status === 'sold') return 'sold';
-  return 'pending';
+  if (status === 'published') return 'success';
+  if (status === 'reserved') return 'warning';
+  if (status === 'sold') return 'ink';
+  return 'neutral'; // draft, archived
 }
 
-/** Ops portal pill variant for installment schedule statuses. */
+/**
+ * Ops portal pill variant for installment schedule statuses. Accepts the raw
+ * API status (`pending`, `overdue`, …) or a display status (`due`, `upcoming`).
+ */
 export function scheduleOpsPillVariant(status: string): OpsPillVariant {
-  if (status === 'paid') return 'approved';
-  if (status === 'overdue') return 'rejected';
-  if (status === 'waived') return 'draft';
-  return 'pending';
+  switch (status) {
+    case 'paid':
+      return 'success';
+    case 'overdue':
+      return 'danger';
+    case 'partially_paid':
+      return 'warning';
+    case 'waived':
+      return 'neutral';
+    case 'upcoming':
+      return 'outline';
+    default:
+      return 'info'; // pending, due, active, unpaid
+  }
+}
+
+/** Ops portal pill variant for payment transaction statuses. */
+export function transactionOpsPillVariant(status: string): OpsPillVariant {
+  if (status === 'paid' || status === 'confirmed' || status === 'succeeded') return 'success';
+  if (status === 'failed' || status === 'declined') return 'danger';
+  if (status === 'refunded' || status === 'cancelled') return 'neutral';
+  return 'info'; // pending, pending_bank
 }

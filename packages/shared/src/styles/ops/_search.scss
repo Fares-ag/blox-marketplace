@@ -1,0 +1,88 @@
+// Search bar — Phase 1 §08.
+.blox-search {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 200px;
+
+  &__icon {
+    position: absolute;
+    inset-inline-start: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--blox-slate);
+    pointer-events: none;
+  }
+
+  &__input {
+    width: 100%;
+    height: 36px;
+    padding: 0 40px 0 34px;
+    padding-inline-start: 34px;
+    padding-inline-end: 40px;
+    border: 1px solid var(--blox-field-border, #a9b8ba);
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-surface);
+    color: var(--blox-ink);
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    transition: border-color var(--blox-motion-fast, 150ms), box-shadow var(--blox-motion-fast, 150ms);
+
+    &::placeholder {
+      color: var(--blox-slate);
+    }
+
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+
+    &:hover {
+      border-color: var(--blox-deep-green);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--blox-deep-green);
+      box-shadow: 0 0 0 3px var(--blox-emerald-soft), 0 0 0 4px var(--blox-emerald);
+    }
+  }
+
+  &__kbd,
+  &__clear {
+    position: absolute;
+    inset-inline-end: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--blox-font-mono);
+    font-size: 0.6875rem;
+    color: var(--blox-slate);
+  }
+
+  &__kbd {
+    padding: 2px 6px;
+    border: 1px solid var(--blox-border);
+    border-radius: 4px;
+    background: var(--blox-canvas);
+    line-height: 1.2;
+  }
+
+  &__clear {
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--blox-canvas);
+      color: var(--blox-deep-green);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--blox-focus-ring);
+    }
+  }
+}

@@ -49,10 +49,10 @@ export function DashboardPage() {
       subtitle={t('ops.dealer.dashboardSubtitle')}
       headerActions={
         <div className="blox-inline-actions">
-          <Link to="/quotes" style={{ textDecoration: 'none' }}>
+          <Link to="/quotes" className="blox-link-reset">
             <OpsSecondaryButton>{t('ops.dealer.nav.quotes')}</OpsSecondaryButton>
           </Link>
-          <Link to="/inventory/new" style={{ textDecoration: 'none' }}>
+          <Link to="/inventory/new" className="blox-link-reset">
             <OpsPrimaryButton>{t('ops.dealer.createListing')}</OpsPrimaryButton>
           </Link>
         </div>
@@ -65,6 +65,8 @@ export function DashboardPage() {
           label: t('ops.dashboard.submissionsMonth'),
           value: String(data?.submissions_this_month ?? '—'),
           delta: `${inv.draft} draft listings`,
+          deltaTone: 'neutral',
+          trend: data?.submissions_by_week?.map((w: { count: number }) => w.count),
         },
       ]}
     >
@@ -82,9 +84,9 @@ export function DashboardPage() {
 
         <ChartPanel title={t('ops.dashboard.applicationsByStatus')}>
           {appLabels.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--blox-slate)' }}>{t('ops.admin.noAppsYet')}</p>
+            <p className="blox-muted">{t('ops.admin.noAppsYet')}</p>
           ) : (
-            <div style={{ maxWidth: 280, margin: '0 auto' }}>
+            <div className="blox-chart-donut">
               <Doughnut
                 data={{
                   labels: appLabels.map((s) => applicationStatus(s)),
@@ -122,13 +124,13 @@ export function DashboardPage() {
         <OpsContentCard staticHover>
           <h2 className="blox-panel__title">{t('ops.dashboard.quickLinks')}</h2>
           <div className="blox-stack">
-            <Link to="/applications/new" style={{ textDecoration: 'none' }}>
+            <Link to="/applications/new" className="blox-link-reset">
               <OpsPrimaryButton>{t('ops.dealer.nav.newApplication')}</OpsPrimaryButton>
             </Link>
-            <Link to="/inventory" style={{ textDecoration: 'none' }}>
+            <Link to="/inventory" className="blox-link-reset">
               <OpsSecondaryButton>{t('ops.dealer.nav.inventory')}</OpsSecondaryButton>
             </Link>
-            <Link to="/applications" style={{ textDecoration: 'none' }}>
+            <Link to="/applications" className="blox-link-reset">
               <OpsGhostButton>{t('ops.dealer.nav.applications')}</OpsGhostButton>
             </Link>
           </div>

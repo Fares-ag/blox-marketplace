@@ -79,6 +79,7 @@ export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: stri
     () => [
       {
         id: 'id',
+        mono: true,
         label: t('ops.col.application'),
         format: (_, a) => <Link to={`${detailBase}/${a.id}`}>{a.id.slice(0, 10)}…</Link>,
       },
@@ -98,6 +99,7 @@ export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: stri
       },
       {
         id: 'customer',
+        cardTitle: true,
         label: t('ops.col.customer'),
         format: (_, a) => (
           <>
@@ -110,6 +112,8 @@ export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: stri
       { id: 'dealer', label: t('ops.col.dealer'), format: (_, a) => a.company?.name ?? '—' },
       {
         id: 'status',
+        sortable: true,
+        cardStatus: true,
         label: t('ops.col.status'),
         format: (_, a) => (
           <OpsStatusPill label={applicationStatus(a.status)} variant={applicationOpsPillVariant(a.status)} />
@@ -132,7 +136,7 @@ export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: stri
       title={t('ops.finance.queueTitle')}
       subtitle={mainTab === 'activation' ? t('ops.finance.activationSubtitle') : t('ops.finance.reviewSubtitle')}
       metrics={metrics}
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           search={

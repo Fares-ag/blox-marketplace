@@ -1,6 +1,6 @@
-import { Box, LinearProgress, Typography } from '@mui/material';
 import { chartColors } from '../../config/chart-palette';
 
+/** Single horizontal bar with a label and percentage — no MUI (Phase 2). */
 export function HorizontalBarChart({
   label,
   value,
@@ -17,32 +17,19 @@ export function HorizontalBarChart({
   const percentage = maxValue > 0 ? Math.min((value / maxValue) * 100, 100) : 0;
 
   return (
-    <Box sx={{ mb: 1.5 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
-        <Typography variant="body2">{label}</Typography>
-        {showValue && (
-          <Typography variant="body2" color="text.secondary">
-            {percentage.toFixed(1)}%
-          </Typography>
-        )}
-      </Box>
-      <LinearProgress
-        variant="determinate"
-        value={percentage}
-        sx={{
-          height: 20,
-          borderRadius: '4px',
-          backgroundColor: chartColors.track,
-          '& .MuiLinearProgress-bar': {
-            borderRadius: '4px',
-            backgroundColor: color,
-          },
-        }}
-      />
-    </Box>
+    <div className="blox-hbar">
+      <div className="blox-hbar__head">
+        <span className="blox-hbar__label">{label}</span>
+        {showValue && <span className="blox-hbar__value">{percentage.toFixed(1)}%</span>}
+      </div>
+      <div className="blox-hbar__track" role="img" aria-label={`${label} ${percentage.toFixed(1)}%`}>
+        <span className="blox-hbar__fill" style={{ width: `${percentage}%`, background: color }} />
+      </div>
+    </div>
   );
 }
 
+/** Stacked segments summing to a total, with a legend — no MUI (Phase 2). */
 export function SegmentedBarChart({
   label,
   segments,
@@ -59,29 +46,27 @@ export function SegmentedBarChart({
   }));
 
   return (
-    <Box sx={{ mb: 1.5 }}>
-      <Typography variant="body2" sx={{ mb: 1 }}>
-        {label}
-      </Typography>
-      <Box sx={{ display: 'flex', height: 24, borderRadius: '4px', overflow: 'hidden', background: chartColors.track }}>
+    <div className="blox-hbar">
+      <div className="blox-hbar__head">
+        <span className="blox-hbar__label">{label}</span>
+      </div>
+      <div className="blox-hbar__track blox-hbar__track--stacked" role="img" aria-label={label}>
         {segmentPercentages.map((segment, index) => (
-          <Box
+          <span
             key={`${segment.label}-${index}`}
-            sx={{
-              width: `${segment.percentage}%`,
-              backgroundColor: segment.color,
-              minWidth: segment.percentage > 0 ? 4 : 0,
-            }}
+            className="blox-hbar__segment"
+            style={{ width: `${segment.percentage}%`, background: segment.color }}
           />
         ))}
-      </Box>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 1 }}>
+      </div>
+      <div className="blox-hbar__legend">
         {segmentPercentages.map((segment, index) => (
-          <Typography key={`${segment.label}-legend-${index}`} variant="body2" sx={{ color: segment.color }}>
+          <span key={`${segment.label}-legend-${index}`} className="blox-hbar__legend-item">
+            <i className="blox-chart-legend__dot" style={{ background: segment.color }} />
             {segment.percentage.toFixed(1)}% {segment.label}
-          </Typography>
+          </span>
         ))}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

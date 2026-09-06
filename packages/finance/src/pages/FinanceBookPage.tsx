@@ -104,7 +104,7 @@ export function FinanceBookPage() {
           value: data ? `QAR ${data.summary.remaining_principal.toLocaleString()}` : '—',
         },
       ]}
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           search={

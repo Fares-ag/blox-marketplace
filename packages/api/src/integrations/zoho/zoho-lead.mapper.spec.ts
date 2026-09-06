@@ -15,13 +15,13 @@ const base = {
   pricingSnapshot: { list_price: 98000, down_payment: 9800, down_payment_pct: 10, monthly: 3120, tenor: 36 },
   status: 'under_review',
   leadSource: null,
-  product: { make: 'Chery', model: 'Tiggo 7', modelYear: 2026 } as never,
+  product: { make: 'Chery', model: 'Tiggo 7', modelYear: 2026, condition: 'used' } as never,
   company: { id: 'c1', name: 'Elite Motors' },
   offer: { name: 'Al Jazeera Standard' } as never,
 };
 
 const map = (over: Record<string, unknown> = {}) =>
-  mapApplicationToZohoLead({ ...base, ...over } as never, 'Direct to Partner', 'Partner');
+  mapApplicationToZohoLead({ ...base, ...over } as never, 'Direct to Partner', 'Partners');
 
 describe('zoho-lead.mapper', () => {
   it('never sends a field that does not exist on the layout', () => {
@@ -43,7 +43,35 @@ describe('zoho-lead.mapper', () => {
   it('sends only picklist values that exist on the layout', () => {
     const payload = map();
     expect(payload.Request_Submitted_To).toBe('Direct to Partner');
-    expect(payload.Lead_Source).toBe('Partner');
+    expect(payload.Lead_Source).toBe('Partners');
+  });
+
+  it('never assigns Prospect Owner or Sales Agent', () => {
+    const payload = map();
+    expect(payload).not.toHaveProperty('Owner');
+    expect(payload).not.toHaveProperty('Sales_Agent');
+    expect(payload).not.toHaveProperty('Prospect_Owner');
+  });
+
+  it('carries Used/New Car and Age in Sales_Agent_Comments', () => {
+    const details = String(
+      map({
+        product: { ...base.product, condition: 'new' },
+        customerSnapshot: { ...base.customerSnapshot, dateOfBirth: '1990-06-15' },
+      }).Sales_Agent_Comments,
+    );
+    expect(details).toContain('Used / New Car: New Car');
+    expect(details).toMatch(/Age: \d+/);
+  });
+
+  it('maps current obligations to Reason_for_Request', () => {
+    const payload = map({
+      customerSnapshot: {
+        ...base.customerSnapshot,
+        currentObligations: 'QAR 2,500 monthly personal loan',
+      },
+    });
+    expect(payload.Reason_for_Request).toBe('QAR 2,500 monthly personal loan');
   });
 
   it('populates the mandatory Last_Name, splitting the full name', () => {

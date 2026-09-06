@@ -1,0 +1,258 @@
+// Layout grid utilities, content cards, form grid and OpsField shells.
+@use 'vars' as *;
+
+/* ── Layout grid utilities ── */
+.blox-grid-2,
+.blox-grid-3,
+.blox-grid-4 {
+  display: grid;
+  gap: var(--blox-space-lg, 16px);
+}
+
+.blox-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.blox-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.blox-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: $bp-md) {
+  .blox-grid-3,
+  .blox-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: $bp-sm) {
+  .blox-grid-2,
+  .blox-grid-3,
+  .blox-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blox-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--blox-space-lg, 16px);
+}
+
+.blox-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--blox-space-sm, 8px);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.blox-content-card {
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-lg, 16px);
+  padding: var(--blox-space-xl, 24px);
+  box-shadow: var(--blox-shadow-rest, var(--blox-shadow));
+  transition: transform var(--blox-motion-fast) var(--blox-ease-standard),
+    box-shadow var(--blox-motion-fast) var(--blox-ease-standard);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--blox-shadow-hover);
+  }
+
+  &--static:hover {
+    transform: none;
+    box-shadow: var(--blox-shadow-rest, var(--blox-shadow));
+  }
+}
+
+.blox-chart-panel {
+  min-height: 320px;
+}
+
+.blox-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--blox-space-lg, 16px);
+
+  @media (max-width: $bp-sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blox-form-grid__full {
+  grid-column: 1 / -1;
+}
+
+.blox-checkbox-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--blox-ink);
+
+  input[type='checkbox'] {
+    width: 1.125rem;
+    height: 1.125rem;
+    min-height: 0;
+    margin: 0;
+    flex: 0 0 auto;
+    accent-color: var(--blox-deep-green);
+    cursor: pointer;
+  }
+
+  span {
+    line-height: 1.4;
+  }
+}
+
+// Field shell — Phase 1 §04. Label above (13/600 deep green), 36px control, hint and error below.
+.blox-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  &__label {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+  }
+
+  &__req {
+    color: var(--blox-danger);
+    font-weight: 600;
+  }
+
+  &__optional {
+    margin-inline-start: auto;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--blox-slate);
+  }
+
+  &__hint {
+    font-size: 0.75rem;
+    color: var(--blox-slate);
+    margin: 0;
+  }
+
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--blox-danger);
+    margin: 0;
+
+    &::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blox-danger);
+      flex: none;
+    }
+  }
+
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--blox-field-border, #a9b8ba);
+    border-radius: var(--blox-radius-control, 8px);
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    color: var(--blox-ink);
+    background: var(--blox-surface);
+    transition: border-color var(--blox-motion-fast, 150ms), box-shadow var(--blox-motion-fast, 150ms);
+
+    &::placeholder {
+      color: var(--blox-slate);
+    }
+
+    &:hover:not(:disabled) {
+      border-color: var(--blox-deep-green);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--blox-deep-green);
+      box-shadow: 0 0 0 3px var(--blox-emerald-soft), 0 0 0 4px var(--blox-emerald);
+    }
+
+    &:disabled {
+      background: var(--blox-canvas);
+      color: var(--blox-slate);
+      border-color: var(--blox-border);
+      cursor: not-allowed;
+    }
+
+    &:read-only:not(select) {
+      border-color: transparent;
+      border-bottom-color: var(--blox-border);
+      border-radius: 0;
+      padding-inline: 0;
+    }
+  }
+
+  input[type='file'] {
+    padding-block: 6px;
+    line-height: 1.4;
+  }
+
+  select {
+    appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--blox-slate) 50%),
+      linear-gradient(135deg, var(--blox-slate) 50%, transparent 50%);
+    background-position:
+      calc(100% - 16px) 15px,
+      calc(100% - 11px) 15px;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    padding-inline-end: 32px;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 1rem;
+    height: 1rem;
+    min-height: 0;
+    margin: 0;
+    flex: 0 0 auto;
+    accent-color: var(--blox-emerald);
+  }
+
+  textarea {
+    height: auto;
+    min-height: 88px;
+    padding: 9px 12px;
+    line-height: 1.45;
+    resize: vertical;
+  }
+
+  &--mono input,
+  &--mono textarea {
+    font-family: var(--blox-font-mono);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &--error input:not([type='checkbox']):not([type='radio']),
+  &--error select,
+  &--error textarea {
+    border-color: var(--blox-danger);
+
+    &:focus {
+      box-shadow: 0 0 0 3px var(--blox-danger-soft, #fbebe9), 0 0 0 4px var(--blox-danger);
+    }
+  }
+}
+
+

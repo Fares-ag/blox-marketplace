@@ -1,38 +1,33 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import {
-  ConfirmDialog,
   OpsDataTable,
   OpsEmptyState,
   OpsListPage,
   OpsStatusPill,
   OpsToolbar,
+  RecordPaymentDialog,
   apiFetch,
   buildPaginationQuery,
   paginationWindow,
   scheduleOpsPillVariant,
   useOpsLabels,
+  type RecordPaymentTarget,
 } from '@drivemarket/shared';
 
-type ScheduleRow = {
-  id: string;
+type ScheduleRow = RecordPaymentTarget & {
   customer_name: string | null;
   customer_email: string;
   vehicle: string;
   company_name: string;
-  sequence: number;
   due_date: string;
   amount: number;
   paid_amount: number;
-  remaining_amount: number;
   status: string;
   effective_status: string;
   payment_reference: string | null;
-  pending_waive_reason?: string | null;
-  pending_waive_requested_by_id?: string | null;
 };
-
-const PAY_METHODS = ['bank_transfer', 'card', 'cash', 'cheque'] as const;
 
 /** Real installment ledger with record-payment actions for admin. */
 export function LedgersPage() {
@@ -41,11 +36,7 @@ export function LedgersPage() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(0);
   const [payTarget, setPayTarget] = useState<ScheduleRow | null>(null);
-  const [payAmount, setPayAmount] = useState(0);
-  const [payMethod, setPayMethod] = useState<string>('bank_transfer');
-  const [payReference, setPayReference] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
-  const [payConfirmOpen, setPayConfirmOpen] = useState(false);
 
   useEffect(() => {
     setPage(0);
@@ -72,12 +63,15 @@ export function LedgersPage() {
       }),
     onSuccess: () => {
       setPayTarget(null);
-      setPayReference('');
-      setPayAmount(0);
       setActionError(null);
+      toast.success(t('ops.finance.paymentRecorded', { defaultValue: 'Payment recorded' }));
       void qc.invalidateQueries({ queryKey: ['admin-schedules'] });
     },
-    onError: (e) => setActionError((e as Error).message),
+    onError: (e) => {
+      const msg = (e as Error).message;
+      setActionError(msg);
+      toast.error(msg);
+    },
   });
 
   const { from, to, total } = paginationWindow(data?.total ?? 0, page);
@@ -88,8 +82,8 @@ export function LedgersPage() {
       subtitle={`Installment ledger across active financings${data ? ` — ${data.total} rows` : ''}`}
       error={
         <>
-          {error && <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p>}
-          {actionError && <p style={{ color: 'var(--blox-danger)' }}>{actionError}</p>}
+          {error && <p className="blox-form-error" role="alert">{(error as Error).message}</p>}
+          {actionError && <p className="blox-form-error" role="alert">{actionError}</p>}
         </>
       }
       toolbar={
@@ -143,90 +137,22 @@ export function LedgersPage() {
               onClick={() => {
                 setActionError(null);
                 setPayTarget(r);
-                setPayAmount(r.remaining_amount);
-                setPayReference('');
-                setPayMethod('bank_transfer');
               }}
             >
               {t('ops.finance.recordPayment')}
             </button>
           ) : (
-            <span key="b" style={{ fontSize: '0.75rem', opacity: 0.7 }}>{r.payment_reference ?? '—'}</span>
+            <span key="b" className="blox-table__id">{r.payment_reference ?? '—'}</span>
           ),
         ])}
       />
-      {payTarget && (
-        <div className="blox-panel" style={{ marginTop: 16, padding: 16, maxWidth: 480 }}>
-          <h3 style={{ marginTop: 0 }}>
-            {t('ops.finance.recordPaymentTitle', {
-              seq: payTarget.sequence,
-              amount: payTarget.remaining_amount.toLocaleString(),
-            })}
-          </h3>
-          <p style={{ fontSize: '0.8125rem', margin: '4px 0 12px' }}>
-            {payTarget.customer_name ?? payTarget.customer_email} · {payTarget.vehicle}
-          </p>
-          <label style={{ display: 'grid', gap: 6, fontSize: '0.8125rem', fontWeight: 600, marginBottom: 10 }}>
-            {t('ops.finance.paymentAmount')}
-            <input
-              type="number"
-              min={0.01}
-              max={payTarget.remaining_amount}
-              step={0.01}
-              value={payAmount}
-              onChange={(e) => setPayAmount(Number(e.target.value))}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: 6, fontSize: '0.8125rem', fontWeight: 600, marginBottom: 10 }}>
-            {t('ops.finance.method')}
-            <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-              {PAY_METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {t(`ops.finance.methodOption.${m}`, { defaultValue: m.replace(/_/g, ' ') })}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: 'grid', gap: 6, fontSize: '0.8125rem', fontWeight: 600, marginBottom: 14 }}>
-            {t('ops.finance.reference')}
-            <input
-              value={payReference}
-              onChange={(e) => setPayReference(e.target.value)}
-              placeholder={t('ops.finance.referencePlaceholder')}
-            />
-          </label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              className="blox-btn blox-btn--primary"
-              disabled={pay.isPending || payAmount <= 0 || payAmount > payTarget.remaining_amount}
-              onClick={() => setPayConfirmOpen(true)}
-            >
-              {pay.isPending ? t('ops.finance.recording') : t('ops.finance.confirmPayment')}
-            </button>
-            <button type="button" className="blox-btn blox-btn--ghost" onClick={() => setPayTarget(null)}>
-              {t('ops.common.cancel')}
-            </button>
-          </div>
-        </div>
-      )}
-      <ConfirmDialog
-        open={payConfirmOpen && !!payTarget}
-        title={t('ops.finance.confirmPayment')}
-        message={
-          payTarget
-            ? t('ops.finance.confirmPaymentPrompt', {
-                amount: payAmount.toLocaleString(),
-                seq: payTarget.sequence,
-              })
-            : ''
-        }
-        onCancel={() => setPayConfirmOpen(false)}
-        onConfirm={() => {
-          if (payTarget) {
-            pay.mutate({ id: payTarget.id, method: payMethod, reference: payReference, amount: payAmount });
-          }
-          setPayConfirmOpen(false);
+      <RecordPaymentDialog
+        target={payTarget}
+        busy={pay.isPending}
+        onClose={() => setPayTarget(null)}
+        onConfirm={({ method, reference, amount }) => {
+          if (!payTarget) return;
+          pay.mutate({ id: payTarget.id, method, reference, amount });
         }}
       />
     </OpsListPage>

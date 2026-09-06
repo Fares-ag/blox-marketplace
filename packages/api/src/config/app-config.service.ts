@@ -11,6 +11,13 @@ function requireNonEmpty(value: string | undefined, name: string): string {
   return trimmed;
 }
 
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  const trimmed = raw?.trim();
+  if (!trimmed) return fallback;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
 function parseOrigins(raw: string | undefined, fallback: string): string[] {
   return (raw ?? fallback)
     .split(',')
@@ -46,6 +53,8 @@ export class AppConfigService {
   readonly creditUrl: string;
   readonly financeUrl: string;
   readonly databaseUrl: string;
+  /** Lifetime of an assisted-session link (minutes); the customer must verify the OTP within it. */
+  readonly assistSessionTtlMinutes: number;
 
   constructor(config: ConfigService) {
     this.nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
@@ -66,6 +75,7 @@ export class AppConfigService {
     this.financeUrl = resolvePortalBase(config, 'FINANCE_URL', this.corsOrigins, 5179);
 
     this.databaseUrl = requireNonEmpty(config.get<string>('DATABASE_URL'), 'DATABASE_URL');
+    this.assistSessionTtlMinutes = parsePositiveInt(config.get<string>('ASSIST_SESSION_TTL_MINUTES'), 120);
 
     // Fail fast on auth misconfiguration (throws with actionable message).
     resolveAuthSecret(config);

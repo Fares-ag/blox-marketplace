@@ -128,6 +128,7 @@ export function CustomerInfoForm({
               />
               <OpsField
                 label={t('ops.wizard.corporateCr')}
+                required
                 value={value.corporate.crNumber ?? ''}
                 onChange={(e) => patch({ corporate: { ...value.corporate, crNumber: e.target.value } })}
               />
@@ -145,6 +146,7 @@ export function CustomerInfoForm({
           <OpsFormSection title={t('ops.customer.registeredAddress')}>
               <OpsField
                 label={t('ops.customer.street')}
+                required
                 value={value.corporate.registeredAddress?.street ?? ''}
                 onChange={(e) =>
                   patch({
@@ -157,6 +159,7 @@ export function CustomerInfoForm({
               />
               <OpsField
                 label={t('ops.customer.city')}
+                required
                 value={value.corporate.registeredAddress?.city ?? ''}
                 onChange={(e) =>
                   patch({
@@ -169,6 +172,7 @@ export function CustomerInfoForm({
               />
               <OpsField
                 label={t('ops.customer.country')}
+                required
                 value={value.corporate.registeredAddress?.country ?? ''}
                 onChange={(e) =>
                   patch({
@@ -195,6 +199,7 @@ export function CustomerInfoForm({
           <OpsFormSection title={t('ops.customer.authorizedSignatory')}>
               <OpsField
                 label={t('ops.customer.firstName')}
+                required
                 value={value.corporate.authorizedSignatory?.firstName ?? ''}
                 onChange={(e) =>
                   patch({
@@ -207,6 +212,7 @@ export function CustomerInfoForm({
               />
               <OpsField
                 label={t('ops.customer.lastName')}
+                required
                 value={value.corporate.authorizedSignatory?.lastName ?? ''}
                 onChange={(e) =>
                   patch({
@@ -316,11 +322,13 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.dateOfBirth')}
                 type="date"
+                required
                 value={value.dateOfBirth}
                 onChange={(e) => patch({ dateOfBirth: e.target.value })}
               />
               <OpsField
                 label={t('ops.customer.nationality')}
+                required
                 value={value.nationality}
                 onChange={(e) => patch({ nationality: e.target.value })}
               />
@@ -336,16 +344,19 @@ export function CustomerInfoForm({
           <OpsFormSection title={t('ops.customer.address')}>
               <OpsField
                 label={t('ops.customer.street')}
+                required
                 value={value.address.street ?? ''}
                 onChange={(e) => patch({ address: { ...value.address, street: e.target.value } })}
               />
               <OpsField
                 label={t('ops.customer.city')}
+                required
                 value={value.address.city ?? ''}
                 onChange={(e) => patch({ address: { ...value.address, city: e.target.value } })}
               />
               <OpsField
                 label={t('ops.customer.country')}
+                required
                 value={value.address.country ?? ''}
                 onChange={(e) => patch({ address: { ...value.address, country: e.target.value } })}
               />
@@ -358,16 +369,19 @@ export function CustomerInfoForm({
           <OpsFormSection title={t('ops.customer.employmentInfo')}>
               <OpsField
                 label={t('ops.customer.companyName')}
+                required
                 value={value.employment.company ?? ''}
                 onChange={(e) => patch({ employment: { ...value.employment, company: e.target.value } })}
               />
               <OpsField
                 label={t('ops.customer.position')}
+                required
                 value={value.employment.position ?? ''}
                 onChange={(e) => patch({ employment: { ...value.employment, position: e.target.value } })}
               />
               <OpsSelect
                 label={t('ops.customer.employmentType')}
+                required
                 value={value.employment.employmentType ?? ''}
                 onChange={(e) => patch({ employment: { ...value.employment, employmentType: e.target.value } })}
               >
@@ -380,6 +394,7 @@ export function CustomerInfoForm({
               </OpsSelect>
               <OpsSelect
                 label={t('ops.customer.employmentDuration')}
+                required
                 value={value.employment.employmentDuration ?? ''}
                 onChange={(e) => patch({ employment: { ...value.employment, employmentDuration: e.target.value } })}
               >
@@ -393,8 +408,9 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.credit.statedIncome')}
                 type="number"
-                min={0}
-                value={value.monthlyIncome}
+                required
+                min={1}
+                value={value.monthlyIncome || ''}
                 onChange={(e) => patch({ monthlyIncome: Number(e.target.value) })}
               />
           </OpsFormSection>

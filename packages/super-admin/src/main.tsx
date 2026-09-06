@@ -40,8 +40,8 @@ function App() {
     <OpsAppFrame>
       <Routes>
         <Route path="/auth/login" element={<LoginPage portalKey="superAdmin" homePath="/" />} />
-        <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/auth/forgot-password" element={<ForgotPasswordPage portalKey="superAdmin" />} />
+        <Route path="/auth/reset-password" element={<ResetPasswordPage portalKey="superAdmin" />} />
         <Route
           path="/auth/two-factor"
           element={<TwoFactorLoginPage portalKey="superAdmin" homePath="/" />}

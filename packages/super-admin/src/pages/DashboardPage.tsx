@@ -23,7 +23,7 @@ export function SuperAdminTypeChart({ data }: { data: Record<string, number> }) 
   const labels = Object.keys(data);
   if (!labels.length) return null;
   return (
-    <div style={{ maxWidth: 280, margin: '0 auto 12px' }}>
+    <div className="blox-chart-donut">
       <Doughnut
         data={{
           labels,
@@ -90,7 +90,7 @@ export function DashboardPage() {
             label={t('ops.superAdmin.range30d')}
             value={range}
             onChange={(e) => setRange(e.target.value as typeof range)}
-            style={{ minWidth: 180 }}
+            className="blox-field--w180"
           >
             <option value="7d">{t('ops.superAdmin.range7d')}</option>
             <option value="30d">{t('ops.superAdmin.range30d')}</option>
@@ -112,7 +112,7 @@ export function DashboardPage() {
         </ChartPanel>
         <ChartPanel title={t('ops.admin.appsByStatus')}>
           {statusBars.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--blox-slate)' }}>{t('ops.admin.noAppsYet')}</p>
+            <p className="blox-muted">{t('ops.admin.noAppsYet')}</p>
           ) : (
             <VerticalBarChart bars={statusBars} />
           )}

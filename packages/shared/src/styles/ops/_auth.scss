@@ -1,0 +1,422 @@
+// Ops auth layout — Phase 1 §09. One layout for sign-in, forgot, reset, verify and MFA.
+// Scoped under .blox-ops so the marketplace's own dm-auth styles are untouched.
+// Both `dm-auth-*` (legacy markup) and `blox-auth-*` class names are styled so the shared
+// auth pages render correctly here without their inline <style> block.
+.blox-ops {
+  .dm-auth-layout,
+  .blox-auth-layout {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(360px, 7fr);
+    background: var(--blox-canvas);
+  }
+
+  // ── Brand panel ───────────────────────────────────────────────────────────
+  .dm-auth-brand,
+  .blox-auth-brand {
+    position: relative;
+    overflow: hidden;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 100%;
+    background: linear-gradient(160deg, var(--blox-deep-green-dark) 0%, var(--blox-deep-green) 70%);
+  }
+
+  .dm-auth-brand__media,
+  .blox-auth-brand__media {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(15, 63, 69, 0.35), transparent 55%);
+  }
+
+  .dm-auth-brand__scrim,
+  .blox-auth-brand__scrim {
+    display: none;
+  }
+
+  .dm-auth-brand__glow,
+  .blox-auth-brand__glow {
+    position: absolute;
+    width: 52%;
+    height: 52%;
+    inset-inline-end: -12%;
+    bottom: -18%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 207, 162, 0.32) 0%, transparent 65%);
+    pointer-events: none;
+    animation: dm-auth-pulse 8s ease-in-out infinite;
+  }
+
+  .dm-auth-brand__content,
+  .blox-auth-brand__content {
+    position: relative;
+    z-index: 1;
+    padding: clamp(28px, 5vw, 56px);
+    max-width: 34rem;
+    animation: dm-auth-rise 520ms var(--blox-ease-standard) both;
+  }
+
+  .dm-auth-brand__portal,
+  .blox-auth-brand__portal {
+    margin: 0 0 16px;
+    color: var(--blox-emerald);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.6875rem;
+  }
+
+  .dm-auth-brand__tag,
+  .blox-auth-brand__tag {
+    margin: 0 0 28px;
+    color: #fff;
+    font-size: clamp(1.25rem, 2vw, 1.5rem);
+    font-weight: 600;
+    line-height: 1.25;
+    max-width: 16ch;
+    text-wrap: balance;
+  }
+
+  .dm-auth-brand__points,
+  .blox-auth-brand__points {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+
+    li {
+      position: relative;
+      padding-inline-start: 18px;
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 0.8125rem;
+      line-height: 1.4;
+
+      &::before {
+        content: '';
+        position: absolute;
+        inset-inline-start: 0;
+        top: 0.5em;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--blox-emerald);
+      }
+    }
+  }
+
+  // ── Card ──────────────────────────────────────────────────────────────────
+  .dm-auth-card,
+  .blox-auth-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(28px, 5vw, 48px) clamp(20px, 4vw, 40px);
+    background: var(--blox-canvas);
+  }
+
+  .dm-auth-card__inner,
+  .blox-auth-card__inner {
+    width: 100%;
+    max-width: 400px;
+    display: grid;
+    gap: 16px;
+    animation: dm-auth-rise 560ms 80ms var(--blox-ease-standard) both;
+  }
+
+  .dm-auth-card__eyebrow,
+  .blox-auth-card__eyebrow {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--blox-emerald-ink, #0b7a63);
+  }
+
+  .dm-auth-card h1,
+  .blox-auth-card h1 {
+    font-family: var(--blox-font-ui);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    color: var(--blox-deep-green);
+    margin: -8px 0 0;
+    text-wrap: balance;
+  }
+
+  .dm-auth-card__lead,
+  .blox-auth-card__lead {
+    margin: -6px 0 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--blox-slate);
+  }
+
+  .dm-auth-form,
+  .blox-auth-form {
+    display: grid;
+    gap: 14px;
+  }
+
+  .dm-auth-card label,
+  .blox-auth-card label {
+    display: grid;
+    gap: 6px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+  }
+
+  .dm-auth-card input:not([type='checkbox']):not([type='radio']),
+  .blox-auth-card input:not([type='checkbox']):not([type='radio']) {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--blox-field-border, #a9b8ba);
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-surface);
+    color: var(--blox-ink);
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    font-weight: 400;
+    transition: border-color var(--blox-motion-fast), box-shadow var(--blox-motion-fast);
+
+    &::placeholder {
+      color: var(--blox-slate);
+    }
+
+    &:hover {
+      border-color: var(--blox-deep-green);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--blox-deep-green);
+      box-shadow: 0 0 0 3px var(--blox-emerald-soft), 0 0 0 4px var(--blox-emerald);
+    }
+  }
+
+  .dm-auth-card input[type='checkbox'],
+  .blox-auth-card input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--blox-emerald);
+  }
+
+  .dm-auth-error,
+  .blox-auth-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-danger-soft, #fbebe9);
+    border: 1px solid #f1c7c3;
+    color: var(--blox-danger);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+
+    &::before {
+      content: '';
+      width: 3px;
+      align-self: stretch;
+      border-radius: 2px;
+      background: var(--blox-danger);
+      flex: none;
+    }
+  }
+
+  .dm-auth-banner,
+  .blox-auth-banner {
+    display: flex;
+    gap: 10px;
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-emerald-soft);
+    border: 1px solid #bfefe2;
+    color: var(--blox-deep-green);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+
+    &::before {
+      content: '';
+      width: 3px;
+      align-self: stretch;
+      border-radius: 2px;
+      background: var(--blox-emerald);
+      flex: none;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    p + p {
+      margin-top: 6px;
+    }
+  }
+
+  .dm-auth-banner__session,
+  .blox-auth-banner__session {
+    color: var(--blox-slate);
+  }
+
+  .dm-btn-cta.dm-auth-submit,
+  .dm-auth-submit,
+  .blox-auth-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 40px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-emerald);
+    color: var(--blox-deep-green);
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--blox-motion-fast);
+
+    &:hover:not(:disabled) {
+      background: #00b890;
+      filter: none;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--blox-focus-ring);
+    }
+  }
+
+  .dm-auth-foot,
+  .blox-auth-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--blox-slate);
+
+    a,
+    .dm-auth-linkbtn,
+    .blox-auth-linkbtn {
+      color: var(--blox-emerald-ink, #0b7a63);
+      font-weight: 500;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .dm-auth-foot__sep,
+  .blox-auth-foot__sep {
+    color: var(--blox-border);
+  }
+
+  .dm-auth-linkbtn,
+  .blox-auth-linkbtn {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 500;
+    color: var(--blox-emerald-ink, #0b7a63);
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  // ── Responsive: brand panel becomes a 56px bar under 760px ───────────────
+  @media (max-width: 760px) {
+    .dm-auth-layout,
+    .blox-auth-layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+
+    .dm-auth-brand,
+    .blox-auth-brand {
+      min-height: 56px;
+      justify-content: center;
+    }
+
+    .dm-auth-brand__content,
+    .blox-auth-brand__content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      max-width: none;
+      height: 56px;
+      animation: none;
+    }
+
+    .dm-auth-brand__portal,
+    .blox-auth-brand__portal {
+      order: 2;
+      margin: 0 0 0 auto;
+    }
+
+    .dm-auth-brand__logo,
+    .blox-auth-brand__logo {
+      height: 22px;
+      width: auto;
+    }
+
+    .dm-auth-brand__tag,
+    .blox-auth-brand__tag,
+    .dm-auth-brand__points,
+    .blox-auth-brand__points,
+    .dm-auth-brand__glow,
+    .blox-auth-brand__glow {
+      display: none;
+    }
+
+    .dm-auth-card,
+    .blox-auth-card {
+      align-items: flex-start;
+      padding: 24px 16px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dm-auth-brand__glow,
+    .blox-auth-brand__glow,
+    .dm-auth-brand__content,
+    .blox-auth-brand__content,
+    .dm-auth-card__inner,
+    .blox-auth-card__inner {
+      animation: none;
+    }
+  }
+}
+
+@keyframes dm-auth-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dm-auth-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.08); }
+}

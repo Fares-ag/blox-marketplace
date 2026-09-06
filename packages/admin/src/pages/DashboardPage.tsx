@@ -125,7 +125,7 @@ export function DashboardPage() {
           filename="admin-dashboard"
         />
       }
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       metrics={[
         {
           label: t('ops.admin.customers'),
@@ -143,6 +143,8 @@ export function DashboardPage() {
           label: t('ops.dashboard.appsThisMonth'),
           value: String(data?.applications_this_month ?? '—'),
           delta: `${data?.new_customers_30d ?? 0} new customers (30d)`,
+          deltaTone: 'up',
+          trend: data?.submissions_by_week?.map((w: { count: number }) => w.count),
         },
         {
           label: 'Projected revenue',
@@ -181,7 +183,7 @@ export function DashboardPage() {
 
         <ChartPanel title={t('ops.admin.appsByStatus')}>
           {statusBars.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--blox-slate)' }}>
+            <p className="blox-muted">
               {t('ops.admin.noAppsYet')}
             </p>
           ) : (
@@ -203,14 +205,14 @@ export function DashboardPage() {
             </>
           }
         >
-          <div style={{ maxWidth: 280, margin: '0 auto' }}>
+          <div className="blox-chart-donut">
             <Doughnut data={chartData} options={doughnutChartOptions} />
           </div>
         </ChartPanel>
 
         <ChartPanel title={t('ops.dashboard.topDealers')}>
           {topDealers.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--blox-slate)' }}>{t('ops.admin.noAppsYet')}</p>
+            <p className="blox-muted">{t('ops.admin.noAppsYet')}</p>
           ) : (
             topDealers.map((d) => (
               <HorizontalBarChart

@@ -27,6 +27,9 @@
       ],
       "@drivemarket/shared/tenure": [
         "../shared/src/lib/tenure.ts"
+      ],
+      "@drivemarket/shared/domain-rules": [
+        "../shared/src/lib/domain-rules-server.ts"
       ]
     }
   },

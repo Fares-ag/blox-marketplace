@@ -22,12 +22,44 @@ const KYC_MIME_TO_EXT: Record<string, string> = {
   'image/webp': '.webp',
 };
 
+/** Customer self-service uploads (vault, takaful): pdf/jpeg/png only, 5 MB — mirrors DOCUMENT_UPLOAD_* in shared. */
+const CUSTOMER_MIME_TO_EXT: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+};
+
+export const CUSTOMER_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+
 const LISTING_MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
   'image/webp': '.webp',
   'image/gif': '.gif',
 };
+
+/**
+ * Data residency (LOS FSD §11.1): in production, customer documents and
+ * contracts may only be written to an approved in-region bucket. Set
+ * STORAGE_ALLOWED_REGIONS to a comma-separated list (e.g. `me-south-1,
+ * me-central-1`); when it is empty the check is skipped so self-hosted MinIO
+ * deployments keep working. The local .uploads/ fallback is already refused in
+ * production above.
+ */
+export function assertStorageRegionAllowed(config: ConfigService): void {
+  const allowed = (config.get<string>('STORAGE_ALLOWED_REGIONS') ?? '')
+    .split(',')
+    .map((r) => r.trim().toLowerCase())
+    .filter(Boolean);
+  if (!allowed.length) return;
+  const region = (config.get<string>('S3_REGION') ?? '').trim().toLowerCase();
+  if (!region || !allowed.includes(region)) {
+    throw new Error(
+      `S3_REGION "${region || '(unset)'}" is not in STORAGE_ALLOWED_REGIONS (${allowed.join(', ')}). ` +
+        'Customer data must stay in an approved region.',
+    );
+  }
+}
 
 @Injectable()
 export class StorageService implements OnModuleInit {
@@ -64,6 +96,7 @@ export class StorageService implements OnModuleInit {
           `Missing required S3 configuration in production: ${missing.join(', ')}`,
         );
       }
+      assertStorageRegionAllowed(this.config);
     }
 
     this.client = new S3Client({
@@ -185,6 +218,38 @@ export class StorageService implements OnModuleInit {
   async readKyc(storagePath: string): Promise<{ buffer: Buffer; contentType: string }> {
     const bucket = this.config.get('S3_BUCKET_KYC') ?? 'kyc-docs';
     return this.readObject(bucket, storagePath);
+  }
+
+  /** Customer self-service upload policy: present, pdf/jpeg/png, at most 5 MB. */
+  assertCustomerUploadFile(file?: Express.Multer.File) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('validation_failed');
+    }
+    if (!CUSTOMER_MIME_TO_EXT[file.mimetype]) {
+      throw new BadRequestException('invalid_file_type');
+    }
+    const size = file.size ?? file.buffer.length;
+    if (size > CUSTOMER_UPLOAD_MAX_BYTES) {
+      throw new BadRequestException('file_too_large');
+    }
+  }
+
+  /** Document vault: stored in the KYC bucket under `vault/<userId>/<category>/<uuid>`; read back with readKyc(). */
+  async uploadVaultDocument(file: Express.Multer.File, userId: string, category: string): Promise<string> {
+    const bucket = this.config.get('S3_BUCKET_KYC') ?? 'kyc-docs';
+    const ext = this.extensionFromMime(file.mimetype, CUSTOMER_MIME_TO_EXT);
+    const key = `vault/${userId}/${category}/${randomUUID()}${ext}`;
+    await this.put(bucket, key, file.buffer, file.mimetype);
+    return key;
+  }
+
+  /** Takaful policy document: KYC bucket under `takaful/<applicationId>/<policyId>/<uuid>`; read back with readKyc(). */
+  async uploadTakafulDocument(file: Express.Multer.File, applicationId: string, policyId: string): Promise<string> {
+    const bucket = this.config.get('S3_BUCKET_KYC') ?? 'kyc-docs';
+    const ext = this.extensionFromMime(file.mimetype, CUSTOMER_MIME_TO_EXT);
+    const key = `takaful/${applicationId}/${policyId}/${randomUUID()}${ext}`;
+    await this.put(bucket, key, file.buffer, file.mimetype);
+    return key;
   }
 
   async storeContractPdf(applicationId: string, buffer: Buffer): Promise<string> {

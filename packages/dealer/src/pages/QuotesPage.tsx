@@ -104,7 +104,7 @@ export function QuotesPage() {
     onSuccess: (row) => {
       setError(null);
       setCreatedUrl(row.url);
-      toast.success('Quote link created');
+      toast.success('Quote link created and emailed to the customer');
       void qc.invalidateQueries({ queryKey: ['dealer-quotes'] });
     },
     onError: (e: Error) => {
@@ -153,7 +153,7 @@ export function QuotesPage() {
             ))}
           </OpsSelect>
           {listPrice != null && (
-            <p className="blox-form-grid__full" style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--blox-slate)' }}>
+            <p className="blox-form-grid__full blox-muted">
               List price: {formatQar(listPrice)} — negotiated price must be at or below this amount.
             </p>
           )}
@@ -185,7 +185,7 @@ export function QuotesPage() {
             fullWidth
           />
           {createdUrl && (
-            <p className="blox-form-grid__full" style={{ margin: 0, wordBreak: 'break-all' }}>
+            <p className="blox-form-grid__full blox-break">
               Quote link:{' '}
               <a href={createdUrl} target="_blank" rel="noreferrer">
                 {createdUrl}

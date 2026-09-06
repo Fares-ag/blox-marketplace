@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { OpsPillVariant } from '../config/status-styles';
-import { Button, type ButtonProps } from '../ops-core';
+import { Button, Table, type ButtonProps, type Column } from '../ops-core';
 
 export type { OpsPillVariant };
 
@@ -149,101 +149,68 @@ export function OpsDataTable({
   empty?: ReactNode;
   numericColumns?: number[];
 }) {
+  // Adapter over the unified ops-core Table (Phase 1 §05): string columns and ReactNode
+  // rows become column definitions and keyed row objects, so every portal renders through
+  // one implementation. New pages should use <Table> directly.
   const { t } = useTranslation();
-
-  if (rows.length === 0 && empty) {
-    return (
-      <div className="blox-table-wrap">
-        <div className="blox-empty" style={{ padding: '48px 24px' }}>
-          {empty}
-        </div>
-      </div>
-    );
-  }
-
   const numericSet = new Set(numericColumns ?? []);
   const actionsColIndex =
     columns.length > 0 &&
     (columns[columns.length - 1] === '' || columns[columns.length - 1].toLowerCase() === 'actions')
       ? columns.length - 1
       : -1;
-  const fieldColIndices = columns.map((_, index) => index).filter((index) => index !== actionsColIndex);
 
-  const paginationBlock = pagination ? (
+  type AdapterRow = Record<string, ReactNode>;
+  const tableColumns: Column<AdapterRow>[] = columns.map((label, j) => ({
+    id: `c${j}`,
+    label,
+    numeric: numericSet.has(j),
+    actions: j === actionsColIndex,
+    cardTitle: j === 0 && j !== actionsColIndex && !numericSet.has(0),
+    format: (value: ReactNode) => value,
+  }));
+  const tableRows: AdapterRow[] = rows.map((cells) =>
+    Object.fromEntries(cells.map((cell, j) => [`c${j}`, cell])),
+  );
+
+  const footer = pagination ? (
     <div className="blox-pagination">
-      <span>
+      <span className="blox-pagination__range">
         {t('ops.pagination.showing', {
           from: pagination.from,
           to: pagination.to,
           total: pagination.total,
         })}
       </span>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="blox-pagination__nav">
         <button
           type="button"
-          className="blox-btn blox-btn--ghost"
+          className="blox-btn blox-btn--ghost blox-btn--sm"
           disabled={!pagination.onPrev || pagination.from <= 1}
           onClick={pagination.onPrev}
         >
-          {t('ops.pagination.previous')}
+          ‹ {t('ops.pagination.previous')}
         </button>
         <button
           type="button"
-          className="blox-btn blox-btn--ghost"
+          className="blox-btn blox-btn--ghost blox-btn--sm"
           disabled={!pagination.onNext || pagination.to >= pagination.total}
           onClick={pagination.onNext}
         >
-          {t('ops.pagination.next')}
+          {t('ops.pagination.next')} ›
         </button>
       </div>
     </div>
-  ) : null;
+  ) : undefined;
 
   return (
-    <div className="blox-data-table">
-      <div className="blox-table-wrap">
-        <table className="blox-table">
-          <thead>
-            <tr>
-              {columns.map((col, j) => (
-                <th key={col || 'actions'} className={numericSet.has(j) ? 'blox-table__num' : undefined}>
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i}>
-                {row.map((cell, j) => (
-                  <td key={j} className={numericSet.has(j) ? 'blox-table__num' : undefined}>
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {paginationBlock}
-      </div>
-      <div className="blox-table-cards">
-        {rows.map((row, i) => (
-          <article key={i} className="blox-table-card">
-            <dl className="blox-table-card__fields">
-              {fieldColIndices.map((colIndex) => (
-                <div key={colIndex} className="blox-table-card__field">
-                  <dt>{columns[colIndex]}</dt>
-                  <dd>{row[colIndex]}</dd>
-                </div>
-              ))}
-            </dl>
-            {actionsColIndex >= 0 && row[actionsColIndex] != null && (
-              <div className="blox-table-card__actions">{row[actionsColIndex]}</div>
-            )}
-          </article>
-        ))}
-        {paginationBlock}
-      </div>
-    </div>
+    <Table<AdapterRow>
+      columns={tableColumns}
+      rows={tableRows}
+      rowKey={(_, index) => String(index)}
+      footer={footer}
+      emptyMessage={typeof empty === 'string' ? empty : undefined}
+      emptyAction={empty && typeof empty !== 'string' ? empty : undefined}
+    />
   );
 }

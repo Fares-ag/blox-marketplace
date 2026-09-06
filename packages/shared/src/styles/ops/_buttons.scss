@@ -1,0 +1,139 @@
+// Button variants (.blox-btn) — Phase 1 §03.
+// One primary per screen. Destructive is outlined in context and solid only as a dialog confirm.
+.blox-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--blox-radius-control, 8px);
+  border: 1px solid transparent;
+  font-family: var(--blox-font-ui);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background var(--blox-motion-fast, 150ms) var(--blox-ease-standard, ease),
+    border-color var(--blox-motion-fast, 150ms) var(--blox-ease-standard, ease),
+    color var(--blox-motion-fast, 150ms) var(--blox-ease-standard, ease);
+
+  &:disabled,
+  &[aria-disabled='true'] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--blox-focus-ring, 0 0 0 2px #fff, 0 0 0 4px var(--blox-emerald));
+  }
+
+  &--sm {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 0.8125rem;
+  }
+
+  &--icon {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+
+    > svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  &__spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: blox-btn-spin 0.8s linear infinite;
+    flex: none;
+  }
+
+  &--primary {
+    background: var(--blox-emerald);
+    color: var(--blox-deep-green);
+
+    &:hover:not(:disabled) {
+      background: #00b890;
+    }
+
+    &:active:not(:disabled) {
+      background: #00a882;
+    }
+  }
+
+  &--secondary {
+    background: var(--blox-surface);
+    color: var(--blox-deep-green);
+    border-color: var(--blox-field-border, #a9b8ba);
+
+    &:hover:not(:disabled) {
+      background: var(--blox-canvas);
+      border-color: var(--blox-deep-green);
+    }
+
+    &:active:not(:disabled) {
+      background: var(--blox-muted, #e8efef);
+    }
+  }
+
+  &--ghost {
+    background: transparent;
+    color: var(--blox-deep-green);
+
+    &:hover:not(:disabled) {
+      background: var(--blox-canvas);
+    }
+
+    &:active:not(:disabled) {
+      background: var(--blox-muted, #e8efef);
+    }
+  }
+
+  &--danger {
+    background: var(--blox-surface);
+    color: var(--blox-danger);
+    border-color: var(--blox-danger);
+
+    &:hover:not(:disabled) {
+      background: var(--blox-danger-soft, #fbebe9);
+    }
+
+    &.blox-btn--solid {
+      background: var(--blox-danger);
+      color: #fff;
+
+      &:hover:not(:disabled) {
+        background: #9a1d14;
+      }
+    }
+  }
+}
+
+@keyframes blox-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blox-btn__spinner {
+    animation: none;
+  }
+}

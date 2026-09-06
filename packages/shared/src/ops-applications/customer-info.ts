@@ -274,23 +274,71 @@ export function buildCustomerSnapshot(value: CustomerInfoFormValue): Record<stri
   };
 }
 
+function requireTrimmed(value: string | undefined | null, message: string): string | null {
+  if (!value?.trim()) return message;
+  return null;
+}
+
 export function validateCustomerInfo(value: CustomerInfoFormValue): string | null {
   if (value.applicantType === 'corporate') {
     const corp = value.corporate;
     const sig = corp.authorizedSignatory;
+    const addr = corp.registeredAddress;
     if (!corp.legalName?.trim()) return 'Company legal name is required.';
+    if (!corp.crNumber?.trim()) return 'Commercial registration number is required.';
+    if (!addr?.street?.trim()) return 'Registered street address is required.';
+    if (!addr?.city?.trim()) return 'Registered city is required.';
+    if (!addr?.country?.trim()) return 'Registered country is required.';
+    if (!sig?.firstName?.trim() || !sig?.lastName?.trim()) return 'Authorized signatory name is required.';
     if (!sig?.email?.trim()) return 'Authorized signatory email is required.';
     if (!sig?.phone?.trim()) return 'Authorized signatory phone is required.';
     if (!sig?.qid?.trim() || !/^\d{11}$/.test(sig.qid.trim())) return 'Authorized signatory QID must be 11 digits.';
     return null;
   }
+
   if (!value.firstName.trim() || !value.lastName.trim()) return 'First and last name are required.';
   if (!value.email.trim()) return 'Email is required.';
+  if (!value.email.includes('@')) return 'Enter a valid email address.';
   if (!value.phone.trim()) return 'Phone is required.';
   if (!value.qid.trim() || !/^\d{11}$/.test(value.qid.trim())) return 'QID must be 11 digits.';
+  if (!value.dateOfBirth.trim()) return 'Date of birth is required.';
+  if (!value.nationality.trim()) return 'Nationality is required.';
+
+  const addressError =
+    requireTrimmed(value.address.street, 'Street address is required.') ??
+    requireTrimmed(value.address.city, 'City is required.') ??
+    requireTrimmed(value.address.country, 'Country is required.');
+  if (addressError) return addressError;
+
+  const employmentError =
+    requireTrimmed(value.employment.company, 'Company name is required.') ??
+    requireTrimmed(value.employment.position, 'Position is required.') ??
+    requireTrimmed(value.employment.employmentType, 'Employment type is required.') ??
+    requireTrimmed(value.employment.employmentDuration, 'Employment duration is required.');
+  if (employmentError) return employmentError;
+
+  if (!value.monthlyIncome || value.monthlyIncome <= 0) return 'Stated income is required.';
   return null;
+}
+
+/** Wizard / create flow: every required document category must have a file selected. */
+export function validateRequiredWizardDocuments(
+  files: Partial<Record<string, File>>,
+  applicantType: ApplicantType,
+): string | null {
+  const missing = requiredDocCategoriesForApplicant(applicantType).filter((cat) => !files[cat]);
+  if (missing.length === 0) return null;
+  const labels = missing.map((cat) => cat.replace(/_/g, ' ')).join(', ');
+  return `Please upload all required documents (${labels}).`;
 }
 
 export function docCategoriesForApplicant(type: ApplicantType): readonly string[] {
   return type === 'corporate' ? CORPORATE_DOC_CATEGORIES : INDIVIDUAL_DOC_CATEGORIES;
+}
+
+/** Mirrors REQUIRED_APPLICATION_DOC_CATEGORIES in the API for individuals; corporate needs its full set. */
+export const REQUIRED_INDIVIDUAL_DOC_CATEGORIES = ['qid', 'salary', 'bank'] as const;
+
+export function requiredDocCategoriesForApplicant(type: ApplicantType): readonly string[] {
+  return type === 'corporate' ? CORPORATE_DOC_CATEGORIES : REQUIRED_INDIVIDUAL_DOC_CATEGORIES;
 }

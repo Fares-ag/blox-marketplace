@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import {
@@ -8,22 +8,26 @@ import {
   OpsEmptyState,
   OpsFormPage,
   OpsFormSection,
+  OpsGhostButton,
   OpsListPage,
+  OpsPrimaryButton,
   OpsStatusPill,
   PageSkeleton,
+  SetPasswordDialog,
   UserCredentialsDialog,
   apiFetch,
   buildPaginationQuery,
+  canManageUserAccess,
   paginationWindow,
   useAuthStore,
   useOpsLabels,
   type AdminUser,
   type AdminUserProvision,
   type PaginatedResponse,
+  ApiError,
 } from '@drivemarket/shared';
 
 const ASSIGNABLE_ROLES = ['customer', 'dealer_agent', 'credit_officer', 'finance_officer', 'admin', 'group_admin'];
-const PRIVILEGED_ROLES = ['admin', 'super_admin'];
 
 function assignableRoles(meRole?: string | null) {
   return ASSIGNABLE_ROLES.filter((r) => {
@@ -33,16 +37,6 @@ function assignableRoles(meRole?: string | null) {
     }
     return true;
   });
-}
-
-function canManageUserAccess(
-  me: { id: string; role?: string | null } | null | undefined,
-  target: { id: string; role: string },
-) {
-  if (!me || target.id === me.id) return false;
-  if (me.role === 'super_admin') return true;
-  if (me.role === 'admin') return target.role !== 'super_admin';
-  return !PRIVILEGED_ROLES.includes(target.role);
 }
 
 type UserDetail = AdminUser & {
@@ -93,6 +87,9 @@ export function UsersPage() {
   const [creditCompanyIds, setCreditCompanyIds] = useState<string[]>([]);
   const [financeCompanyIds, setFinanceCompanyIds] = useState<string[]>([]);
   const [createdAccount, setCreatedAccount] = useState<AdminUserProvision | null>(null);
+  const [credentialsMode, setCredentialsMode] = useState<'create' | 'reset'>('create');
+  const [passwordResetUser, setPasswordResetUser] = useState<AdminUser | null>(null);
+  const [roleEdit, setRoleEdit] = useState<{ id: string; role: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
@@ -148,6 +145,7 @@ export function UsersPage() {
       setFinanceCompanyIds([]);
       setError(null);
       setCreatedAccount(account);
+      setCredentialsMode('create');
       toast.success(t('ops.superAdmin.createUserSuccess'));
       void qc.invalidateQueries({ queryKey: ['admin-users'] });
     },
@@ -155,13 +153,14 @@ export function UsersPage() {
   });
 
   const updateAccess = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { isActive: boolean } }) =>
-      apiFetch(`/api/users/${id}`, {
+    mutationFn: (payload: { id: string; body: Record<string, unknown> }) =>
+      apiFetch(`/api/users/${payload.id}`, {
         method: 'PATCH',
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload.body),
       }),
     onSuccess: () => {
       setError(null);
+      setRoleEdit(null);
       void qc.invalidateQueries({ queryKey: ['admin-users'] });
     },
     onError: (e: Error) => setError(e.message),
@@ -176,7 +175,7 @@ export function UsersPage() {
     <OpsListPage
       title={t('ops.superAdmin.usersTitle')}
       subtitle={t('ops.superAdmin.usersSubtitle')}
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{error}</p> : undefined}
+      error={error ?? undefined}
     >
       <OpsFormSection title={t('ops.superAdmin.createUserTitle')}>
         <form className="blox-form" onSubmit={onCreate}>
@@ -278,7 +277,7 @@ export function UsersPage() {
         </form>
       </OpsFormSection>
       <OpsDataTable
-        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), 'Company', t('ops.col.status'), '']}
+        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), 'Company', t('ops.col.status'), t('ops.col.actions')]}
         pagination={{
           from,
           to,
@@ -292,7 +291,50 @@ export function UsersPage() {
             {u.email}
           </Link>,
           u.name,
-          u.role,
+          roleEdit?.id === u.id ? (
+            <span key="r" className="blox-cell-row">
+              <select
+                value={roleEdit.role}
+                onChange={(e) => setRoleEdit({ id: u.id, role: e.target.value })}
+              >
+                {assignableRoles(me?.role).map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+              <OpsPrimaryButton
+                type="button"
+                size="sm"
+                disabled={updateAccess.isPending}
+                onClick={() => {
+                  setConfirm({
+                    title: t('ops.common.save'),
+                    message: t('ops.superAdmin.roleChangeConfirm', {
+                      email: u.email,
+                      from: u.role,
+                      to: roleEdit.role,
+                    }),
+                    onConfirm: () => updateAccess.mutate({ id: u.id, body: { role: roleEdit.role } }),
+                  });
+                }}
+              >
+                {t('ops.common.save')}
+              </OpsPrimaryButton>
+              <OpsGhostButton type="button" size="sm" onClick={() => setRoleEdit(null)}>
+                {t('ops.common.cancel')}
+              </OpsGhostButton>
+            </span>
+          ) : (
+            <span key="r" className="blox-cell-row">
+              <OpsStatusPill label={u.role} variant="active" />
+              {canManageUserAccess(me, u) && (
+                <OpsGhostButton type="button" size="sm" onClick={() => setRoleEdit({ id: u.id, role: u.role })}>
+                  {t('ops.common.change')}
+                </OpsGhostButton>
+              )}
+            </span>
+          ),
           u.company_name ?? '—',
           <OpsStatusPill
             key="s"
@@ -300,38 +342,69 @@ export function UsersPage() {
             variant={u.is_active ? 'approved' : 'rejected'}
           />,
           canManageUserAccess(me, u) ? (
-            <button
-              key="b"
-              type="button"
-              className={`blox-btn ${u.is_active ? 'blox-btn--danger' : 'blox-btn--primary'}`}
-              disabled={updateAccess.isPending}
-              onClick={() => {
-                setConfirm({
-                  title: u.is_active ? t('ops.common.suspend') : t('ops.common.reactivate'),
-                  message: u.is_active
-                    ? t('ops.superAdmin.suspendConfirm', { email: u.email })
-                    : t('ops.superAdmin.reactivateConfirm', { email: u.email }),
-                  onConfirm: () => updateAccess.mutate({ id: u.id, body: { isActive: !u.is_active } }),
-                });
-              }}
-            >
-              {updateAccess.isPending
-                ? t('ops.common.saving')
-                : u.is_active
-                  ? t('ops.common.suspend')
-                  : t('ops.common.reactivate')}
-            </button>
+            <span key="b" className="blox-cell-row blox-cell-row--wrap">
+              <Link to={`/main/users/${u.id}`} className="blox-btn blox-btn--ghost blox-btn--sm">
+                {t('ops.superAdmin.editUser')}
+              </Link>
+              <OpsGhostButton type="button" size="sm" onClick={() => setPasswordResetUser(u)}>
+                {t('ops.superAdmin.setPassword')}
+              </OpsGhostButton>
+              <button
+                type="button"
+                className={`blox-btn blox-btn--sm ${u.is_active ? 'blox-btn--danger' : 'blox-btn--primary'}`}
+                disabled={updateAccess.isPending}
+                onClick={() => {
+                  setConfirm({
+                    title: u.is_active ? t('ops.common.suspend') : t('ops.common.reactivate'),
+                    message: u.is_active
+                      ? t('ops.superAdmin.suspendConfirm', { email: u.email })
+                      : t('ops.superAdmin.reactivateConfirm', { email: u.email }),
+                    onConfirm: () => updateAccess.mutate({ id: u.id, body: { isActive: !u.is_active } }),
+                  });
+                }}
+              >
+                {updateAccess.isPending
+                  ? t('ops.common.saving')
+                  : u.is_active
+                    ? t('ops.common.suspend')
+                    : t('ops.common.reactivate')}
+              </button>
+            </span>
           ) : (
-            <span key="b" style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+            <span key="b" className="blox-table__id">
               {u.id === me?.id ? t('ops.common.you') : '—'}
             </span>
           ),
         ])}
       />
+      <SetPasswordDialog
+        open={!!passwordResetUser}
+        userId={passwordResetUser?.id ?? null}
+        userEmail={passwordResetUser?.email ?? ''}
+        title={t('ops.superAdmin.setPasswordTitle')}
+        message={t('ops.superAdmin.setPasswordMessage')}
+        customPasswordLabel={t('ops.superAdmin.setPasswordCustomLabel')}
+        customPasswordHint={t('ops.superAdmin.setPasswordCustomHint')}
+        sendEmailLabel={t('ops.superAdmin.setPasswordSendEmail')}
+        generateLabel={t('ops.superAdmin.setPasswordGenerate')}
+        submitLabel={t('ops.superAdmin.setPassword')}
+        cancelLabel={t('ops.common.cancel')}
+        savingLabel={t('ops.common.saving')}
+        onClose={() => setPasswordResetUser(null)}
+        onSuccess={(account) => {
+          setCredentialsMode('reset');
+          setCreatedAccount(account);
+          toast.success(t('ops.superAdmin.setPasswordSuccess'));
+        }}
+      />
       <UserCredentialsDialog
         open={!!createdAccount}
         account={createdAccount}
-        title={t('ops.superAdmin.createUserSuccess')}
+        title={
+          credentialsMode === 'reset'
+            ? t('ops.superAdmin.setPasswordSuccess')
+            : t('ops.superAdmin.createUserSuccess')
+        }
         hint={t('ops.superAdmin.createUserCredentialsHint')}
         passwordLabel={t('ops.superAdmin.createUserPasswordLabel')}
         loginUrlLabel={t('ops.superAdmin.createUserLoginUrlLabel')}
@@ -356,9 +429,11 @@ export function UsersPage() {
 
 export function UserDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { t } = useOpsLabels();
   const qc = useQueryClient();
   const me = useAuthStore((s) => s.user);
+  const [displayName, setDisplayName] = useState('');
   const [creditScope, setCreditScope] = useState('assigned');
   const [financeScope, setFinanceScope] = useState('assigned');
   const [creditIds, setCreditIds] = useState('');
@@ -369,6 +444,8 @@ export function UserDetailPage() {
   const [creditAction, setCreditAction] = useState<'add' | 'subtract' | 'set'>('add');
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [resetCredentials, setResetCredentials] = useState<AdminUserProvision | null>(null);
 
   const { data } = useQuery({
     queryKey: ['admin-user', id],
@@ -405,6 +482,7 @@ export function UserDetailPage() {
       apiFetch(`/api/users/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({
+          name: displayName.trim(),
           role,
           companyId: companyId || null,
           creditScope,
@@ -456,8 +534,26 @@ export function UserDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const removeUser = useMutation({
+    mutationFn: () => apiFetch(`/api/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast.success(t('ops.superAdmin.userDeleted'));
+      void qc.invalidateQueries({ queryKey: ['admin-users'] });
+      navigate('/main/users');
+    },
+    onError: (e: Error) => {
+      const code = e instanceof ApiError ? e.code : '';
+      const message =
+        code === 'user_has_dependencies'
+          ? t('ops.superAdmin.deleteUserBlocked')
+          : e.message;
+      setError(message);
+    },
+  });
+
   useEffect(() => {
     if (!data) return;
+    setDisplayName(data.name ?? '');
     setRole(data.role);
     setCompanyId(data.company_id ?? '');
     setCreditScope(data.credit_scope ?? 'assigned');
@@ -478,37 +574,62 @@ export function UserDetailPage() {
 
   return (
     <OpsFormPage title={data.email} subtitle={`${data.role} · ${data.company_name ?? '—'}`} wide>
-      {error && <p style={{ color: 'var(--blox-danger)' }}>{error}</p>}
+      <p className="blox-mb-4">
+        <Link to="/main/users">← {t('ops.superAdmin.usersTitle')}</Link>
+      </p>
+      {error && <p className="blox-form-error" role="alert">{error}</p>}
       {canManage && (
         <OpsFormSection title="Account access">
           <OpsStatusPill
             label={data.is_active ? t('ops.superAdmin.active') : t('ops.superAdmin.suspended')}
             variant={data.is_active ? 'approved' : 'rejected'}
           />
-          <button
-            type="button"
-            className={`blox-btn ${data.is_active ? 'blox-btn--danger' : 'blox-btn--primary'}`}
-            style={{ marginTop: 12 }}
-            disabled={updateAccess.isPending}
-            onClick={() => {
-              setConfirm({
-                title: data.is_active ? t('ops.common.suspend') : t('ops.common.reactivate'),
-                message: data.is_active
-                  ? t('ops.superAdmin.suspendConfirm', { email: data.email })
-                  : t('ops.superAdmin.reactivateConfirm', { email: data.email }),
-                onConfirm: () => updateAccess.mutate({ isActive: !data.is_active }),
-              });
-            }}
-          >
-            {updateAccess.isPending
-              ? t('ops.common.saving')
-              : data.is_active
-                ? t('ops.common.suspend')
-                : t('ops.common.reactivate')}
-          </button>
+          <div className="blox-cell-row blox-cell-row--wrap">
+            <button
+              type="button"
+              className={`blox-btn ${data.is_active ? 'blox-btn--danger' : 'blox-btn--primary'}`}
+              disabled={updateAccess.isPending}
+              onClick={() => {
+                setConfirm({
+                  title: data.is_active ? t('ops.common.suspend') : t('ops.common.reactivate'),
+                  message: data.is_active
+                    ? t('ops.superAdmin.suspendConfirm', { email: data.email })
+                    : t('ops.superAdmin.reactivateConfirm', { email: data.email }),
+                  onConfirm: () => updateAccess.mutate({ isActive: !data.is_active }),
+                });
+              }}
+            >
+              {updateAccess.isPending
+                ? t('ops.common.saving')
+                : data.is_active
+                  ? t('ops.common.suspend')
+                  : t('ops.common.reactivate')}
+            </button>
+            <OpsGhostButton type="button" onClick={() => setPasswordDialogOpen(true)}>
+              {t('ops.superAdmin.setPassword')}
+            </OpsGhostButton>
+            <button
+              type="button"
+              className="blox-btn blox-btn--danger"
+              disabled={removeUser.isPending}
+              onClick={() => {
+                setConfirm({
+                  title: t('ops.superAdmin.deleteUser'),
+                  message: t('ops.superAdmin.deleteUserConfirm', { email: data.email }),
+                  onConfirm: () => removeUser.mutate(),
+                });
+              }}
+            >
+              {removeUser.isPending ? t('ops.common.saving') : t('ops.superAdmin.deleteUser')}
+            </button>
+          </div>
         </OpsFormSection>
       )}
       <OpsFormSection title="Profile & scopes">
+        <label>
+          {t('ops.col.name')}
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
+        </label>
         <label>
           Role
           <select value={role} onChange={(e) => setRole(e.target.value)}>
@@ -618,6 +739,37 @@ export function UserDetailPage() {
           confirm?.onConfirm();
           setConfirm(null);
         }}
+      />
+      <SetPasswordDialog
+        open={passwordDialogOpen}
+        userId={id ?? null}
+        userEmail={data.email}
+        title={t('ops.superAdmin.setPasswordTitle')}
+        message={t('ops.superAdmin.setPasswordMessage')}
+        customPasswordLabel={t('ops.superAdmin.setPasswordCustomLabel')}
+        customPasswordHint={t('ops.superAdmin.setPasswordCustomHint')}
+        sendEmailLabel={t('ops.superAdmin.setPasswordSendEmail')}
+        generateLabel={t('ops.superAdmin.setPasswordGenerate')}
+        submitLabel={t('ops.superAdmin.setPassword')}
+        cancelLabel={t('ops.common.cancel')}
+        savingLabel={t('ops.common.saving')}
+        onClose={() => setPasswordDialogOpen(false)}
+        onSuccess={(account) => {
+          setResetCredentials(account);
+          toast.success(t('ops.superAdmin.setPasswordSuccess'));
+        }}
+      />
+      <UserCredentialsDialog
+        open={!!resetCredentials}
+        account={resetCredentials}
+        title={t('ops.superAdmin.setPasswordSuccess')}
+        hint={t('ops.superAdmin.createUserCredentialsHint')}
+        passwordLabel={t('ops.superAdmin.createUserPasswordLabel')}
+        loginUrlLabel={t('ops.superAdmin.createUserLoginUrlLabel')}
+        copyAllLabel={t('ops.superAdmin.createUserCopyAll')}
+        copiedLabel={t('ops.superAdmin.createUserCopied')}
+        closeLabel={t('ops.common.close')}
+        onClose={() => setResetCredentials(null)}
       />
     </OpsFormPage>
   );

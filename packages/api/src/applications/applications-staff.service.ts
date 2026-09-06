@@ -21,7 +21,6 @@ import { AppConfigService } from '../config/app-config.service';
 import { ActivityService } from '../common/activity.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { BLOCKING_APPLICATION_STATUSES } from './application-access';
 import { hasAllRequiredDocuments } from './application-documents';
 import type { ApplicationDocCategory } from './application-documents';
 import { buildApplicationPricingSnapshot } from './application-pricing';
@@ -139,16 +138,6 @@ export class ApplicationsStaffService {
       ) {
         throw new BadRequestException('listing_not_available');
       }
-
-      const blockingForProduct = await this.prisma.application.findFirst({
-        where: {
-          customerUserId: customer.id,
-          productId: product.id,
-          status: { in: BLOCKING_APPLICATION_STATUSES },
-        },
-        select: { id: true },
-      });
-      if (blockingForProduct) throw new BadRequestException('blocking_application_exists');
 
       if (initialStatus !== ApplicationStatus.draft) {
         if (product.listingStatus === ListingStatus.reserved) {

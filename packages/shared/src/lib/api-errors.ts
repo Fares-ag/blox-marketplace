@@ -27,6 +27,7 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   quote_already_used: 'This quote has already been used and cannot be revoked.',
   email_taken: 'An account with this email already exists. Use a different email or ask the user to sign in.',
   user_create_failed: 'Could not create the user account. Try again or contact support.',
+  user_has_dependencies: 'This user has linked applications or records and cannot be deleted. Suspend the account instead.',
   dealer_requires_dealership: 'Dealer agents must belong to a dealership company, not a holding.',
   no_company: 'Your account is not linked to a dealer company.',
   super_admin_required: 'This action requires a super administrator.',

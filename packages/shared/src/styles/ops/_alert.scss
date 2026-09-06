@@ -1,0 +1,86 @@
+// Inline alerts — Phase 1 §07.
+.blox-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid;
+  border-radius: var(--blox-radius-control, 8px);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+
+  &__bar {
+    width: 3px;
+    align-self: stretch;
+    border-radius: 2px;
+    flex: none;
+  }
+
+  &__content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  &__action {
+    margin-inline-start: auto;
+    flex: none;
+  }
+
+  &--error {
+    background: var(--blox-danger-soft, #fbebe9);
+    border-color: #f1c7c3;
+    color: var(--blox-danger);
+
+    .blox-alert__bar {
+      background: var(--blox-danger);
+    }
+  }
+
+  &--warning {
+    background: var(--blox-warning-soft, #fbf1df);
+    border-color: #eed7a8;
+    color: var(--blox-warning-ink, #8a5400);
+
+    .blox-alert__bar {
+      background: var(--blox-warning, #c47a00);
+    }
+  }
+
+  &--info {
+    background: var(--blox-emerald-soft);
+    border-color: #bfefe2;
+    color: var(--blox-deep-green);
+
+    .blox-alert__bar {
+      background: var(--blox-emerald);
+    }
+  }
+
+  &--success {
+    background: var(--blox-success-soft, var(--blox-emerald-soft));
+    border-color: #bfefe2;
+    color: var(--blox-emerald-ink, #0b7a63);
+
+    .blox-alert__bar {
+      background: var(--blox-emerald);
+    }
+  }
+}
+
+.blox-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -115,7 +115,7 @@ export function ProductsPage() {
       subtitle={`Vehicle catalog across all dealers${data ? ` — ${data.total} total` : ''}`}
       headerActions={
         <>
-          <Link to="/main/vehicles/add" style={{ textDecoration: 'none' }}>
+          <Link to="/main/vehicles/add" className="blox-link-reset">
             <OpsPrimaryButton>Add vehicle</OpsPrimaryButton>
           </Link>
           {selected.length > 0 && (
@@ -130,7 +130,7 @@ export function ProductsPage() {
           )}
         </>
       }
-      error={error ? <p style={{ color: 'var(--blox-danger)' }}>{(error as Error).message}</p> : undefined}
+      error={error ? (error as Error).message : undefined}
       toolbar={
         <OpsToolbar
           search={

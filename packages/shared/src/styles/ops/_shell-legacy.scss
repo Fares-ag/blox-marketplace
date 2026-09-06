@@ -1,0 +1,276 @@
+// Legacy CSS shell (.blox-shell). MUI BloxShell.tsx is canonical; kept for ScrollToTop compat.
+@use 'vars' as *;
+
+/* Legacy CSS shell — MUI BloxShell.tsx is canonical; kept for reference / ScrollToTop compat */
+.blox-shell {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  min-height: 100vh;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+
+  &__menu-btn {
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 16px;
+    border: none;
+    border-bottom: 1px solid var(--blox-border);
+    background: var(--blox-deep-green);
+    color: #fff;
+    font-family: var(--blox-font-ui);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    @media (max-width: 900px) {
+      display: flex;
+    }
+  }
+
+  &__menu-icon {
+    width: 18px;
+    height: 2px;
+    background: #fff;
+    box-shadow: 0 5px 0 #fff, 0 -5px 0 #fff;
+  }
+
+  &__backdrop {
+    display: none;
+
+    @media (max-width: 900px) {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 35;
+      border: none;
+      background: rgba(15, 63, 69, 0.45);
+      cursor: pointer;
+    }
+  }
+
+  &__nav {
+    background: linear-gradient(180deg, var(--blox-deep-green) 0%, var(--blox-deep-green-dark) 100%);
+    color: #fff;
+    padding: 20px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-inline-end: 1px solid rgba(255, 255, 255, 0.06);
+
+    @media (max-width: 900px) {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: min(280px, 86vw);
+      z-index: 40;
+      transform: translateX(-105%);
+      transition: transform 180ms ease;
+      box-shadow: 8px 0 32px rgba(0, 0, 0, 0.25);
+    }
+  }
+
+  &.is-nav-open &__nav {
+    @media (max-width: 900px) {
+      transform: translateX(0);
+    }
+  }
+
+  &__brand-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 4px 6px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  &__logo {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  &__mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--blox-emerald);
+    color: var(--blox-deep-green);
+    font-family: var(--blox-font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+
+  &__brand {
+    font-family: var(--blox-font-display);
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  &__portal {
+    color: var(--blox-emerald);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  &__links {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+
+    a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255, 255, 255, 0.82);
+      text-decoration: none;
+      padding: 9px 10px;
+      border-radius: var(--blox-radius-sm);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      border-inline-start: 3px solid transparent;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-inline-start-color: rgba(0, 207, 162, 0.55);
+        color: #fff;
+      }
+
+      &.is-active {
+        background: rgba(0, 207, 162, 0.16);
+        border-inline-start-color: var(--blox-emerald);
+        color: #fff;
+        font-weight: 600;
+      }
+    }
+  }
+
+  &__nav-icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    opacity: 0.9;
+    flex-shrink: 0;
+  }
+
+  &__user {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  &__locale {
+    display: inline-flex;
+    gap: 4px;
+    align-self: flex-start;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    padding: 2px;
+
+    button {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.85);
+      font-family: var(--blox-font-ui);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 999px;
+
+      &.is-active {
+        background: rgba(0, 207, 162, 0.35);
+        color: #fff;
+      }
+    }
+  }
+
+  &__user-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__user-email {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__role {
+    display: inline-flex;
+    align-self: flex-start;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(0, 207, 162, 0.16);
+    color: var(--blox-emerald);
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__user button {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #fff;
+    border-radius: var(--blox-radius-sm);
+    padding: 8px;
+    cursor: pointer;
+    font-family: var(--blox-font-ui);
+    font-size: 0.8125rem;
+    font-weight: 600;
+
+    &:hover {
+      border-color: var(--blox-emerald);
+      background: rgba(0, 207, 162, 0.12);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--blox-emerald);
+      outline-offset: 2px;
+    }
+  }
+
+  &__main {
+    padding: 24px 28px 40px;
+    background:
+      radial-gradient(ellipse 80% 40% at 100% 0%, rgba(0, 207, 162, 0.06), transparent 55%),
+      var(--blox-canvas);
+    min-width: 0;
+
+    @media (max-width: 900px) {
+      padding: 16px;
+    }
+
+    @media (min-width: $bp-xl) {
+      padding: 28px 36px 48px;
+    }
+
+    @media (min-width: $bp-xxl) {
+      padding: 32px 48px 56px;
+    }
+  }
+}
+

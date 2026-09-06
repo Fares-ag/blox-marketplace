@@ -68,12 +68,18 @@ export function toApplicationDocumentDto(doc: {
   category: string;
   mimeType?: string | null;
   createdAt: Date;
+  originalName?: string | null;
+  kycDocumentType?: string | null;
+  verificationStatus?: string | null;
 }) {
   return {
     id: doc.id,
     category: doc.category,
     mime_type: doc.mimeType ?? null,
     created_at: doc.createdAt,
+    original_name: doc.originalName ?? null,
+    kyc_document_type: doc.kycDocumentType ?? null,
+    verification_status: doc.verificationStatus ?? null,
   };
 }
 

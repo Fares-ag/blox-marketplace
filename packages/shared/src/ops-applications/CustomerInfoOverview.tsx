@@ -62,7 +62,7 @@ export function CustomerInfoOverview({
         <InfoItem label={t('ops.customer.city')} value={corp.registeredAddress?.city} />
         <InfoItem label={t('ops.customer.country')} value={corp.registeredAddress?.country} />
         <InfoItem label={t('ops.customer.postalCode')} value={corp.registeredAddress?.postalCode} />
-        <h3 style={{ marginTop: 16, marginBottom: 8 }}>{t('ops.customer.authorizedSignatory')}</h3>
+        <h3 className="blox-panel__subtitle">{t('ops.customer.authorizedSignatory')}</h3>
         <InfoItem label={t('ops.customer.firstName')} value={sig?.firstName} />
         <InfoItem label={t('ops.customer.lastName')} value={sig?.lastName} />
         <InfoItem label={t('ops.col.email')} value={sig?.email ?? info.email} />
