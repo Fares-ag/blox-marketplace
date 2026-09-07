@@ -20,6 +20,9 @@ import {
   type PaginatedResponse,
   ApiError,
 } from '@drivemarket/shared';
+import { HomeBranchSelect } from '../components/HomeBranchSelect';
+import { apiErrorCode } from '../lib/customer-platform';
+import type { HomeBranchRef } from '../types';
 
 const ASSIGNABLE_ROLES = [
   'customer',
@@ -39,6 +42,7 @@ type UserDetail = AdminUser & {
   credit_company_ids?: string[];
   finance_company_ids?: string[];
   applications_count?: number;
+  home_branch?: HomeBranchRef | null;
 };
 
 export function UserDetailPage() {
@@ -54,6 +58,7 @@ export function UserDetailPage() {
   const [financeIds, setFinanceIds] = useState('');
   const [role, setRole] = useState('customer');
   const [companyId, setCompanyId] = useState('');
+  const [homeBranchId, setHomeBranchId] = useState('');
   const [creditAmount, setCreditAmount] = useState(0);
   const [creditAction, setCreditAction] = useState<'add' | 'subtract' | 'set'>('add');
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +96,7 @@ export function UserDetailPage() {
           name: displayName.trim(),
           role,
           companyId: companyId || null,
+          home_branch_id: companyId ? homeBranchId || null : null,
           creditScope,
           financeScope,
           creditCompanyIds: creditIds
@@ -109,7 +115,8 @@ export function UserDetailPage() {
       void qc.invalidateQueries({ queryKey: ['sa-user', id] });
       void qc.invalidateQueries({ queryKey: ['sa-users'] });
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) =>
+      setError(apiErrorCode(e) === 'branch_not_in_company' ? t('adminOps.users.branchNotInCompany') : e.message),
   });
 
   const updateAccess = useMutation({
@@ -162,6 +169,7 @@ export function UserDetailPage() {
     setDisplayName(data.name ?? '');
     setRole(data.role);
     setCompanyId(data.company_id ?? '');
+    setHomeBranchId(data.home_branch?.id ?? '');
     setCreditScope(data.credit_scope ?? 'assigned');
     setFinanceScope(data.finance_scope ?? 'assigned');
     setCreditIds((data.credit_company_ids ?? []).join(','));
@@ -248,7 +256,13 @@ export function UserDetailPage() {
         </label>
         <label>
           Company
-          <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+          <select
+            value={companyId}
+            onChange={(e) => {
+              setCompanyId(e.target.value);
+              setHomeBranchId('');
+            }}
+          >
             <option value="">No company</option>
             {(companies.data?.items ?? [])
               .filter((c) => {
@@ -265,6 +279,7 @@ export function UserDetailPage() {
               ))}
           </select>
         </label>
+        <HomeBranchSelect plain companyId={companyId || null} value={homeBranchId} onChange={setHomeBranchId} />
         <p>Applications: {data.applications_count ?? 0}</p>
         <label>
           Credit scope

@@ -6,6 +6,11 @@ import {
 import { ListingStatus, User, VehicleCondition } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
+import {
+  GENDER_VALUES,
+  RESIDENCE_DURATION_VALUES,
+  type GenderValue,
+} from '../applications/customer-snapshot';
 import { ProductsService } from '../products/products.service';
 import { CustomerPaymentsService } from '../payments/customer-payments.service';
 import { CreditsService } from '../credits/credits.service';
@@ -151,6 +156,8 @@ export class MobileService {
       nationalId: string;
       nationality?: string;
       gender?: string;
+      dateOfBirth?: string;
+      residenceDuration?: string;
     },
   ) {
     const product = await this.prisma.product.findUnique({
@@ -166,15 +173,42 @@ export class MobileService {
     const down = Number(dto.calculator?.downPayment ?? 0);
     const downPct = listPrice > 0 ? (down / listPrice) * 100 : Number(offer.minDownPaymentPct);
 
+    // Same shared snapshot shape as the web stepper and the dealer wizard, so
+    // the same validation (QID-derived residency, DOB cross-check, product
+    // rules, identity dedup) applies to mobile applicants.
+    const genderRaw = String(dto.gender ?? '').trim().toLowerCase();
+    const gender = (GENDER_VALUES as readonly string[]).includes(genderRaw)
+      ? (genderRaw as GenderValue)
+      : undefined;
+    const residenceDurationRaw = dto.residenceDuration ?? dto.calculator?.durationOfResidence;
+    const residenceDuration = RESIDENCE_DURATION_VALUES.includes(String(residenceDurationRaw ?? ''))
+      ? String(residenceDurationRaw)
+      : undefined;
+    const employmentType = dto.calculator?.employmentType?.trim() || undefined;
+    const salary = Number.isFinite(Number(dto.calculator?.salary)) && dto.calculator?.salary != null
+      ? Number(dto.calculator.salary)
+      : undefined;
+
     return this.apps.create(user, {
       productId: product.id,
       offerId: offer.id,
       customerSnapshot: {
         full_name: `${dto.firstName} ${dto.lastName}`.trim(),
+        firstName: dto.firstName,
+        lastName: dto.lastName,
         phone: dto.phone,
         qid: dto.nationalId,
-        employment: dto.calculator?.employmentType,
-        income: dto.calculator?.salary,
+        email: dto.email,
+        applicantType: 'individual',
+        ...(gender ? { gender } : {}),
+        ...(dto.nationality ? { nationality: dto.nationality } : {}),
+        ...(dto.dateOfBirth ? { dateOfBirth: dto.dateOfBirth } : {}),
+        ...(residenceDuration ? { residenceDuration } : {}),
+        employment: {
+          ...(employmentType ? { employmentType } : {}),
+          ...(salary !== undefined ? { salary } : {}),
+        },
+        ...(salary !== undefined ? { income: salary, monthlyIncome: salary } : {}),
       },
       pricingSnapshot: {
         tenor: dto.calculator?.termMonths ?? 36,

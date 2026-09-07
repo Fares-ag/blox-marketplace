@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
 
 /** Roles only a super administrator may grant or manage. */
@@ -40,5 +40,19 @@ export function assertCanManageUserRole(actor: User, targetRole: UserRole, nextR
   }
   if (actor.role === UserRole.group_admin && nextRole && !GROUP_MANAGEABLE_ROLES.includes(nextRole)) {
     throw new ForbiddenException('forbidden_role');
+  }
+}
+
+/**
+ * A home branch must belong to the company the user is (being) assigned to.
+ * `branch` is null when the id did not resolve.
+ */
+export function assertHomeBranchInCompany(
+  branch: { id: string; companyId: string } | null,
+  companyId: string | null | undefined,
+): void {
+  if (!companyId) throw new BadRequestException('branch_requires_company');
+  if (!branch || branch.companyId !== companyId) {
+    throw new BadRequestException('branch_not_in_company');
   }
 }

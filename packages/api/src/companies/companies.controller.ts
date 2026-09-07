@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   ForbiddenException,
   Get,
@@ -10,12 +11,29 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { CompanyKind, User, UserRole } from '@prisma/client';
-import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { CompanyKind, Prisma, User, UserRole } from '@prisma/client';
+import { Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 import { CurrentUser, Public, Roles } from '../auth/guards';
+import { ActivityService } from '../common/activity.service';
 import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
+import { isUniqueConstraintError } from '../common/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
-import { toAdminCompanyDto, toDealerCompanyDto } from './company-response.dto';
+import { BRANCH_INCLUDE, toBranchDto, toBranchRefDto } from './branch-response.dto';
+import { mergeBranding } from './branding';
+import {
+  toAdminCompanyDto,
+  toDealerCompanyDto,
+  toPublicCompanyDetailDto,
+} from './company-response.dto';
 import { assertValidCompanyHierarchy, resolveDescendantCompanyIds } from './company-hierarchy';
 
 class CreateCompanyDto {
@@ -27,6 +45,15 @@ class CreateCompanyDto {
   @IsOptional() @IsString() parentCompanyId?: string;
 }
 
+/** White-label block (`CompanyBrandingDto`): null or '' clears a field. */
+class CompanyBrandingDto {
+  @IsOptional() @IsString() @MaxLength(16) primary?: string | null;
+  @IsOptional() @IsString() @MaxLength(16) accent?: string | null;
+  @IsOptional() @IsString() @MaxLength(2048) logo_url?: string | null;
+  @IsOptional() @IsString() @MaxLength(80) display_name?: string | null;
+  @IsOptional() @IsString() @MaxLength(160) tagline?: string | null;
+}
+
 class UpdateCompanyDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() code?: string;
@@ -36,11 +63,37 @@ class UpdateCompanyDto {
   @IsOptional() @IsBoolean() canPay?: boolean;
   @IsOptional() @IsEnum(CompanyKind) kind?: CompanyKind;
   @IsOptional() @IsString() parentCompanyId?: string | null;
+  @IsOptional() @ValidateNested() @Type(() => CompanyBrandingDto) branding?: CompanyBrandingDto;
+}
+
+class CreateBranchDto {
+  @IsString() @IsNotEmpty() @MaxLength(32) code!: string;
+  @IsString() @IsNotEmpty() @MaxLength(120) name!: string;
+  @IsOptional() @IsString() @MaxLength(80) city?: string;
+  @IsOptional() @IsString() @MaxLength(240) address?: string;
+  @IsOptional() @IsString() @MaxLength(32) phone?: string;
+}
+
+class UpdateBranchDto {
+  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(120) name?: string;
+  @IsOptional() @IsString() @MaxLength(80) city?: string | null;
+  @IsOptional() @IsString() @MaxLength(240) address?: string | null;
+  @IsOptional() @IsString() @MaxLength(32) phone?: string | null;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+
+function optionalText(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 @Controller('companies')
 export class CompaniesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activity: ActivityService,
+  ) {}
 
   @Public()
   @Get()
@@ -81,6 +134,7 @@ export class CompaniesController {
     );
   }
 
+  /** White-label entry point (`/dealers/:code/apply`): includes `branding` + `logo_url`. */
   @Public()
   @Get('by-code/:code')
   async byCode(@Param('code') code: string) {
@@ -91,6 +145,7 @@ export class CompaniesController {
         name: true,
         code: true,
         logoUrl: true,
+        branding: true,
         address: true,
         contactPhone: true,
         _count: {
@@ -101,15 +156,10 @@ export class CompaniesController {
       },
     });
     if (!company) return null;
-    return {
-      id: company.id,
-      name: company.name,
-      code: company.code,
-      logo_url: company.logoUrl,
-      address: company.address,
-      contact_phone: company.contactPhone,
+    return toPublicCompanyDetailDto({
+      ...company,
       published_count: company._count.products,
-    };
+    });
   }
 
   @Roles(UserRole.admin, UserRole.super_admin, UserRole.group_admin)
@@ -191,6 +241,10 @@ export class CompaniesController {
       parentCompanyId: nextParent,
     });
     if (nextParent === id) throw new BadRequestException('company_cannot_parent_self');
+
+    // Hex colours are validated inside mergeBranding (400 invalid_hex_colour).
+    const branding = dto.branding !== undefined ? mergeBranding(existing.branding, dto.branding) : undefined;
+
     const company = await this.prisma.company.update({
       where: { id },
       data: {
@@ -203,12 +257,24 @@ export class CompaniesController {
           ? { allowDirectActivate: dto.allowDirectActivate }
           : {}),
         ...(dto.canPay !== undefined ? { canPay: dto.canPay } : {}),
+        ...(branding !== undefined
+          ? { branding: branding ? (branding as Prisma.InputJsonObject) : Prisma.DbNull }
+          : {}),
       },
       include: {
         parentCompany: { select: { id: true, name: true } },
         _count: { select: { childCompanies: true } },
       },
     });
+    if (branding !== undefined) {
+      await this.activity.log({
+        actorUserId: user.id,
+        entityType: 'company',
+        entityId: id,
+        action: 'company_branding_updated',
+        metadata: { branding },
+      });
+    }
     return toAdminCompanyDto(company);
   }
 
@@ -243,10 +309,111 @@ export class CompaniesController {
     }
     const agents = await this.prisma.user.findMany({
       where: { companyId: id, role: UserRole.dealer_agent, isActive: true },
-      select: { id: true, name: true, email: true, role: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        homeBranch: { select: { id: true, code: true, name: true } },
+      },
       orderBy: { name: 'asc' },
     });
-    return { items: agents };
+    return {
+      items: agents.map(({ homeBranch, ...agent }) => ({
+        ...agent,
+        home_branch: toBranchRefDto(homeBranch),
+      })),
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Branches (LOS FSD dealer branch master). Admin/super_admin manage every
+  // company, group_admin their tree, dealer agents read their own company.
+  // ---------------------------------------------------------------------
+
+  @Roles(UserRole.admin, UserRole.super_admin, UserRole.group_admin, UserRole.dealer_agent)
+  @Get(':id/branches')
+  async branches(@CurrentUser() user: User, @Param('id') id: string) {
+    await this.assertBranchScope(user, id);
+    const rows = await this.prisma.branch.findMany({
+      where: { companyId: id },
+      include: BRANCH_INCLUDE,
+      orderBy: [{ active: 'desc' }, { name: 'asc' }],
+    });
+    return rows.map((row) => toBranchDto(row));
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin, UserRole.group_admin)
+  @Post(':id/branches')
+  async createBranch(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: CreateBranchDto,
+  ) {
+    await this.assertBranchScope(user, id);
+    const code = dto.code.trim();
+    let branch;
+    try {
+      branch = await this.prisma.branch.create({
+        data: {
+          companyId: id,
+          code,
+          name: dto.name.trim(),
+          city: optionalText(dto.city),
+          address: optionalText(dto.address),
+          phone: optionalText(dto.phone),
+        },
+        include: BRANCH_INCLUDE,
+      });
+    } catch (err) {
+      if (isUniqueConstraintError(err)) throw new ConflictException('branch_code_exists');
+      throw err;
+    }
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'branch',
+      entityId: branch.id,
+      action: 'branch_created',
+      toValue: branch.code,
+      metadata: { company_id: id, name: branch.name },
+    });
+    return toBranchDto(branch);
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin, UserRole.group_admin)
+  @Patch(':id/branches/:branchId')
+  async updateBranch(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Param('branchId') branchId: string,
+    @Body() dto: UpdateBranchDto,
+  ) {
+    await this.assertBranchScope(user, id);
+    const existing = await this.prisma.branch.findFirst({ where: { id: branchId, companyId: id } });
+    if (!existing) throw new NotFoundException('branch_not_found');
+
+    const changes = {
+      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      ...(dto.city !== undefined ? { city: optionalText(dto.city) } : {}),
+      ...(dto.address !== undefined ? { address: optionalText(dto.address) } : {}),
+      ...(dto.phone !== undefined ? { phone: optionalText(dto.phone) } : {}),
+      ...(dto.active !== undefined ? { active: dto.active } : {}),
+    };
+    const branch = await this.prisma.branch.update({
+      where: { id: existing.id },
+      data: changes,
+      include: BRANCH_INCLUDE,
+    });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'branch',
+      entityId: branch.id,
+      action: 'branch_updated',
+      fromValue: existing.active ? 'active' : 'inactive',
+      toValue: branch.active ? 'active' : 'inactive',
+      metadata: { company_id: id, changes },
+    });
+    return toBranchDto(branch);
   }
 
   @Roles(UserRole.dealer_agent)
@@ -255,5 +422,24 @@ export class CompaniesController {
     if (!user.companyId) return null;
     const company = await this.prisma.company.findUnique({ where: { id: user.companyId } });
     return company ? toDealerCompanyDto(company) : null;
+  }
+
+  /** Same hierarchy rules as the company endpoints; dealer agents see only their own company. */
+  private async assertBranchScope(user: User, companyId: string): Promise<void> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true },
+    });
+    if (!company) throw new NotFoundException('company_not_found');
+    if (user.role === UserRole.dealer_agent) {
+      if (user.companyId !== companyId) throw new ForbiddenException('forbidden_role');
+      return;
+    }
+    if (user.role === UserRole.group_admin) {
+      const allowed = user.companyId
+        ? await resolveDescendantCompanyIds(this.prisma, user.companyId)
+        : [];
+      if (!allowed.includes(companyId)) throw new ForbiddenException('out_of_scope');
+    }
   }
 }

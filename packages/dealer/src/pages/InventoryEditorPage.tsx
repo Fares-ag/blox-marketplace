@@ -3,12 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import {
+  OpsAlert,
   OpsFormPage,
   OpsFormSection,
+  PRODUCT_RULES,
   apiFetch,
   useOpsLabels,
   type DealerInventoryItem,
 } from '@drivemarket/shared';
+
+/** Longest tenure (months) a model year can carry under the 10-year age limit at tenure end. */
+function maxTenureMonthsForModelYear(modelYear: number, now = new Date()): number {
+  const ageNow = now.getFullYear() - modelYear;
+  const years = PRODUCT_RULES.vehicleAge.maxYearsAtTenureEnd - ageNow;
+  return Math.max(0, Math.floor(years * 12));
+}
 
 export function InventoryEditorPage() {
   const { t } = useOpsLabels();
@@ -33,6 +42,9 @@ export function InventoryEditorPage() {
   const [warrantyMonths, setWarrantyMonths] = useState<number | ''>('');
   const [warrantyNotes, setWarrantyNotes] = useState('');
   const [financeEligible, setFinanceEligible] = useState(true);
+  const [vin, setVin] = useState('');
+  const [chassisNumber, setChassisNumber] = useState('');
+  const [engineNumber, setEngineNumber] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const existing = useQuery({
@@ -62,7 +74,15 @@ export function InventoryEditorPage() {
     setWarrantyMonths(row.warranty_months != null ? Number(row.warranty_months) : '');
     setWarrantyNotes(String(row.warranty_notes ?? ''));
     setFinanceEligible(row.finance_eligible !== false);
+    setVin(String(row.vin ?? ''));
+    setChassisNumber(String(row.chassis_number ?? ''));
+    setEngineNumber(String(row.engine_number ?? ''));
   }, [existing.data, id, isNew]);
+
+  const identityComplete = !!vin.trim() && !!chassisNumber.trim() && !!engineNumber.trim();
+  const identitySaved = !isNew && existing.data?.identity_complete === identityComplete;
+  const maxTenureForYear = Number.isFinite(modelYear) ? maxTenureMonthsForModelYear(modelYear) : null;
+  const longestTenure = PRODUCT_RULES.tenure.maxMonths.qatari;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -90,6 +110,9 @@ export function InventoryEditorPage() {
         warrantyMonths: warrantyMonths === '' ? undefined : Math.trunc(Number(warrantyMonths)),
         warrantyNotes: warrantyNotes.trim() || undefined,
         financeEligible,
+        vin: vin.trim() || undefined,
+        chassis_number: chassisNumber.trim() || undefined,
+        engine_number: engineNumber.trim() || undefined,
       };
       if (isNew) {
         return apiFetch<{ id: string }>('/api/dealer/inventory', {
@@ -105,6 +128,7 @@ export function InventoryEditorPage() {
     },
     onSuccess: (row: { id: string }) => {
       void qc.invalidateQueries({ queryKey: ['dealer-inventory'] });
+      void qc.invalidateQueries({ queryKey: ['dealer-inventory-item', row.id] });
       navigate(`/inventory/${row.id}`);
     },
     onError: (e: Error) => {
@@ -253,9 +277,57 @@ export function InventoryEditorPage() {
           />
           Finance eligible
         </label>
+
+        <div className="blox-form-block">
+          <h3 className="blox-panel__subtitle">{t('inventoryRules.identityTitle')}</h3>
+          <p className="blox-field__hint">{t('inventoryRules.identityHint')}</p>
+          <label>
+            {t('inventoryRules.vin')}
+            <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} autoComplete="off" spellCheck={false} />
+          </label>
+          <label>
+            {t('inventoryRules.chassisNumber')}
+            <input
+              value={chassisNumber}
+              onChange={(e) => setChassisNumber(e.target.value.toUpperCase())}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            {t('inventoryRules.engineNumber')}
+            <input
+              value={engineNumber}
+              onChange={(e) => setEngineNumber(e.target.value.toUpperCase())}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </label>
+          {identityComplete ? (
+            <OpsAlert variant="success" title={t('inventoryRules.identityTitle')}>
+              {t('dealerOps.vehicle.identityComplete')}
+              {!isNew && !identitySaved ? ` ${t('dealerOps.vehicle.identitySaveHint')}` : ''}
+            </OpsAlert>
+          ) : (
+            <OpsAlert variant="warning" title={t('inventoryRules.incomplete')}>
+              {t('inventoryRules.incompleteBody')} {t('inventoryRules.reserveBlocked')}
+            </OpsAlert>
+          )}
+          {maxTenureForYear != null && maxTenureForYear <= 0 && (
+            <OpsAlert variant="error" title={t('inventoryRules.ageBlocked')}>
+              {t('dealerOps.vehicle.ageHint', { year: modelYear, months: 0 })}
+            </OpsAlert>
+          )}
+          {maxTenureForYear != null && maxTenureForYear > 0 && maxTenureForYear < longestTenure && (
+            <OpsAlert variant="info">
+              {t('dealerOps.vehicle.ageHint', { year: modelYear, months: maxTenureForYear })}
+            </OpsAlert>
+          )}
+        </div>
+
         {error && <p className="blox-form-error" role="alert">{error}</p>}
         <button type="submit" className="blox-btn blox-btn--primary" disabled={inventoryBusy}>
-          {save.isPending ? 'Saving…' : 'Save'}
+          {save.isPending ? t('dealerOps.vehicle.saving') : t('dealerOps.vehicle.save')}
         </button>
       </form>
       </OpsFormSection>

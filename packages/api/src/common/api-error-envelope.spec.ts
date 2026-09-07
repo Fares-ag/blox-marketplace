@@ -95,3 +95,18 @@ describe('api-error-envelope', () => {
     expect(resolved.code).toBe('file_too_large');
   });
 });
+
+describe('api-error-envelope structured details', () => {
+  it('surfaces caller-supplied context next to a machine code', () => {
+    const resolved = resolveHttpException(
+      new ConflictException({ message: 'documents_missing', missing: ['bank', 'salary'] }),
+    );
+    expect(resolved.code).toBe('documents_missing');
+    expect(resolved.details).toEqual({ missing: ['bank', 'salary'] });
+  });
+
+  it('omits details when the body only carries the code', () => {
+    const resolved = resolveHttpException(new ConflictException({ message: 'blocking_application' }));
+    expect(resolved.details).toBeUndefined();
+  });
+});

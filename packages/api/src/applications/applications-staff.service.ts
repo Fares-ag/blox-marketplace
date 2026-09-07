@@ -21,16 +21,19 @@ import { AppConfigService } from '../config/app-config.service';
 import { ActivityService } from '../common/activity.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { hasAllRequiredDocuments } from './application-documents';
 import type { ApplicationDocCategory } from './application-documents';
 import { buildApplicationPricingSnapshot } from './application-pricing';
 import { buildPlanFromPricingSnapshot, planForVehicle, resolveDownPaymentPercent } from '@drivemarket/shared/installment-plan';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
-import { toApplicationDto } from './application-response.dto';
+import { mapApplicationDto, type ApplicationAudience } from './application-response.dto';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
 import { submittedStatusForPartner } from './partner-finance';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
 import { shouldSyncStatusToCrm } from '../integrations/zoho/zoho-sync-policy';
+import { ApplicationIntakeService } from './application-intake.service';
+import { assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
+import { normalizeCustomerSnapshot, type NormalizedCustomerSnapshot } from './customer-snapshot';
+import { assertSubmitGates, vehicleIdentityComplete } from './submit-gates';
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
@@ -62,7 +65,29 @@ export class ApplicationsStaffService {
     private readonly appConfig: AppConfigService,
     @Inject(AUTH_INSTANCE) private readonly auth: AuthInstance,
     private readonly zoho: ZohoCrmService,
+    private readonly intake: ApplicationIntakeService,
   ) {}
+
+  private audienceFor(actor: User): ApplicationAudience {
+    return actor.role === UserRole.dealer_agent ? 'dealer' : 'ops';
+  }
+
+  /**
+   * Branch attribution for staff-created applications: the creating user's
+   * home branch, else the assigned sales executive's (admin creating on an
+   * agent's behalf), else none.
+   */
+  private async resolveBranchId(actor: User, agentUserId?: string | null): Promise<string | null> {
+    if (actor.homeBranchId) return actor.homeBranchId;
+    if (agentUserId && agentUserId !== actor.id) {
+      const agent = await this.prisma.user.findUnique({
+        where: { id: agentUserId },
+        select: { homeBranchId: true },
+      });
+      return agent?.homeBranchId ?? null;
+    }
+    return null;
+  }
 
   async create(actor: User, dto: StaffCreateApplicationDto) {
     const isDealer = actor.role === UserRole.dealer_agent;
@@ -83,12 +108,16 @@ export class ApplicationsStaffService {
     if (!email || !phone || !qid || !full_name) {
       throw new BadRequestException('validation_failed');
     }
+    // Same normalisation as the customer path: residency/nationality from the
+    // QID, DOB cross-checked (400 dob_qid_mismatch), guarantor/employment tidied.
+    const normalized = normalizeCustomerSnapshot({ ...snap, email, phone, qid, full_name });
 
     const customer = await this.findOrCreateWalkInCustomer(actor, {
       email,
       name: full_name,
       phone,
-      qid,
+      qid: normalized.snapshot.qid,
+      normalized,
     });
 
     const offer = await this.prisma.offer.findFirst({
@@ -109,6 +138,22 @@ export class ApplicationsStaffService {
         ? submittedStatusForPartner(offer.financePartner?.crmAdapter)
         : ApplicationStatus.draft;
     const agentUserId = dto.agentUserId || (isDealer ? actor.id : undefined);
+    const branchId = await this.resolveBranchId(actor, agentUserId);
+    // Lender of record: the offer's partner, else (when submitting now) the default lender.
+    const defaultLenderId =
+      !offer.financePartnerId && initialStatus !== ApplicationStatus.draft
+        ? await this.intake.defaultLenderId()
+        : null;
+    const lenderId = offer.financePartnerId ?? defaultLenderId;
+
+    const qidHash = this.intake.qidHash(normalized.snapshot.qid);
+    const identity = await this.intake.evaluateIdentity({
+      userId: customer.id,
+      qid: normalized.snapshot.qid,
+      name: normalized.snapshot.full_name,
+      birthYear: normalized.birthYear,
+    });
+    const enforcement = this.intake.ruleEnforcement();
 
     const firstProduct = await this.prisma.product.findUnique({ where: { id: productIds[0]! } });
     if (!firstProduct) throw new BadRequestException('listing_not_available');
@@ -146,6 +191,10 @@ export class ApplicationsStaffService {
         if (product.listingStatus !== ListingStatus.published) {
           throw new BadRequestException('listing_not_available');
         }
+        // VIN + chassis + engine number must be on file before the listing is reserved.
+        if (!vehicleIdentityComplete(product)) {
+          throw new ConflictException('vehicle_identity_incomplete');
+        }
       }
 
       const listPrice = Number(dto.listPrice ?? product.price);
@@ -162,17 +211,27 @@ export class ApplicationsStaffService {
         selling_price: sellingPriceForProduct,
         hide_interest: !!dto.hideInterest,
       };
+      const violations = evaluateProductRules({
+        product,
+        offer,
+        pricingSnapshot,
+        applicantType: normalized.snapshot.applicantType,
+        residency: normalized.residency,
+        enforcement,
+      });
+      assertNoHardViolations(violations);
+      const pricingWithFlags = withRuleFlags(pricingSnapshot, violations);
 
       const installmentPlan =
         planForVehicle(templatePlan, sellingPriceForProduct, downPct) ?? templatePlan;
 
       const customerSnapshot: Record<string, unknown> = {
-        ...snap,
+        ...normalized.snapshot,
         email,
         phone,
-        qid,
+        qid: normalized.snapshot.qid,
         full_name,
-        applicantType: snap.applicantType ?? 'individual',
+        applicantType: normalized.snapshot.applicantType,
       };
       if (bulkBatchId) customerSnapshot.bulkBatchId = bulkBatchId;
 
@@ -186,13 +245,16 @@ export class ApplicationsStaffService {
             productId: product.id,
             companyId: product.companyId,
             offerId: offer.id,
-            financePartnerId: offer.financePartnerId,
+            financePartnerId: lenderId,
             leadSource: 'walk_in',
-            pricingSnapshot: asJson(pricingSnapshot),
+            pricingSnapshot: asJson(pricingWithFlags),
             installmentPlan: asJson(installmentPlan as unknown as Record<string, unknown>),
             status: initialStatus,
             agentUserId: agentUserId ?? null,
+            branchId,
+            qidHash,
             submittedAt: initialStatus !== ApplicationStatus.draft ? now : null,
+            ...this.intake.holdColumns(identity, now),
           },
         });
 
@@ -215,8 +277,26 @@ export class ApplicationsStaffService {
         entityId: app.id,
         action: 'application_created',
         toValue: initialStatus,
-        metadata: { staff: true, walk_in: true },
+        metadata: { staff: true, walk_in: true, branch_id: branchId },
       });
+      if (identity) {
+        await this.intake.recordHold({
+          applicationId: app.id,
+          companyId: app.companyId,
+          actorUserId: actor.id,
+          decision: identity,
+        });
+      }
+      if (defaultLenderId) {
+        await this.activity.log({
+          actorUserId: actor.id,
+          entityType: 'application',
+          entityId: app.id,
+          action: 'lender_tagged',
+          toValue: defaultLenderId,
+          metadata: { source: 'default_lender' },
+        });
+      }
       createdIds.push(app.id);
       if (initialStatus !== ApplicationStatus.draft && shouldSyncStatusToCrm(initialStatus)) {
         void this.zoho.syncApplicationToZoho(app.id, actor.id);
@@ -227,7 +307,7 @@ export class ApplicationsStaffService {
       where: { id: createdIds[0] },
     });
     return {
-      ...toApplicationDto(first),
+      ...mapApplicationDto(first, this.audienceFor(actor)),
       created_ids: createdIds,
     };
   }
@@ -246,17 +326,34 @@ export class ApplicationsStaffService {
     if (app.status !== ApplicationStatus.draft && app.status !== ApplicationStatus.resubmission_required) {
       throw new BadRequestException('invalid_status_transition');
     }
-    if (!hasAllRequiredDocuments(app.documents)) {
-      throw new BadRequestException('documents_incomplete');
-    }
-
     const fromStatus = app.status;
+    // identity_hold → consents_required → documents_missing →
+    // vehicle_identity_incomplete (only when reserving) → vehicle_age_rule
+    assertSubmitGates({
+      application: app,
+      documents: app.documents,
+      product: app.product,
+      requireVehicleIdentity: fromStatus === ApplicationStatus.draft,
+    });
+
     const nextStatus = submittedStatusForPartner(app.financePartner?.crmAdapter);
+    const lenderId = app.financePartnerId ?? (await this.intake.defaultLenderId());
+    const autoTagged = !app.financePartnerId && !!lenderId;
+    const branchId = app.branchId ?? (await this.resolveBranchId(actor, app.agentUserId));
     const updated = await this.prisma.$transaction(async (tx) => {
       await transitionApplication(tx, id, fromStatus, {
         status: nextStatus,
         submittedAt: app.submittedAt ?? new Date(),
       });
+      if (autoTagged || (branchId && branchId !== app.branchId)) {
+        await tx.application.update({
+          where: { id },
+          data: {
+            ...(autoTagged ? { financePartnerId: lenderId } : {}),
+            ...(branchId && branchId !== app.branchId ? { branchId } : {}),
+          },
+        });
+      }
       if (fromStatus === ApplicationStatus.draft) {
         await tx.product.updateMany({
           where: { id: app.productId, listingStatus: ListingStatus.published },
@@ -274,10 +371,20 @@ export class ApplicationsStaffService {
       fromValue: fromStatus,
       toValue: nextStatus,
     });
+    if (autoTagged) {
+      await this.activity.log({
+        actorUserId: actor.id,
+        entityType: 'application',
+        entityId: id,
+        action: 'lender_tagged',
+        toValue: lenderId,
+        metadata: { source: 'default_lender' },
+      });
+    }
     if (shouldSyncStatusToCrm(nextStatus)) {
       void this.zoho.syncApplicationToZoho(id, actor.id);
     }
-    return toApplicationDto(updated);
+    return mapApplicationDto(updated, this.audienceFor(actor));
   }
 
   async uploadDoc(
@@ -348,7 +455,7 @@ export class ApplicationsStaffService {
 
   private async findOrCreateWalkInCustomer(
     actor: User,
-    input: { email: string; name: string; phone: string; qid: string },
+    input: { email: string; name: string; phone: string; qid: string; normalized: NormalizedCustomerSnapshot },
   ) {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {
@@ -357,11 +464,7 @@ export class ApplicationsStaffService {
       }
       await this.prisma.user.update({
         where: { id: existing.id },
-        data: {
-          name: existing.name || input.name,
-          phone: existing.phone || input.phone,
-          qid: existing.qid || input.qid,
-        },
+        data: this.intake.userProfileData(existing, input.normalized),
       });
       return this.prisma.user.findUniqueOrThrow({ where: { id: existing.id } });
     }
@@ -385,9 +488,10 @@ export class ApplicationsStaffService {
       data: {
         role: UserRole.customer,
         emailVerified: false,
-        phone: input.phone,
-        qid: input.qid,
-        name: input.name,
+        ...this.intake.userProfileData(
+          { name: input.name, phone: input.phone, qid: input.qid },
+          input.normalized,
+        ),
       },
     });
 

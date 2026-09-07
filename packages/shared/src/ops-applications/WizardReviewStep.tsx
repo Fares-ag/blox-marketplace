@@ -2,13 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import { formatQar, formatPercent } from '../lib/format';
 import { useOpsLabels } from '../i18n/use-ops-labels';
+import { OpsStatusPill } from '../components/ops-ui';
 import type { PublicOffer } from '../types/domain';
 import type { InstallmentPlan } from '../types/installment-plan';
+import type { ProductRuleViolation } from '../lib/product-rules';
 import type { OpsAgent } from './types';
 import {
   buildCustomerSnapshot,
-  docCategoriesForApplicant,
-  requiredDocCategoriesForApplicant,
+  ruleViolationMessage,
+  wizardDocumentSlots,
   type CustomerInfoFormValue,
 } from './customer-info';
 import { CustomerInfoOverview, InfoItem } from './CustomerInfoOverview';
@@ -39,6 +41,7 @@ export function WizardReviewStep({
   companyName,
   agentCompanyId,
   isAdmin,
+  ruleViolations = [],
   onSubmitOnCreateChange,
 }: {
   data: WizardReviewData;
@@ -47,6 +50,8 @@ export function WizardReviewStep({
   companyName?: string;
   agentCompanyId: string;
   isAdmin: boolean;
+  /** Product-rule findings for the plan; soft ones are listed for the reviewer. */
+  ruleViolations?: ProductRuleViolation[];
   onSubmitOnCreateChange?: (value: boolean) => void;
 }) {
   const { t } = useOpsLabels();
@@ -60,8 +65,7 @@ export function WizardReviewStep({
 
   const priceForPlan =
     data.sellingPrice || data.listPrice || Number(selectedVehicles[0]?.price ?? 0);
-  const docCategories = docCategoriesForApplicant(data.customerInfo.applicantType);
-  const requiredDocs = new Set(requiredDocCategoriesForApplicant(data.customerInfo.applicantType));
+  const slots = wizardDocumentSlots(data.customerInfo);
   const isCorporateMulti = data.customerInfo.applicantType === 'corporate' && selectedVehicles.length > 1;
   const financeLabel =
     offer?.crm_adapter === 'zoho' ? t('ops.common.partnerFinance') : t('ops.common.bloxFinance');
@@ -99,6 +103,12 @@ export function WizardReviewStep({
               />
               <InfoItem label={t('ops.wizard.listPrice')} value={formatQar(Number(vehicle.price ?? 0))} />
               {vehicle.company_name && <InfoItem label={t('ops.col.dealer')} value={vehicle.company_name} />}
+              {vehicle.identity_complete === false && (
+                <InfoItem
+                  label={t('inventoryRules.identityTitle')}
+                  value={<OpsStatusPill label={t('inventoryRules.incomplete')} variant="warning" />}
+                />
+              )}
             </div>
           ))
         )}
@@ -146,22 +156,38 @@ export function WizardReviewStep({
             <InfoItem label={t('ops.wizard.totalAmount')} value={formatQar(Number(plan.totalAmount ?? 0))} />
           </>
         )}
+        <InfoItem
+          label={t('dealerOps.plan.rulesTitle')}
+          value={
+            ruleViolations.length === 0 ? (
+              <OpsStatusPill label={t('dealerOps.plan.rulesOk')} variant="success" />
+            ) : (
+              <span className="blox-cell-stack">
+                {ruleViolations.map((v) => (
+                  <span key={v.code} className="blox-cell-row">
+                    <OpsStatusPill
+                      label={v.severity === 'hard' ? t('dealerOps.plan.rulesBlock') : t('dealerOps.plan.rulesWarn')}
+                      variant={v.severity === 'hard' ? 'danger' : 'warning'}
+                    />
+                    <span>{ruleViolationMessage(v, t)}</span>
+                  </span>
+                ))}
+              </span>
+            )
+          }
+        />
       </section>
 
       <section className="blox-detail-section">
         <h2 className="blox-panel__title">{t('ops.wizard.step.documents')}</h2>
-        {docCategories.map((cat) => {
-          const file = data.files[cat];
-          const isRequired = requiredDocs.has(cat);
+        {slots.map((slot) => {
+          const file = data.files[slot.category];
+          const label = t(slot.labelKey, { defaultValue: slot.category.replace(/_/g, ' ') });
           return (
             <InfoItem
-              key={cat}
-              label={
-                isRequired
-                  ? `${t(`ops.wizard.doc.${cat}`, { defaultValue: cat })} *`
-                  : t(`ops.wizard.doc.${cat}`, { defaultValue: cat })
-              }
-              value={file ? file.name : t('ops.wizard.documentMissing')}
+              key={slot.category}
+              label={slot.required ? `${label} *` : label}
+              value={file ? file.name : slot.required ? t('ops.wizard.documentMissing') : t('dealerOps.intake.slotOptional')}
             />
           );
         })}

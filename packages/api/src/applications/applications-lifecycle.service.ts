@@ -41,6 +41,7 @@ import {
 import { buildScheduleDrafts } from './payment-schedules';
 import { syncPaymentSchedulesFromInstallmentPlan } from './installment-plan-sync';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
+import { resolveLenderOfRecord } from '../finance-partners/lender-of-record';
 import { assertCompanyScope } from './company-scope';
 import { assertApplicationCanView, BLOCKING_APPLICATION_STATUSES } from './application-access';
 import { transitionApplication } from './guarded-transitions';
@@ -129,11 +130,21 @@ export class ApplicationsLifecycleService {
     const snap = app.customerSnapshot as Record<string, unknown>;
     const pricing = app.pricingSnapshot as Record<string, unknown>;
     const approvedAt = new Date();
-    const lenderName =
-      app.financePartner?.name ??
-      app.offer?.financePartner?.name ??
-      this.config.get<string>('CONTRACT_LENDER_NAME') ??
-      'Blox Finance';
+    // Lender of record: tagged partner → offer partner → default lender
+    // (Finance Provider Master) → CONTRACT_LENDER_NAME → "Blox Finance".
+    const defaultLender =
+      app.financePartner || app.offer?.financePartner
+        ? null
+        : await this.prisma.financePartner.findFirst({
+            where: { isDefaultLender: true, active: true },
+            select: { name: true },
+          });
+    const lenderName = resolveLenderOfRecord({
+      taggedPartnerName: app.financePartner?.name,
+      offerPartnerName: app.offer?.financePartner?.name,
+      defaultLenderName: defaultLender?.name,
+      configuredName: this.config.get<string>('CONTRACT_LENDER_NAME'),
+    });
     const schedule = buildContractAmortizationSchedule(pricing, approvedAt);
     const contractData = {
       applicationId: app.id,

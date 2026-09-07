@@ -37,7 +37,10 @@ import { resolveDescendantCompanyIds } from '../companies/company-hierarchy';
 import {
   assertCanManageUserRole,
   assertCanProvisionRole,
+  assertHomeBranchInCompany,
 } from './user-provisioning.policy';
+
+const HOME_BRANCH_SELECT = { select: { id: true, code: true, name: true } } as const;
 
 class UpdateUserDto {
   @IsOptional() @IsString() @IsNotEmpty() name?: string;
@@ -48,6 +51,9 @@ class UpdateUserDto {
   @IsOptional() @IsEnum(OfficerScope) financeScope?: OfficerScope;
   @IsOptional() @IsArray() @IsString({ each: true }) creditCompanyIds?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) financeCompanyIds?: string[];
+  /** Branch of the user's company; null clears it. Both spellings accepted. */
+  @IsOptional() @IsString() home_branch_id?: string | null;
+  @IsOptional() @IsString() homeBranchId?: string | null;
 }
 
 class CreateUserDto {
@@ -59,16 +65,30 @@ class CreateUserDto {
   @IsOptional() @IsEnum(OfficerScope) financeScope?: OfficerScope;
   @IsOptional() @IsArray() @IsString({ each: true }) creditCompanyIds?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) financeCompanyIds?: string[];
+  @IsOptional() @IsString() home_branch_id?: string | null;
+  @IsOptional() @IsString() homeBranchId?: string | null;
 }
 
 class InviteDealerAgentDto {
   @IsEmail() @IsNotEmpty() email!: string;
   @IsString() @IsNotEmpty() name!: string;
+  @IsOptional() @IsString() home_branch_id?: string | null;
+  @IsOptional() @IsString() homeBranchId?: string | null;
 }
 
 class SetPasswordDto {
   @IsOptional() @IsString() @MinLength(12) password?: string;
   @IsOptional() @IsBoolean() sendEmail?: boolean;
+}
+
+/** `undefined` = not mentioned in the payload; `null`/'' = clear. */
+function requestedHomeBranch(dto: {
+  home_branch_id?: string | null;
+  homeBranchId?: string | null;
+}): string | null | undefined {
+  const raw = dto.home_branch_id !== undefined ? dto.home_branch_id : dto.homeBranchId;
+  if (raw === undefined) return undefined;
+  return raw ? raw : null;
 }
 
 @Controller('users')
@@ -111,6 +131,7 @@ export class UsersController {
           emailVerified: true,
           createdAt: true,
           company: { select: { name: true } },
+          homeBranch: HOME_BRANCH_SELECT,
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -128,6 +149,7 @@ export class UsersController {
       where: { id },
       include: {
         company: { select: { id: true, name: true } },
+        homeBranch: HOME_BRANCH_SELECT,
         creditCompanies: { select: { companyId: true } },
         financeCompanies: { select: { companyId: true } },
         _count: { select: { applications: true, agentApplications: true } },
@@ -170,6 +192,7 @@ export class UsersController {
       name: dto.name,
       role: UserRole.dealer_agent,
       companyId: actor.companyId,
+      home_branch_id: requestedHomeBranch(dto),
     });
   }
 
@@ -208,6 +231,8 @@ export class UsersController {
       }
     }
 
+    const homeBranchId = await this.resolveHomeBranch(requestedHomeBranch(dto), dto.companyId ?? null);
+
     const officerCompanyIds = [
       ...(dto.creditCompanyIds ?? []),
       ...(dto.financeCompanyIds ?? []),
@@ -245,10 +270,12 @@ export class UsersController {
         data: {
           role: dto.role,
           companyId: dto.companyId ?? null,
+          homeBranchId: homeBranchId ?? null,
           creditScope: dto.creditScope ?? undefined,
           financeScope: dto.financeScope ?? undefined,
           emailVerified: staffProvisioned,
         },
+        include: { homeBranch: HOME_BRANCH_SELECT },
       });
       if (dto.creditCompanyIds?.length) {
         await tx.creditOfficerCompany.createMany({
@@ -302,6 +329,7 @@ export class UsersController {
       entityId: updated.id,
       action: 'user_created',
       toValue: updated.role,
+      metadata: homeBranchId ? { homeBranchId } : undefined,
     });
     return toAdminUserProvisionDto(updated, {
       temporaryPassword: password,
@@ -350,6 +378,14 @@ export class UsersController {
       }
     }
 
+    // The home branch must belong to the company the user ends up in; moving
+    // company without naming a branch drops the old (now foreign) branch.
+    const nextCompanyId = dto.companyId === undefined ? target.companyId : dto.companyId;
+    let homeBranchId = await this.resolveHomeBranch(requestedHomeBranch(dto), nextCompanyId);
+    if (homeBranchId === undefined && dto.companyId !== undefined && dto.companyId !== target.companyId) {
+      homeBranchId = null;
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.user.update({
         where: { id },
@@ -358,9 +394,11 @@ export class UsersController {
           isActive: dto.isActive ?? undefined,
           role: dto.role ?? undefined,
           companyId: dto.companyId === undefined ? undefined : dto.companyId,
+          homeBranchId: homeBranchId === undefined ? undefined : homeBranchId,
           creditScope: dto.creditScope ?? undefined,
           financeScope: dto.financeScope ?? undefined,
         },
+        include: { homeBranch: HOME_BRANCH_SELECT },
       });
       if (dto.creditCompanyIds) {
         await tx.creditOfficerCompany.deleteMany({ where: { userId: id } });
@@ -397,6 +435,7 @@ export class UsersController {
           ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
           ...(dto.role !== undefined ? { role: dto.role } : {}),
           ...(dto.companyId !== undefined ? { companyId: dto.companyId } : {}),
+          ...(homeBranchId !== undefined ? { homeBranchId } : {}),
           ...(dto.creditScope !== undefined ? { creditScope: dto.creditScope } : {}),
           ...(dto.financeScope !== undefined ? { financeScope: dto.financeScope } : {}),
         },
@@ -494,10 +533,29 @@ export class UsersController {
     return { ok: true };
   }
 
+  /**
+   * Resolves a requested home branch against the user's company.
+   * `undefined` = untouched, `null` = clear; anything else must be a branch
+   * of `companyId` (400 branch_not_in_company / branch_requires_company).
+   */
+  private async resolveHomeBranch(
+    requested: string | null | undefined,
+    companyId: string | null,
+  ): Promise<string | null | undefined> {
+    if (requested === undefined) return undefined;
+    if (requested === null) return null;
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: requested },
+      select: { id: true, companyId: true },
+    });
+    assertHomeBranchInCompany(branch, companyId);
+    return requested;
+  }
+
   private async loadManagedUser(actor: User, id: string) {
     const target = await this.prisma.user.findUnique({
       where: { id },
-      include: { company: { select: { name: true } } },
+      include: { company: { select: { name: true } }, homeBranch: HOME_BRANCH_SELECT },
     });
     if (!target) throw new NotFoundException();
     assertCanManageUserRole(actor, target.role);

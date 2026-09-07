@@ -16,7 +16,23 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
-import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsNumber, IsObject, IsOptional, IsString, Matches, ValidateIf, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsIn,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { Response } from 'express';
 import { CurrentUser, Roles } from '../auth/guards';
@@ -27,14 +43,26 @@ import { multerUploadOptions } from '../common/multer-options';
 import { CustomerPaymentsService } from '../payments/customer-payments.service';
 import { ComplianceService } from '../compliance/compliance.service';
 import { StorageService } from '../storage/storage.service';
-import { ApplicationsService } from './applications.service';
+import { ApplicationsService, type UnmaskField } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 import { ApplicationsStaffService } from './applications-staff.service';
 import {
   APPLICATION_DOC_CATEGORIES,
   type ApplicationDocCategory,
 } from './application-documents';
+import {
+  APPLICANT_TYPES,
+  GENDER_VALUES,
+  GUARANTOR_RELATIONSHIPS,
+  RESIDENCE_DURATION_VALUES,
+  RESIDENCY_VALUES,
+  type ApplicantType,
+  type GenderValue,
+  type GuarantorRelationship,
+} from './customer-snapshot';
 import { PaginationQueryDto } from '../common/pagination.dto';
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Employment as the dealer/ops journey records it. The customer journey used to
@@ -45,6 +73,8 @@ import { PaginationQueryDto } from '../common/pagination.dto';
  */
 class CustomerEmploymentDto {
   @IsOptional() @IsString() company?: string;
+  @IsOptional() @IsString() jobTitle?: string;
+  /** Legacy spelling of `jobTitle`. */
   @IsOptional() @IsString() position?: string;
   @IsOptional() @IsString() employmentType?: string;
   @IsOptional() @IsString() employmentDuration?: string;
@@ -52,17 +82,54 @@ class CustomerEmploymentDto {
 }
 
 class CustomerAddressDto {
-  @IsOptional() @IsString() street?: string;
+  @IsOptional() @IsString() line1?: string;
+  @IsOptional() @IsString() area?: string;
   @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() zone?: string;
+  @IsOptional() @IsString() poBox?: string;
+  // Legacy address keys still sent by older bundles.
+  @IsOptional() @IsString() street?: string;
   @IsOptional() @IsString() country?: string;
   @IsOptional() @IsString() postalCode?: string;
 }
 
-class CustomerSnapshotDto {
-  @IsString() full_name!: string;
-  @IsString() phone!: string;
+class CustomerGuarantorDto {
+  @IsString() fullName!: string;
   @Matches(QID_PATTERN, { message: QID_VALIDATION_MESSAGE })
   qid!: string;
+  @IsString() phone!: string;
+  @IsIn(GUARANTOR_RELATIONSHIPS) relationship!: GuarantorRelationship;
+  @IsOptional() @IsNumber() monthlyIncome?: number;
+}
+
+/**
+ * Shared customer snapshot (see customer-snapshot.ts). Presence of the
+ * mandatory contact fields is enforced by the service so the same class can
+ * validate partial draft saves; residency/nationality are re-derived server-side.
+ */
+class CustomerSnapshotDto {
+  @IsOptional() @IsString() full_name?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional()
+  @Matches(QID_PATTERN, { message: QID_VALIDATION_MESSAGE })
+  qid?: string;
+  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @IsIn(APPLICANT_TYPES) applicantType?: ApplicantType;
+  @IsOptional() @IsString() firstName?: string;
+  @IsOptional() @IsString() lastName?: string;
+  @IsOptional() @IsIn(GENDER_VALUES) gender?: GenderValue;
+  @IsOptional()
+  @Matches(ISO_DATE_PATTERN, { message: 'dateOfBirth must be YYYY-MM-DD' })
+  dateOfBirth?: string;
+  /** Drives which salary field the partner CRM receives — see zoho-lead.mapper. */
+  @IsOptional() @IsString() nationality?: string;
+  @IsOptional() @IsIn(RESIDENCY_VALUES) residency?: 'qatari' | 'expat';
+  @IsOptional() @IsIn(RESIDENCE_DURATION_VALUES) residenceDuration?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CustomerAddressDto)
+  address?: CustomerAddressDto;
 
   // Accepted as either the legacy free-text string or the structured object, so
   // a browser still running the previous bundle keeps working through a deploy.
@@ -76,21 +143,19 @@ class CustomerSnapshotDto {
 
   @IsOptional() @IsNumber() income?: number;
   @IsOptional() @IsNumber() monthlyIncome?: number;
+  @IsOptional() @IsNumber() monthlyLiabilities?: number;
+  @IsOptional() @IsBoolean() hasGuarantor?: boolean;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CustomerGuarantorDto)
+  guarantor?: CustomerGuarantorDto;
+  /** Existing corporate fields, unchanged and free-form. */
+  @IsOptional() @IsObject() corporate?: Record<string, unknown>;
 
-  /** Drives which salary field the partner CRM receives — see zoho-lead.mapper. */
-  @IsOptional() @IsString() nationality?: string;
-  @IsOptional() @IsString() dateOfBirth?: string;
-  @IsOptional() @IsString() applicantType?: string;
-  @IsOptional() @IsString() firstName?: string;
-  @IsOptional() @IsString() lastName?: string;
-  @IsOptional() @IsString() city?: string;
+  // Legacy flat address keys.
   @IsOptional() @IsString() street?: string;
   @IsOptional() @IsString() country?: string;
   @IsOptional() @IsString() postalCode?: string;
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => CustomerAddressDto)
-  address?: CustomerAddressDto;
 }
 
 class CreateApplicationDto {
@@ -101,6 +166,15 @@ class CreateApplicationDto {
   customerSnapshot!: CustomerSnapshotDto;
   @IsObject() pricingSnapshot!: Record<string, unknown>;
   @IsOptional() @IsString() quoteToken?: string;
+}
+
+class UpdateDraftDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CustomerSnapshotDto)
+  customerSnapshot?: CustomerSnapshotDto;
+  @IsOptional() @IsObject() pricingSnapshot?: Record<string, unknown>;
+  @IsOptional() @IsString() offerId?: string;
 }
 
 class TransitionDto {
@@ -128,6 +202,20 @@ class UploadDocumentDto {
   category!: ApplicationDocCategory;
 }
 
+class ClearIdentityHoldDto {
+  @IsOptional() @IsString() @MaxLength(2000) note?: string;
+}
+
+class UnmaskDto {
+  @IsIn(['qid', 'phone']) field!: UnmaskField;
+  @IsString() @MinLength(3) @MaxLength(500) reason!: string;
+}
+
+class TagLenderDto {
+  @IsString() finance_partner_id!: string;
+  @IsOptional() @IsString() finance_partner_branch_id?: string;
+}
+
 class StaffCustomerSnapshotDto {
   @IsEmail() email!: string;
   @IsOptional() @IsString() phone?: string;
@@ -141,17 +229,23 @@ class StaffCustomerSnapshotDto {
   employment?: string | Record<string, unknown>;
   @IsOptional() @IsNumber() income?: number;
   @IsOptional() @IsNumber() monthlyIncome?: number;
-  @IsOptional() @IsIn(['individual', 'corporate']) applicantType?: 'individual' | 'corporate';
+  @IsOptional() @IsNumber() monthlyLiabilities?: number;
+  @IsOptional() @IsIn(APPLICANT_TYPES) applicantType?: ApplicantType;
   @IsOptional() @IsString() firstName?: string;
   @IsOptional() @IsString() lastName?: string;
+  @IsOptional() @IsIn(GENDER_VALUES) gender?: GenderValue;
   @IsOptional() @IsString() dateOfBirth?: string;
   @IsOptional() @IsString() nationality?: string;
+  @IsOptional() @IsIn(RESIDENCY_VALUES) residency?: 'qatari' | 'expat';
+  @IsOptional() @IsIn(RESIDENCE_DURATION_VALUES) residenceDuration?: string;
   @IsOptional() @IsString() street?: string;
   @IsOptional() @IsString() city?: string;
   @IsOptional() @IsString() country?: string;
   @IsOptional() @IsString() postalCode?: string;
   @IsOptional() @IsObject() address?: Record<string, unknown>;
   @IsOptional() @IsObject() employmentDetails?: Record<string, unknown>;
+  @IsOptional() @IsBoolean() hasGuarantor?: boolean;
+  @IsOptional() @IsObject() guarantor?: Record<string, unknown>;
   @IsOptional() @IsObject() corporate?: Record<string, unknown>;
 }
 
@@ -207,6 +301,16 @@ class PatchOpsApplicationDto {
   @IsOptional() @IsBoolean() hideInterest?: boolean;
 }
 
+/** Roles that may read an application from the ops side (dealer agents scoped to their company). */
+const OPS_READ_ROLES = [
+  UserRole.credit_officer,
+  UserRole.finance_officer,
+  UserRole.admin,
+  UserRole.super_admin,
+  UserRole.group_admin,
+  UserRole.dealer_agent,
+] as const;
+
 @Controller()
 export class ApplicationsController {
   constructor(
@@ -232,24 +336,57 @@ export class ApplicationsController {
     return this.apps.listMine(user, query);
   }
 
+  /**
+   * 201 with the new draft, or 200 `{ id, resumed: true }` when a draft for the
+   * same vehicle already exists; 409 `blocking_application` when another
+   * application is in flight.
+   */
   @Roles(UserRole.customer)
   @Post('applications')
-  create(
+  async create(
     @CurrentUser() user: User,
     @Body() dto: CreateApplicationDto,
+    @Res({ passthrough: true }) res: Response,
     @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
   ) {
-    return this.idempotency.run({
+    const result = await this.idempotency.run({
       userId: user.id,
       scope: IDEMPOTENCY_SCOPES.applicationCreate,
       idempotencyKey,
-      handler: () => this.apps.create(user, dto),
+      handler: () => this.apps.create(user, { ...dto, customerSnapshot: { ...dto.customerSnapshot } }),
     });
+    if ((result as { resumed?: boolean }).resumed) res.status(200);
+    return result;
   }
 
   @Get('applications/:id')
   one(@CurrentUser() user: User, @Param('id') id: string) {
     return this.apps.getOne(user, id);
+  }
+
+  @Roles(UserRole.customer)
+  @Patch('applications/:id/draft')
+  updateDraft(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: UpdateDraftDto,
+  ) {
+    return this.apps.updateDraft(user, id, {
+      ...dto,
+      customerSnapshot: dto.customerSnapshot ? { ...dto.customerSnapshot } : undefined,
+    });
+  }
+
+  @Roles(UserRole.customer)
+  @Get('applications/:id/document-slots')
+  documentSlots(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.apps.documentSlots(user, id);
+  }
+
+  @Roles(...OPS_READ_ROLES)
+  @Get('ops/applications/:id/document-slots')
+  documentSlotsOps(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.apps.documentSlots(user, id);
   }
 
   @Roles(UserRole.customer)
@@ -397,6 +534,40 @@ export class ApplicationsController {
     @Body() dto: PatchOpsApplicationDto,
   ) {
     return this.apps.patchOps(user, id, dto);
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/applications/:id/identity-hold/clear')
+  clearIdentityHold(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: ClearIdentityHoldDto,
+  ) {
+    return this.apps.clearIdentityHold(user, id, dto.note);
+  }
+
+  @Roles(
+    UserRole.credit_officer,
+    UserRole.finance_officer,
+    UserRole.admin,
+    UserRole.super_admin,
+    UserRole.dealer_agent,
+  )
+  @HttpCode(200)
+  @Post('ops/applications/:id/unmask')
+  unmask(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: UnmaskDto) {
+    return this.apps.unmask(user, id, dto.field, dto.reason);
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin, UserRole.finance_officer)
+  @HttpCode(200)
+  @Post('ops/applications/:id/lender')
+  tagLender(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: TagLenderDto) {
+    return this.apps.tagLender(user, id, {
+      financePartnerId: dto.finance_partner_id,
+      financePartnerBranchId: dto.finance_partner_branch_id ?? null,
+    });
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.finance_officer)

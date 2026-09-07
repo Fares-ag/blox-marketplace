@@ -27,6 +27,11 @@ import { KycModule } from './kyc/kyc.module';
 import { MobileModule } from './mobile/mobile.module';
 import { MediaModule } from './media/media.module';
 import { SettlementsModule } from './settlements/settlements.module';
+import { ConsentsModule } from './consents/consents.module';
+import { CustomersModule } from './customers/customers.module';
+import { TakafulModule } from './takaful/takaful.module';
+import { AssistModule } from './assist/assist.module';
+import { ProductRulesModule } from './product-rules/product-rules.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -60,6 +65,11 @@ import { HealthController } from './health.controller';
     MobileModule,
     MediaModule,
     SettlementsModule,
+    ConsentsModule,
+    CustomersModule,
+    TakafulModule,
+    AssistModule,
+    ProductRulesModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

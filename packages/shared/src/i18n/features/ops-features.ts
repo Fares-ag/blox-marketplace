@@ -10,6 +10,8 @@ export const en = {
     clearReason: 'Verification note',
     cleared: 'Hold cleared by {{name}} on {{date}}',
     duplicateOf: 'Existing customer: {{name}}',
+    clearConfirm: 'Confirm that you verified the customer’s identity. Your note is written to the audit log.',
+    noteRequired: 'A verification note is required.',
   },
   inventoryRules: {
     vin: 'VIN',
@@ -116,6 +118,12 @@ export const en = {
     unmaskReason: 'Reason',
     unmaskPlaceholder: 'e.g. verifying customer identity on the phone',
     unmaskLogged: 'Every reveal is written to the audit log.',
+    revealTitle: 'Reveal {{field}}',
+    revealBody: 'State why you need the full value. The reason is written to the audit log with your name.',
+    field: {
+      qid: 'Qatar ID',
+      phone: 'mobile number',
+    },
   },
 };
 
@@ -130,6 +138,8 @@ export const ar: typeof en = {
     clearReason: 'ملاحظة التحقق',
     cleared: 'رُفع التعليق بواسطة {{name}} في {{date}}',
     duplicateOf: 'العميل الحالي: {{name}}',
+    clearConfirm: 'أكد أنك تحققت من هوية العميل. تُسجل ملاحظتك في سجل التدقيق.',
+    noteRequired: 'ملاحظة التحقق مطلوبة.',
   },
   inventoryRules: {
     vin: 'رقم الهيكل (VIN)',
@@ -236,5 +246,11 @@ export const ar: typeof en = {
     unmaskReason: 'السبب',
     unmaskPlaceholder: 'مثال: التحقق من هوية العميل هاتفياً',
     unmaskLogged: 'يُسجل كل إظهار في سجل التدقيق.',
+    revealTitle: 'إظهار {{field}}',
+    revealBody: 'اذكر سبب حاجتك إلى القيمة الكاملة. يُسجل السبب في سجل التدقيق مع اسمك.',
+    field: {
+      qid: 'البطاقة الشخصية',
+      phone: 'رقم الجوال',
+    },
   },
 };

@@ -46,4 +46,16 @@ export class JobsController {
   emailOutbox() {
     return this.jobs.runEmailOutbox();
   }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Post('document-expiry-reminders')
+  documentExpiryReminders() {
+    return this.jobs.runDocumentExpiryReminders();
+  }
+
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Post('takaful-expiry-reminders')
+  takafulExpiryReminders() {
+    return this.jobs.runTakafulExpiryReminders();
+  }
 }

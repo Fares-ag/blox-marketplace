@@ -75,8 +75,12 @@ export type CustomerSnapshot = {
   [key: string]: unknown;
 };
 
-/** What intake surfaces are allowed to send: everything optional, unknown keys preserved. */
-export type CustomerSnapshotInput = Partial<CustomerSnapshot> & Record<string, unknown>;
+/**
+ * What intake surfaces send: validated by the controller DTOs (class-validator)
+ * and read here defensively, so it is typed loosely — every key is optional and
+ * unknown keys (legacy address fields, dealer `employmentDetails`, …) survive.
+ */
+export type CustomerSnapshotInput = Record<string, unknown>;
 
 /** Profile columns mirrored onto `User` when the customer provides them. */
 export type CustomerProfileFields = {
@@ -167,7 +171,7 @@ export function hasGuarantorOf(snapshot: CustomerSnapshotInput | null | undefine
 /** Residency class for a stored snapshot: QID first, then the stored value, then the nationality text. */
 export function residencyOf(snapshot: CustomerSnapshotInput | null | undefined): ResidencyClass | null {
   if (!snapshot) return null;
-  const parsed = parseQid(str(snapshot.qid));
+  const parsed = parseQid(normalizeQid(str(snapshot.qid)));
   if (parsed.valid && parsed.residency) return parsed.residency;
   if (snapshot.residency === 'qatari' || snapshot.residency === 'expat') return snapshot.residency;
   return residencyFromNationality(str(snapshot.nationality));
@@ -178,7 +182,7 @@ export function birthYearOf(snapshot: CustomerSnapshotInput | null | undefined):
   if (!snapshot) return null;
   const dob = isoDateOnly(snapshot.dateOfBirth);
   if (dob) return Number(dob.slice(0, 4));
-  const parsed = parseQid(str(snapshot.qid));
+  const parsed = parseQid(normalizeQid(str(snapshot.qid)));
   return parsed.valid ? parsed.birthYear : null;
 }
 
@@ -186,7 +190,7 @@ export function birthYearOf(snapshot: CustomerSnapshotInput | null | undefined):
 export function normalizePersonName(name: string | null | undefined): string {
   return String(name ?? '')
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/\p{M}/gu, '')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
@@ -202,7 +206,10 @@ function normalizeGuarantor(value: unknown): CustomerGuarantor | undefined {
   const relationship = str(value.relationship);
   const monthlyIncome = num(value.monthlyIncome);
   if (fullName) out.fullName = fullName;
-  if (qid) out.qid = parseQid(qid).valid ? normalizeQid(qid) : qid;
+  if (qid) {
+    const digits = normalizeQid(qid);
+    out.qid = parseQid(digits).valid ? digits : qid;
+  }
   if (phone) out.phone = phone;
   if (relationship) out.relationship = relationship;
   if (monthlyIncome !== undefined) out.monthlyIncome = monthlyIncome;
@@ -232,8 +239,11 @@ export function normalizeCustomerSnapshot(
     throw new BadRequestException('validation_failed');
   }
 
-  const parsedQid = parseQid(qidRaw, opts.now);
-  const qid = parsedQid.valid ? normalizeQid(qidRaw) : (qidRaw ?? '');
+  // Digits only for parsing so "2856 3412 345" is still a valid QID; anything
+  // that is not a QID (a passport number, say) is kept verbatim.
+  const qidDigits = normalizeQid(qidRaw);
+  const parsedQid = parseQid(qidDigits, opts.now);
+  const qid = parsedQid.valid ? qidDigits : (qidRaw ?? '');
 
   let dateOfBirth: string | undefined;
   if (source.dateOfBirth != null && source.dateOfBirth !== '') {

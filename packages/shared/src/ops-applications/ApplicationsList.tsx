@@ -162,6 +162,9 @@ export function ApplicationsList({
             {a.status === 'active' && a.payment_health === 'on_track' && (
               <OpsStatusPill label={t('ops.workspace.onTrack')} variant="outline" />
             )}
+            {a.identity_hold_reason && !a.identity_hold_cleared_at && (
+              <OpsStatusPill label={t('identityHold.badge')} variant="danger" />
+            )}
           </div>
         ),
       },

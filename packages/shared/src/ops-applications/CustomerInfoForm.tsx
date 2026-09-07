@@ -1,14 +1,24 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
+import { dateOfBirthMatchesQid, parseQid } from '../lib/qid';
+import { RESIDENCE_DURATION_OPTIONS } from '../lib/product-rules';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsFormSection } from '../ops-ui-v2';
 import { OpsField, OpsSelect } from '../ops-ui-v2/OpsField';
+import { OpsStatusPill } from '../components/ops-ui';
 import {
   EMPLOYMENT_DURATION_OPTIONS,
   EMPLOYMENT_TYPE_OPTIONS,
+  GENDER_OPTIONS,
+  GUARANTOR_RELATIONSHIP_OPTIONS,
+  customerInfoFromSnapshot,
+  residencyForInfo,
+  type CustomerGender,
   type CustomerInfoFormValue,
+  type GuarantorRelationship,
 } from './customer-info';
+import type { ResidenceDurationValue } from '../lib/product-rules';
 
 type CustomerSearchHit = {
   id: string;
@@ -18,6 +28,8 @@ type CustomerSearchHit = {
   qid: string | null;
   latest_snapshot?: Record<string, unknown> | null;
 };
+
+const QID_LENGTH = 11;
 
 export function CustomerInfoForm({
   value,
@@ -41,26 +53,43 @@ export function CustomerInfoForm({
     enabled: allowExistingCustomer && useExisting,
   });
 
+  const parsedQid = useMemo(() => parseQid(value.qid), [value.qid]);
+  const residency = residencyForInfo(value);
+  const derivedNationality = parsedQid.valid ? parsedQid.nationality : null;
+  const nationalityDerived = !!derivedNationality && value.nationality.trim() === derivedNationality.en;
+  const dobMismatch = dateOfBirthMatchesQid(value.dateOfBirth, value.qid) === false;
+
   function patch(partial: Partial<CustomerInfoFormValue>) {
     onChange({ ...value, ...partial });
   }
 
+  /** The QID carries nationality and residency; both follow it as it is typed. */
+  function patchQid(raw: string) {
+    const qid = raw.replace(/\D/g, '').slice(0, QID_LENGTH);
+    const parsed = parseQid(qid);
+    const partial: Partial<CustomerInfoFormValue> = { qid };
+    if (parsed.valid) {
+      partial.residency = parsed.residency ?? '';
+      if (parsed.nationality) partial.nationality = parsed.nationality.en;
+      if (parsed.residency === 'qatari') partial.residenceDuration = '';
+    } else {
+      partial.residency = '';
+    }
+    patch(partial);
+  }
+
   function applyExisting(hit: CustomerSearchHit) {
-    const snap = hit.latest_snapshot ?? {};
+    const fromSnapshot = customerInfoFromSnapshot(hit.latest_snapshot ?? {});
+    const nameParts = (hit.name ?? '').split(/\s+/).filter(Boolean);
+    const qid = hit.qid && /^\d{11}$/.test(hit.qid) ? hit.qid : fromSnapshot.qid;
     onChange({
-      ...value,
-      applicantType: snap.applicantType === 'corporate' ? 'corporate' : 'individual',
-      firstName: String(snap.firstName ?? hit.name?.split(' ')[0] ?? ''),
-      lastName: String(snap.lastName ?? hit.name?.split(' ').slice(1).join(' ') ?? ''),
-      email: hit.email,
-      phone: hit.phone ?? String(snap.phone ?? ''),
-      qid: hit.qid ?? String(snap.qid ?? ''),
-      nationality: String(snap.nationality ?? ''),
-      dateOfBirth: String(snap.dateOfBirth ?? ''),
-      monthlyIncome: Number(snap.monthlyIncome ?? snap.income ?? 0) || 0,
-      address: (snap.address as CustomerInfoFormValue['address']) ?? value.address,
-      employment: (snap.employment as CustomerInfoFormValue['employment']) ?? value.employment,
-      corporate: (snap.corporate as CustomerInfoFormValue['corporate']) ?? value.corporate,
+      ...fromSnapshot,
+      firstName: fromSnapshot.firstName || nameParts[0] || '',
+      lastName: fromSnapshot.lastName || nameParts.slice(1).join(' '),
+      email: hit.email || fromSnapshot.email,
+      phone: hit.phone ?? fromSnapshot.phone,
+      qid,
+      residency: residencyForInfo({ residency: fromSnapshot.residency, qid }) ?? '',
     });
   }
 
@@ -264,6 +293,7 @@ export function CustomerInfoForm({
                 }
                 pattern="\d{11}"
                 maxLength={11}
+                mono
               />
               <OpsField
                 label={t('ops.customer.nationality')}
@@ -299,54 +329,124 @@ export function CustomerInfoForm({
                 required
                 value={value.firstName}
                 onChange={(e) => patch({ firstName: e.target.value })}
+                autoComplete="given-name"
               />
               <OpsField
                 label={t('ops.customer.lastName')}
                 required
                 value={value.lastName}
                 onChange={(e) => patch({ lastName: e.target.value })}
+                autoComplete="family-name"
               />
-              <OpsField
-                label={t('ops.col.email')}
-                required
-                type="email"
-                value={value.email}
-                onChange={(e) => patch({ email: e.target.value })}
-              />
-              <OpsField
-                label={t('ops.credit.phone')}
-                required
-                value={value.phone}
-                onChange={(e) => patch({ phone: e.target.value })}
-              />
+              <OpsSelect
+                label={t('dealerOps.intake.gender')}
+                value={value.gender}
+                onChange={(e) => patch({ gender: e.target.value as CustomerGender | '' })}
+              >
+                <option value="">{t('ops.common.dash')}</option>
+                {GENDER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </OpsSelect>
               <OpsField
                 label={t('ops.customer.dateOfBirth')}
                 type="date"
                 required
                 value={value.dateOfBirth}
                 onChange={(e) => patch({ dateOfBirth: e.target.value })}
+                error={dobMismatch ? t('dealerOps.intake.dobMismatch') : undefined}
+              />
+              <OpsField
+                label={t('ops.credit.qid')}
+                required
+                value={value.qid}
+                onChange={(e) => patchQid(e.target.value)}
+                inputMode="numeric"
+                pattern="\d{11}"
+                maxLength={QID_LENGTH}
+                hint={t('dealerOps.intake.qidHint')}
+                error={value.qid.length === QID_LENGTH && !parsedQid.valid ? t('dealerOps.validation.qidInvalid') : undefined}
+                mono
               />
               <OpsField
                 label={t('ops.customer.nationality')}
                 required
                 value={value.nationality}
                 onChange={(e) => patch({ nationality: e.target.value })}
+                hint={
+                  nationalityDerived
+                    ? t('dealerOps.intake.nationalityDerived')
+                    : parsedQid.valid && !derivedNationality
+                      ? t('dealerOps.intake.nationalityUnknown')
+                      : undefined
+                }
+              />
+              <div className="blox-field">
+                <span className="blox-field__label">
+                  <span>{t('dealerOps.intake.residency')}</span>
+                </span>
+                <div className="blox-cell-row blox-cell-row--wrap">
+                  {residency ? (
+                    <OpsStatusPill
+                      label={residency === 'qatari' ? t('dealerOps.intake.residencyQatari') : t('dealerOps.intake.residencyExpat')}
+                      variant={residency === 'qatari' ? 'success' : 'info'}
+                    />
+                  ) : (
+                    <span className="blox-muted">{t('ops.common.dash')}</span>
+                  )}
+                  {parsedQid.valid && (
+                    <OpsStatusPill label={t('dealerOps.intake.nationalityDerived')} variant="outline" />
+                  )}
+                </div>
+              </div>
+              {residency === 'expat' && (
+                <OpsSelect
+                  label={t('dealerOps.intake.residenceDuration')}
+                  required
+                  value={value.residenceDuration}
+                  onChange={(e) => patch({ residenceDuration: e.target.value as ResidenceDurationValue | '' })}
+                  hint={t('dealerOps.intake.residenceDurationHint')}
+                >
+                  <option value="">{t('ops.common.dash')}</option>
+                  {RESIDENCE_DURATION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {t(opt.labelKey)}
+                    </option>
+                  ))}
+                </OpsSelect>
+              )}
+              <OpsField
+                label={t('ops.col.email')}
+                required
+                type="email"
+                value={value.email}
+                onChange={(e) => patch({ email: e.target.value })}
+                autoComplete="email"
               />
               <OpsField
-                label={t('ops.credit.qid')}
+                label={t('ops.credit.phone')}
                 required
-                value={value.qid}
-                onChange={(e) => patch({ qid: e.target.value })}
-                pattern="\d{11}"
-                maxLength={11}
+                value={value.phone}
+                onChange={(e) => patch({ phone: e.target.value })}
+                autoComplete="tel"
+                inputMode="tel"
+                mono
               />
           </OpsFormSection>
           <OpsFormSection title={t('ops.customer.address')}>
               <OpsField
-                label={t('ops.customer.street')}
+                label={t('dealerOps.intake.addressLine1')}
                 required
-                value={value.address.street ?? ''}
-                onChange={(e) => patch({ address: { ...value.address, street: e.target.value } })}
+                value={value.address.line1 ?? ''}
+                onChange={(e) => patch({ address: { ...value.address, line1: e.target.value } })}
+                fullWidth
+              />
+              <OpsField
+                label={t('dealerOps.intake.area')}
+                value={value.address.area ?? ''}
+                onChange={(e) => patch({ address: { ...value.address, area: e.target.value } })}
               />
               <OpsField
                 label={t('ops.customer.city')}
@@ -355,15 +455,14 @@ export function CustomerInfoForm({
                 onChange={(e) => patch({ address: { ...value.address, city: e.target.value } })}
               />
               <OpsField
-                label={t('ops.customer.country')}
-                required
-                value={value.address.country ?? ''}
-                onChange={(e) => patch({ address: { ...value.address, country: e.target.value } })}
+                label={t('dealerOps.intake.zone')}
+                value={value.address.zone ?? ''}
+                onChange={(e) => patch({ address: { ...value.address, zone: e.target.value } })}
               />
               <OpsField
-                label={t('ops.customer.postalCode')}
-                value={value.address.postalCode ?? ''}
-                onChange={(e) => patch({ address: { ...value.address, postalCode: e.target.value } })}
+                label={t('dealerOps.intake.poBox')}
+                value={value.address.poBox ?? ''}
+                onChange={(e) => patch({ address: { ...value.address, poBox: e.target.value } })}
               />
           </OpsFormSection>
           <OpsFormSection title={t('ops.customer.employmentInfo')}>
@@ -412,7 +511,82 @@ export function CustomerInfoForm({
                 min={1}
                 value={value.monthlyIncome || ''}
                 onChange={(e) => patch({ monthlyIncome: Number(e.target.value) })}
+                mono
               />
+              <OpsField
+                label={t('dealerOps.intake.monthlyLiabilities')}
+                type="number"
+                min={0}
+                value={value.monthlyLiabilities || ''}
+                onChange={(e) => patch({ monthlyLiabilities: Math.max(0, Number(e.target.value) || 0) })}
+                hint={t('dealerOps.intake.monthlyLiabilitiesHint')}
+                mono
+              />
+          </OpsFormSection>
+          <OpsFormSection title={t('dealerOps.intake.guarantor')} description={t('dealerOps.intake.guarantorHint')}>
+              <label className="blox-checkbox-row blox-form-grid__full">
+                <input
+                  type="checkbox"
+                  checked={value.hasGuarantor}
+                  onChange={(e) => patch({ hasGuarantor: e.target.checked })}
+                />
+                <span>{t('dealerOps.intake.addGuarantor')}</span>
+              </label>
+              {value.hasGuarantor && (
+                <>
+                  <OpsField
+                    label={t('dealerOps.intake.guarantorName')}
+                    required
+                    value={value.guarantor.fullName}
+                    onChange={(e) => patch({ guarantor: { ...value.guarantor, fullName: e.target.value } })}
+                  />
+                  <OpsSelect
+                    label={t('dealerOps.intake.guarantorRelationship')}
+                    required
+                    value={value.guarantor.relationship}
+                    onChange={(e) =>
+                      patch({ guarantor: { ...value.guarantor, relationship: e.target.value as GuarantorRelationship | '' } })
+                    }
+                  >
+                    <option value="">{t('ops.common.dash')}</option>
+                    {GUARANTOR_RELATIONSHIP_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {t(opt.labelKey)}
+                      </option>
+                    ))}
+                  </OpsSelect>
+                  <OpsField
+                    label={t('dealerOps.intake.guarantorQid')}
+                    required
+                    value={value.guarantor.qid}
+                    onChange={(e) =>
+                      patch({ guarantor: { ...value.guarantor, qid: e.target.value.replace(/\D/g, '').slice(0, QID_LENGTH) } })
+                    }
+                    inputMode="numeric"
+                    pattern="\d{11}"
+                    maxLength={QID_LENGTH}
+                    mono
+                  />
+                  <OpsField
+                    label={t('dealerOps.intake.guarantorPhone')}
+                    required
+                    value={value.guarantor.phone}
+                    onChange={(e) => patch({ guarantor: { ...value.guarantor, phone: e.target.value } })}
+                    inputMode="tel"
+                    mono
+                  />
+                  <OpsField
+                    label={t('dealerOps.intake.guarantorIncome')}
+                    type="number"
+                    min={0}
+                    value={value.guarantor.monthlyIncome || ''}
+                    onChange={(e) =>
+                      patch({ guarantor: { ...value.guarantor, monthlyIncome: Math.max(0, Number(e.target.value) || 0) } })
+                    }
+                    mono
+                  />
+                </>
+              )}
           </OpsFormSection>
         </>
       )}

@@ -17,7 +17,10 @@ import '@drivemarket/shared/styles/global.scss';
 import {
   ActivityLogsPage,
   CompaniesPage,
+  CompanyDetailPage,
   DashboardPage,
+  FinanceProviderEditPage,
+  FinanceProvidersPage,
   SystemPage,
   UserDetailPage,
   UsersPage,
@@ -30,6 +33,7 @@ function App() {
       { to: '/', label: t('ops.superAdmin.nav.dashboard'), icon: 'home' },
       { to: '/users', label: t('ops.superAdmin.nav.users'), icon: 'users' },
       { to: '/companies', label: t('ops.superAdmin.nav.companies'), icon: 'company' },
+      { to: '/finance-providers', label: t('adminOps.nav.financeProviders'), icon: 'finance' },
       { to: '/activity-logs', label: t('ops.superAdmin.nav.activityLogs'), icon: 'logs' },
       { to: '/system', label: t('ops.superAdmin.nav.system'), icon: 'system' },
     ],
@@ -57,6 +61,10 @@ function App() {
                   <Route path="/users" element={<UsersPage />} />
                   <Route path="/users/:id" element={<UserDetailPage />} />
                   <Route path="/companies" element={<CompaniesPage />} />
+                  <Route path="/companies/:id" element={<CompanyDetailPage />} />
+                  <Route path="/finance-providers" element={<FinanceProvidersPage />} />
+                  <Route path="/finance-providers/new" element={<FinanceProviderEditPage />} />
+                  <Route path="/finance-providers/:id" element={<FinanceProviderEditPage />} />
                   <Route path="/activity-logs" element={<ActivityLogsPage />} />
                   <Route path="/system" element={<SystemPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

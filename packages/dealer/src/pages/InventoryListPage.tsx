@@ -5,6 +5,7 @@ import {
   FilterPanel,
   OpsListPage,
   OpsPrimaryButton,
+  OpsStatusPill,
   OpsToolbar,
   SearchBar,
   StatusBadge,
@@ -19,12 +20,13 @@ import {
 } from '@drivemarket/shared';
 
 const ROWS_PER_PAGE_OPTIONS = [12, 24, 48] as const;
-const DEFAULT_INVENTORY_PAGE_SIZE = ROWS_PER_PAGE_OPTIONS[0];
+type RowsPerPage = (typeof ROWS_PER_PAGE_OPTIONS)[number];
+const DEFAULT_INVENTORY_PAGE_SIZE: RowsPerPage = ROWS_PER_PAGE_OPTIONS[0];
 
 export function InventoryListPage() {
   const { t, listingStatus } = useOpsLabels();
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState<(typeof ROWS_PER_PAGE_OPTIONS)[number]>(DEFAULT_INVENTORY_PAGE_SIZE);
+  const [rowsPerPage, setRowsPerPage] = useState<RowsPerPage>(DEFAULT_INVENTORY_PAGE_SIZE);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const { data, error, isLoading } = useQuery({
@@ -68,8 +70,16 @@ export function InventoryListPage() {
         model: p.model,
         model_year: p.model_year,
         price: Number(p.price),
+        condition: p.condition,
         listing_status: p.listing_status,
         primary_image: p.primary_image ?? p.images?.[0]?.storage_path ?? null,
+        // Older API responses do not carry the flag; only a definite `false` earns the pill.
+        identity_complete:
+          typeof p.identity_complete === 'boolean'
+            ? p.identity_complete
+            : p.chassis_number === undefined && p.engine_number === undefined
+              ? undefined
+              : !!(p.vin?.trim() && p.chassis_number?.trim() && p.engine_number?.trim()),
       })),
     [filteredItems],
   );
@@ -110,11 +120,16 @@ export function InventoryListPage() {
         searchable={false}
         hrefFor={(item) => `/inventory/${item.id}`}
         statusFor={(item) => (
-          <StatusBadge
-            status={item.listing_status ?? 'draft'}
-            type="listing"
-            label={listingStatus(item.listing_status ?? 'draft')}
-          />
+          <>
+            <StatusBadge
+              status={item.listing_status ?? 'draft'}
+              type="listing"
+              label={listingStatus(item.listing_status ?? 'draft')}
+            />
+            {item.identity_complete === false && (
+              <OpsStatusPill label={t('inventoryRules.incomplete')} variant="warning" />
+            )}
+          </>
         )}
         emptyTitle={t('ops.dealer.noListings')}
       />

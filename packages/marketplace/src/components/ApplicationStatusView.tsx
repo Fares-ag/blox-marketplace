@@ -35,7 +35,7 @@ export function ApplicationStatusView({
     id: string;
     status: string;
     createdAt?: string;
-    pricingSnapshot?: Record<string, unknown>;
+    pricingSnapshot?: Record<string, unknown> | null;
     product?: { make?: string; model?: string; slug?: string; modelYear?: number };
     rejectionReason?: string | null;
     resubmissionComment?: string | null;
@@ -154,7 +154,8 @@ export function ApplicationStatusView({
         .dm-app-status__note { margin: 12px 0 0; font-size: 12px; color: var(--dm-slate-600); }
         .dm-app-status__timeline ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
         .dm-app-status__timeline li {
-          padding: 10px 12px 10px 28px;
+          padding: 10px 12px;
+          padding-inline-start: 28px;
           border-radius: 8px;
           font-size: 14px;
           position: relative;
@@ -164,7 +165,7 @@ export function ApplicationStatusView({
         .dm-app-status__timeline li::before {
           content: '';
           position: absolute;
-          left: 10px;
+          inset-inline-start: 10px;
           top: 50%;
           transform: translateY(-50%);
           width: 8px;

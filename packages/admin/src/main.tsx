@@ -16,6 +16,7 @@ import {
   PageSkeleton,
   mountPortalApp,
   type BloxNavItem,
+  useAuthStore,
   useNavCounts,
 } from '@drivemarket/shared';
 import '@drivemarket/shared/styles/global.scss';
@@ -27,6 +28,8 @@ import { LedgersPage } from './pages/LedgersPage';
 import { BankTransfersPage } from './pages/BankTransfersPage';
 import { UsersPage, UserDetailPage } from './pages/UsersPages';
 import { CompaniesPage } from './pages/CompaniesPage';
+import { CompanyDetailPage } from './pages/CompanyDetailPage';
+import { FinanceProvidersPage, FinanceProviderEditPage } from './pages/FinanceProvidersPage';
 const PromotionsPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.PromotionsPage })));
 const PromotionEditPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.PromotionEditPage })));
 const InsuranceRatesPage = lazy(() => import('./pages/CatalogPages').then((m) => ({ default: m.InsuranceRatesPage })));
@@ -45,11 +48,17 @@ function AdminWorkspace() {
 function App() {
   const { t } = useTranslation();
   const counts = useNavCounts<{ applications_by_status?: Record<string, number>; schedules_overdue?: number }>('/api/ops/metrics');
+  const role = useAuthStore((s) => s.user?.role ?? null);
   const navItems = useMemo<BloxNavItem[]>(() => {
     const operations = t('ops.shell.groupOperations');
     const people = t('ops.shell.groupPeople');
     const catalog = t('ops.shell.groupCatalog');
     const platform = t('ops.shell.groupPlatform');
+    // Finance-provider writes are admin/super_admin only; group admins do not get the entry.
+    const providerNav: BloxNavItem[] =
+      role === 'group_admin'
+        ? []
+        : [{ to: '/main/finance-providers', label: t('adminOps.nav.financeProviders'), icon: 'finance', group: people }];
     return [
       { to: '/main/dashboard', label: t('ops.admin.nav.dashboard'), icon: 'home', group: operations },
       { to: '/main/applications', label: t('ops.admin.nav.applications'), icon: 'apps', group: operations, count: counts?.applications_by_status?.under_review },
@@ -57,6 +66,7 @@ function App() {
       { to: '/main/ledgers', label: t('ops.admin.nav.ledgers'), icon: 'ledgers', group: operations, count: counts?.schedules_overdue },
       { to: '/main/users', label: t('ops.admin.nav.users'), icon: 'users', group: people },
       { to: '/main/companies', label: t('ops.admin.nav.companies'), icon: 'company', group: people },
+      ...providerNav,
       { to: '/main/vehicles', label: t('ops.admin.nav.vehicles'), icon: 'products', group: catalog },
       { to: '/main/offers', label: t('ops.admin.nav.offers'), icon: 'offers', group: catalog },
       { to: '/main/promotions', label: t('ops.admin.nav.promotions'), icon: 'promotions', group: catalog },
@@ -64,7 +74,7 @@ function App() {
       { to: '/main/packages', label: t('ops.admin.nav.packages'), icon: 'packages', group: catalog },
       { to: '/main/settings/settlement-discounts', label: t('ops.admin.nav.settings'), icon: 'settings', group: platform },
     ];
-  }, [t, counts]);
+  }, [t, counts, role]);
 
   return (
     <OpsAppFrame>
@@ -91,6 +101,10 @@ function App() {
                 <Route path="/main/users" element={<UsersPage />} />
                 <Route path="/main/users/:id" element={<UserDetailPage />} />
                 <Route path="/main/companies" element={<CompaniesPage />} />
+                <Route path="/main/companies/:id" element={<CompanyDetailPage />} />
+                <Route path="/main/finance-providers" element={<FinanceProvidersPage />} />
+                <Route path="/main/finance-providers/new" element={<FinanceProviderEditPage />} />
+                <Route path="/main/finance-providers/:id" element={<FinanceProviderEditPage />} />
                 <Route path="/main/vehicles" element={<ProductsPage />} />
                 <Route path="/main/vehicles/add" element={<ProductEditPage />} />
                 <Route path="/main/vehicles/:id" element={<ProductEditPage />} />

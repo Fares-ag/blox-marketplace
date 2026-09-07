@@ -1,39 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel } from '@drivemarket/shared';
+import { apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel, getAppLocale } from '@drivemarket/shared';
 import { ApplicationStatusView } from './ApplicationStatusView';
 import { OwnershipProgress } from './OwnershipProgress';
+import { TakafulSection, takafulSectionVisible } from './TakafulSection';
+import type { CustomerApplication } from '../lib/application-dto';
+import { formatDate } from '../lib/dates';
 
-type AppDocument = {
-  id: string;
-  category: string;
-  mimeType?: string | null;
-  createdAt: string;
-  originalName?: string | null;
-  kycDocumentType?: string | null;
-  verificationStatus?: string | null;
-};
-
-export type ApplicationDetailData = {
-  id: string;
-  status: string;
-  createdAt: string;
-  submittedAt?: string | null;
-  pricingSnapshot?: Record<string, unknown>;
-  rejectionReason?: string | null;
-  resubmissionComment?: string | null;
-  contractGenerated?: boolean;
-  product?: { make?: string; model?: string; slug?: string; modelYear?: number };
-  documents?: AppDocument[];
-  paymentSchedules?: Array<{
-    id: string;
-    sequence: number;
-    dueDate: string;
-    amount: string | number;
-    status: string;
-  }>;
-};
+/** The customer detail view model — the normalised `GET /api/applications/:id` DTO. */
+export type ApplicationDetailData = CustomerApplication;
 
 // Identity documents are uploaded here like any other file, straight to S3.
 // `passport` was missing, so a non-Qatari applicant had no way to supply the
@@ -50,8 +27,27 @@ const UPLOAD_CATEGORIES = ['qid', 'passport', 'salary', 'bank', 'other'] as cons
  */
 const REQUIRED_UPLOAD_CATEGORIES = ['qid', 'salary', 'bank'] as const;
 
+/** Statuses where the customer can still act on outstanding consents. */
+const CONSENTS_ACTIONABLE_STATUSES = new Set(['draft', 'resubmission_required', 'under_review']);
+
 function documentDownloadUrl(appId: string, docId: string) {
   return apiFileUrl(`/applications/${appId}/documents/${docId}/file`);
+}
+
+type Translate = (key: string, opts?: Record<string, unknown>) => string;
+
+/** Maps the submit-gate machine codes (409s) to customer copy. */
+function submitErrorMessage(error: Error, t: Translate): string {
+  const code = `${(error as { code?: string }).code ?? ''} ${error.message}`;
+  if (code.includes('identity_hold')) return t('applyFlow.error.identityHold');
+  if (code.includes('consents_required')) return t('applyFlow.error.consentsRequired');
+  if (code.includes('documents_missing') || code.includes('documents_incomplete')) {
+    return t('applyFlow.error.documentsRequired', { defaultValue: t('application.submitFailed') });
+  }
+  if (code.includes('vehicle_identity_incomplete')) return t('ownershipHero.plan.submitVehicleIdentity');
+  if (code.includes('vehicle_age_rule')) return t('ownershipHero.plan.submitVehicleAge');
+  if (code.includes('blocking_application')) return t('applyFlow.error.blocking');
+  return error.message;
 }
 
 function SuccessDialog({
@@ -150,10 +146,13 @@ function DocumentUploadCard({
 
 export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) {
   const { t } = useTranslation();
+  const locale = getAppLocale();
+  const location = useLocation();
   const qc = useQueryClient();
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const scheduleRef = useRef<HTMLElement>(null);
 
   const uploadedCategories = new Set((app.documents ?? []).map((d) => d.category));
   const hasAllDocs = REQUIRED_UPLOAD_CATEGORIES.every((c) => uploadedCategories.has(c));
@@ -171,10 +170,30 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const [contractError, setContractError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<'submit' | 'resubmit' | null>(null);
 
+  const identityHoldOpen = !!app.identityHold && !app.identityHold.clearedAt;
+  const lenderLabel =
+    app.lenderName?.trim() || (app.financingSource === 'blox' ? t('ownershipHero.plan.lenderBlox') : null);
+  const consentsRow = app.consentsCompletedAt
+    ? ('done' as const)
+    : CONSENTS_ACTIONABLE_STATUSES.has(app.status)
+      ? ('pending' as const)
+      : null;
+  const showFacts = !!lenderLabel || !!app.dealerName || !!app.branchName || consentsRow !== null;
+  const ruleFlags = app.ruleFlags ?? [];
+  const showSchedule = app.status === 'active' && (app.paymentSchedules?.length ?? 0) > 0;
+
+  // The dashboard hero deep-links to `#schedule`; the section only exists once
+  // the detail has loaded, so scroll after render instead of relying on the browser.
+  useEffect(() => {
+    if (location.hash !== '#schedule' || !showSchedule) return;
+    scheduleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [location.hash, showSchedule]);
+
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['app', app.id] });
     void qc.invalidateQueries({ queryKey: ['my-apps'] });
     void qc.invalidateQueries({ queryKey: ['blocking-app'] });
+    void qc.invalidateQueries({ queryKey: ['apps-blocking'] });
   };
 
   const submitForReview = useMutation({
@@ -185,12 +204,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       setActionError(null);
       invalidate();
     },
-    onError: (e: Error) => {
-      const msg = e.message.includes('documents_incomplete')
-        ? t('application.submitFailed')
-        : e.message;
-      setActionError(msg);
-    },
+    onError: (e: Error) => setActionError(submitErrorMessage(e, t)),
   });
 
   const resubmit = useMutation({
@@ -201,12 +215,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       setActionError(null);
       invalidate();
     },
-    onError: (e: Error) => {
-      const msg = e.message.includes('documents_incomplete')
-        ? t('application.submitFailed')
-        : e.message;
-      setActionError(msg);
-    },
+    onError: (e: Error) => setActionError(submitErrorMessage(e, t)),
   });
 
   const cancel = useMutation({
@@ -338,11 +347,93 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         dismissLabel={t('application.submitSuccessDismiss')}
         onClose={() => setSubmitSuccess(null)}
       />
+
+      {identityHoldOpen && (
+        <div className="dm-app-detail__hold" role="alert">
+          <div className="dm-app-detail__hold-icon" aria-hidden>
+            !
+          </div>
+          <div>
+            <h3>{t('ownershipHero.plan.identityHoldTitle')}</h3>
+            <p>{t('applyFlow.error.identityHold')}</p>
+            {app.identityHold?.heldAt && (
+              <small>{t('ownershipHero.plan.identityHoldHeld', { date: formatDate(app.identityHold.heldAt, locale) })}</small>
+            )}
+          </div>
+        </div>
+      )}
+
       <ApplicationStatusView app={app} />
+
+      {showFacts && (
+        <section className="dm-app-detail__section" aria-labelledby="dm-plan-facts-title">
+          <h3 id="dm-plan-facts-title">{t('ownershipHero.plan.factsTitle')}</h3>
+          <dl className="dm-app-detail__facts">
+            {lenderLabel && (
+              <div>
+                <dt>{t('ownershipHero.plan.lender')}</dt>
+                <dd>{lenderLabel}</dd>
+              </div>
+            )}
+            {app.dealerName && (
+              <div>
+                <dt>{t('ownershipHero.plan.dealer')}</dt>
+                <dd>{app.dealerName}</dd>
+              </div>
+            )}
+            {app.branchName && (
+              <div>
+                <dt>{t('ownershipHero.plan.branch')}</dt>
+                <dd>{app.branchName}</dd>
+              </div>
+            )}
+            {consentsRow && (
+              <div>
+                <dt>{t('ownershipHero.plan.consents')}</dt>
+                <dd className={consentsRow === 'done' ? 'is-ok' : 'is-warn'}>
+                  {consentsRow === 'done'
+                    ? t('ownershipHero.plan.consentsDone', { date: formatDate(app.consentsCompletedAt, locale) })
+                    : t('ownershipHero.plan.consentsPending')}
+                  {consentsRow === 'pending' && (
+                    <>
+                      {' · '}
+                      <Link to={`/app/consents?application_id=${encodeURIComponent(app.id)}`}>
+                        {t('ownershipHero.plan.consentsLink')}
+                      </Link>
+                    </>
+                  )}
+                </dd>
+              </div>
+            )}
+            {app.identityHold?.clearedAt && (
+              <div>
+                <dt>{t('ownershipHero.plan.identityHoldTitle')}</dt>
+                <dd className="is-ok">
+                  {t('ownershipHero.plan.identityHoldCleared', { date: formatDate(app.identityHold.clearedAt, locale) })}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </section>
+      )}
+
+      {ruleFlags.length > 0 && (
+        <section className="dm-app-detail__section dm-app-detail__flags" aria-labelledby="dm-rule-flags-title">
+          <h3 id="dm-rule-flags-title">{t('ownershipHero.plan.ruleFlagsTitle')}</h3>
+          <p className="dm-app-detail__hint">{t('ownershipHero.plan.ruleFlagsIntro')}</p>
+          <ul className="dm-app-detail__flag-list">
+            {ruleFlags.map((flag, index) => (
+              <li key={`${flag.code}-${index}`}>
+                {t(`applyFlow.rule.${flag.code}`, { ...flag.params, defaultValue: flag.code })}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {(app.paymentSchedules?.length ?? 0) > 0 && (
         <OwnershipProgress
-          pricingSnapshot={app.pricingSnapshot}
+          pricingSnapshot={app.pricingSnapshot ?? undefined}
           paymentSchedules={app.paymentSchedules}
           showTimeline
         />
@@ -428,8 +519,10 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         </section>
       )}
 
-      {app.status === 'active' && (app.paymentSchedules?.length ?? 0) > 0 && (
-        <section className="dm-app-detail__section">
+      {takafulSectionVisible(app.status) && <TakafulSection app={app} />}
+
+      {showSchedule && (
+        <section className="dm-app-detail__section" id="schedule" ref={scheduleRef}>
           <h3>{t('application.schedulesTitle', { defaultValue: 'Payment schedule' })}</h3>
           {actionError && <p className="dm-app-detail__error">{actionError}</p>}
           <ul className="dm-app-detail__doc-list">
@@ -489,6 +582,9 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           )}
           {canResubmit && (
             <p className="dm-app-detail__hint">{t('application.resubmitHint')}</p>
+          )}
+          {identityHoldOpen && (canSubmitDraft || canResubmit) && (
+            <p className="dm-app-detail__hint dm-app-detail__hint--warn">{t('applyFlow.error.identityHold')}</p>
           )}
           <div className="dm-app-detail__actions">
             {canSubmitDraft && (
@@ -555,7 +651,46 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         }
         .dm-app-detail__section h3 { margin: 0 0 12px; font-size: 1rem; }
         .dm-app-detail__hint { margin: 0 0 12px; font-size: 14px; color: var(--dm-slate-600); line-height: 1.5; }
+        .dm-app-detail__hint--warn { color: var(--dm-warning, #c47a00); font-weight: 600; }
         .dm-app-detail__error { margin: 12px 0 0; color: var(--dm-danger); font-size: 14px; }
+        .dm-app-detail__hold {
+          display: flex;
+          gap: 14px;
+          align-items: flex-start;
+          padding: 16px 18px;
+          border-radius: 12px;
+          background: var(--dm-warning-soft, #fff4e0);
+          border: 1px solid rgba(196, 122, 0, 0.35);
+          color: #7a4b00;
+        }
+        .dm-app-detail__hold-icon {
+          flex-shrink: 0;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          background: var(--dm-warning, #c47a00);
+          color: #fff;
+          font-weight: 800;
+        }
+        .dm-app-detail__hold h3 { margin: 0 0 4px; font-size: 1rem; color: inherit; }
+        .dm-app-detail__hold p { margin: 0; font-size: 14px; line-height: 1.5; }
+        .dm-app-detail__hold small { display: block; margin-top: 6px; font-size: 12px; opacity: 0.85; }
+        .dm-app-detail__facts {
+          margin: 0;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 12px 20px;
+        }
+        .dm-app-detail__facts div { display: grid; gap: 3px; min-width: 0; }
+        .dm-app-detail__facts dt { font-size: 12px; color: var(--dm-slate-600); }
+        .dm-app-detail__facts dd { margin: 0; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+        .dm-app-detail__facts dd.is-ok { color: var(--dm-success); }
+        .dm-app-detail__facts dd.is-warn { color: var(--dm-warning, #c47a00); }
+        .dm-app-detail__facts dd a { color: var(--dm-steel); font-weight: 650; }
+        .dm-app-detail__flags { border-color: rgba(196, 122, 0, 0.3); }
+        .dm-app-detail__flag-list { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
         .dm-app-detail__doc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
         .dm-app-detail__doc-list li {
           display: flex; justify-content: space-between; align-items: center; gap: 12px;

@@ -28,10 +28,20 @@ export class ApiError extends Error {
     message: string,
     public status: number,
     public code?: string,
+    /** Structured context from the API error envelope (`missing`, `application_id`, `remaining`, …). */
+    public details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+function envelopeDetails(data: unknown): Record<string, unknown> | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const error = (data as { error?: unknown }).error;
+  const details =
+    error && typeof error === 'object' ? (error as { details?: unknown }).details : (data as { details?: unknown }).details;
+  return details && typeof details === 'object' ? (details as Record<string, unknown>) : undefined;
 }
 
 let onUnauthorized: (() => void) | null = null;
@@ -98,11 +108,13 @@ export async function apiFetch<T = unknown>(
   if (!res.ok) {
     let code = 'request_failed';
     let message = res.statusText || 'Request failed';
+    let details: Record<string, unknown> | undefined;
     try {
       const data = await res.json();
       const parsed = parseApiErrorBody(data, res.status);
       code = parsed.code;
       message = parsed.message;
+      details = envelopeDetails(data);
     } catch {
       /* ignore */
     }
@@ -112,7 +124,7 @@ export async function apiFetch<T = unknown>(
         triggerUnauthorized();
       }
     }
-    throw new ApiError(message, res.status, code);
+    throw new ApiError(message, res.status, code, details);
   }
 
   if (res.status === 204) return undefined as T;

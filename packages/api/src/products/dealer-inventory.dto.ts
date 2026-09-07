@@ -1,4 +1,5 @@
 import type { Product, ProductImage } from '@prisma/client';
+import { vehicleIdentityComplete } from './vehicle-identity';
 
 type ProductWithImages = Product & { images?: ProductImage[] };
 
@@ -22,6 +23,10 @@ export function toDealerInventoryDto(product: ProductWithImages) {
     color: product.color,
     mileage: product.mileage,
     vin: product.vin,
+    chassis_number: product.chassisNumber,
+    engine_number: product.engineNumber,
+    /** VIN + chassis + engine all present — required before a listing can be reserved. */
+    identity_complete: vehicleIdentityComplete(product),
     description: product.description,
     price: Number(product.price),
     finance_eligible: product.financeEligible,

@@ -50,6 +50,22 @@ function nestDefaultMessage(status: number): string | undefined {
   return labels[status];
 }
 
+/** Keys Nest itself puts on exception bodies; everything else is caller-supplied context. */
+const ENVELOPE_RESERVED_KEYS = new Set(['message', 'statusCode', 'error']);
+
+/**
+ * Structured context thrown alongside a machine code, e.g.
+ * `new ConflictException({ message: 'documents_missing', missing: ['bank'] })`.
+ * Surfaces as `error.details` so clients can act on it (LOS flows rely on
+ * `missing`, `application_id`, `remaining`, `retry_after_sec`, `violations`).
+ */
+function callerDetails(body: Record<string, unknown>): Record<string, unknown> | undefined {
+  const entries = Object.entries(body).filter(
+    ([key, value]) => !ENVELOPE_RESERVED_KEYS.has(key) && value !== undefined,
+  );
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
 export function resolveHttpException(exception: HttpException): ResolvedApiError {
   const status = exception.getStatus();
   const response = exception.getResponse();
@@ -63,14 +79,25 @@ export function resolveHttpException(exception: HttpException): ResolvedApiError
 
   if (typeof response === 'object' && response !== null) {
     const body = response as Record<string, unknown>;
+    const details = callerDetails(body);
 
     if (typeof body.error === 'string' && isMachineErrorCode(body.error)) {
-      return { status, code: body.error, message: humanMessageForCode(body.error) };
+      return {
+        status,
+        code: body.error,
+        message: humanMessageForCode(body.error),
+        ...(details ? { details } : {}),
+      };
     }
 
     const rawMessage = body.message;
     if (typeof rawMessage === 'string' && isMachineErrorCode(rawMessage)) {
-      return { status, code: rawMessage, message: humanMessageForCode(rawMessage) };
+      return {
+        status,
+        code: rawMessage,
+        message: humanMessageForCode(rawMessage),
+        ...(details ? { details } : {}),
+      };
     }
 
     if (Array.isArray(rawMessage)) {

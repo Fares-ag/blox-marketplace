@@ -28,6 +28,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { CurrentUser, OptionalSessionGuard, Public, Roles } from '../auth/guards';
@@ -50,7 +51,12 @@ class CreateProductDto {
   @IsOptional() @IsString() warrantyNotes?: string;
   @IsOptional() @IsString() color?: string;
   @IsOptional() @IsInt() mileage?: number;
-  @IsOptional() @IsString() vin?: string;
+  @IsOptional() @IsString() @MaxLength(64) vin?: string | null;
+  /** Vehicle identity (both spellings accepted; snake_case is the wire contract). */
+  @IsOptional() @IsString() @MaxLength(64) chassis_number?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) chassisNumber?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) engine_number?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) engineNumber?: string | null;
   @IsOptional() @IsString() description?: string;
   @IsNumber() @Min(1) price!: number;
   @IsOptional() @IsBoolean() financeEligible?: boolean;
@@ -74,7 +80,11 @@ class UpdateProductDto {
   @IsOptional() @IsString() warrantyNotes?: string;
   @IsOptional() @IsString() color?: string;
   @IsOptional() @IsInt() mileage?: number;
-  @IsOptional() @IsString() vin?: string;
+  @IsOptional() @IsString() @MaxLength(64) vin?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) chassis_number?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) chassisNumber?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) engine_number?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) engineNumber?: string | null;
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsNumber() @Min(1) price?: number;
   @IsOptional() @IsBoolean() financeEligible?: boolean;

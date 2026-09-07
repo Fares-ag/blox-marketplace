@@ -286,6 +286,11 @@ export interface DealerInventoryItem {
   color: string | null;
   mileage: number | null;
   vin: string | null;
+  /** Vehicle identity (with `vin`) — all three are required before a listing can be reserved. */
+  chassis_number?: string | null;
+  engine_number?: string | null;
+  /** True when VIN, chassis number and engine number are all present. */
+  identity_complete?: boolean;
   description: string | null;
   price: number;
   finance_eligible: boolean;

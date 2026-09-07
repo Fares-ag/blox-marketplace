@@ -1,14 +1,31 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { apiFetch } from '../lib/api';
 import { buildPricingSnapshot } from '../lib/pricing';
-import { clampTenureMonths, MAX_TENURE_MONTHS, MIN_TENURE_MONTHS } from '../lib/tenure';
+import { assessAffordability } from '../lib/affordability';
+import {
+  allowedTenureOptions,
+  employerCategoryFromEmploymentType,
+  minDownPaymentPctFor,
+  PRODUCT_RULES,
+  type ProductRuleViolation,
+} from '../lib/product-rules';
 import { useAuthStore } from '../auth/auth-store';
 import { useOpsLabels } from '../i18n/use-ops-labels';
-import { OpsPageHeader } from '../components/ops-ui';
-import { MultiStepForm, OpsContentCard, OpsField, OpsFormGrid, OpsFormSection, OpsSelect, type StepConfig, type StepProps } from '../ops-ui-v2';
+import { OpsPageHeader, OpsStatusPill } from '../components/ops-ui';
+import {
+  Alert,
+  MultiStepForm,
+  OpsContentCard,
+  OpsField,
+  OpsFormGrid,
+  OpsFormSection,
+  OpsSelect,
+  type StepConfig,
+  type StepProps,
+} from '../ops-ui-v2';
 import type { PaginatedResponse, PublicOffer } from '../types/domain';
 import type { OpsAgent, OpsAudience } from './types';
 import { VehicleSelectionCards, type VehicleCardOption } from './VehicleSelectionCards';
@@ -16,16 +33,22 @@ import { WizardAgentInvite } from './WizardAgentInvite';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { InstallmentPlanStep } from './InstallmentPlanStep';
 import { WizardReviewStep } from './WizardReviewStep';
+import { submitGateMessage } from './submit-gate';
 import type { InstallmentPlan } from '../types/installment-plan';
 import {
+  DOCUMENT_SLOT_GROUP_LABEL_KEYS,
+  KYC_UPLOAD_ACCEPT,
+  applicantAgeBandWarning,
   buildCustomerSnapshot,
-  docCategoriesForApplicant,
   emptyCustomerInfo,
-  requiredDocCategoriesForApplicant,
+  groupDocumentSlots,
+  kycUploadRejection,
+  residencyForInfo,
+  ruleViolationMessage,
   validateCustomerInfo,
   validateRequiredWizardDocuments,
-  KYC_UPLOAD_ACCEPT,
-  kycUploadRejection,
+  wizardDocumentSlots,
+  wizardRuleViolations,
   type CustomerInfoFormValue,
 } from './customer-info';
 
@@ -35,11 +58,16 @@ type VehicleOption = {
   model: string;
   model_year?: number;
   price: number;
+  condition?: string | null;
   listing_status?: string;
   company_id?: string;
   company_name?: string;
   primary_image?: string | null;
   images?: Array<{ storage_path?: string | null }>;
+  vin?: string | null;
+  chassis_number?: string | null;
+  engine_number?: string | null;
+  identity_complete?: boolean;
 };
 
 type CompanyOption = { id: string; name: string };
@@ -61,6 +89,12 @@ type WizardData = {
   planPricingSnapshot: Record<string, unknown> | null;
 };
 
+function identityComplete(v: VehicleOption): boolean | undefined {
+  if (typeof v.identity_complete === 'boolean') return v.identity_complete;
+  if (v.vin === undefined && v.chassis_number === undefined && v.engine_number === undefined) return undefined;
+  return !!(v.vin?.trim() && v.chassis_number?.trim() && v.engine_number?.trim());
+}
+
 function filterVehicleItems(items: VehicleOption[], isAdmin: boolean, companyId: string): VehicleCardOption[] {
   const filtered = isAdmin && companyId
     ? items.filter((v) => !v.company_id || v.company_id === companyId)
@@ -71,11 +105,19 @@ function filterVehicleItems(items: VehicleOption[], isAdmin: boolean, companyId:
     model: v.model,
     model_year: v.model_year,
     price: v.price,
+    condition: v.condition ?? null,
     listing_status: v.listing_status,
     company_id: v.company_id,
     company_name: v.company_name,
     primary_image: v.primary_image ?? v.images?.[0]?.storage_path ?? null,
+    identity_complete: identityComplete(v),
   }));
+}
+
+function offerTenureOptions(offer: PublicOffer | undefined): number[] | null {
+  if (!offer || !Array.isArray(offer.tenure_options)) return null;
+  const options = (offer.tenure_options as unknown[]).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  return options.length ? options : null;
 }
 
 function DealSetupFields({
@@ -169,7 +211,7 @@ export function AddApplicationWizard({
       submitOnCreate: false,
       offerId: '',
       tenure: 36,
-      downPct: 10,
+      downPct: 20,
       files: {},
       installmentPlan: null,
       planPricingSnapshot: null,
@@ -223,10 +265,49 @@ export function AddApplicationWizard({
     [isAdmin],
   );
 
+  /** Everything the plan, review and submit steps need to judge the deal against the product rules. */
+  const planContext = useCallback(
+    (data: WizardData) => {
+      const vehicleItems = filterVehicleItems(vehicles.data?.items ?? [], isAdmin, data.companyId);
+      const selectedVehicles = vehicleItems.filter((v) => data.productIds.includes(v.id));
+      const primaryVehicle = selectedVehicles[0];
+      const offer = (offers.data?.items ?? []).find((o) => o.id === data.offerId);
+      const tenureOptions = offerTenureOptions(offer);
+      const condition = primaryVehicle?.condition === 'used' ? 'used' : 'new';
+      const minDown = minDownPaymentPctFor(condition, offer?.min_down_payment_pct ?? null);
+      const rate = Number(offer?.annual_rent_rate ?? 0);
+      const priceForPlan = data.sellingPrice || data.listPrice || Number(primaryVehicle?.price ?? 0);
+      const violations: ProductRuleViolation[] = offer
+        ? wizardRuleViolations({
+            info: data.customerInfo,
+            vehicle: { price: priceForPlan, condition: primaryVehicle?.condition, modelYear: primaryVehicle?.model_year },
+            tenureMonths: data.tenure,
+            downPaymentPct: data.downPct,
+            offerTenureOptions: tenureOptions,
+            offerMinDownPaymentPct: offer?.min_down_payment_pct ?? null,
+          })
+        : [];
+      return {
+        vehicleItems,
+        selectedVehicles,
+        primaryVehicle,
+        offer,
+        tenureOptions,
+        minDown,
+        rate,
+        priceForPlan,
+        violations,
+        hard: violations.filter((v) => v.severity === 'hard'),
+        soft: violations.filter((v) => v.severity === 'soft'),
+      };
+    },
+    [vehicles.data, offers.data, isAdmin],
+  );
+
   const steps: StepConfig<WizardData>[] = [
     {
       label: t('ops.wizard.step.customer'),
-      validate: (data) => validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo()),
+      validate: (data) => validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo(), t),
       component: ({ data, updateData }: StepProps<WizardData>) => (
         <CustomerInfoForm
           value={data.customerInfo ?? emptyCustomerInfo()}
@@ -238,6 +319,7 @@ export function AddApplicationWizard({
       label: t('ops.wizard.step.vehicle'),
       component: ({ data, updateData }: StepProps<WizardData>) => {
         const items = filterVehicleItems(vehicles.data?.items ?? [], isAdmin, data.companyId);
+        const incomplete = items.filter((v) => data.productIds.includes(v.id) && v.identity_complete === false);
         return (
           <>
             {isAdmin && (
@@ -261,7 +343,20 @@ export function AddApplicationWizard({
               onToggle={(id) => updateData(toggleProduct(data, id, items))}
               multiple={data.customerInfo.applicantType === 'corporate'}
               loading={vehicles.isLoading}
+              statusFor={(item) =>
+                item.identity_complete === false ? (
+                  <OpsStatusPill label={t('inventoryRules.incomplete')} variant="warning" />
+                ) : null
+              }
             />
+            {incomplete.length > 0 && (
+              <Alert variant="warning" title={t('inventoryRules.incomplete')}>
+                {t('dealerOps.plan.vehicleIdentityMissing')}{' '}
+                {audience === 'dealer' && (
+                  <Link to={`/inventory/${incomplete[0].id}`}>{t('dealerOps.plan.fixInInventory')}</Link>
+                )}
+              </Alert>
+            )}
           </>
         );
       },
@@ -287,11 +382,13 @@ export function AddApplicationWizard({
             value={data.offerId}
             onChange={(e) => {
               const next = (offers.data?.items ?? []).find((o) => o.id === e.target.value);
-              const opts = Array.isArray(next?.tenure_options) ? (next?.tenure_options as number[]) : [36];
+              const { primaryVehicle } = planContext(data);
+              const condition = primaryVehicle?.condition === 'used' ? 'used' : 'new';
+              const allowed = allowedTenureOptions(residencyForInfo(data.customerInfo), offerTenureOptions(next));
               updateData({
                 offerId: e.target.value,
-                tenure: opts.includes(36) ? 36 : opts[0] ?? 36,
-                downPct: Number(next?.min_down_payment_pct ?? 10),
+                tenure: allowed.includes(36) ? 36 : allowed[0] ?? 36,
+                downPct: minDownPaymentPctFor(condition, next?.min_down_payment_pct ?? null),
               });
             }}
             required
@@ -309,19 +406,14 @@ export function AddApplicationWizard({
     },
     {
       label: t('ops.wizard.step.plan'),
+      validate: (data) => (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null),
       component: ({ data, updateData }: StepProps<WizardData>) => {
-        const vehicleItems = filterVehicleItems(vehicles.data?.items ?? [], isAdmin, data.companyId);
-        const selectedVehicles = vehicleItems.filter((v) => data.productIds.includes(v.id));
-        const primaryVehicle = selectedVehicles[0];
-        const offer = (offers.data?.items ?? []).find((o) => o.id === data.offerId);
-        const minDown = Number(offer?.min_down_payment_pct ?? 10);
-        const rate = Number(offer?.annual_rent_rate ?? 0);
-        const priceForPlan = data.sellingPrice || data.listPrice || Number(primaryVehicle?.price ?? 0);
-        const preview = offer
+        const ctx = planContext(data);
+        const preview = ctx.offer
           ? buildPricingSnapshot({
-              listPrice: priceForPlan,
-              annualRatePercent: rate,
-              minDownPaymentPct: minDown,
+              listPrice: ctx.priceForPlan,
+              annualRatePercent: ctx.rate,
+              minDownPaymentPct: ctx.minDown,
               tenureMonths: data.tenure,
               downPaymentPct: data.downPct,
             })
@@ -329,33 +421,91 @@ export function AddApplicationWizard({
 
         if (!preview) return null;
 
+        const residency = residencyForInfo(data.customerInfo);
+        const tenureOptions = allowedTenureOptions(residency, ctx.tenureOptions);
+        const income = data.customerInfo.monthlyIncome;
+        const affordability =
+          income > 0 && residency
+            ? assessAffordability({
+                monthlyIncome: income,
+                monthlyLiabilities: data.customerInfo.monthlyLiabilities,
+                proposedInstallment: preview.monthly,
+                residency,
+                employerCategory: employerCategoryFromEmploymentType(data.customerInfo.employment.employmentType),
+                financedAmount: ctx.priceForPlan - preview.down_payment,
+              })
+            : null;
+        const ageWarning = applicantAgeBandWarning(data.customerInfo, data.tenure, t);
+        const dbrVariant =
+          affordability?.status === 'within_cap' ? 'success' : affordability?.status === 'above_hard_cap' ? 'error' : 'warning';
+        const dbrStatusText = !affordability
+          ? null
+          : affordability.status === 'within_cap'
+            ? t('dealerOps.plan.dbrWithin')
+            : affordability.status === 'above_hard_cap'
+              ? t('dealerOps.plan.dbrDeclined', { cap: Math.round(affordability.hardCap * 100) })
+              : t('dealerOps.plan.dbrException', { tier: affordability.exceptionTier });
+
         return (
           <OpsFormSection title={t('ops.wizard.step.plan')}>
-            <OpsField
+            <OpsSelect
               label={t('ops.credit.tenure')}
-              type="number"
-              min={MIN_TENURE_MONTHS}
-              max={MAX_TENURE_MONTHS}
               value={data.tenure}
-              onChange={(e) => updateData({ tenure: clampTenureMonths(Number(e.target.value)) })}
-            />
+              onChange={(e) => updateData({ tenure: Number(e.target.value) })}
+            >
+              {!tenureOptions.includes(data.tenure) && (
+                <option value={data.tenure}>{t('ops.common.months', { count: data.tenure })}</option>
+              )}
+              {tenureOptions.map((months) => (
+                <option key={months} value={months}>
+                  {t('ops.common.months', { count: months })}
+                </option>
+              ))}
+            </OpsSelect>
             <OpsField
               label={t('ops.wizard.downPaymentPct')}
               type="number"
-              min={minDown}
-              max={80}
+              min={ctx.minDown}
+              max={PRODUCT_RULES.downPayment.maxPct}
               value={data.downPct}
               onChange={(e) => updateData({ downPct: Number(e.target.value) })}
+              hint={t('applyFlow.rule.down_payment_below_min', { min: ctx.minDown })}
             />
             <InstallmentPlanStep
-              vehiclePrice={priceForPlan}
-              offerRate={rate}
-              minDownPct={minDown}
+              vehiclePrice={ctx.priceForPlan}
+              offerRate={ctx.rate}
+              minDownPct={ctx.minDown}
               tenureMonths={data.tenure}
               downPaymentPct={data.downPct}
               hideInterest={data.hideInterest}
               onChange={(plan, snap) => updateData({ installmentPlan: plan, planPricingSnapshot: snap })}
             />
+            <div className="blox-form-grid__full blox-stack">
+              <h3 className="blox-panel__subtitle">{t('dealerOps.plan.rulesTitle')}</h3>
+              {ctx.hard.map((v) => (
+                <Alert key={v.code} variant="error" title={t('dealerOps.plan.rulesBlock')}>
+                  {ruleViolationMessage(v, t)}
+                </Alert>
+              ))}
+              {ctx.soft.map((v) => (
+                <Alert key={v.code} variant="warning" title={t('dealerOps.plan.rulesWarn')}>
+                  {ruleViolationMessage(v, t)}
+                </Alert>
+              ))}
+              {ctx.violations.length === 0 && <p className="blox-form-success">{t('dealerOps.plan.rulesOk')}</p>}
+              {ageWarning && <Alert variant="warning">{ageWarning}</Alert>}
+              {affordability ? (
+                <Alert variant={dbrVariant}>
+                  {t('dealerOps.plan.dbr', {
+                    dbr: Number.isFinite(affordability.dbr) ? Math.round(affordability.dbr * 100) : '∞',
+                    cap: Math.round(affordability.cap * 100),
+                  })}
+                  {dbrStatusText ? ` — ${dbrStatusText}` : ''}
+                </Alert>
+              ) : (
+                <p className="blox-field__hint">{t('dealerOps.plan.dbrUnknown')}</p>
+              )}
+            </div>
           </OpsFormSection>
         );
       },
@@ -363,47 +513,71 @@ export function AddApplicationWizard({
     {
       label: t('ops.wizard.step.documents'),
       validate: (data) =>
-        validateRequiredWizardDocuments(data.files, data.customerInfo?.applicantType ?? 'individual'),
+        validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t),
       component: ({ data, updateData }: StepProps<WizardData>) => {
-        const docCategories = docCategoriesForApplicant(data.customerInfo.applicantType);
-        const requiredDocs = new Set(requiredDocCategoriesForApplicant(data.customerInfo.applicantType));
+        const groups = groupDocumentSlots(wizardDocumentSlots(data.customerInfo));
         return (
           <>
-            {docCategories.map((cat) => (
-              <label key={cat} className="blox-upload-dropzone">
-                <input
-                  type="file"
-                  accept={KYC_UPLOAD_ACCEPT}
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (!file) return;
-                    // Rejected at selection rather than at submit: the wizard
-                    // uploads these only after the application has been
-                    // created, so an unsupported file otherwise fails once the
-                    // record already exists and the documents are missing.
-                    const rejection = kycUploadRejection(file);
-                    if (rejection) {
-                      setError(rejection);
-                      toast.error(rejection);
-                      return;
-                    }
-                    updateData({ files: { ...data.files, [cat]: file } });
-                  }}
-                />
-                <p className="blox-upload-dropzone__title">
-                  {t(`ops.wizard.doc.${cat}`, { defaultValue: cat })}
-                  {requiredDocs.has(cat) && <span className="blox-field__req"> *</span>}
-                </p>
-                {data.files[cat] ? (
-                  <p className="blox-upload-dropzone__hint">{data.files[cat]?.name}</p>
-                ) : requiredDocs.has(cat) ? (
-                  <p className="blox-upload-dropzone__hint blox-upload-dropzone__hint--required">
-                    {t('ops.wizard.documentRequired', { defaultValue: 'Required' })}
-                  </p>
-                ) : null}
-              </label>
+            <p className="blox-muted">{t('dealerOps.intake.docsIntro')}</p>
+            {groups.map((group) => (
+              <div key={group.group} className="blox-form-block">
+                <h3 className="blox-panel__subtitle">{t(DOCUMENT_SLOT_GROUP_LABEL_KEYS[group.group])}</h3>
+                {group.slots.map((slot) => {
+                  const hint = t(`${slot.labelKey}Hint`, { defaultValue: '' });
+                  const freshness = slot.maxAgeDays ? t('applyFlow.docs.freshness', { days: slot.maxAgeDays }) : '';
+                  const file = data.files[slot.category];
+                  return (
+                    <label key={slot.category} className="blox-upload-dropzone">
+                      <input
+                        type="file"
+                        accept={KYC_UPLOAD_ACCEPT}
+                        hidden
+                        onChange={(e) => {
+                          const picked = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!picked) return;
+                          // Rejected at selection rather than at submit: the wizard
+                          // uploads these only after the application has been
+                          // created, so an unsupported file otherwise fails once the
+                          // record already exists and the documents are missing.
+                          const rejection = kycUploadRejection(picked);
+                          if (rejection) {
+                            setError(rejection);
+                            toast.error(rejection);
+                            return;
+                          }
+                          updateData({ files: { ...data.files, [slot.category]: picked } });
+                        }}
+                      />
+                      <p className="blox-upload-dropzone__title">
+                        {t(slot.labelKey, { defaultValue: slot.category.replace(/_/g, ' ') })}{' '}
+                        <OpsStatusPill
+                          label={slot.required ? t('dealerOps.intake.slotRequired') : t('dealerOps.intake.slotOptional')}
+                          variant={slot.required ? 'ink' : 'outline'}
+                        />
+                      </p>
+                      {(hint || freshness) && (
+                        <p className="blox-upload-dropzone__hint">
+                          {hint}
+                          {hint && freshness ? ' · ' : ''}
+                          {freshness}
+                        </p>
+                      )}
+                      {file ? (
+                        <p className="blox-upload-dropzone__hint">
+                          {file.name} · {t('dealerOps.intake.replaceFile')}
+                        </p>
+                      ) : slot.required ? (
+                        <p className="blox-upload-dropzone__hint blox-upload-dropzone__hint--required">
+                          {t('dealerOps.intake.slotMissing')} · {t('dealerOps.intake.chooseFile')}
+                        </p>
+                      ) : (
+                        <p className="blox-upload-dropzone__hint">{t('dealerOps.intake.chooseFile')}</p>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
             ))}
           </>
         );
@@ -412,32 +586,29 @@ export function AddApplicationWizard({
     {
       label: t('ops.wizard.step.review'),
       validate: (data) => {
-        const customerError = validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo());
+        const customerError = validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo(), t);
         if (customerError) return customerError;
-        const docsError = validateRequiredWizardDocuments(
-          data.files,
-          data.customerInfo?.applicantType ?? 'individual',
-        );
+        const docsError = validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t);
         if (docsError) return docsError;
         if (!data.productIds.length) return t('ops.wizard.selectVehicle');
         if (!data.offerId) return t('ops.wizard.selectOffer');
+        if (planContext(data).hard.length) return t('dealerOps.validation.rulesBlocking');
         if (!data.planPricingSnapshot || !data.installmentPlan) return t('ops.wizard.completePlan');
         return null;
       },
       component: ({ data, updateData }: StepProps<WizardData>) => {
-        const vehicleItems = filterVehicleItems(vehicles.data?.items ?? [], isAdmin, data.companyId);
-        const selectedVehicles = vehicleItems.filter((v) => data.productIds.includes(v.id));
-        const offer = (offers.data?.items ?? []).find((o) => o.id === data.offerId);
+        const ctx = planContext(data);
         const companyName = (companies.data?.items ?? []).find((c) => c.id === data.companyId)?.name;
 
         return (
           <WizardReviewStep
             data={data}
-            selectedVehicles={selectedVehicles}
-            offer={offer}
+            selectedVehicles={ctx.selectedVehicles}
+            offer={ctx.offer}
             companyName={isAdmin ? companyName : undefined}
             agentCompanyId={isAdmin ? data.companyId : user?.company_id ?? ''}
             isAdmin={isAdmin}
+            ruleViolations={ctx.violations}
             onSubmitOnCreateChange={(submitOnCreate) => updateData({ submitOnCreate })}
           />
         );
@@ -449,8 +620,9 @@ export function AddApplicationWizard({
     if (busy) return;
 
     const validationError =
-      validateCustomerInfo(data.customerInfo) ??
-      validateRequiredWizardDocuments(data.files, data.customerInfo.applicantType);
+      validateCustomerInfo(data.customerInfo, t) ??
+      validateRequiredWizardDocuments(data.files, data.customerInfo, t) ??
+      (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null);
     if (validationError) {
       setError(validationError);
       return;
@@ -462,7 +634,6 @@ export function AddApplicationWizard({
 
     try {
       const customerSnapshot = buildCustomerSnapshot(data.customerInfo);
-      const docCategories = docCategoriesForApplicant(data.customerInfo.applicantType);
       const created = await apiFetch<{ id: string; created_ids?: string[] }>(
         '/api/ops/applications',
         {
@@ -488,8 +659,7 @@ export function AddApplicationWizard({
       const ids = created.created_ids?.length ? created.created_ids : [created.id];
 
       for (const appId of ids) {
-        for (const category of docCategories) {
-          const file = data.files[category];
+        for (const [category, file] of Object.entries(data.files)) {
           if (!file) continue;
           const fd = new FormData();
           fd.append('category', category);
@@ -500,7 +670,7 @@ export function AddApplicationWizard({
 
       navigate(`${detailBase}/${ids[0]}`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('ops.wizard.submitFailed');
+      const message = submitGateMessage(err, t) ?? (err instanceof Error ? err.message : t('ops.wizard.submitFailed'));
       setError(message);
       toast.error(message);
     } finally {

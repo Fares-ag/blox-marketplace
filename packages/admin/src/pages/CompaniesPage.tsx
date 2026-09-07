@@ -1,8 +1,7 @@
 import { useState } from 'react';
-
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
-
+import { useTranslation } from 'react-i18next';
 import {
   ConfirmDialog,
   OpsDataTable,
@@ -18,215 +17,108 @@ import {
   apiFetch,
   buildPaginationQuery,
   paginationWindow,
-  type AdminCompany,
+  usePortalBasePath,
+  withPortalBase,
 } from '@drivemarket/shared';
-
-
+import type { CompanyListResponse } from '../types';
 
 function CompanyNameCell({
-
   name,
-
   kind,
-
   parentCompanyId,
-
+  to,
 }: {
-
   name: string;
-
   kind?: string | null;
-
   parentCompanyId?: string | null;
-
+  to: string;
 }) {
-
   const isChild = kind === 'dealership' && parentCompanyId;
-
   return (
-
     <span className={`blox-company-name${isChild ? ' is-child' : ''}`}>
       {isChild && (
         <span aria-hidden className="blox-company-name__arrow">
           ↳
         </span>
       )}
-      {name}
+      <Link to={to}>{name}</Link>
     </span>
-
   );
-
 }
-
-
 
 function KindBadge({ kind }: { kind?: string | null }) {
-
   const value = kind ?? 'dealership';
-
   if (value === 'holding') {
-
     return <OpsStatusPill label="Holding" variant="outline" />;
-
   }
-
   return <StatusBadge status="active" type="application" label="Dealership" />;
-
 }
 
-
-
 export function CompaniesPage() {
-
+  const { t } = useTranslation();
   const qc = useQueryClient();
-
+  const base = usePortalBasePath();
   const [name, setName] = useState('');
-
   const [code, setCode] = useState('');
-
   const [kind, setKind] = useState<'holding' | 'dealership'>('dealership');
-
   const [parentCompanyId, setParentCompanyId] = useState('');
-
   const [editId, setEditId] = useState<string | null>(null);
-
   const [editKind, setEditKind] = useState<'holding' | 'dealership'>('dealership');
-
   const [editParentId, setEditParentId] = useState('');
-
   const [editName, setEditName] = useState('');
-
   const [editCode, setEditCode] = useState('');
-
   const [editStatus, setEditStatus] = useState('active');
-
   const [msg, setMsg] = useState<string | null>(null);
-
   const [page, setPage] = useState(0);
-
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
-
-
   const { data, error } = useQuery({
-
     queryKey: ['admin-companies', page],
-
-    queryFn: () =>
-
-      apiFetch<{
-
-        total: number;
-
-        items: Array<
-
-          Pick<
-
-            AdminCompany,
-
-            | 'id'
-
-            | 'name'
-
-            | 'code'
-
-            | 'status'
-
-            | 'allow_direct_activate'
-
-            | 'can_pay'
-
-            | 'kind'
-
-            | 'parent_company_id'
-
-            | 'parent_name'
-
-            | 'child_count'
-
-          >
-
-        >;
-
-      }>(`/api/companies/all?${buildPaginationQuery(page)}`),
-
+    queryFn: () => apiFetch<CompanyListResponse>(`/api/companies/all?${buildPaginationQuery(page)}`),
   });
-
   const companies = data?.items ?? [];
-
   const { from, to, total } = paginationWindow(data?.total ?? 0, page);
-
-
+  const detailPath = (id: string) => withPortalBase(`/companies/${id}`, base);
 
   const updateCompany = useMutation({
-
     mutationFn: (payload: { id: string; body: Record<string, unknown> }) =>
-
       apiFetch(`/api/companies/${payload.id}`, {
-
         method: 'PATCH',
-
         body: JSON.stringify(payload.body),
-
       }),
-
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin-companies'] }),
-
     onError: (e: Error) => setMsg(e.message),
-
   });
-
-
 
   const create = useMutation({
-
     mutationFn: () =>
-
       apiFetch('/api/companies', {
-
         method: 'POST',
-
         body: JSON.stringify({
-
           name,
-
           code: code || undefined,
-
           kind,
-
           parentCompanyId: kind === 'dealership' && parentCompanyId ? parentCompanyId : undefined,
-
         }),
-
       }),
-
     onSuccess: () => {
-
       setMsg('Company created');
-
       setName('');
-
       setCode('');
-
       setKind('dealership');
-
       setParentCompanyId('');
-
       void qc.invalidateQueries({ queryKey: ['admin-companies'] });
-
     },
-
     onError: (e: Error) => setMsg(e.message),
-
   });
 
-
-
   return (
-
     <OpsFormPage title="Companies" subtitle="Dealer companies and activation flags" wide>
-
-      {error && <p className="blox-form-error" role="alert">{(error as Error).message}</p>}
+      {error && (
+        <p className="blox-form-error" role="alert">
+          {(error as Error).message}
+        </p>
+      )}
 
       <OpsFormSection title="Create company">
         <OpsField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -247,11 +139,7 @@ export function CompaniesPage() {
               ))}
           </OpsSelect>
         )}
-        {msg && (
-          <p className="blox-form-grid__full blox-m-0">
-            {msg}
-          </p>
-        )}
+        {msg && <p className="blox-form-grid__full blox-m-0">{msg}</p>}
         <OpsPrimaryButton
           type="button"
           className="blox-form-grid__full blox-form-actions__primary"
@@ -263,117 +151,67 @@ export function CompaniesPage() {
       </OpsFormSection>
 
       <OpsDataTable
-
         columns={['Name', 'Kind', 'Parent', 'Children', 'Code', 'Status', 'Direct activate', 'SkipCash pay', '']}
-
         pagination={{ from, to, total, onPrev: () => setPage((p) => Math.max(0, p - 1)), onNext: () => setPage((p) => p + 1) }}
-
         empty={<OpsEmptyState title="No companies" body="" />}
-
         rows={companies.map((c) => [
-
-          <CompanyNameCell key="n" name={c.name} kind={c.kind} parentCompanyId={c.parent_company_id} />,
-
+          <CompanyNameCell key="n" name={c.name} kind={c.kind} parentCompanyId={c.parent_company_id} to={detailPath(c.id)} />,
           <KindBadge key="k" kind={c.kind} />,
-
           c.parent_name ?? '—',
-
           String(c.child_count ?? 0),
-
           c.code ?? '—',
-
           <OpsStatusPill key="s" label={c.status} variant={c.status === 'active' ? 'approved' : 'draft'} />,
-
           <OpsGhostButton
-
             key="da"
-
             type="button"
-
             disabled={updateCompany.isPending}
-
             onClick={() =>
-
               setConfirm({
-
                 title: c.allow_direct_activate ? 'Disable direct activate' : 'Enable direct activate',
-
                 message: `${c.allow_direct_activate ? 'Disable' : 'Enable'} direct activate for ${c.name}?`,
-
                 onConfirm: () => updateCompany.mutate({ id: c.id, body: { allowDirectActivate: !c.allow_direct_activate } }),
-
               })
-
             }
-
           >
-
             {c.allow_direct_activate ? 'Enabled' : 'Off'}
-
           </OpsGhostButton>,
-
           <OpsGhostButton
-
             key="cp"
-
             type="button"
-
             disabled={updateCompany.isPending}
-
             onClick={() =>
-
               setConfirm({
-
                 title: c.can_pay ? 'Disable SkipCash pay' : 'Enable SkipCash pay',
-
                 message: `${c.can_pay ? 'Disable' : 'Enable'} SkipCash pay for ${c.name}?`,
-
                 onConfirm: () => updateCompany.mutate({ id: c.id, body: { canPay: !c.can_pay } }),
-
               })
-
             }
-
           >
-
             {c.can_pay ? 'Enabled' : 'Off'}
-
           </OpsGhostButton>,
-
-          <OpsGhostButton
-
-            key="ed"
-
-            type="button"
-
-            onClick={() => {
-
-              setEditId(c.id);
-
-              setEditName(c.name);
-
-              setEditCode(c.code ?? '');
-
-              setEditStatus(c.status);
-
-              setEditKind(c.kind ?? 'dealership');
-
-              setEditParentId(c.parent_company_id ?? '');
-
-            }}
-
-          >
-
-            Edit
-
-          </OpsGhostButton>,
-
+          <span key="ac" className="blox-cell-row blox-cell-row--wrap">
+            <Link to={detailPath(c.id)} className="blox-btn blox-btn--ghost blox-btn--sm">
+              {t('adminOps.common.manage')}
+            </Link>
+            <OpsGhostButton
+              type="button"
+              size="sm"
+              onClick={() => {
+                setEditId(c.id);
+                setEditName(c.name);
+                setEditCode(c.code ?? '');
+                setEditStatus(c.status);
+                setEditKind(c.kind ?? 'dealership');
+                setEditParentId(c.parent_company_id ?? '');
+              }}
+            >
+              Edit
+            </OpsGhostButton>
+          </span>,
         ])}
-
       />
 
       {editId && (
-
         <OpsFormSection title="Edit company">
           <OpsField label="Name" value={editName} onChange={(e) => setEditName(e.target.value)} />
           <OpsField label="Code" value={editCode} onChange={(e) => setEditCode(e.target.value)} />
@@ -397,76 +235,47 @@ export function CompaniesPage() {
                 ))}
             </OpsSelect>
           )}
+          <p className="blox-form-grid__full blox-muted">
+            <Link to={`${detailPath(editId)}?tab=branches`}>{t('adminOps.nav.branches')}</Link>
+            {' · '}
+            <Link to={`${detailPath(editId)}?tab=branding`}>{t('adminOps.nav.branding')}</Link>
+          </p>
           <OpsPrimaryButton
             type="button"
             className="blox-form-grid__full blox-form-actions__primary"
             onClick={() =>
-
               setConfirm({
-
                 title: 'Save company',
-
                 message: 'Update company details and parent assignment?',
-
                 onConfirm: () =>
-
                   updateCompany.mutate({
-
                     id: editId,
-
                     body: {
-
                       name: editName,
-
                       code: editCode,
-
                       status: editStatus,
-
                       kind: editKind,
-
                       parentCompanyId: editKind === 'dealership' ? editParentId || null : null,
-
                     },
-
                   }),
-
               })
-
             }
-
           >
-
             Save
-
           </OpsPrimaryButton>
-
         </OpsFormSection>
-
       )}
 
       <ConfirmDialog
-
         open={!!confirm}
-
         title={confirm?.title ?? ''}
-
         message={confirm?.message ?? ''}
-
         onCancel={() => setConfirm(null)}
-
         onConfirm={() => {
-
           confirm?.onConfirm();
-
           setConfirm(null);
-
         }}
-
       />
-
     </OpsFormPage>
-
   );
-
 }
-

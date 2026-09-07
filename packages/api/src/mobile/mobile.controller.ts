@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
-import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { Response } from 'express';
 import { CurrentUser, Public, Roles } from '../auth/guards';
 import { PaymentsService } from '../payments/payments.service';
 import { MobileService } from './mobile.service';
@@ -15,6 +16,11 @@ class MobileCreateApplicationDto {
   @IsString() nationalId!: string;
   @IsOptional() @IsString() nationality?: string;
   @IsOptional() @IsString() gender?: string;
+  /** YYYY-MM-DD; cross-checked against the QID birth year (400 dob_qid_mismatch). */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateOfBirth must be YYYY-MM-DD' })
+  dateOfBirth?: string;
+  @IsOptional() @IsString() residenceDuration?: string;
 }
 
 class DeviceTokenDto {
@@ -83,10 +89,17 @@ export class MobileController {
     return this.mobile.dashboard(user);
   }
 
+  /** 201 with the new draft, or 200 `{ id, resumed: true }` when a draft for the vehicle already exists. */
   @Roles(UserRole.customer)
   @Post('applications')
-  create(@CurrentUser() user: User, @Body() dto: MobileCreateApplicationDto) {
-    return this.mobile.createApplication(user, dto);
+  async create(
+    @CurrentUser() user: User,
+    @Body() dto: MobileCreateApplicationDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.mobile.createApplication(user, dto);
+    if ((result as { resumed?: boolean }).resumed) res.status(200);
+    return result;
   }
 
   @Roles(UserRole.customer)

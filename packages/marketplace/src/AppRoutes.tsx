@@ -1,6 +1,6 @@
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   AuthGuard,
@@ -17,13 +17,10 @@ import {
   clampTenureMonths,
   formatQar,
   getAppLocale,
-  EMPLOYMENT_DURATION_OPTIONS,
-  EMPLOYMENT_TYPE_OPTIONS,
   MAX_TENURE_MONTHS,
   MIN_TENURE_MONTHS,
   applicationMarketplacePillVariant,
   applicationStatusLabel,
-  trackProductEvent,
   type ProductDetailResponse,
   type ProductListResponse,
   type PublicCompany,
@@ -53,6 +50,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AssistPage } from './pages/AssistPage';
 import { BrandedEntryPage } from './pages/BrandedEntryPage';
 import { BrandProvider } from './components/BrandProvider';
+import { ApplyPage } from './pages/apply/ApplyPage';
 
 function VehiclesBrowseRedirect() {
   const { search } = useLocation();
@@ -466,239 +464,6 @@ function DealerShowroomPage() {
   );
 }
 
-function ApplyWizardPage() {
-  const [params] = useSearchParams();
-  const productSlug = params.get('product') || '';
-  const tenureParam = Number(params.get('tenure') || 36);
-  const downPctParam = Number(params.get('downPct') || 10);
-  const navigate = useNavigate();
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const locale = getAppLocale();
-  const detail = useQuery({
-    queryKey: ['product', productSlug],
-    queryFn: () => apiFetch<ProductDetailResponse>(`/api/products/by-slug/${productSlug}`),
-    enabled: !!productSlug,
-  });
-  const product = detail.data?.product;
-  const offer = detail.data?.offer;
-
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [qid, setQid] = useState('');
-  const [employment, setEmployment] = useState('');
-  const [income, setIncome] = useState('');
-  // Collected so a website application reaches the finance partner with the
-  // same detail a dealer-entered one carries. Nationality is required because
-  // the partner keeps separate salary fields for Qatari and expatriate
-  // applicants — without it the figure is filed under the wrong one.
-  const [nationality, setNationality] = useState('');
-  const [city, setCity] = useState('');
-  const [employmentType, setEmploymentType] = useState('');
-  const [employmentDuration, setEmploymentDuration] = useState('');
-  const [tenure, setTenure] = useState(tenureParam);
-  const [downPct, setDownPct] = useState(downPctParam);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!offer) return;
-    const minDown = Number(offer.min_down_payment_pct ?? 10);
-    setDownPct((prev) => Math.max(prev, minDown));
-    setTenure((prev) => clampTenureMonths(prev || tenureParam));
-  }, [offer, tenureParam]);
-
-  const monthlyPreview = useMemo(() => {
-    if (!product || !offer) return 0;
-    return buildPricingSnapshot({
-      listPrice: product.price,
-      annualRatePercent: offer.annual_rent_rate,
-      minDownPaymentPct: Number(offer.min_down_payment_pct ?? 10),
-      tenureMonths: tenure,
-      downPaymentPct: downPct,
-    }).monthly;
-  }, [product, offer, downPct, tenure]);
-
-  useEffect(() => {
-    if (!product?.id) return;
-    trackProductEvent('application_started', {
-      product_id: product.id,
-      company_id: product.company_id,
-      source: 'wizard_open',
-    });
-  }, [product?.id, product?.company_id]);
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (!product || !offer) throw new Error('listing_not_available');
-      const minDown = Number(offer.min_down_payment_pct ?? 0);
-      const pricingSnapshot = buildPricingSnapshot({
-        listPrice: product.price,
-        annualRatePercent: offer.annual_rent_rate,
-        minDownPaymentPct: minDown,
-        tenureMonths: tenure,
-        downPaymentPct: Math.max(downPct, minDown),
-      });
-      return apiFetch<{ id: string }>('/api/applications', {
-        method: 'POST',
-        body: JSON.stringify({
-          productId: product.id,
-          offerId: offer.id,
-          quoteToken: params.get('quote') || undefined,
-          // Same shape buildCustomerSnapshot produces for the dealer journey,
-          // so zoho-lead.mapper reads both identically and the partner gets the
-          // same lead whichever channel it came through.
-          customerSnapshot: {
-            full_name: fullName,
-            phone,
-            qid,
-            applicantType: 'individual',
-            nationality: nationality.trim() || undefined,
-            city: city.trim() || undefined,
-            address: city.trim() ? { city: city.trim() } : undefined,
-            employment: {
-              company: employment.trim() || undefined,
-              employmentType: employmentType || undefined,
-              employmentDuration: employmentDuration || undefined,
-              salary: Number(income) || undefined,
-            },
-            income: Number(income) || 0,
-            monthlyIncome: Number(income) || undefined,
-          },
-          pricingSnapshot,
-        }),
-      });
-    },
-    onSuccess: (app: { id: string }) => {
-      void qc.invalidateQueries({ queryKey: ['products'] });
-      navigate(`/app/applications/${app.id}`);
-    },
-    onError: (e: Error) => {
-      const msg = e.message;
-      if (msg.includes('blocking_application') || msg.includes('409')) {
-        setError(t('application.blockingApplication'));
-        return;
-      }
-      setError(msg);
-    },
-  });
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    mutation.mutate();
-  }
-
-  if (!productSlug) return <Navigate to="/" replace />;
-
-  return (
-    <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
-      <div style={{ background: 'var(--dm-graphite-900)', height: 72 }}>
-        <MarketplaceNav />
-      </div>
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: 32 }}>
-        <h1 style={{ fontFamily: 'var(--dm-font-display)' }}>{t('detail.apply')}</h1>
-        {product && (
-          <p style={{ color: 'var(--dm-slate-600)' }}>
-            {product.make} {product.model} · <MoneyText>{formatQar(product.price, false, locale)}</MoneyText>
-          </p>
-        )}
-        <p className="dm-apply-next" style={{ color: 'var(--dm-slate-600)', fontSize: 14, lineHeight: 1.55 }}>
-          {t('application.nextSteps')}
-        </p>
-        {offer && product && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: 16,
-              borderRadius: 12,
-              background: 'var(--dm-surface)',
-              border: '1px solid var(--dm-slate-200)',
-              display: 'grid',
-              gap: 12,
-            }}
-          >
-            <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
-              {t('detail.tenure')}
-              <input
-                type="number"
-                min={MIN_TENURE_MONTHS}
-                max={MAX_TENURE_MONTHS}
-                value={tenure}
-                onChange={(e) => setTenure(clampTenureMonths(Number(e.target.value)))}
-                style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)' }}
-              />
-            </label>
-            <label style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
-              {t('detail.downPayment')}
-              <input
-                type="number"
-                min={offer.min_down_payment_pct}
-                max={80}
-                value={downPct}
-                onChange={(e) => setDownPct(Number(e.target.value))}
-                style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)' }}
-              />
-            </label>
-            <p style={{ margin: 0, fontSize: 14 }}>
-              {t('detail.estMonthly')}:{' '}
-              <MoneyText>{formatQar(monthlyPreview, true, locale)}</MoneyText>
-            </p>
-          </div>
-        )}
-        <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12, marginTop: 24 }}>
-          {(
-            [
-              { labelKey: 'apply.fullName', value: fullName, setter: setFullName, required: true },
-              { labelKey: 'apply.phone', value: phone, setter: setPhone, required: true },
-              { labelKey: 'apply.qid', value: qid, setter: setQid, required: true },
-              { labelKey: 'apply.nationality', value: nationality, setter: setNationality, required: true },
-              { labelKey: 'apply.city', value: city, setter: setCity, required: false },
-              { labelKey: 'apply.employment', value: employment, setter: setEmployment, required: false },
-              { labelKey: 'apply.monthlyIncome', value: income, setter: setIncome, required: false },
-            ] as const
-          ).map(({ labelKey, value, setter, required }) => (
-            <label key={labelKey} style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
-              {t(labelKey)}
-              <input
-                required={required}
-                value={value}
-                onChange={(e) => setter(e.target.value)}
-                style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)' }}
-              />
-            </label>
-          ))}
-          {/* The same option lists the dealer journey uses, so the two channels
-              cannot drift into different vocabularies for the same question. */}
-          {(
-            [
-              { labelKey: 'apply.employmentType', value: employmentType, setter: setEmploymentType, options: EMPLOYMENT_TYPE_OPTIONS },
-              { labelKey: 'apply.employmentDuration', value: employmentDuration, setter: setEmploymentDuration, options: EMPLOYMENT_DURATION_OPTIONS },
-            ] as const
-          ).map(({ labelKey, value, setter, options }) => (
-            <label key={labelKey} style={{ display: 'grid', gap: 6, fontWeight: 600, fontSize: 14, color: 'var(--dm-slate-600)' }}>
-              {t(labelKey)}
-              <select
-                value={value}
-                onChange={(e) => setter(e.target.value)}
-                style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: '1px solid var(--dm-slate-200)', background: '#fff' }}
-              >
-                <option value="">{t('apply.selectPlaceholder')}</option>
-                {options.map((o) => (
-                  <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
-                ))}
-              </select>
-            </label>
-          ))}
-          {error && <p style={{ color: 'var(--dm-danger)' }}>{error}</p>}
-          <button type="submit" className="dm-btn-cta" disabled={mutation.isPending}>
-            {mutation.isPending ? t('vehicles.loading') : t('detail.apply')}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 function ApplicationsListPage() {
   const { t } = useTranslation();
   const locale = getAppLocale();
@@ -734,7 +499,15 @@ function ApplicationsListPage() {
         <ul className="dm-app-list" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
           {apps.map((a) => (
             <li key={a.id}>
-              <Link to={`/app/applications/${a.id}`} className="dm-app-list__item">
+              <Link
+                to={
+                  // Drafts reopen in the stepper, which detects the existing draft and offers to resume it.
+                  a.status === 'draft' && a.product?.slug
+                    ? `/app/applications/new?product=${encodeURIComponent(a.product.slug)}`
+                    : `/app/applications/${a.id}`
+                }
+                className="dm-app-list__item"
+              >
                 <div>
                   <strong>
                     {a.product.make} {a.product.model}
@@ -933,7 +706,7 @@ export function AppRoutes() {
       <Route path="/app/calendar" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><PaymentCalendarPage /></AuthGuard>} />
       <Route path="/app/notifications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><NotificationsPage /></AuthGuard>} />
       <Route path="/app/applications" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplicationsListPage /></AuthGuard>} />
-      <Route path="/app/applications/new" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplyWizardPage /></AuthGuard>} />
+      <Route path="/app/applications/new" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplyPage /></AuthGuard>} />
       <Route path="/app/applications/:id" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ApplicationDetailPage /></AuthGuard>} />
       <Route path="/app/consents" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ConsentsPage /></AuthGuard>} />
       <Route path="/app/profile" element={<AuthGuard allowedRole="customer" reasonParam="not_customer" requireVerifiedEmail><ProfilePage /></AuthGuard>} />

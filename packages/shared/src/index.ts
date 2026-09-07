@@ -376,3 +376,49 @@ export type {
 } from './types/customer-platform';
 export { SessionTimeoutGuard } from './auth/SessionTimeoutGuard';
 export { trackProductEvent } from './analytics/track';
+// Customer-platform ops surfaces (dealer portal + the shared application workspace).
+export {
+  AssistedSessionPanel,
+  ConsentsPanel,
+  TakafulPanel,
+  IdentityHoldBanner,
+  isIdentityHoldActive,
+  ReasonDialog,
+  TagLenderDialog,
+  SUBMIT_GATE_CODES,
+  submitGateCode,
+  submitGateMessage,
+  GENDER_OPTIONS,
+  GUARANTOR_RELATIONSHIP_OPTIONS,
+  DOCUMENT_SLOT_GROUP_LABEL_KEYS,
+  emptyCustomerInfo,
+  customerInfoFromSnapshot,
+  buildCustomerSnapshot,
+  validateCustomerInfo,
+  validateRequiredWizardDocuments,
+  residencyForInfo,
+  documentSlotProfileFor,
+  wizardDocumentSlots,
+  groupDocumentSlots,
+  slotSatisfiedBy,
+  wizardRuleViolations,
+  ruleViolationMessage,
+  applicantAgeBandWarning,
+} from './ops-applications';
+export type {
+  OpsRuleFlag,
+  OpsDocumentSlotsResponse,
+  OpsUnmaskField,
+  OpsUnmaskResponse,
+  IdentityRevealProps,
+  AssistedSessionListResponse,
+  SubmitGateCode,
+  WorkspacePlatformProps,
+  CustomerInfoFormValue,
+  CustomerGuarantor,
+  CustomerGender,
+  GuarantorRelationship,
+  WizardDocumentSlot,
+  IntakeTranslate,
+} from './ops-applications';
+export { Alert as OpsAlert } from './ops-ui-v2';

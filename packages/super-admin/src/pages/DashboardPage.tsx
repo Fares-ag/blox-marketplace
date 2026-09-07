@@ -16,6 +16,7 @@ import {
   bloxTokens,
   useOpsLabels,
 } from '@drivemarket/shared';
+import { OriginationFunnelSection } from '../components/OriginationFunnelSection';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -117,6 +118,9 @@ export function DashboardPage() {
             <VerticalBarChart bars={statusBars} />
           )}
         </ChartPanel>
+      </div>
+      <div className="blox-dashboard-section">
+        <OriginationFunnelSection />
       </div>
       <div className="blox-dashboard-section">
         <ChartPanel title={t('ops.superAdmin.byType')}>

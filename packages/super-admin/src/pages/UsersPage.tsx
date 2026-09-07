@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { useAuthStore, apiFetch, buildPaginationQuery, paginationWindow, OpsStatusPill, OpsDataTable, OpsEmptyState, ConfirmDialog, OpsListPage, OpsContentCard, OpsCoreButton, OpsGhostButton, OpsPrimaryButton, OpsFormSection, UserCredentialsDialog, SetPasswordDialog, useOpsLabels, type AdminUser, type AdminUserProvision, type PaginatedResponse } from '@drivemarket/shared';
-import { type UserRow, ASSIGNABLE_ROLES, companyRequiredForRole, showsCreditFields, showsFinanceFields, filterCompaniesForRole } from './user-helpers';
+import { ASSIGNABLE_ROLES, companyRequiredForRole, showsCreditFields, showsFinanceFields, filterCompaniesForRole } from './user-helpers';
+import { HomeBranchSelect } from '../components/HomeBranchSelect';
+import { apiErrorCode } from '../lib/customer-platform';
+import type { UserRowWithBranch } from '../types';
 
 export function UsersPage() {
   const { t } = useOpsLabels();
@@ -17,6 +20,7 @@ export function UsersPage() {
   const [name, setName] = useState('');
   const [role, setRole] = useState('dealer_agent');
   const [companyId, setCompanyId] = useState('');
+  const [homeBranchId, setHomeBranchId] = useState('');
   const [creditScope, setCreditScope] = useState('assigned');
   const [financeScope, setFinanceScope] = useState('assigned');
   const [creditCompanyIds, setCreditCompanyIds] = useState<string[]>([]);
@@ -46,7 +50,7 @@ export function UsersPage() {
   const { data, error } = useQuery({
     queryKey: ['sa-users', page],
     queryFn: () =>
-      apiFetch<{ total: number; items: UserRow[] }>(`/api/users?${buildPaginationQuery(page)}`),
+      apiFetch<{ total: number; items: UserRowWithBranch[] }>(`/api/users?${buildPaginationQuery(page)}`),
   });
   const users = data?.items ?? [];
   const { from, to, total } = paginationWindow(data?.total ?? 0, page);
@@ -63,6 +67,7 @@ export function UsersPage() {
           name: name.trim(),
           role,
           companyId: companyId || undefined,
+          home_branch_id: companyId && homeBranchId ? homeBranchId : undefined,
           creditScope: showsCreditFields(role) ? creditScope : undefined,
           financeScope: showsFinanceFields(role) ? financeScope : undefined,
           creditCompanyIds: showsCreditFields(role) ? creditCompanyIds : undefined,
@@ -74,6 +79,7 @@ export function UsersPage() {
       setEmail('');
       setName('');
       setCompanyId('');
+      setHomeBranchId('');
       setCreditCompanyIds([]);
       setFinanceCompanyIds([]);
       setActionError(null);
@@ -82,7 +88,10 @@ export function UsersPage() {
       toast.success(t('ops.superAdmin.createUserSuccess'));
       void qc.invalidateQueries({ queryKey: ['sa-users'] });
     },
-    onError: (e) => setActionError((e as Error).message),
+    onError: (e) =>
+      setActionError(
+        apiErrorCode(e) === 'branch_not_in_company' ? t('adminOps.users.branchNotInCompany') : (e as Error).message,
+      ),
   });
 
   const update = useMutation({
@@ -142,7 +151,10 @@ export function UsersPage() {
                   Company
                   <select
                     value={companyId}
-                    onChange={(e) => setCompanyId(e.target.value)}
+                    onChange={(e) => {
+                      setCompanyId(e.target.value);
+                      setHomeBranchId('');
+                    }}
                     required={companyRequiredForRole(role)}
                   >
                     <option value="">{companyRequiredForRole(role) ? 'Select company' : 'No company'}</option>
@@ -154,6 +166,9 @@ export function UsersPage() {
                     ))}
                   </select>
                 </label>
+              )}
+              {companyId && (
+                <HomeBranchSelect plain companyId={companyId} value={homeBranchId} onChange={setHomeBranchId} />
               )}
               {showsCreditFields(role) && (
                 <>
@@ -219,7 +234,15 @@ export function UsersPage() {
         </OpsContentCard>
       </div>
       <OpsDataTable
-        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), 'Company', t('ops.col.status'), t('ops.col.actions')]}
+        columns={[
+          t('ops.col.email'),
+          t('ops.col.name'),
+          t('ops.col.role'),
+          'Company',
+          t('branchOps.homeBranch'),
+          t('ops.col.status'),
+          t('ops.col.actions'),
+        ]}
         pagination={{
           from,
           to,
@@ -287,6 +310,7 @@ export function UsersPage() {
             </span>
           ),
           u.company_name ?? '—',
+          u.home_branch?.name ?? '—',
           <OpsStatusPill
             key="s"
             label={u.is_active ? t('ops.superAdmin.active') : t('ops.superAdmin.suspended')}

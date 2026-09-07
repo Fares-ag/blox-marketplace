@@ -1,4 +1,5 @@
-import type { Company } from '@prisma/client';
+import type { Company, Prisma } from '@prisma/client';
+import { toBrandingDto } from './branding';
 
 export function toAdminCompanyDto(
   company: Company & {
@@ -21,6 +22,7 @@ export function toAdminCompanyDto(
     contact_phone: company.contactPhone,
     logo_url: company.logoUrl,
     address: company.address,
+    branding: toBrandingDto(company.branding, company.logoUrl),
     created_at: company.createdAt,
     updated_at: company.updatedAt,
   };
@@ -35,7 +37,7 @@ export function toDealerCompanyDto(company: Company) {
     kind: company.kind,
     parent_company_id: company.parentCompanyId,
     logo_url: company.logoUrl,
-    branding: company.branding,
+    branding: toBrandingDto(company.branding, company.logoUrl),
     contact_email: company.contactEmail,
     contact_phone: company.contactPhone,
     address: company.address,
@@ -60,6 +62,11 @@ export function toPublicCompanyListItemDto(company: {
   };
 }
 
+/**
+ * Public white-label entry (`GET /api/companies/by-code/:code`): `branding`
+ * is the normalised snake_case block and `logo_url` is always populated from
+ * whichever of the column / branding block carries a logo.
+ */
 export function toPublicCompanyDetailDto(company: {
   id: string;
   name: string;
@@ -67,13 +74,16 @@ export function toPublicCompanyDetailDto(company: {
   logoUrl: string | null;
   address: string | null;
   contactPhone: string | null;
+  branding?: Prisma.JsonValue | null;
   published_count: number;
 }) {
+  const branding = toBrandingDto(company.branding, company.logoUrl);
   return {
     id: company.id,
     name: company.name,
     code: company.code,
-    logo_url: company.logoUrl,
+    logo_url: company.logoUrl ?? branding?.logo_url ?? null,
+    branding,
     address: company.address,
     contact_phone: company.contactPhone,
     published_count: company.published_count,

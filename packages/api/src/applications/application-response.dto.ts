@@ -1,5 +1,7 @@
 import type { ApplicationStatus, Prisma } from '@prisma/client';
+import { maskCustomerSnapshot, maskPhone } from '@drivemarket/shared/domain-rules';
 import { toPublicOfferDto } from '../common/offer-response.dto';
+import { ruleFlagsOf } from './application-rules';
 
 type DecimalLike = Prisma.Decimal | number | string | null | undefined;
 
@@ -9,7 +11,51 @@ function asNumber(value: DecimalLike): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function isoOrNull(value: Date | null | undefined): string | null {
+  return value ? value.toISOString() : null;
+}
+
+function dateOnlyOrNull(value: Date | null | undefined): string | null {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
+/**
+ * Who is reading the DTO. Customers see their own data in full; ops roles
+ * (credit, finance, admin, super-admin, group-admin) see the QID and phone
+ * masked (LOS FSD §11.1 — unmasking is a separate audited action); dealer
+ * agents keep the phone (they call the customer) but never the full QID.
+ */
 export type ApplicationAudience = 'customer' | 'ops' | 'dealer';
+
+type Snapshot = Record<string, unknown>;
+
+function asSnapshot(value: unknown): Snapshot | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Snapshot) : null;
+}
+
+/** Customer snapshot as the audience may see it. */
+export function snapshotForAudience(snapshot: unknown, audience: ApplicationAudience): unknown {
+  if (audience === 'customer') return snapshot ?? null;
+  const raw = asSnapshot(snapshot);
+  if (!raw) return snapshot ?? null;
+  const masked = maskCustomerSnapshot(raw) ?? {};
+  if (audience === 'dealer' && typeof raw.phone === 'string') {
+    return { ...masked, phone: raw.phone };
+  }
+  return masked;
+}
+
+function customerForAudience(
+  customer: { name: string | null; email: string; phone?: string | null },
+  audience: ApplicationAudience,
+) {
+  const phone = customer.phone ?? null;
+  return {
+    name: customer.name,
+    email: customer.email,
+    phone: audience === 'ops' && phone ? maskPhone(phone) : phone,
+  };
+}
 
 export function toApplicationProductDto(product: {
   id: string;
@@ -109,6 +155,67 @@ export function toPaymentScheduleDto(schedule: {
   };
 }
 
+/** Prisma `TakafulPolicy` row (dates come back as `Date`, decimals as `Decimal`). */
+export type TakafulPolicyRow = {
+  id: string;
+  applicationId: string;
+  provider?: string | null;
+  policyNumber?: string | null;
+  coverageType?: string | null;
+  coverageAmount?: DecimalLike;
+  premiumAmount?: DecimalLike;
+  issuedAt?: Date | null;
+  effectiveFrom?: Date | null;
+  expiresAt?: Date | null;
+  riders?: unknown;
+  status: string;
+  declarationAcceptedAt?: Date | null;
+  declarationVersion?: string | null;
+  documentPath?: string | null;
+  verifiedAt?: Date | null;
+  createdAt: Date;
+};
+
+const DAY_MS = 86_400_000;
+
+function utcDayStart(date: Date): number {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+/** Whole days from today to the expiry date (negative once expired), null without an expiry. */
+export function daysToExpiry(expiresAt: Date | null | undefined, now: Date = new Date()): number | null {
+  if (!expiresAt) return null;
+  return Math.round((utcDayStart(expiresAt) - utcDayStart(now)) / DAY_MS);
+}
+
+/** Matches `TakafulPolicyDto` in packages/shared/src/types/customer-platform.ts field for field. */
+export function toTakafulPolicyDto(policy: TakafulPolicyRow, now: Date = new Date()) {
+  const coverageType =
+    policy.coverageType === 'comprehensive' || policy.coverageType === 'third_party'
+      ? policy.coverageType
+      : null;
+  return {
+    id: policy.id,
+    application_id: policy.applicationId,
+    provider: policy.provider ?? null,
+    policy_number: policy.policyNumber ?? null,
+    coverage_type: coverageType,
+    coverage_amount: asNumber(policy.coverageAmount),
+    premium_amount: asNumber(policy.premiumAmount),
+    issued_at: dateOnlyOrNull(policy.issuedAt),
+    effective_from: dateOnlyOrNull(policy.effectiveFrom),
+    expires_at: dateOnlyOrNull(policy.expiresAt),
+    days_to_expiry: daysToExpiry(policy.expiresAt, now),
+    riders: Array.isArray(policy.riders) ? policy.riders.map((r) => String(r)) : [],
+    status: policy.status,
+    declaration_accepted_at: isoOrNull(policy.declarationAcceptedAt),
+    declaration_version: policy.declarationVersion ?? null,
+    has_document: !!policy.documentPath,
+    verified_at: isoOrNull(policy.verifiedAt),
+    created_at: policy.createdAt.toISOString(),
+  };
+}
+
 type ApplicationCore = {
   id: string;
   customerUserId: string;
@@ -118,6 +225,8 @@ type ApplicationCore = {
   companyId: string;
   offerId: string;
   financePartnerId?: string | null;
+  financePartnerBranchId?: string | null;
+  branchId?: string | null;
   leadSource?: string | null;
   pricingSnapshot: unknown;
   installmentPlan?: unknown;
@@ -129,6 +238,11 @@ type ApplicationCore = {
   submittedAt?: Date | null;
   activatedAt?: Date | null;
   completedAt?: Date | null;
+  identityHoldReason?: string | null;
+  identityHoldAt?: Date | null;
+  identityHoldClearedAt?: Date | null;
+  identityHoldClearedById?: string | null;
+  consentsCompletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -140,7 +254,9 @@ type ApplicationRelations = {
   customer?: { name: string | null; email: string; phone?: string | null } | null;
   offer?: (Parameters<typeof toPublicOfferDto>[0] & Record<string, unknown>) | null;
   paymentSchedules?: Array<Partial<Parameters<typeof toPaymentScheduleDto>[0]>> | null;
-  financePartner?: { name?: string | null; crmAdapter?: string | null } | null;
+  financePartner?: { id?: string; name?: string | null; code?: string | null; crmAdapter?: string | null } | null;
+  branch?: { id?: string; name?: string | null; code?: string | null } | null;
+  takafulPolicies?: TakafulPolicyRow[] | null;
 };
 
 function hasProductFields(
@@ -175,12 +291,27 @@ function hasScheduleFields(
   );
 }
 
+/** Identity-hold + consent facts shared by every application DTO. */
+export function identityAndConsentFields(app: {
+  identityHoldReason?: string | null;
+  identityHoldAt?: Date | null;
+  identityHoldClearedAt?: Date | null;
+  consentsCompletedAt?: Date | null;
+}) {
+  return {
+    identity_hold_reason: app.identityHoldReason ?? null,
+    identity_hold_at: app.identityHoldAt ?? null,
+    identity_hold_cleared_at: app.identityHoldClearedAt ?? null,
+    consents_completed_at: app.consentsCompletedAt ?? null,
+  };
+}
+
 function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudience) {
   const dto: Record<string, unknown> = {
     id: app.id,
     customer_user_id: app.customerUserId,
     customer_email: app.customerEmail,
-    customer_snapshot: app.customerSnapshot,
+    customer_snapshot: snapshotForAudience(app.customerSnapshot, audience),
     product_id: app.productId,
     company_id: app.companyId,
     offer_id: app.offerId,
@@ -196,16 +327,23 @@ function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudien
     completed_at: app.completedAt ?? null,
     created_at: app.createdAt,
     updated_at: app.updatedAt,
+    ...identityAndConsentFields(app),
   };
+
+  if (audience === 'ops' || audience === 'dealer') {
+    dto.branch_id = app.branchId ?? null;
+    dto.rule_flags = ruleFlagsOf(app.pricingSnapshot);
+  }
 
   if (audience === 'ops') {
     dto.status_reason = app.statusReason ?? null;
+    dto.finance_partner_branch_id = app.financePartnerBranchId ?? null;
   }
 
   return dto;
 }
 
-function applicationRelations(app: ApplicationRelations) {
+function applicationRelations(app: ApplicationRelations, audience: ApplicationAudience) {
   return {
     ...(hasProductFields(app.product) ? { product: toApplicationProductDto(app.product) } : {}),
     ...(app.documents
@@ -218,15 +356,7 @@ function applicationRelations(app: ApplicationRelations) {
     ...(app.company?.id && app.company?.name
       ? { company: { id: app.company.id, name: app.company.name } }
       : {}),
-    ...(app.customer
-      ? {
-          customer: {
-            name: app.customer.name,
-            email: app.customer.email,
-            phone: app.customer.phone ?? null,
-          },
-        }
-      : {}),
+    ...(app.customer ? { customer: customerForAudience(app.customer, audience) } : {}),
     ...(hasOfferFields(app.offer) ? { offer: toPublicOfferDto(app.offer) } : {}),
     ...(app.paymentSchedules
       ? {
@@ -235,22 +365,34 @@ function applicationRelations(app: ApplicationRelations) {
             .map((schedule) => toPaymentScheduleDto(schedule)),
         }
       : {}),
+    ...(app.takafulPolicies
+      ? { takaful_policies: app.takafulPolicies.map((policy) => toTakafulPolicyDto(policy)) }
+      : {}),
     financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
     finance_partner_name: app.financePartner?.name ?? null,
+    branch_name: app.branch?.name ?? null,
   };
 }
 
+/** Customer-facing DTO: the owner sees their own snapshot in full. */
 export function toApplicationDto(app: ApplicationCore & ApplicationRelations) {
   return {
     ...baseApplicationFields(app, 'customer'),
-    ...applicationRelations(app),
+    ...applicationRelations(app, 'customer'),
   };
 }
 
 export function toOpsApplicationDto(app: ApplicationCore & ApplicationRelations) {
   return {
     ...baseApplicationFields(app, 'ops'),
-    ...applicationRelations(app),
+    ...applicationRelations(app, 'ops'),
+  };
+}
+
+export function toDealerApplicationDto(app: ApplicationCore & ApplicationRelations) {
+  return {
+    ...baseApplicationFields(app, 'dealer'),
+    ...applicationRelations(app, 'dealer'),
   };
 }
 
@@ -258,13 +400,22 @@ export function mapApplicationDto(
   app: ApplicationCore & ApplicationRelations,
   audience: ApplicationAudience,
 ) {
-  return audience === 'ops' ? toOpsApplicationDto(app) : toApplicationDto(app);
+  if (audience === 'ops') return toOpsApplicationDto(app);
+  if (audience === 'dealer') return toDealerApplicationDto(app);
+  return toApplicationDto(app);
 }
 
-export function toApplicationBlockingDto(result: { blocking: boolean; applicationId: string | null }) {
+export function toApplicationBlockingDto(result: {
+  blocking: boolean;
+  applicationId: string | null;
+  status?: ApplicationStatus | null;
+  draftApplicationId?: string | null;
+}) {
   return {
     blocking: result.blocking,
     application_id: result.applicationId,
+    status: result.status ?? null,
+    draft_application_id: result.draftApplicationId ?? null,
   };
 }
 
@@ -278,6 +429,10 @@ export function toApplicationListItemDto(app: {
   rejectionReason?: string | null;
   resubmissionComment?: string | null;
   pricingSnapshot?: unknown;
+  identityHoldReason?: string | null;
+  identityHoldAt?: Date | null;
+  identityHoldClearedAt?: Date | null;
+  consentsCompletedAt?: Date | null;
   product?: {
     make: string;
     model: string;
@@ -296,6 +451,7 @@ export function toApplicationListItemDto(app: {
     rejection_reason: app.rejectionReason ?? null,
     resubmission_comment: app.resubmissionComment ?? null,
     pricing_snapshot: app.pricingSnapshot ?? null,
+    ...identityAndConsentFields(app),
     ...(app.product
       ? {
           product: {
@@ -315,14 +471,22 @@ export function toOpsApplicationQueueItemDto(app: {
   status: ApplicationStatus;
   createdAt: Date;
   submittedAt?: Date | null;
+  customerSnapshot?: unknown;
   pricingSnapshot?: unknown;
   installmentPlan?: unknown;
+  financePartnerId?: string | null;
+  branchId?: string | null;
+  identityHoldReason?: string | null;
+  identityHoldAt?: Date | null;
+  identityHoldClearedAt?: Date | null;
+  consentsCompletedAt?: Date | null;
   product?: { make: string; model: string; modelYear: number; slug: string; price?: DecimalLike } | null;
   company?: { name: string } | null;
   customer?: { name: string | null; email: string } | null;
   agent?: { id: string; name: string | null; email: string } | null;
   paymentSchedules?: Array<{ status: string; dueDate: Date }>;
-  financePartner?: { name?: string | null; crmAdapter?: string | null } | null;
+  financePartner?: { id?: string; name?: string | null; crmAdapter?: string | null } | null;
+  branch?: { id?: string; name?: string | null } | null;
 }) {
   const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
   const plan = app.installmentPlan as Record<string, unknown> | null | undefined;
@@ -334,8 +498,11 @@ export function toOpsApplicationQueueItemDto(app: {
     status: app.status,
     created_at: app.createdAt,
     submitted_at: app.submittedAt ?? null,
+    customer_snapshot: snapshotForAudience(app.customerSnapshot, 'ops'),
     pricing_snapshot: app.pricingSnapshot ?? null,
     installment_plan: app.installmentPlan ?? null,
+    rule_flags: ruleFlagsOf(app.pricingSnapshot),
+    ...identityAndConsentFields(app),
     deal_summary: {
       selling_price: sellingPrice,
       monthly,
@@ -362,7 +529,10 @@ export function toOpsApplicationQueueItemDto(app: {
       ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
       : { agent: null }),
     financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
+    finance_partner_id: app.financePartnerId ?? app.financePartner?.id ?? null,
     finance_partner_name: app.financePartner?.name ?? null,
+    branch_id: app.branchId ?? app.branch?.id ?? null,
+    branch_name: app.branch?.name ?? null,
   };
 }
 
@@ -391,14 +561,27 @@ export function toDealerApplicationListItemDto(app: {
   id: string;
   status: ApplicationStatus;
   createdAt: Date;
+  customerSnapshot?: unknown;
+  pricingSnapshot?: unknown;
+  financePartnerId?: string | null;
+  branchId?: string | null;
+  identityHoldReason?: string | null;
+  identityHoldAt?: Date | null;
+  identityHoldClearedAt?: Date | null;
+  consentsCompletedAt?: Date | null;
   product?: { make: string; model: string; modelYear: number; slug: string } | null;
   customer?: { name: string | null; email: string; phone?: string | null } | null;
   agent?: { id: string; name: string | null; email: string } | null;
+  financePartner?: { id?: string; name?: string | null } | null;
+  branch?: { id?: string; name?: string | null } | null;
 }) {
   return {
     id: app.id,
     status: app.status,
     created_at: app.createdAt,
+    customer_snapshot: snapshotForAudience(app.customerSnapshot, 'dealer'),
+    rule_flags: ruleFlagsOf(app.pricingSnapshot),
+    ...identityAndConsentFields(app),
     ...(app.product
       ? {
           product: {
@@ -421,5 +604,9 @@ export function toDealerApplicationListItemDto(app: {
     ...(app.agent
       ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
       : { agent: null }),
+    finance_partner_id: app.financePartnerId ?? app.financePartner?.id ?? null,
+    finance_partner_name: app.financePartner?.name ?? null,
+    branch_id: app.branchId ?? app.branch?.id ?? null,
+    branch_name: app.branch?.name ?? null,
   };
 }

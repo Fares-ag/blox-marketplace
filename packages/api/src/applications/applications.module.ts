@@ -8,13 +8,19 @@ import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 import { ApplicationsStaffService } from './applications-staff.service';
+import { ApplicationIntakeService } from './application-intake.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { QuotesModule } from '../quotes/quotes.module';
 
 @Module({
   imports: [CommonModule, ComplianceModule, KycModule, StorageModule, QuotesModule, ZohoModule, PaymentsModule],
   controllers: [ApplicationsController],
-  providers: [ApplicationsService, ApplicationsLifecycleService, ApplicationsStaffService],
-  exports: [ApplicationsService, ApplicationsStaffService],
+  providers: [
+    ApplicationsService,
+    ApplicationsLifecycleService,
+    ApplicationsStaffService,
+    ApplicationIntakeService,
+  ],
+  exports: [ApplicationsService, ApplicationsStaffService, ApplicationIntakeService],
 })
 export class ApplicationsModule {}

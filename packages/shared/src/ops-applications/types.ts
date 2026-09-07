@@ -1,14 +1,51 @@
 import type { ApplicationStatus, PublicOffer } from '../types/domain';
+import type { AssistedSessionDto, TakafulPolicyDto } from '../types/customer-platform';
+import type { DocumentSlot } from '../lib/document-slots';
 
 export type OpsAudience = 'admin' | 'dealer' | 'credit' | 'finance' | 'super_admin';
 
 export type OpsAgent = { id: string; name: string | null; email: string };
+
+/**
+ * Soft product-rule finding stored on `pricing_snapshot.rule_flags` at intake.
+ * Older records may carry bare code strings.
+ */
+export type OpsRuleFlag =
+  | string
+  | { code: string; severity?: 'hard' | 'soft'; params?: Record<string, string | number> };
+
+/** `GET /api/ops/applications/:id/document-slots`. */
+export type OpsDocumentSlotsResponse = {
+  slots: DocumentSlot[];
+  uploaded: string[];
+  missing: string[];
+};
+
+/** `GET /api/assist-sessions?application_id=` — accepted as a bare array or a paginated envelope. */
+export type AssistedSessionListResponse = AssistedSessionDto[] | { items: AssistedSessionDto[] };
+
+/** `POST /api/ops/applications/:id/unmask`. */
+export type OpsUnmaskField = 'qid' | 'phone';
+export type OpsUnmaskResponse = { field: OpsUnmaskField; value: string };
+
+/** Audited reveal of masked identity fields, wired from the workspace into the applicant profile. */
+export type IdentityRevealProps = {
+  canReveal: OpsUnmaskField[];
+  revealed: Partial<Record<OpsUnmaskField, string>>;
+  onReveal: (field: OpsUnmaskField) => void;
+  busy?: boolean;
+};
 
 export type OpsQueueItem = {
   id: string;
   status: ApplicationStatus;
   created_at: string;
   submitted_at?: string | null;
+  identity_hold_reason?: string | null;
+  identity_hold_cleared_at?: string | null;
+  finance_partner_id?: string | null;
+  branch_id?: string | null;
+  branch_name?: string | null;
   pricing_snapshot?: Record<string, unknown> | null;
   installment_plan?: Record<string, unknown> | null;
   deal_summary?: { selling_price: number; monthly: number; rate: number };
@@ -96,6 +133,18 @@ export type OpsWorkspace = {
   offer?: PublicOffer;
   financing_source?: 'blox' | 'partner';
   finance_partner_name?: string | null;
+  finance_partner_id?: string | null;
+  submitted_at?: string | null;
+  /** Identity hold set at intake when the QID is already on file with different details. */
+  identity_hold_reason?: string | null;
+  identity_hold_at?: string | null;
+  identity_hold_cleared_at?: string | null;
+  consents_completed_at?: string | null;
+  branch_id?: string | null;
+  branch_name?: string | null;
+  /** Soft product-rule findings recorded at intake for credit review. */
+  rule_flags?: OpsRuleFlag[] | null;
+  takaful_policies?: TakafulPolicyDto[];
   kyc_verification?: KycVerificationSummary | null;
   documents?: Array<{
     id: string;
@@ -104,6 +153,7 @@ export type OpsWorkspace = {
     original_name?: string | null;
     kyc_document_type?: string | null;
     verification_status?: string | null;
+    created_at?: string;
   }>;
   payment_schedules?: Array<{
     id: string;

@@ -1,9 +1,29 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, buildPaginationQuery, paginationWindow, OpsStatusPill, OpsDataTable, OpsEmptyState, ConfirmDialog, OpsListPage, OpsField, OpsContentCard, OpsGhostButton, OpsPrimaryButton, type AdminCompany } from '@drivemarket/shared';
+import { useTranslation } from 'react-i18next';
+import {
+  ConfirmDialog,
+  OpsContentCard,
+  OpsDataTable,
+  OpsEmptyState,
+  OpsField,
+  OpsGhostButton,
+  OpsListPage,
+  OpsPrimaryButton,
+  OpsStatusPill,
+  apiFetch,
+  buildPaginationQuery,
+  paginationWindow,
+  usePortalBasePath,
+  withPortalBase,
+} from '@drivemarket/shared';
+import type { CompanyListResponse } from '../types';
 
 export function CompaniesPage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
+  const base = usePortalBasePath();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
@@ -12,19 +32,11 @@ export function CompaniesPage() {
 
   const { data, error } = useQuery({
     queryKey: ['sa-companies', page],
-    queryFn: () =>
-      apiFetch<{
-        total: number;
-        items: Array<
-          Pick<
-            AdminCompany,
-            'id' | 'name' | 'code' | 'status' | 'allow_direct_activate' | 'can_pay' | 'contact_email' | 'logo_url' | 'created_at'
-          >
-        >;
-      }>(`/api/companies/all?${buildPaginationQuery(page)}`),
+    queryFn: () => apiFetch<CompanyListResponse>(`/api/companies/all?${buildPaginationQuery(page)}`),
   });
   const companies = data?.items ?? [];
   const { from, to, total } = paginationWindow(data?.total ?? 0, page);
+  const detailPath = (id: string) => withPortalBase(`/companies/${id}`, base);
 
   const updateCompany = useMutation({
     mutationFn: (payload: { id: string; body: Record<string, boolean> }) =>
@@ -71,7 +83,7 @@ export function CompaniesPage() {
       </OpsContentCard>
       </div>
       <OpsDataTable
-        columns={['Name', 'Code', 'Status', 'Direct activate', 'SkipCash pay']}
+        columns={['Name', 'Code', 'Status', 'Direct activate', 'SkipCash pay', '']}
         pagination={{
           from,
           to,
@@ -81,7 +93,9 @@ export function CompaniesPage() {
         }}
         empty={<OpsEmptyState title="No companies" body="" />}
         rows={companies.map((c) => [
-          c.name,
+          <Link key="n" to={detailPath(c.id)}>
+            {c.name}
+          </Link>,
           c.code ?? '—',
           <OpsStatusPill key="s" label={c.status} variant={c.status === 'active' ? 'approved' : 'draft'} />,
           <OpsGhostButton
@@ -116,6 +130,17 @@ export function CompaniesPage() {
           >
             {c.can_pay ? 'Enabled' : 'Off'}
           </OpsGhostButton>,
+          <span key="ac" className="blox-cell-row blox-cell-row--wrap">
+            <Link to={detailPath(c.id)} className="blox-btn blox-btn--ghost blox-btn--sm">
+              {t('adminOps.common.manage')}
+            </Link>
+            <Link to={`${detailPath(c.id)}?tab=branches`} className="blox-btn blox-btn--ghost blox-btn--sm">
+              {t('adminOps.nav.branches')}
+            </Link>
+            <Link to={`${detailPath(c.id)}?tab=branding`} className="blox-btn blox-btn--ghost blox-btn--sm">
+              {t('adminOps.nav.branding')}
+            </Link>
+          </span>,
         ])}
       />
       <ConfirmDialog

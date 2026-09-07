@@ -9,6 +9,7 @@ import {
   toPaginatedResponse,
 } from '../common/pagination.dto';
 import { seedFinancePartners } from '../../prisma/seed-finance-partners';
+import { seedBranches } from '../../prisma/seed-branches';
 import { seedCheryInventory } from '../../prisma/seed-chery';
 import { seedQautoInventory } from '../../prisma/seed-qauto-inventory';
 import { uploadQautoListingImages } from '../../prisma/upload-qauto-listing-images';
@@ -17,6 +18,7 @@ import { bootstrapQauto } from '../../prisma/bootstrap-qauto';
 import { backfillInstallmentPlans } from '../applications/backfill-installment-plan';
 import { resolveDescendantCompanyIds } from '../companies/company-hierarchy';
 import { PrismaService } from '../prisma/prisma.service';
+import { vehicleIdentityComplete } from '../products/vehicle-identity';
 import { countInRange, weekBuckets } from './ops-metrics.helpers';
 
 class ActivityLogsQueryDto extends PaginationQueryDto {
@@ -674,6 +676,10 @@ export class OpsController {
         model_year: p.modelYear,
         price: Number(p.price),
         listing_status: p.listingStatus,
+        vin: p.vin,
+        chassis_number: p.chassisNumber,
+        engine_number: p.engineNumber,
+        identity_complete: vehicleIdentityComplete(p),
         company_id: p.companyId,
         company_name: p.company.name,
         company_code: p.company.code,
@@ -812,6 +818,13 @@ export class OpsController {
   @Post('seed-finance-partners')
   seedFinancePartners() {
     return seedFinancePartners(this.prisma);
+  }
+
+  /** One MAIN branch per seeded dealership + home branches for their dealer agents. */
+  @Roles(UserRole.super_admin)
+  @Post('seed-branches')
+  seedBranches() {
+    return seedBranches(this.prisma);
   }
 
   @Roles(UserRole.super_admin)

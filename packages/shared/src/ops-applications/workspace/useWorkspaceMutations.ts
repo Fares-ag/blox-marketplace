@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { apiFetch } from '../../lib/api';
+import type { OpsUnmaskField, OpsUnmaskResponse } from '../types';
 
 /**
  * Every server action the application workspace can take, in one place (Phase 1 §11).
@@ -13,7 +14,8 @@ export type WorkspaceMutationOptions = {
   getComment: () => string;
   downPaymentAmount: () => number;
   loadCompanies: boolean;
-  onError: (message: string) => void;
+  /** The raw error is passed too so callers can map machine codes (submit gates) to guidance. */
+  onError: (message: string, error?: Error) => void;
   onCommentPosted?: () => void;
   onEditSaved?: () => void;
   onPaid?: () => void;
@@ -27,7 +29,7 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     void qc.invalidateQueries({ queryKey: ['ops-apps'] });
     void qc.invalidateQueries({ queryKey: ['credit-queue'] });
   };
-  const fail = (e: Error) => opts.onError(e.message);
+  const fail = (e: Error) => opts.onError(e.message, e);
 
   const transition = useMutation({
     mutationFn: (toStatus: string) =>
@@ -166,6 +168,43 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     enabled: opts.loadCompanies,
   });
 
+  // Customer-platform actions: every one of them is audited server-side.
+  const clearIdentityHold = useMutation({
+    mutationFn: (note: string) =>
+      apiFetch(`/api/ops/applications/${id}/identity-hold/clear`, { method: 'POST', body: JSON.stringify({ note }) }),
+    onSuccess: invalidate,
+    onError: fail,
+  });
+  const unmask = useMutation({
+    mutationFn: (payload: { field: OpsUnmaskField; reason: string }) =>
+      apiFetch<OpsUnmaskResponse>(`/api/ops/applications/${id}/unmask`, {
+        method: 'POST',
+        body: JSON.stringify({ field: payload.field, reason: payload.reason }),
+      }),
+    onError: fail,
+  });
+  const tagLender = useMutation({
+    mutationFn: (payload: { finance_partner_id: string; finance_partner_branch_id?: string }) =>
+      apiFetch(`/api/ops/applications/${id}/lender`, {
+        method: 'POST',
+        body: JSON.stringify({
+          finance_partner_id: payload.finance_partner_id,
+          ...(payload.finance_partner_branch_id ? { finance_partner_branch_id: payload.finance_partner_branch_id } : {}),
+        }),
+      }),
+    onSuccess: invalidate,
+    onError: fail,
+  });
+  const verifyTakaful = useMutation({
+    mutationFn: (policyId: string) =>
+      apiFetch(`/api/ops/applications/${id}/takaful/${policyId}/verify`, { method: 'POST' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ops-app-takaful', id] });
+      invalidate();
+    },
+    onError: fail,
+  });
+
   const busy =
     transition.isPending ||
     approve.isPending ||
@@ -191,6 +230,10 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     rebuild,
     downPay,
     companies,
+    clearIdentityHold,
+    unmask,
+    tagLender,
+    verifyTakaful,
     busy,
   };
 }

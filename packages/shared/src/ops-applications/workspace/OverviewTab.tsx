@@ -1,11 +1,22 @@
+import { useMemo } from 'react';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
 import { OpsDetailGrid } from '../../ops-ui-v2';
 import { OpsStatusPill } from '../../components/ops-ui';
 import { apiFileUrl } from '../../lib/api';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
 import { CustomerInfoOverview } from '../CustomerInfoOverview';
-import { customerInfoFromSnapshot, requiredDocCategoriesForApplicant } from '../customer-info';
+import {
+  customerInfoFromSnapshot,
+  ruleViolationMessage,
+  slotSatisfiedBy,
+  wizardDocumentSlots,
+} from '../customer-info';
+import type { ProductRuleCode } from '../../lib/product-rules';
+import type { OpsRuleFlag } from '../types';
 import { DecisionPanel } from './DecisionPanel';
+import { AssistedSessionPanel } from './AssistedSessionPanel';
+import { ConsentsPanel } from './ConsentsPanel';
+import { TakafulPanel } from './TakafulPanel';
 import type { WorkspacePanelProps } from './types';
 
 type Props = WorkspacePanelProps & {
@@ -18,29 +29,45 @@ type Props = WorkspacePanelProps & {
   canSeeLogs: boolean;
 };
 
+const ASSIST_CLOSED_STATUSES = new Set(['active', 'completed', 'rejected', 'submission_cancelled', 'partner_processing']);
+
 function qar(value: unknown): string {
   const n = Number(value ?? 0);
   return `QAR ${Number.isFinite(n) ? n.toLocaleString() : '0'}`;
 }
 
+function ruleFlagLabel(flag: OpsRuleFlag, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  if (typeof flag === 'string') return t(`applyFlow.rule.${flag}`, { defaultValue: flag.replace(/_/g, ' ') });
+  return ruleViolationMessage(
+    { code: flag.code as ProductRuleCode, severity: flag.severity ?? 'soft', params: flag.params ?? {} },
+    t,
+  );
+}
+
 /**
- * Overview tab — Phase 1 §11. Main: applicant profile, plan (with the ownership bar),
- * documents checklist. Aside: the decision panel first, then the last three events.
+ * Overview tab — Phase 1 §11. Main: applicant profile (masked identity with
+ * audited reveal), plan with rule flags, documents checklist. Aside: the
+ * decision panel first, then the customer-platform cards (assisted session for
+ * dealers, consents, takaful) and the last three events.
  */
 export function OverviewTab(props: Props) {
-  const { id, data, customerPct, bloxPct, showOwnership, onOpenTab, canSeeLogs } = props;
+  const { id, data, customerPct, bloxPct, showOwnership, onOpenTab, canSeeLogs, platform } = props;
   const { t } = useOpsLabels();
   const pricing = (data.pricing_snapshot ?? {}) as Record<string, unknown>;
   const snap = data.customer_snapshot ?? {};
-  const applicantType = customerInfoFromSnapshot(snap).applicantType;
-  const required = requiredDocCategoriesForApplicant(applicantType);
+  const info = useMemo(() => customerInfoFromSnapshot(snap), [snap]);
+  const requiredSlots = useMemo(() => wizardDocumentSlots(info).filter((slot) => slot.required), [info]);
   const docs = data.documents ?? [];
-  const haveCategory = (cat: string) => docs.some((d) => d.category === cat);
-  const doneCount = required.filter(haveCategory).length;
+  const uploaded = docs.map((d) => d.category);
+  const doneCount = requiredSlots.filter((slot) => slotSatisfiedBy(slot.category, uploaded)).length;
   const tenor = pricing.tenor as number | undefined;
   const down = Number(pricing.down_payment ?? 0);
   const listPrice = Number(pricing.list_price ?? pricing.selling_price ?? 0);
   const logs = (data.activity_logs ?? []).slice(0, 3);
+  const ruleFlags = (data.rule_flags ?? (pricing.rule_flags as OpsRuleFlag[] | undefined) ?? []) as OpsRuleFlag[];
+  const audience = platform?.audience;
+  const assistPhone = data.customer?.phone ?? info.phone;
+  const assistEmail = data.customer?.email ?? data.customer_email ?? info.email;
 
   return (
     <OpsDetailGrid
@@ -51,6 +78,8 @@ export function OverviewTab(props: Props) {
             customerEmail={data.customer_email ?? data.customer?.email}
             customerName={data.customer?.name}
             customerPhone={data.customer?.phone}
+            maskIdentity
+            reveal={platform?.reveal}
           />
 
           <section className="blox-detail-section">
@@ -72,17 +101,36 @@ export function OverviewTab(props: Props) {
               <dd>{tenor ? t('ops.common.months', { count: tenor, defaultValue: `${tenor} months` }) : '—'}</dd>
               {data.agent && (
                 <>
-                  <dt>{t('ops.credit.agent')}</dt>
+                  <dt>{t('dealerOps.workspace.salesExecutive')}</dt>
                   <dd>{data.agent.name ?? data.agent.email}</dd>
                 </>
               )}
-              {data.financing_source === 'partner' && (
+              {data.branch_name && (
                 <>
-                  <dt>{t('ops.common.partnerFinance')}</dt>
-                  <dd>{data.finance_partner_name ?? '—'}</dd>
+                  <dt>{t('dealerOps.workspace.branch')}</dt>
+                  <dd>{data.branch_name}</dd>
                 </>
               )}
+              <dt>{t('dealerOps.workspace.lender')}</dt>
+              <dd>{data.finance_partner_name ?? t('financeProviders.lenderUntagged')}</dd>
             </dl>
+            {ruleFlags.length > 0 && (
+              <div className="blox-form-block">
+                <h3 className="blox-panel__subtitle">{t('dealerOps.workspace.ruleFlags')}</h3>
+                <p className="blox-field__hint">{t('dealerOps.workspace.ruleFlagsHint')}</p>
+                <ul className="blox-doc-rows">
+                  {ruleFlags.map((flag, index) => (
+                    <li key={`${typeof flag === 'string' ? flag : flag.code}-${index}`} className="blox-doc-row">
+                      <OpsStatusPill
+                        label={t('dealerOps.plan.rulesWarn')}
+                        variant={typeof flag !== 'string' && flag.severity === 'hard' ? 'danger' : 'warning'}
+                      />
+                      <span className="blox-doc-row__name">{ruleFlagLabel(flag, t)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {showOwnership && (
               <div className="blox-ownership">
                 <div className="blox-ownership__bar" role="img" aria-label={`${t('ownership.customerShare')} ${customerPct.toFixed(1)} %`}>
@@ -108,15 +156,18 @@ export function OverviewTab(props: Props) {
               {t('ops.workspace.tab.docs')}
               <span className="blox-panel__title-aside">
                 <OpsStatusPill
-                  label={t('ops.workspace.docsRequired', { done: doneCount, total: required.length })}
-                  variant={doneCount === required.length ? 'success' : 'warning'}
+                  label={t('ops.workspace.docsRequired', { done: doneCount, total: requiredSlots.length })}
+                  variant={doneCount === requiredSlots.length ? 'success' : 'warning'}
                 />
               </span>
             </h2>
             <ul className="blox-doc-grid">
-              {required.map((cat) => {
-                const doc = docs.find((d) => d.category === cat);
-                const label = t(`application.docCategory.${cat}`, { defaultValue: cat });
+              {requiredSlots.map((slot) => {
+                const cat = slot.category;
+                const doc = docs.find((d) => d.category === cat || (cat === 'qid' && d.category === 'id'));
+                const label = t(slot.labelKey, {
+                  defaultValue: t(`application.docCategory.${cat}`, { defaultValue: cat.replace(/_/g, ' ') }),
+                });
                 const displayName = doc ? applicationDocumentLabel(doc, () => label) : label;
                 const fileHref = doc ? apiFileUrl(`/applications/${id}/documents/${doc.id}/file`) : null;
                 const showImage = doc && isPreviewableImageDocument(doc);
@@ -171,6 +222,30 @@ export function OverviewTab(props: Props) {
       aside={
         <>
           <DecisionPanel {...props} />
+          {audience === 'dealer' && (
+            <AssistedSessionPanel
+              applicationId={id}
+              defaultPhone={assistPhone && !/x/i.test(assistPhone) ? assistPhone : ''}
+              defaultEmail={assistEmail ?? ''}
+              canStart={!ASSIST_CLOSED_STATUSES.has(data.status)}
+            />
+          )}
+          {platform && (
+            <ConsentsPanel
+              status={platform.consents}
+              loading={platform.consentsPending}
+              error={platform.consentsError}
+              completedAt={data.consents_completed_at}
+            />
+          )}
+          {platform && audience !== 'dealer' && (
+            <TakafulPanel
+              applicationId={id}
+              canVerify={!!platform.canVerifyTakaful}
+              onVerify={platform.onVerifyTakaful}
+              verifying={platform.verifyingTakaful}
+            />
+          )}
           {canSeeLogs && logs.length > 0 && (
             <section className="blox-detail-section">
               <h2 className="blox-panel__title">{t('ops.workspace.timeline')}</h2>

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -9,14 +10,22 @@ import {
   getAppLocale,
   useAuthStore,
   applicationMarketplacePillVariant,
+  type CustomerDocumentDto,
   type ProductDetailResponse,
   type ProductListResponse,
 } from '@drivemarket/shared';
 import { MarketplaceNav } from '../components/MarketplaceNav';
 import { ListingCard } from '../components/ListingCard';
 import { OwnershipProgress } from '../components/OwnershipProgress';
+import { OwnershipHero, OWNERSHIP_HERO_STATUSES } from '../components/OwnershipHero';
 import { useCompareStore } from '../lib/compare-store';
-import { normalizeCustomerApplication, normalizeCustomerApplicationList } from '../lib/application-dto';
+import {
+  customerApplicationVehicleLabel,
+  normalizeCustomerApplication,
+  normalizeCustomerApplicationList,
+  type CustomerApplication,
+} from '../lib/application-dto';
+import { daysUntil, formatDate } from '../lib/dates';
 
 type MyApplication = {
   id: string;
@@ -56,6 +65,24 @@ const ACTIVE_STATUSES = new Set([
   'active',
 ]);
 
+const TAKAFUL_ATTENTION_DAYS = 30;
+
+type TakafulAttention = { kind: 'missing' } | { kind: 'expiring'; date: string | null };
+
+function takafulAttentionFor(app: CustomerApplication | undefined): TakafulAttention | null {
+  if (!app || app.status !== 'active') return null;
+  const policies = (app.takafulPolicies ?? [])
+    .filter((p) => p.status !== 'closed')
+    .sort((a, b) => (b.createdAt > a.createdAt ? 1 : b.createdAt < a.createdAt ? -1 : 0));
+  const current = policies[0];
+  if (!current) return { kind: 'missing' };
+  const days = current.daysToExpiry ?? daysUntil(current.expiresAt);
+  if (current.status === 'expired' || (days != null && days <= TAKAFUL_ATTENTION_DAYS)) {
+    return { kind: 'expiring', date: current.expiresAt };
+  }
+  return null;
+}
+
 export function CustomerDashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -82,6 +109,12 @@ export function CustomerDashboardPage() {
     queryFn: () => apiFetch<ProductListResponse>('/api/products?sort=newest&limit=4'),
   });
 
+  const vaultDocs = useQuery({
+    queryKey: ['me-documents'],
+    queryFn: () => apiFetch<CustomerDocumentDto[]>('/api/me/documents'),
+    retry: false,
+  });
+
   const compareResults = useQueries({
     queries: compareEntries.map((e) => ({
       queryKey: ['product', e.slug],
@@ -96,6 +129,10 @@ export function CustomerDashboardPage() {
     list[0] ??
     null;
 
+  // The plan whose co-ownership is the hero: live financing first, then a finished one.
+  const ownershipApp =
+    list.find((a) => a.status === 'active') ?? list.find((a) => a.status === 'completed') ?? null;
+
   const needsAction = list.filter(
     (a) => a.status === 'resubmission_required' || a.status === 'draft',
   ).length;
@@ -105,7 +142,15 @@ export function CustomerDashboardPage() {
   const spotlightMonthly = Number(spotlight?.pricingSnapshot?.monthly ?? 0);
   const spotlightDown = Number(spotlight?.pricingSnapshot?.down_payment ?? 0);
 
-  const showOwnershipProgress = spotlight != null && !!spotlight.pricingSnapshot;
+  const ownershipDetail = useQuery({
+    queryKey: ['app', ownershipApp?.id, 'ownership'],
+    queryFn: () =>
+      apiFetch<Record<string, unknown>>(`/api/applications/${ownershipApp!.id}`).then(normalizeCustomerApplication),
+    enabled: !!ownershipApp?.id,
+  });
+
+  const heroShowsSpotlight = !!spotlight && spotlight.id === ownershipApp?.id;
+  const showOwnershipProgress = spotlight != null && !!spotlight.pricingSnapshot && !heroShowsSpotlight;
 
   const spotlightDetail = useQuery({
     queryKey: ['app', spotlight?.id, 'dashboard'],
@@ -115,10 +160,19 @@ export function CustomerDashboardPage() {
       ),
     enabled:
       !!spotlight?.id &&
+      !heroShowsSpotlight &&
       (spotlight.status === 'active' ||
         spotlight.status === 'completed' ||
         spotlight.status === 'pending_finance_activation'),
   });
+
+  const docsAttention = (vaultDocs.data ?? []).filter(
+    (d) => d.expiry_state === 'expired' || d.expiry_state === 'expiring_soon',
+  ).length;
+  const takafulAttention = useMemo(() => takafulAttentionFor(ownershipDetail.data), [ownershipDetail.data]);
+  const ownershipVehicle = ownershipDetail.data ? customerApplicationVehicleLabel(ownershipDetail.data) : '';
+  const heroApp =
+    ownershipDetail.data && OWNERSHIP_HERO_STATUSES.has(ownershipDetail.data.status) ? ownershipDetail.data : null;
 
   return (
     <div className="dm-dash">
@@ -141,6 +195,10 @@ export function CustomerDashboardPage() {
               </Link>
             </div>
           </div>
+          <OwnershipHero
+            app={heroApp}
+            loading={apps.isLoading || (!!ownershipApp && ownershipDetail.isLoading)}
+          />
         </div>
       </div>
 
@@ -171,6 +229,33 @@ export function CustomerDashboardPage() {
               )}
             </div>
           </section>
+
+          {(docsAttention > 0 || takafulAttention) && (
+            <section className="dm-dash__attention" aria-labelledby="dm-dash-attention-title">
+              <h2 id="dm-dash-attention-title">{t('ownershipHero.attentionTitle')}</h2>
+              <ul>
+                {docsAttention > 0 && (
+                  <li>
+                    <span>{t('ownershipHero.attentionDocuments', { count: docsAttention })}</span>
+                    <Link to="/app/profile#vault">{t('ownershipHero.attentionDocumentsLink')}</Link>
+                  </li>
+                )}
+                {takafulAttention && ownershipApp && (
+                  <li>
+                    <span>
+                      {takafulAttention.kind === 'missing'
+                        ? t('ownershipHero.attentionTakafulMissing', { vehicle: ownershipVehicle })
+                        : t('ownershipHero.attentionTakafulExpiring', {
+                            vehicle: ownershipVehicle,
+                            date: formatDate(takafulAttention.date, locale),
+                          })}
+                    </span>
+                    <Link to={`/app/applications/${ownershipApp.id}`}>{t('ownershipHero.attentionTakafulLink')}</Link>
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
 
           {blocking.data?.blocking && spotlight && (
             <section className="dm-dash__notice" role="status">
@@ -285,6 +370,7 @@ export function CustomerDashboardPage() {
               <section className="dm-dash__panel">
                 <div className="dm-dash__panel-head">
                   <h2>{t('dashboard.account')}</h2>
+                  <Link to="/app/profile">{t('customerProfile.navLabel')}</Link>
                 </div>
                 <dl className="dm-dash__account">
                   <dt>{t('dashboard.email')}</dt>
@@ -320,6 +406,8 @@ export function CustomerDashboardPage() {
                   </Link>
                   <Link to="/app/applications">{t('application.title')}</Link>
                   <Link to="/app/calendar">{t('calendar.shortcut')}</Link>
+                  <Link to="/app/profile">{t('customerProfile.title')}</Link>
+                  <Link to="/app/consents">{t('consentCentre.pageTitle')}</Link>
                   <Link to="/help">{t('nav.help')}</Link>
                 </nav>
               </section>
@@ -508,6 +596,26 @@ export function CustomerDashboardPage() {
           margin-top: 2px;
         }
         .dm-dash__snap-link:hover { text-decoration: underline; }
+        .dm-dash__attention {
+          padding: 14px 18px;
+          border-radius: 14px;
+          background: var(--dm-surface);
+          border: 1px solid rgba(196, 122, 0, 0.35);
+          border-inline-start: 4px solid var(--dm-warning, #c47a00);
+        }
+        .dm-dash__attention h2 { margin: 0 0 8px; font-size: 0.95rem; color: var(--dm-warning, #c47a00); }
+        .dm-dash__attention ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+        .dm-dash__attention li {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: space-between;
+          align-items: center;
+          gap: 6px 16px;
+          font-size: 14px;
+          color: var(--dm-ink);
+        }
+        .dm-dash__attention li a { font-weight: 650; color: var(--dm-steel); text-decoration: none; white-space: nowrap; }
+        .dm-dash__attention li a:hover { text-decoration: underline; }
         .dm-dash__notice {
           display: flex;
           flex-wrap: wrap;
@@ -618,6 +726,7 @@ export function CustomerDashboardPage() {
           flex-wrap: wrap;
           gap: 12px 16px;
           align-items: center;
+          margin-top: 12px;
         }
         .dm-dash__spotlight-actions .dm-btn-cta {
           min-height: 44px;

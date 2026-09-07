@@ -80,6 +80,29 @@ type OutboxPayload = {
 
 type MailTransport = 'postmark' | 'smtp' | 'none';
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatQatarDate(date: Date): string {
+  return date.toLocaleDateString('en-QA', { dateStyle: 'medium', timeZone: 'Asia/Qatar' });
+}
+
+function formatQatarDateTime(date: Date): string {
+  return date.toLocaleString('en-QA', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Qatar' });
+}
+
+function daysPhrase(days: number): string {
+  if (days < 0) return 'has expired';
+  if (days === 0) return 'expires today';
+  return `expires in ${days} day${days === 1 ? '' : 's'}`;
+}
+
 /**
  * Transactional mail with a durable outbox.
  *
@@ -503,6 +526,128 @@ export class MailService {
         vehicleLabel: input.vehicleLabel,
         negotiatedPrice: input.negotiatedPrice,
         expiresAt: input.expiresAt.toISOString(),
+      },
+    });
+  }
+
+  /**
+   * Assisted journey: the customer link. The one-time code travels by SMS only —
+   * it is never included here, so a compromised mailbox cannot complete the flow.
+   */
+  async sendAssistedSessionEmail(input: {
+    to: string;
+    url: string;
+    dealerName: string;
+    agentName?: string | null;
+    expiresAt: Date;
+  }): Promise<void> {
+    const expires = formatQatarDateTime(input.expiresAt);
+    const startedBy = input.agentName ? `${input.agentName} at ${input.dealerName}` : input.dealerName;
+    const subject = `Continue your Blox financing application with ${input.dealerName}`;
+    const text =
+      `${startedBy} started a vehicle financing application for you on Blox.\n\n` +
+      `Open this link on your phone, enter the one-time code we sent you by SMS, review the consents and verify your identity:\n${input.url}\n\n` +
+      `The link expires on ${expires}. The code is never sent by email — if you did not receive it, ask ${input.dealerName} to resend it.\n\n` +
+      `If you were not expecting this, ignore this email.`;
+    const html =
+      `<p><strong>${escapeHtml(startedBy)}</strong> started a vehicle financing application for you on Blox.</p>` +
+      `<p>Open the link on your phone, enter the one-time code we sent you by SMS, review the consents and verify your identity.</p>` +
+      `<p><a href="${escapeHtml(input.url)}">Continue your application</a></p>` +
+      `<p style="color:#64748b;font-size:14px;">The link expires on ${escapeHtml(expires)}. The code is never sent by email — ` +
+      `if you did not receive it, ask ${escapeHtml(input.dealerName)} to resend it. If you were not expecting this, ignore this email.</p>`;
+
+    await this.send({
+      to: input.to,
+      subject,
+      text,
+      html,
+      template: 'assisted_session',
+      payload: {
+        url: input.url,
+        dealerName: input.dealerName,
+        agentName: input.agentName ?? null,
+        expiresAt: input.expiresAt.toISOString(),
+      },
+    });
+  }
+
+  /** Document vault reminder (60/30/7 days before expiry, and once when expired). */
+  async sendDocumentExpiryEmail(input: {
+    to: string;
+    name: string;
+    documentLabel: string;
+    expiresAt: Date;
+    daysToExpiry: number;
+    url: string;
+  }): Promise<void> {
+    const expires = formatQatarDate(input.expiresAt);
+    const phrase = daysPhrase(input.daysToExpiry);
+    const subject = `Your ${input.documentLabel} ${phrase}`;
+    const lead = `The ${input.documentLabel} in your Blox document vault ${phrase} (${expires}).`;
+    const text =
+      `Hi ${input.name},\n\n${lead}\n\n` +
+      `Upload the renewed document so your financing applications are not delayed:\n${input.url}\n\n` +
+      `You can switch document reminders off in your profile preferences.`;
+    const html =
+      `<p>Hi ${escapeHtml(input.name)},</p>` +
+      `<p>${escapeHtml(lead)}</p>` +
+      `<p><a href="${escapeHtml(input.url)}">Upload the renewed document</a></p>` +
+      `<p style="color:#64748b;font-size:14px;">You can switch document reminders off in your profile preferences.</p>`;
+
+    await this.send({
+      to: input.to,
+      subject,
+      text,
+      html,
+      template: 'document_expiry',
+      payload: {
+        url: input.url,
+        documentLabel: input.documentLabel,
+        expiresAt: input.expiresAt.toISOString(),
+        daysToExpiry: input.daysToExpiry,
+      },
+    });
+  }
+
+  /** Takaful renewal reminder (30/14/3 days before the policy lapses, and once when it has). */
+  async sendTakafulRenewalEmail(input: {
+    to: string;
+    name: string;
+    vehicleLabel: string;
+    provider: string | null;
+    expiresAt: Date;
+    daysToExpiry: number;
+    url: string;
+  }): Promise<void> {
+    const expires = formatQatarDate(input.expiresAt);
+    const phrase = daysPhrase(input.daysToExpiry);
+    const withProvider = input.provider ? ` with ${input.provider}` : '';
+    const subject = `Takaful cover for your ${input.vehicleLabel} ${phrase}`;
+    const lead = `The takaful policy${withProvider} covering your ${input.vehicleLabel} ${phrase} (${expires}).`;
+    const text =
+      `Hi ${input.name},\n\n${lead}\n\n` +
+      `Your Diminishing Musharakah agreement requires the vehicle to stay insured for the whole financing term. ` +
+      `Renew the policy and record the new details here:\n${input.url}\n\n` +
+      `You can switch takaful reminders off in your profile preferences.`;
+    const html =
+      `<p>Hi ${escapeHtml(input.name)},</p>` +
+      `<p>${escapeHtml(lead)}</p>` +
+      `<p>Your Diminishing Musharakah agreement requires the vehicle to stay insured for the whole financing term.</p>` +
+      `<p><a href="${escapeHtml(input.url)}">Record the renewed policy</a></p>` +
+      `<p style="color:#64748b;font-size:14px;">You can switch takaful reminders off in your profile preferences.</p>`;
+
+    await this.send({
+      to: input.to,
+      subject,
+      text,
+      html,
+      template: 'takaful_renewal',
+      payload: {
+        url: input.url,
+        vehicleLabel: input.vehicleLabel,
+        provider: input.provider,
+        expiresAt: input.expiresAt.toISOString(),
+        daysToExpiry: input.daysToExpiry,
       },
     });
   }

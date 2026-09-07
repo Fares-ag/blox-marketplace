@@ -19,6 +19,7 @@ describe('JobsService.runZohoRetry', () => {
         { syncApplicationToZoho: deps.syncApplicationToZoho } as never,
         {} as never,
         { application: { findMany: deps.findMany } } as never,
+        { marketplacePath: (path: string) => path } as never,
       ),
       health,
     };

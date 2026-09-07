@@ -10,7 +10,11 @@ import {
   type OwnershipScheduleInput,
 } from '@drivemarket/shared';
 
-export type OwnershipScheduleRow = OwnershipScheduleInput & { id: string };
+/** Live schedule row; the API sends `paid_amount: null` before any payment lands. */
+export type OwnershipScheduleRow = Omit<OwnershipScheduleInput, 'paidAmount'> & {
+  id: string;
+  paidAmount?: number | string | null;
+};
 
 type Props = {
   pricingSnapshot?: Record<string, unknown> | null;
@@ -96,7 +100,11 @@ export function OwnershipProgress({
   const dateFmt = locale === 'ar' ? 'ar-QA' : 'en-QA';
 
   const timeline = useMemo(
-    () => calculateOwnershipTimeline(pricingSnapshot, paymentSchedules),
+    () =>
+      calculateOwnershipTimeline(
+        pricingSnapshot,
+        paymentSchedules?.map((row) => ({ ...row, paidAmount: row.paidAmount ?? undefined })),
+      ),
     [paymentSchedules, pricingSnapshot],
   );
 

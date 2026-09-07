@@ -10,10 +10,13 @@ export type VehicleCardOption = {
   model: string;
   model_year?: number;
   price: number;
+  condition?: string | null;
   listing_status?: string;
   company_id?: string;
   company_name?: string;
   primary_image?: string | null;
+  /** False when VIN, chassis or engine number is missing — the listing cannot be reserved yet. */
+  identity_complete?: boolean;
 };
 
 const selectedCardClass = 'blox-vehicle-card--selected';
@@ -179,12 +182,14 @@ export function VehicleSelectionCards({
   onToggle,
   multiple,
   loading,
+  statusFor,
 }: {
   items: VehicleCardOption[];
   selectedIds: string[];
   onToggle: (id: string) => void;
   multiple: boolean;
   loading?: boolean;
+  statusFor?: (item: VehicleCardOption) => ReactNode;
 }) {
   return (
     <VehicleCardGrid
@@ -193,6 +198,7 @@ export function VehicleSelectionCards({
       onToggle={onToggle}
       multiple={multiple}
       loading={loading}
+      statusFor={statusFor}
     />
   );
 }

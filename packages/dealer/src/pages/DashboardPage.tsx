@@ -1,9 +1,15 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import {
+  DashboardSection,
+  FunnelChart,
   OpsDashboardPage,
+  OpsDataTable,
+  OpsSegmentedControl,
+  OpsStatCard,
   VerticalBarChart,
   LineChart,
   ChartPanel,
@@ -17,6 +23,8 @@ import {
   bloxTokens,
   chartColorAt,
   useOpsLabels,
+  type OriginationFunnelDto,
+  type OriginationFunnelRow,
 } from '@drivemarket/shared';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -31,12 +39,33 @@ type DealerMetrics = {
   open_applications: number;
 };
 
+type FunnelGroup = 'branch' | 'agent';
+
+function pct(value: number | null | undefined): string {
+  return value == null ? '—' : `${Math.round(value * 100)}%`;
+}
+
 export function DashboardPage() {
   const { t, applicationStatus } = useOpsLabels();
+  const [groupBy, setGroupBy] = useState<FunnelGroup>('branch');
   const { data } = useQuery({
     queryKey: ['dealer-metrics'],
     queryFn: () => apiFetch<DealerMetrics>('/api/ops/metrics/dealer'),
   });
+
+  // Dealer scope is enforced server-side: the funnel only ever covers this dealership.
+  const funnel = useQuery({
+    queryKey: ['dealer-origination-funnel', groupBy],
+    queryFn: () =>
+      apiFetch<OriginationFunnelDto>(`/api/ops/analytics/origination-funnel?group_by=${groupBy}`),
+    retry: false,
+  });
+  const funnelRows: OriginationFunnelRow[] = funnel.data?.rows ?? [];
+  const totals = funnel.data?.totals;
+  const rowLabel = (row: OriginationFunnelRow) =>
+    row.key.startsWith('unassigned:') || !row.label ? t('dealerOps.dashboard.unassigned') : row.label;
+  const hours = (value: number | null | undefined) =>
+    value == null ? '—' : t('originationAnalytics.tatHours', { hours: Math.round(value) });
 
   const inv = data?.inventory ?? { draft: 0, published: 0, reserved: 0, sold: 0 };
   const appStatus = data?.applications_by_status ?? {};
@@ -103,6 +132,79 @@ export function DashboardPage() {
             </div>
           )}
         </ChartPanel>
+      </div>
+
+      <div className="blox-dashboard-section">
+        <DashboardSection
+          title={t('dealerOps.dashboard.performance')}
+          subtitle={t('originationAnalytics.subtitle')}
+          actions={
+            <OpsSegmentedControl<FunnelGroup>
+              tone="light"
+              value={groupBy}
+              onChange={setGroupBy}
+              aria-label={t('originationAnalytics.groupBy')}
+              options={[
+                { value: 'branch', label: t('originationAnalytics.groupBranch') },
+                { value: 'agent', label: t('originationAnalytics.groupAgent') },
+              ]}
+            />
+          }
+          loading={funnel.isLoading}
+          error={funnel.error ? (funnel.error as Error).message : undefined}
+          empty={funnelRows.length === 0}
+          emptyTitle={t('originationAnalytics.empty')}
+          emptyMessage={t('dealerOps.dashboard.emptyBody')}
+        >
+          <div className="blox-chart-row">
+            <FunnelChart
+              stages={[
+                { label: t('originationAnalytics.stages.draft'), value: totals?.drafts ?? 0 },
+                { label: t('originationAnalytics.stages.submitted'), value: totals?.submitted ?? 0 },
+                { label: t('originationAnalytics.stages.approved'), value: totals?.approved ?? 0 },
+                { label: t('originationAnalytics.stages.activated'), value: totals?.activated ?? 0 },
+              ]}
+            />
+            <div className="blox-stack">
+              <OpsStatCard label={t('originationAnalytics.conversion')} value={pct(totals?.approval_rate)} />
+              <OpsStatCard label={t('originationAnalytics.tat')} value={hours(totals?.median_approval_hours)} />
+              <OpsStatCard
+                label={t('originationAnalytics.tatUnder24h')}
+                value={pct(totals?.under_24h_rate)}
+                delta={totals ? `${totals.rejected} ${t('originationAnalytics.stages.rejected').toLowerCase()}` : undefined}
+              />
+            </div>
+          </div>
+          <OpsDataTable
+            columns={[
+              groupBy === 'branch' ? t('originationAnalytics.groupBranch') : t('originationAnalytics.groupAgent'),
+              t('originationAnalytics.stages.draft'),
+              t('originationAnalytics.stages.submitted'),
+              t('originationAnalytics.stages.approved'),
+              t('originationAnalytics.stages.activated'),
+              t('originationAnalytics.stages.rejected'),
+              t('dealerOps.dashboard.approvalRate'),
+              t('dealerOps.dashboard.medianHours'),
+              t('dealerOps.dashboard.under24h'),
+            ]}
+            numericColumns={[1, 2, 3, 4, 5, 6, 7, 8]}
+            rows={funnelRows.map((row) => [
+              <span key="label" className="blox-cell-stack">
+                <span>{rowLabel(row)}</span>
+                {groupBy === 'agent' && row.branch_name ? <small className="blox-muted">{row.branch_name}</small> : null}
+              </span>,
+              row.drafts,
+              row.submitted,
+              row.approved,
+              row.activated,
+              row.rejected,
+              pct(row.approval_rate),
+              hours(row.median_approval_hours),
+              pct(row.under_24h_rate),
+            ])}
+            empty={t('originationAnalytics.empty')}
+          />
+        </DashboardSection>
       </div>
 
       <div className="blox-chart-row blox-dashboard-section">

@@ -27,6 +27,7 @@ import {
   toDealerInventoryDto,
   toDealerProductImageDto,
 } from './dealer-inventory.dto';
+import { resolveVehicleIdentityInput, type VehicleIdentityInput } from './vehicle-identity';
 
 export type ProductInputDto = {
   companyId?: string;
@@ -44,12 +45,11 @@ export type ProductInputDto = {
   warrantyNotes?: string;
   color?: string;
   mileage?: number;
-  vin?: string;
   description?: string;
   price: number;
   financeEligible?: boolean;
   defaultOfferId?: string;
-};
+} & VehicleIdentityInput;
 
 @Injectable()
 export class ProductsService {
@@ -334,6 +334,7 @@ export class ProductsService {
     if (dto.defaultOfferId) {
       await assertDefaultOfferForCompany(this.prisma, companyId, dto.defaultOfferId);
     }
+    const identity = resolveVehicleIdentityInput(dto);
 
     const created = await this.prisma.product.create({
       data: {
@@ -354,7 +355,9 @@ export class ProductsService {
         warrantyNotes: dto.warrantyNotes,
         color: dto.color,
         mileage: dto.mileage,
-        vin: dto.vin,
+        vin: identity.vin ?? null,
+        chassisNumber: identity.chassisNumber ?? null,
+        engineNumber: identity.engineNumber ?? null,
         description: dto.description,
         price: dto.price,
         financeEligible: dto.financeEligible ?? true,
@@ -370,6 +373,7 @@ export class ProductsService {
     if (dto.defaultOfferId) {
       await assertDefaultOfferForCompany(this.prisma, product.companyId, dto.defaultOfferId);
     }
+    const identity = resolveVehicleIdentityInput(dto);
     const updated = await this.prisma.product.update({
       where: { id: product.id },
       data: {
@@ -387,7 +391,9 @@ export class ProductsService {
         warrantyNotes: dto.warrantyNotes,
         color: dto.color,
         mileage: dto.mileage,
-        vin: dto.vin,
+        vin: identity.vin,
+        chassisNumber: identity.chassisNumber,
+        engineNumber: identity.engineNumber,
         description: dto.description,
         price: dto.price,
         financeEligible: dto.financeEligible,
@@ -525,6 +531,7 @@ export class ProductsService {
       ['draft', 'published', 'reserved', 'sold', 'archived'].includes(dto.listingStatus)
         ? (dto.listingStatus as ListingStatus)
         : undefined;
+    const identity = resolveVehicleIdentityInput(dto);
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
@@ -534,6 +541,9 @@ export class ProductsService {
         ...(dto.make !== undefined ? { make: dto.make } : {}),
         ...(dto.model !== undefined ? { model: dto.model } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(identity.vin !== undefined ? { vin: identity.vin } : {}),
+        ...(identity.chassisNumber !== undefined ? { chassisNumber: identity.chassisNumber } : {}),
+        ...(identity.engineNumber !== undefined ? { engineNumber: identity.engineNumber } : {}),
         ...(listingStatus ? { listingStatus } : {}),
       },
     });

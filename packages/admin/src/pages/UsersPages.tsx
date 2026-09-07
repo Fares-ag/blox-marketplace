@@ -26,6 +26,9 @@ import {
   type PaginatedResponse,
   ApiError,
 } from '@drivemarket/shared';
+import { HomeBranchSelect } from '../components/HomeBranchSelect';
+import { apiErrorCode } from '../lib/customer-platform';
+import type { HomeBranchRef, UserRowWithBranch } from '../types';
 
 const ASSIGNABLE_ROLES = ['customer', 'dealer_agent', 'credit_officer', 'finance_officer', 'admin', 'group_admin'];
 
@@ -47,6 +50,7 @@ type UserDetail = AdminUser & {
   credit_company_ids?: string[];
   finance_company_ids?: string[];
   applications_count?: number;
+  home_branch?: HomeBranchRef | null;
 };
 
 function companyRequiredForRole(role: string) {
@@ -82,6 +86,7 @@ export function UsersPage() {
   const [name, setName] = useState('');
   const [role, setRole] = useState('dealer_agent');
   const [companyId, setCompanyId] = useState('');
+  const [homeBranchId, setHomeBranchId] = useState('');
   const [creditScope, setCreditScope] = useState('assigned');
   const [financeScope, setFinanceScope] = useState('assigned');
   const [creditCompanyIds, setCreditCompanyIds] = useState<string[]>([]);
@@ -113,7 +118,7 @@ export function UsersPage() {
 
   const { data } = useQuery({
     queryKey: ['admin-users', page],
-    queryFn: () => apiFetch<PaginatedResponse<AdminUser>>(`/api/users?${buildPaginationQuery(page)}`),
+    queryFn: () => apiFetch<PaginatedResponse<UserRowWithBranch>>(`/api/users?${buildPaginationQuery(page)}`),
   });
   const items = data?.items ?? [];
   const { from, to, total } = paginationWindow(data?.total ?? 0, page);
@@ -130,6 +135,7 @@ export function UsersPage() {
           name: name.trim(),
           role,
           companyId: companyId || undefined,
+          home_branch_id: companyId && homeBranchId ? homeBranchId : undefined,
           creditScope: showsCreditFields(role) ? creditScope : undefined,
           financeScope: showsFinanceFields(role) ? financeScope : undefined,
           creditCompanyIds: showsCreditFields(role) ? creditCompanyIds : undefined,
@@ -141,6 +147,7 @@ export function UsersPage() {
       setEmail('');
       setName('');
       setCompanyId('');
+      setHomeBranchId('');
       setCreditCompanyIds([]);
       setFinanceCompanyIds([]);
       setError(null);
@@ -149,7 +156,8 @@ export function UsersPage() {
       toast.success(t('ops.superAdmin.createUserSuccess'));
       void qc.invalidateQueries({ queryKey: ['admin-users'] });
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) =>
+      setError(apiErrorCode(e) === 'branch_not_in_company' ? t('adminOps.users.branchNotInCompany') : e.message),
   });
 
   const updateAccess = useMutation({
@@ -202,7 +210,10 @@ export function UsersPage() {
               Company
               <select
                 value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
+                onChange={(e) => {
+                  setCompanyId(e.target.value);
+                  setHomeBranchId('');
+                }}
                 required={companyRequiredForRole(role)}
               >
                 <option value="">{companyRequiredForRole(role) ? 'Select company' : 'No company'}</option>
@@ -214,6 +225,9 @@ export function UsersPage() {
                 ))}
               </select>
             </label>
+          )}
+          {companyId && (
+            <HomeBranchSelect plain companyId={companyId} value={homeBranchId} onChange={setHomeBranchId} />
           )}
           {showsCreditFields(role) && (
             <>
@@ -277,7 +291,15 @@ export function UsersPage() {
         </form>
       </OpsFormSection>
       <OpsDataTable
-        columns={[t('ops.col.email'), t('ops.col.name'), t('ops.col.role'), 'Company', t('ops.col.status'), t('ops.col.actions')]}
+        columns={[
+          t('ops.col.email'),
+          t('ops.col.name'),
+          t('ops.col.role'),
+          'Company',
+          t('branchOps.homeBranch'),
+          t('ops.col.status'),
+          t('ops.col.actions'),
+        ]}
         pagination={{
           from,
           to,
@@ -336,6 +358,7 @@ export function UsersPage() {
             </span>
           ),
           u.company_name ?? '—',
+          u.home_branch?.name ?? '—',
           <OpsStatusPill
             key="s"
             label={u.is_active ? t('ops.superAdmin.active') : t('ops.superAdmin.suspended')}
@@ -440,6 +463,7 @@ export function UserDetailPage() {
   const [financeIds, setFinanceIds] = useState('');
   const [role, setRole] = useState('customer');
   const [companyId, setCompanyId] = useState('');
+  const [homeBranchId, setHomeBranchId] = useState('');
   const [creditAmount, setCreditAmount] = useState(0);
   const [creditAction, setCreditAction] = useState<'add' | 'subtract' | 'set'>('add');
   const [error, setError] = useState<string | null>(null);
@@ -485,6 +509,7 @@ export function UserDetailPage() {
           name: displayName.trim(),
           role,
           companyId: companyId || null,
+          home_branch_id: companyId ? homeBranchId || null : null,
           creditScope,
           financeScope,
           creditCompanyIds: creditIds
@@ -503,7 +528,8 @@ export function UserDetailPage() {
       void qc.invalidateQueries({ queryKey: ['admin-user', id] });
       void qc.invalidateQueries({ queryKey: ['admin-users'] });
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) =>
+      setError(apiErrorCode(e) === 'branch_not_in_company' ? t('adminOps.users.branchNotInCompany') : e.message),
   });
 
   const updateAccess = useMutation({
@@ -556,6 +582,7 @@ export function UserDetailPage() {
     setDisplayName(data.name ?? '');
     setRole(data.role);
     setCompanyId(data.company_id ?? '');
+    setHomeBranchId(data.home_branch?.id ?? '');
     setCreditScope(data.credit_scope ?? 'assigned');
     setFinanceScope(data.finance_scope ?? 'assigned');
     setCreditIds((data.credit_company_ids ?? []).join(','));
@@ -642,7 +669,13 @@ export function UserDetailPage() {
         </label>
         <label>
           Company
-          <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+          <select
+            value={companyId}
+            onChange={(e) => {
+              setCompanyId(e.target.value);
+              setHomeBranchId('');
+            }}
+          >
             <option value="">No company</option>
             {(companies.data?.items ?? [])
               .filter((c) => {
@@ -659,6 +692,7 @@ export function UserDetailPage() {
               ))}
           </select>
         </label>
+        <HomeBranchSelect plain companyId={companyId || null} value={homeBranchId} onChange={setHomeBranchId} />
         <p>Applications: {data.applications_count ?? 0}</p>
         <p>Credit scope: {data.credit_scope ?? 'assigned'}</p>
         <p>Finance scope: {data.finance_scope ?? 'assigned'}</p>

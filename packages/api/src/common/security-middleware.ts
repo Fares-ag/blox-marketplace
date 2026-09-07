@@ -27,7 +27,10 @@ function isStrictRateLimitPath(pathname: string): boolean {
     pathname.startsWith('/health') ||
     pathname.startsWith('/products') ||
     pathname.startsWith('/quotes/') ||
-    pathname.startsWith('/payments/skipcash/')
+    pathname.startsWith('/payments/skipcash/') ||
+    // Assisted-session customer links (/assist/<token>) are public and OTP-gated; /assist-sessions (staff) is not.
+    pathname.startsWith('/assist/') ||
+    pathname.startsWith('/product-rules')
   );
 }
 
@@ -105,6 +108,8 @@ export async function applySecurityMiddleware(
     expressApp.use('/api/products', publicLimiter);
     expressApp.use('/api/quotes', publicLimiter);
     expressApp.use('/api/payments/skipcash', publicLimiter);
+    expressApp.use('/api/assist', publicLimiter);
+    expressApp.use('/api/product-rules', publicLimiter);
     expressApp.use('/api', globalLimiter);
     return;
   }
@@ -121,6 +126,8 @@ export async function applySecurityMiddleware(
   expressApp.use('/api/products', publicLimiter);
   expressApp.use('/api/quotes', publicLimiter);
   expressApp.use('/api/payments/skipcash', publicLimiter);
+  expressApp.use('/api/assist', publicLimiter);
+  expressApp.use('/api/product-rules', publicLimiter);
   expressApp.use('/api', globalLimiter);
 }
 

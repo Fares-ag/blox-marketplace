@@ -5,7 +5,28 @@ export {
   FINANCE_REVIEW_QUEUE_STATUSES,
   FINANCE_ACTIVE_BOOK_STATUSES,
 } from './constants';
-export type { OpsAudience, OpsAgent, OpsQueueItem, OpsWorkspace, StaffCreatePayload, KycVerificationSummary } from './types';
+export type {
+  OpsAudience,
+  OpsAgent,
+  OpsQueueItem,
+  OpsWorkspace,
+  StaffCreatePayload,
+  KycVerificationSummary,
+  OpsRuleFlag,
+  OpsDocumentSlotsResponse,
+  OpsUnmaskField,
+  OpsUnmaskResponse,
+  IdentityRevealProps,
+  AssistedSessionListResponse,
+} from './types';
+export { SUBMIT_GATE_CODES, submitGateCode, submitGateMessage, type SubmitGateCode } from './submit-gate';
+export { AssistedSessionPanel } from './workspace/AssistedSessionPanel';
+export { ConsentsPanel } from './workspace/ConsentsPanel';
+export { TakafulPanel } from './workspace/TakafulPanel';
+export { IdentityHoldBanner, isIdentityHoldActive } from './workspace/IdentityHoldBanner';
+export { ReasonDialog } from './workspace/ReasonDialog';
+export { TagLenderDialog } from './workspace/TagLenderDialog';
+export type { WorkspacePlatformProps } from './workspace/types';
 export { KycVerificationPanel } from './KycVerificationPanel';
 export {
   isFullAdminRole,

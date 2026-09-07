@@ -1,18 +1,42 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { ApplicationStatus, ScheduleStatus } from '@prisma/client';
+import { ApplicationStatus, ScheduleStatus, TakafulStatus } from '@prisma/client';
 import { CronJob } from 'cron';
 import { ActivityService } from '../common/activity.service';
 import { cronJobLockKey, tryWithAdvisoryLock } from '../common/pg-advisory-lock';
 import { isUniqueConstraintError } from '../common/prisma-errors';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
+import { AppConfigService } from '../config/app-config.service';
+import { channelEnabled, reminderEnabled } from '../customers/notification-preferences';
+import { CUSTOMER_DOCUMENT_LABELS, daysBetweenUtc } from '../customers/vault-logic';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
 import { MailService } from '../mail/mail.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { JobHealthService } from './job-health.service';
+import {
+  DOCUMENT_REMINDER_THRESHOLDS,
+  reminderKindFor,
+  shouldSendReminder,
+  TAKAFUL_REMINDER_THRESHOLDS,
+} from './reminder-logic';
+
+/** Takaful policies that can still lapse (verified or awaiting verification). */
+const TAKAFUL_LIVE_STATUSES: TakafulStatus[] = [
+  TakafulStatus.active,
+  TakafulStatus.declared,
+  TakafulStatus.pending_verification,
+];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function expiryPhrase(days: number, expiresOn: string): string {
+  if (days < 0) return `expired on ${expiresOn}`;
+  if (days === 0) return `expires today (${expiresOn})`;
+  return `expires in ${days} day${days === 1 ? '' : 's'}, on ${expiresOn}`;
+}
 
 /** Statuses where a Zoho-partner application should already have a CRM lead. */
 const CRM_SYNC_STATUSES: ApplicationStatus[] = [
@@ -72,27 +96,34 @@ export class JobsService implements OnModuleInit {
     private readonly zoho: ZohoCrmService,
     private readonly activity: ActivityService,
     private readonly prisma: PrismaService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   onModuleInit(): void {
     const overdueCron = this.config.get<string>('OVERDUE_SWEEP_CRON') ?? '0 0 * * *';
     const remindersCron = this.config.get<string>('PAYMENT_REMINDERS_CRON') ?? '0 8 * * *';
     const quoteCron = this.config.get<string>('QUOTE_EXPIRY_CRON') ?? '0 * * * *';
+    const documentRemindersCron = this.config.get<string>('DOCUMENT_EXPIRY_REMINDERS_CRON') ?? '0 7 * * *';
+    const takafulRemindersCron = this.config.get<string>('TAKAFUL_REMINDERS_CRON') ?? '0 7 * * *';
     const zohoMinutes = parsePositiveInt(this.config.get<string>('ZOHO_RETRY_CRON_MINUTES'), 5);
     const outboxMinutes = parsePositiveInt(this.config.get<string>('EMAIL_OUTBOX_CRON_MINUTES'), 2);
 
     this.registerCron('overdue-sweep', overdueCron, () => this.runOverdueSweep());
     this.registerCron('payment-reminders', remindersCron, () => this.runPaymentReminders());
     this.registerCron('quote-expiry', quoteCron, () => this.runQuoteExpiry());
+    this.registerCron('document-expiry-reminders', documentRemindersCron, () => this.runDocumentExpiryReminders());
+    this.registerCron('takaful-expiry-reminders', takafulRemindersCron, () => this.runTakafulExpiryReminders());
     this.registerCron('zoho-retry', cronEveryNMinutes(zohoMinutes), () => this.runZohoRetry());
     this.registerCron('email-outbox', cronEveryNMinutes(outboxMinutes), () => this.runEmailOutbox());
     this.registerCron('job-health-check', cronEveryNMinutes(5), async () => {
       this.runHealthCheck();
     });
 
-    this.health.registerJob('overdue-sweep', 24 * 60 * 60 * 1000);
-    this.health.registerJob('payment-reminders', 24 * 60 * 60 * 1000);
+    this.health.registerJob('overdue-sweep', DAY_MS);
+    this.health.registerJob('payment-reminders', DAY_MS);
     this.health.registerJob('quote-expiry', 60 * 60 * 1000);
+    this.health.registerJob('document-expiry-reminders', DAY_MS);
+    this.health.registerJob('takaful-expiry-reminders', DAY_MS);
     this.health.registerJob('zoho-retry', zohoMinutes * 60 * 1000);
     this.health.registerJob('email-outbox', outboxMinutes * 60 * 1000);
   }
@@ -287,6 +318,201 @@ export class JobsService implements OnModuleInit {
     );
     this.health.recordSuccess('zoho-retry');
     return { attempted: apps.length, succeeded, failed };
+  }
+
+  /**
+   * Document vault reminders: 60/30/7 days before a document expires and once
+   * when it has. Each stage is sent once (`lastReminderKind`) and honours the
+   * customer's `notificationPreferences.reminders.documents`.
+   */
+  async runDocumentExpiryReminders(): Promise<{ notified: number; skipped: number }> {
+    this.logger.log('Starting document expiry reminders');
+    const today = startOfTodayUtc();
+    const horizon = addDaysUtc(today, Math.max(...DOCUMENT_REMINDER_THRESHOLDS));
+
+    const docs = await this.prisma.customerDocument.findMany({
+      where: { deletedAt: null, expiresAt: { not: null, lte: horizon } },
+      include: {
+        user: { select: { id: true, name: true, email: true, isActive: true, notificationPreferences: true } },
+      },
+      orderBy: { expiresAt: 'asc' },
+    });
+
+    let notified = 0;
+    let skipped = 0;
+
+    for (const doc of docs) {
+      if (!doc.expiresAt || !doc.user.isActive) {
+        skipped += 1;
+        continue;
+      }
+      const days = daysBetweenUtc(today, doc.expiresAt);
+      const kind = reminderKindFor(days, DOCUMENT_REMINDER_THRESHOLDS);
+      if (!shouldSendReminder(kind, doc.lastReminderKind, DOCUMENT_REMINDER_THRESHOLDS)) {
+        skipped += 1;
+        continue;
+      }
+      if (!reminderEnabled(doc.user.notificationPreferences, 'documents')) {
+        skipped += 1;
+        continue;
+      }
+
+      const label = CUSTOMER_DOCUMENT_LABELS[doc.category];
+      const expiresOn = doc.expiresAt.toISOString().slice(0, 10);
+      const title = days < 0 ? 'Document expired' : 'Document expiring soon';
+      const body = `Your ${label} ${expiryPhrase(days, expiresOn)}. Upload the renewed document in your profile.`;
+      const emailWanted = this.mail.enabled && channelEnabled(doc.user.notificationPreferences, 'email');
+
+      try {
+        await this.activity.notify(doc.user.id, title, body, '/app/profile');
+        if (emailWanted) {
+          await this.mail.sendDocumentExpiryEmail({
+            to: doc.user.email,
+            name: doc.user.name,
+            documentLabel: label,
+            expiresAt: doc.expiresAt,
+            daysToExpiry: days,
+            url: this.appConfig.marketplacePath('/app/profile'),
+          });
+        }
+        await this.prisma.customerDocument.update({
+          where: { id: doc.id },
+          data: { lastReminderKind: kind, lastReminderAt: new Date() },
+        });
+        await this.activity.log({
+          actorUserId: SYSTEM_ACTOR_USER_ID,
+          entityType: 'customer_document',
+          entityId: doc.id,
+          action: 'document_expiry_reminder',
+          fromValue: doc.lastReminderKind,
+          toValue: kind,
+          metadata: { user_id: doc.user.id, days_to_expiry: days, email_sent: emailWanted },
+        });
+        notified += 1;
+      } catch (err) {
+        skipped += 1;
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Document reminder failed for ${doc.id}: ${message}`);
+      }
+    }
+
+    this.logger.log(`Document expiry reminders finished — notified=${notified}, skipped=${skipped}`);
+    this.health.recordSuccess('document-expiry-reminders');
+    return { notified, skipped };
+  }
+
+  /**
+   * Takaful renewals: 30/14/3 days before a policy lapses and once when it
+   * has; lapsed policies are marked `expired` regardless of preferences.
+   */
+  async runTakafulExpiryReminders(): Promise<{ notified: number; expired: number; skipped: number }> {
+    this.logger.log('Starting takaful expiry reminders');
+    const today = startOfTodayUtc();
+    const horizon = addDaysUtc(today, Math.max(...TAKAFUL_REMINDER_THRESHOLDS));
+
+    const policies = await this.prisma.takafulPolicy.findMany({
+      where: { status: { in: TAKAFUL_LIVE_STATUSES }, expiresAt: { not: null, lte: horizon } },
+      include: {
+        application: {
+          select: {
+            id: true,
+            customerUserId: true,
+            customerEmail: true,
+            product: { select: { make: true, model: true, modelYear: true } },
+            customer: { select: { name: true, isActive: true, notificationPreferences: true } },
+          },
+        },
+      },
+      orderBy: { expiresAt: 'asc' },
+    });
+
+    let notified = 0;
+    let expired = 0;
+    let skipped = 0;
+
+    for (const policy of policies) {
+      if (!policy.expiresAt) {
+        skipped += 1;
+        continue;
+      }
+      const days = daysBetweenUtc(today, policy.expiresAt);
+      const app = policy.application;
+
+      try {
+        if (days < 0) {
+          await this.prisma.takafulPolicy.update({
+            where: { id: policy.id },
+            data: { status: TakafulStatus.expired },
+          });
+          await this.activity.log({
+            actorUserId: SYSTEM_ACTOR_USER_ID,
+            entityType: 'takaful_policy',
+            entityId: policy.id,
+            action: 'takaful_expired',
+            fromValue: policy.status,
+            toValue: TakafulStatus.expired,
+            metadata: { application_id: app.id, expires_at: policy.expiresAt.toISOString().slice(0, 10) },
+          });
+          expired += 1;
+        }
+
+        const kind = reminderKindFor(days, TAKAFUL_REMINDER_THRESHOLDS);
+        if (
+          !shouldSendReminder(kind, policy.lastReminderKind, TAKAFUL_REMINDER_THRESHOLDS) ||
+          !app.customer.isActive ||
+          !reminderEnabled(app.customer.notificationPreferences, 'takaful')
+        ) {
+          skipped += 1;
+          continue;
+        }
+
+        const vehicle = `${app.product.make} ${app.product.model} ${app.product.modelYear}`;
+        const expiresOn = policy.expiresAt.toISOString().slice(0, 10);
+        const title = days < 0 ? 'Takaful policy expired' : 'Takaful policy expiring soon';
+        const body =
+          `The takaful cover for your ${vehicle} ${expiryPhrase(days, expiresOn)}. ` +
+          `Renew the policy and record the new details on your application.`;
+        const link = `/app/applications/${app.id}`;
+        const emailWanted = this.mail.enabled && channelEnabled(app.customer.notificationPreferences, 'email');
+
+        await this.activity.notify(app.customerUserId, title, body, link);
+        if (emailWanted) {
+          await this.mail.sendTakafulRenewalEmail({
+            to: app.customerEmail,
+            name: app.customer.name,
+            vehicleLabel: vehicle,
+            provider: policy.provider || null,
+            expiresAt: policy.expiresAt,
+            daysToExpiry: days,
+            url: this.appConfig.marketplacePath(link),
+          });
+        }
+        await this.prisma.takafulPolicy.update({
+          where: { id: policy.id },
+          data: { lastReminderKind: kind, lastReminderAt: new Date() },
+        });
+        await this.activity.log({
+          actorUserId: SYSTEM_ACTOR_USER_ID,
+          entityType: 'takaful_policy',
+          entityId: policy.id,
+          action: 'takaful_expiry_reminder',
+          fromValue: policy.lastReminderKind,
+          toValue: kind,
+          metadata: { application_id: app.id, days_to_expiry: days, email_sent: emailWanted },
+        });
+        notified += 1;
+      } catch (err) {
+        skipped += 1;
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Takaful reminder failed for ${policy.id}: ${message}`);
+      }
+    }
+
+    this.logger.log(
+      `Takaful expiry reminders finished — notified=${notified}, expired=${expired}, skipped=${skipped}`,
+    );
+    this.health.recordSuccess('takaful-expiry-reminders');
+    return { notified, expired, skipped };
   }
 
   async runQuoteExpiry(): Promise<{ expired: number }> {

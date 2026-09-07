@@ -18,6 +18,7 @@ import {
   useOpsLabels,
   VerticalBarChart,
 } from '@drivemarket/shared';
+import { OriginationFunnelSection } from '../components/OriginationFunnelSection';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -246,6 +247,10 @@ export function DashboardPage() {
           </ChartPanel>
         </div>
       )}
+
+      <div className="blox-dashboard-section">
+        <OriginationFunnelSection />
+      </div>
 
       {(data?.recent_activity?.length ?? 0) > 0 && (
         <OpsContentCard staticHover className="blox-dashboard-section">

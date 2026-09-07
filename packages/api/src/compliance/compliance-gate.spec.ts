@@ -139,6 +139,8 @@ describe('ApplicationsLifecycleService.approveWithContract compliance gate', () 
         findUnique: vi.fn().mockResolvedValue(baseApp),
         update: vi.fn().mockResolvedValue(approved),
       },
+      // Lender-of-record lookup: no default lender configured in this scenario.
+      financePartner: { findFirst: vi.fn().mockResolvedValue(null) },
     };
     const storage = {
       storeContractPdf: vi.fn().mockResolvedValue('contracts/app-1.pdf'),
