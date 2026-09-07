@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import {
+  DashboardGrid,
   DashboardSection,
   FunnelChart,
   OpsDashboardPage,
@@ -26,8 +26,6 @@ import {
   type OriginationFunnelDto,
   type OriginationFunnelRow,
 } from '@drivemarket/shared';
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 type DealerMetrics = {
   inventory: { draft: number; published: number; reserved: number; sold: number };
@@ -99,7 +97,7 @@ export function DashboardPage() {
         },
       ]}
     >
-      <div className="blox-chart-row blox-dashboard-section">
+      <DashboardGrid>
         <ChartPanel title={t('ops.dealer.inventoryByStatus')}>
           <VerticalBarChart
             bars={[
@@ -132,7 +130,7 @@ export function DashboardPage() {
             </div>
           )}
         </ChartPanel>
-      </div>
+      </DashboardGrid>
 
       <div className="blox-dashboard-section">
         <DashboardSection
@@ -156,7 +154,7 @@ export function DashboardPage() {
           emptyTitle={t('originationAnalytics.empty')}
           emptyMessage={t('dealerOps.dashboard.emptyBody')}
         >
-          <div className="blox-chart-row">
+          <DashboardGrid>
             <FunnelChart
               stages={[
                 { label: t('originationAnalytics.stages.draft'), value: totals?.drafts ?? 0 },
@@ -174,7 +172,7 @@ export function DashboardPage() {
                 delta={totals ? `${totals.rejected} ${t('originationAnalytics.stages.rejected').toLowerCase()}` : undefined}
               />
             </div>
-          </div>
+          </DashboardGrid>
           <OpsDataTable
             columns={[
               groupBy === 'branch' ? t('originationAnalytics.groupBranch') : t('originationAnalytics.groupAgent'),
@@ -207,7 +205,7 @@ export function DashboardPage() {
         </DashboardSection>
       </div>
 
-      <div className="blox-chart-row blox-dashboard-section">
+      <DashboardGrid>
         <ChartPanel
           title={t('ops.dashboard.submissionsTrend')}
           legend={<ChartLegendItem color={bloxTokens.emerald} label={t('ops.dashboard.weeklySubmissions')} />}
@@ -237,7 +235,7 @@ export function DashboardPage() {
             </Link>
           </div>
         </OpsContentCard>
-      </div>
+      </DashboardGrid>
     </OpsDashboardPage>
   );
 }

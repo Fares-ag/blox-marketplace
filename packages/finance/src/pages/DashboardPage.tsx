@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import {
   apiFetch,
   bloxTokens,
   ChartLegendItem,
   ChartPanel,
+  DashboardGrid,
   doughnutChartOptions,
   formatQar,
   LineChart,
@@ -18,8 +18,6 @@ import {
   VerticalBarChart,
   useOpsLabels,
 } from '@drivemarket/shared';
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 type FinanceMetrics = {
   schedules_pending: number;
@@ -85,7 +83,7 @@ export function DashboardPage() {
         { label: t('ops.dashboard.activeFinancings'), value: String(data?.active_financings ?? '—') },
       ]}
     >
-      <div className="blox-chart-row blox-dashboard-section">
+      <DashboardGrid>
         <ChartPanel
           title={t('ops.dashboard.scheduleStatus')}
           legend={
@@ -125,7 +123,7 @@ export function DashboardPage() {
             ]}
           />
         </ChartPanel>
-      </div>
+      </DashboardGrid>
 
       <div className="blox-dashboard-section">
         <ChartPanel title={t('ops.dashboard.collectionsByWeek')}>

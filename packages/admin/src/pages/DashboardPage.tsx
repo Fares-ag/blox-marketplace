@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import {
   apiFetch,
   bloxTokens,
   ChartLegendItem,
   ChartPanel,
+  DashboardGrid,
   doughnutChartOptions,
   ExportButton,
   FunnelChart,
@@ -19,8 +19,6 @@ import {
   VerticalBarChart,
 } from '@drivemarket/shared';
 import { OriginationFunnelSection } from '../components/OriginationFunnelSection';
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 type Metrics = {
   users_total: number;
@@ -161,7 +159,7 @@ export function DashboardPage() {
         },
       ]}
     >
-      <div className="blox-chart-row blox-dashboard-section">
+      <DashboardGrid>
         <ChartPanel
           title={t('ops.dashboard.submissionsTrend')}
           legend={
@@ -191,9 +189,9 @@ export function DashboardPage() {
             <VerticalBarChart bars={statusBars} />
           )}
         </ChartPanel>
-      </div>
+      </DashboardGrid>
 
-      <div className="blox-chart-row blox-dashboard-section">
+      <DashboardGrid>
         <ChartPanel
           title={t('ops.admin.installmentsChart')}
           legend={
@@ -227,10 +225,10 @@ export function DashboardPage() {
             ))
           )}
         </ChartPanel>
-      </div>
+      </DashboardGrid>
 
       {funnel && (
-        <div className="blox-chart-row blox-dashboard-section">
+        <DashboardGrid>
           <ChartPanel title={t('ops.admin.conversionFunnel')}>
             <FunnelChart
               stages={[
@@ -245,7 +243,7 @@ export function DashboardPage() {
               }))}
             />
           </ChartPanel>
-        </div>
+        </DashboardGrid>
       )}
 
       <div className="blox-dashboard-section">

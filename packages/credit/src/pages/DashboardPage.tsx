@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   apiFetch,
   ChartPanel,
+  DashboardGrid,
   FunnelChart,
   LineChart,
   OpsContentCard,
@@ -81,7 +82,7 @@ export function DashboardPage() {
         { label: t('ops.credit.nav.zohoFailures'), value: String(data?.zoho_failures ?? '—') },
       ]}
     >
-      <div className="blox-chart-row blox-dashboard-section">
+      <DashboardGrid>
         <ChartPanel title={t('ops.dashboard.reviewFunnel')}>
           <FunnelChart
             stages={funnelStages.map((s) => ({
@@ -104,7 +105,7 @@ export function DashboardPage() {
             ]}
           />
         </ChartPanel>
-      </div>
+      </DashboardGrid>
 
       {statusBars.length > 0 && (
         <div className="blox-dashboard-section">
