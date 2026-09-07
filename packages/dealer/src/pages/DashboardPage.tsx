@@ -39,6 +39,13 @@ type DealerMetrics = {
 
 type FunnelGroup = 'branch' | 'agent';
 
+type DealerCompanyProfile = {
+  id: string;
+  name: string;
+  code: string | null;
+  logo_url: string | null;
+};
+
 function pct(value: number | null | undefined): string {
   return value == null ? '—' : `${Math.round(value * 100)}%`;
 }
@@ -49,6 +56,10 @@ export function DashboardPage() {
   const { data } = useQuery({
     queryKey: ['dealer-metrics'],
     queryFn: () => apiFetch<DealerMetrics>('/api/ops/metrics/dealer'),
+  });
+  const company = useQuery({
+    queryKey: ['company-mine'],
+    queryFn: () => apiFetch<DealerCompanyProfile | null>('/api/companies/mine'),
   });
 
   // Dealer scope is enforced server-side: the funnel only ever covers this dealership.
@@ -97,6 +108,15 @@ export function DashboardPage() {
         },
       ]}
     >
+      {company.data?.logo_url ? (
+        <div className="blox-dashboard-brand">
+          <img
+            src={company.data.logo_url}
+            alt={company.data.name}
+            className="blox-dashboard-brand__logo"
+          />
+        </div>
+      ) : null}
       <DashboardGrid>
         <ChartPanel title={t('ops.dealer.inventoryByStatus')}>
           <VerticalBarChart

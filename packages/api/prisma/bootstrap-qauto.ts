@@ -2,9 +2,9 @@ import { CompanyKind, OfficerScope, UserRole, type PrismaClient } from '@prisma/
 
 const HOLDING = { code: 'qauto', name: 'QAuto' };
 const DEALERSHIPS = [
-  { code: 'qauto-audi', name: 'QAuto Audi' },
-  { code: 'qauto-vw', name: 'QAuto Volkswagen' },
-  { code: 'qauto-skoda', name: 'QAuto Skoda' },
+  { code: 'qauto-audi', name: 'QAuto Audi', logoUrl: '/brand/audi-logo.png' },
+  { code: 'qauto-vw', name: 'QAuto Volkswagen', logoUrl: '/brand/volkswagen-logo.png' },
+  { code: 'qauto-skoda', name: 'QAuto Skoda', logoUrl: '/brand/skoda-logo.png' },
 ] as const;
 
 export async function bootstrapQauto(prisma: PrismaClient) {
@@ -32,6 +32,7 @@ export async function bootstrapQauto(prisma: PrismaClient) {
           where: { id: existing.id },
           data: {
             name: d.name,
+            logoUrl: d.logoUrl,
             kind: CompanyKind.dealership,
             parentCompanyId: holding.id,
             status: 'active',
@@ -41,6 +42,7 @@ export async function bootstrapQauto(prisma: PrismaClient) {
           data: {
             name: d.name,
             code: d.code,
+            logoUrl: d.logoUrl,
             kind: CompanyKind.dealership,
             parentCompanyId: holding.id,
             status: 'active',
