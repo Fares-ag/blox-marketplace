@@ -309,8 +309,8 @@ export function InventoryEditorPage() {
               {!isNew && !identitySaved ? ` ${t('dealerOps.vehicle.identitySaveHint')}` : ''}
             </OpsAlert>
           ) : (
-            <OpsAlert variant="warning" title={t('inventoryRules.incomplete')}>
-              {t('inventoryRules.incompleteBody')} {t('inventoryRules.reserveBlocked')}
+            <OpsAlert variant="info" title={t('inventoryRules.identityTitle')}>
+              {t('inventoryRules.identityOptionalHint')}
             </OpsAlert>
           )}
           {maxTenureForYear != null && maxTenureForYear <= 0 && (

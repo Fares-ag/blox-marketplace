@@ -5,7 +5,6 @@ import {
   FilterPanel,
   OpsListPage,
   OpsPrimaryButton,
-  OpsStatusPill,
   OpsToolbar,
   SearchBar,
   StatusBadge,
@@ -126,9 +125,6 @@ export function InventoryListPage() {
               type="listing"
               label={listingStatus(item.listing_status ?? 'draft')}
             />
-            {item.identity_complete === false && (
-              <OpsStatusPill label={t('inventoryRules.incomplete')} variant="warning" />
-            )}
           </>
         )}
         emptyTitle={t('ops.dealer.noListings')}
