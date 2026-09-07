@@ -41,6 +41,46 @@
     align-items: center;
     gap: 6px;
   }
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 6px;
+    border: 1px solid var(--blox-border);
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-surface);
+    color: var(--blox-ink);
+    font-family: var(--blox-font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--blox-motion-fast), border-color var(--blox-motion-fast);
+
+    &:hover:not(:disabled) {
+      background: var(--blox-canvas);
+      border-color: var(--blox-deep-green);
+    }
+
+    &.is-active {
+      background: var(--blox-emerald-soft, #E6FBF5);
+      border-color: var(--blox-emerald);
+      color: var(--blox-emerald-ink, #0b7a63);
+      font-weight: 600;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--blox-focus-ring);
+    }
+  }
 }
 
 .blox-chart-row {

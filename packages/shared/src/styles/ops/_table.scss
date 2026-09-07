@@ -9,7 +9,7 @@
   padding: 12px 14px;
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: var(--blox-radius-card, 12px);
+  border-radius: var(--blox-radius-control, 8px);
 
   input,
   select,
@@ -100,16 +100,27 @@
     z-index: 1;
     height: 40px;
     font-size: 0.6875rem;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #cfede6;
-    background: var(--blox-deep-green);
+    color: var(--blox-deep-green);
+    background: var(--blox-surface, #fff);
     white-space: nowrap;
+    border-bottom: 2px solid var(--blox-border, #D8E2E2);
+    padding: 10px 12px;
 
     &.is-sorted {
       color: var(--blox-emerald);
     }
+  }
+
+  thead {
+    background: var(--blox-surface, #fff);
+  }
+
+  &__sort:hover {
+    color: var(--blox-deep-green);
+    background: var(--blox-canvas);
   }
 
   tbody tr {

@@ -30,48 +30,59 @@
 .blox-wizard-review {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: var(--blox-space-lg, 24px);
 
   &__title {
     margin: 0;
     font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--primary-text);
-    letter-spacing: -0.02em;
+    font-weight: 600;
+    color: var(--blox-deep-green, var(--primary-text));
+    letter-spacing: -0.01em;
   }
 
   &__note {
     margin: 0;
-    padding: var(--spacing-md);
-    border-radius: var(--radius-md);
-    background: var(--light-grey);
-    color: var(--primary-text);
+    padding: 12px 14px;
+    border-radius: var(--blox-radius-control, var(--radius-md));
+    background: var(--blox-emerald-soft);
+    border: 1px solid #bfefe2;
+    color: var(--blox-deep-green, var(--primary-text));
     font-size: 0.875rem;
     font-weight: 600;
   }
 
   &__subtitle {
-    margin: var(--spacing-md) 0 var(--spacing-xs);
-    font-size: 0.8125rem;
+    margin: var(--blox-space-md, 16px) 0 var(--blox-space-xs, 8px);
+    font-size: 0.6875rem;
     font-weight: 600;
-    color: var(--secondary-text);
+    color: var(--blox-slate, var(--secondary-text));
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.07em;
+  }
+
+  &__section {
+    background: var(--blox-surface);
+    border: 1px solid var(--blox-border);
+    border-radius: var(--blox-radius-card, 12px);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   &__vehicle + &__vehicle {
-    margin-top: var(--spacing-sm);
-    padding-top: var(--spacing-sm);
-    border-top: 1px solid var(--divider-color);
+    margin-top: var(--blox-space-xs, 8px);
+    padding-top: var(--blox-space-xs, 8px);
+    border-top: 1px solid var(--blox-border, var(--divider-color));
   }
 
   &__schedule .blox-wizard-plan__note {
-    margin: 0 0 var(--spacing-md);
+    margin: 0 0 var(--blox-space-md, 16px);
   }
 
   &__submit p {
-    margin: 0 0 var(--spacing-sm);
-    color: var(--secondary-text);
+    margin: 0 0 var(--blox-space-xs, 8px);
+    color: var(--blox-slate, var(--secondary-text));
     font-size: 0.875rem;
   }
 }

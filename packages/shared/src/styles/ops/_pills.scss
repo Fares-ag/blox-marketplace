@@ -7,8 +7,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
-  padding: 0 9px 0 7px;
+  height: 24px;
+  padding: 0 10px 0 8px;
   border-radius: var(--blox-radius-pill, 999px);
   font-size: 0.75rem;
   font-weight: 600;
@@ -32,29 +32,24 @@
   &--neutral,
   &--draft,
   &--expired {
-    background: var(--blox-muted, #e8efef);
-    color: var(--blox-slate);
+    background: var(--blox-status-neutral-bg, #E8EFEF);
+    color: var(--blox-status-neutral-ink, #708090);
+    &::before { background: var(--blox-status-neutral-ink, #708090); }
   }
 
   // info — waiting on Blox: under review, contract under review, pending activation, due
   &--info,
   &--pending {
-    background: var(--blox-emerald-soft);
-    color: var(--blox-emerald-ink, #0b7a63);
-
-    &::before {
-      background: var(--blox-emerald);
-    }
+    background: var(--blox-status-info-bg, #E6FBF5);
+    color: var(--blox-status-info-ink, #0B7A63);
+    &::before { background: var(--blox-emerald); }
   }
 
   // progress — contract stage: contract signing required, contracts submitted
   &--progress {
-    background: var(--blox-emerald-soft);
-    color: var(--blox-deep-green);
-
-    &::before {
-      background: var(--blox-deep-green);
-    }
+    background: var(--blox-status-progress-bg, #E6FBF5);
+    color: var(--blox-status-progress-ink, #16535B);
+    &::before { background: var(--blox-status-progress-ink, #16535B); }
   }
 
   // success — active, down payment submitted, paid, confirmed, published
@@ -63,8 +58,8 @@
   &--published,
   &--paid,
   &--approved {
-    background: var(--blox-success-soft, var(--blox-emerald-soft));
-    color: var(--blox-emerald-ink, #0b7a63);
+    background: var(--blox-status-success-bg, #E6FBF5);
+    color: var(--blox-status-success-ink, #0B7A63);
 
     &::before {
       background: var(--blox-emerald);
@@ -75,19 +70,19 @@
   // warning — waiting on the customer: resubmission, down payment required, partially paid, reserved
   &--warning,
   &--reserved {
-    background: var(--blox-warning-soft, #fbf1df);
-    color: var(--blox-warning-ink, #8a5400);
-
-    &::before {
-      background: var(--blox-warning, #c47a00);
-    }
+    background: var(--blox-status-warning-bg, #FBF1DF);
+    color: var(--blox-status-warning-ink, #8A5400);
+    border: 1px solid rgba(196, 122, 0, 0.18);
+    &::before { background: var(--blox-warning, #C47A00); }
   }
 
   // danger — rejected, overdue, failed
   &--danger,
   &--rejected {
-    background: var(--blox-danger-soft, #fbebe9);
-    color: var(--blox-danger);
+    background: var(--blox-status-danger-bg, #FBEBE9);
+    color: var(--blox-status-danger-ink, #B42318);
+    border: 1px solid rgba(180, 35, 24, 0.15);
+    &::before { background: var(--blox-danger); }
   }
 
   // ink — terminal states owned by Blox: sold

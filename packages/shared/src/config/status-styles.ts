@@ -44,28 +44,28 @@ export const applicationStatusStyles: Record<
   ApplicationStatus,
   { bg: string; color: string }
 > = {
-  draft: { bg: 'var(--dm-surface-muted)', color: 'var(--dm-slate-600)' },
-  under_review: { bg: 'var(--dm-steel-soft)', color: 'var(--dm-steel)' },
-  resubmission_required: { bg: 'var(--dm-warning-soft)', color: 'var(--dm-warning)' },
-  contract_signing_required: { bg: 'var(--dm-steel-soft)', color: 'var(--dm-graphite-800)' },
-  contracts_submitted: { bg: 'var(--dm-steel-soft)', color: 'var(--dm-graphite-800)' },
-  contract_under_review: { bg: 'var(--dm-steel-soft)', color: 'var(--dm-steel)' },
-  down_payment_required: { bg: 'var(--dm-warning-soft)', color: 'var(--dm-warning)' },
-  down_payment_submitted: { bg: 'var(--dm-success-soft)', color: 'var(--dm-success)' },
-  pending_finance_activation: { bg: 'var(--dm-steel-soft)', color: 'var(--dm-steel)' },
-  partner_processing: { bg: 'var(--dm-steel-soft)', color: 'var(--dm-steel)' },
-  active: { bg: 'var(--dm-success-soft)', color: 'var(--dm-success)' },
-  completed: { bg: 'var(--dm-surface-muted)', color: 'var(--dm-slate-600)' },
-  rejected: { bg: 'var(--dm-danger-soft)', color: 'var(--dm-danger)' },
-  submission_cancelled: { bg: 'var(--dm-surface-muted)', color: 'var(--dm-slate-600)' },
+  draft: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
+  under_review: { bg: 'var(--blox-status-info-bg)', color: 'var(--blox-status-info-ink)' },
+  resubmission_required: { bg: 'var(--blox-status-warning-bg)', color: 'var(--blox-status-warning-ink)' },
+  contract_signing_required: { bg: 'var(--blox-status-progress-bg)', color: 'var(--blox-status-progress-ink)' },
+  contracts_submitted: { bg: 'var(--blox-status-progress-bg)', color: 'var(--blox-status-progress-ink)' },
+  contract_under_review: { bg: 'var(--blox-status-info-bg)', color: 'var(--blox-status-info-ink)' },
+  down_payment_required: { bg: 'var(--blox-status-warning-bg)', color: 'var(--blox-status-warning-ink)' },
+  down_payment_submitted: { bg: 'var(--blox-status-success-bg)', color: 'var(--blox-status-success-ink)' },
+  pending_finance_activation: { bg: 'var(--blox-status-info-bg)', color: 'var(--blox-status-info-ink)' },
+  partner_processing: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
+  active: { bg: 'var(--blox-status-success-bg)', color: 'var(--blox-status-success-ink)' },
+  completed: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
+  rejected: { bg: 'var(--blox-status-danger-bg)', color: 'var(--blox-status-danger-ink)' },
+  submission_cancelled: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
 };
 
 export const listingStatusStyles: Record<ListingStatus, { bg: string; color: string }> = {
-  draft: { bg: 'var(--dm-surface-muted)', color: 'var(--dm-slate-600)' },
-  published: { bg: 'var(--dm-success-soft)', color: 'var(--dm-success)' },
-  reserved: { bg: 'var(--dm-warning-soft)', color: 'var(--dm-warning)' },
-  sold: { bg: 'var(--dm-slate-200)', color: 'var(--dm-ink)' },
-  archived: { bg: 'var(--dm-surface-muted)', color: 'var(--dm-slate-600)' },
+  draft: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
+  published: { bg: 'var(--blox-status-success-bg)', color: 'var(--blox-status-success-ink)' },
+  reserved: { bg: 'var(--blox-status-warning-bg)', color: 'var(--blox-status-warning-ink)' },
+  sold: { bg: 'var(--blox-deep-green)', color: '#fff' },
+  archived: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
 };
 
 const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
