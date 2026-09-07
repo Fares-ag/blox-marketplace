@@ -1,5 +1,30 @@
+import {
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  Legend,
+  LineElement,
+  LinearScale,
+  PointElement,
+  Tooltip,
+} from 'chart.js';
 import { bloxTokens } from '../../config/blox-tokens';
 import { chartColors } from '../../config/chart-palette';
+
+/** Register once in shared — portal pages import options from here, not chart.js directly. */
+ChartJS.register(
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend,
+);
 
 const tooltipDefaults = {
   backgroundColor: bloxTokens.deepGreen,
