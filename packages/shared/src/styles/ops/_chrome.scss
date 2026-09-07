@@ -28,9 +28,23 @@
   --blox-warning-ink: #8A5400;
   --blox-warning-soft: #FBF1DF;
   --blox-danger-soft: #FBEBE9;
+  /* Status semantic tokens — Phase 2 §06 pills */
+  --blox-status-neutral-bg: #E8EFEF;
+  --blox-status-neutral-ink: #708090;
+  --blox-status-info-bg: #E6FBF5;
+  --blox-status-info-ink: #0B7A63;
+  --blox-status-progress-bg: #E6FBF5;
+  --blox-status-progress-ink: #16535B;
+  --blox-status-success-bg: #E6FBF5;
+  --blox-status-success-ink: #0B7A63;
+  --blox-status-warning-bg: #FBF1DF;
+  --blox-status-warning-ink: #8A5400;
+  --blox-status-danger-bg: #FBEBE9;
+  --blox-status-danger-ink: #B42318;
   --blox-focus-ring: 0 0 0 2px #FFFFFF, 0 0 0 4px #00CFA2;
   --blox-radius-control: 8px;
-  --blox-radius-card: 12px;
+  --blox-radius-surface: 20px;
+  --blox-radius-card: 16px;
   --blox-radius-dialog: 16px;
   --blox-radius-pill: 999px;
   --blox-shadow-pop: 0 8px 24px rgba(22, 83, 91, 0.12);
@@ -39,6 +53,30 @@
   --blox-space: 20px;
   --blox-font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
   --blox-font-display: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  /* Spacing scale (8px grid) */
+  --blox-space-2xs: 4px;
+  --blox-space-xs: 8px;
+  --blox-space-sm: 12px;
+  --blox-space-md: 16px;
+  --blox-space-lg: 24px;
+  --blox-space-xl: 32px;
+  --blox-space-2xl: 48px;
+  --blox-space-3xl: 64px;
+
+  /* Surface elevation */
+  --blox-shadow-rest: 0 1px 4px rgba(15, 63, 69, 0.06), 0 1px 2px rgba(15, 63, 69, 0.04);
+  --blox-shadow-hover: 0 6px 20px rgba(15, 63, 69, 0.10), 0 2px 8px rgba(15, 63, 69, 0.06);
+  --blox-shadow-raised: 0 8px 24px rgba(15, 63, 69, 0.14), 0 3px 8px rgba(15, 63, 69, 0.07);
+  --blox-shadow-modal: 0 24px 48px rgba(15, 63, 69, 0.22), 0 8px 16px rgba(15, 63, 69, 0.1);
+
+  /* Motion */
+  --blox-motion-fast: 150ms;
+  --blox-motion-base: 200ms;
+  --blox-motion-slow: 280ms;
+  --blox-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --blox-ease-decel: cubic-bezier(0, 0, 0.2, 1);
+  --blox-ease-accel: cubic-bezier(0.4, 0, 1, 1);
+
   --blox-shadow: 0 1px 2px rgba(15, 63, 69, 0.04);
   --bp-xs: #{$bp-xs};
   --bp-sm: #{$bp-sm};

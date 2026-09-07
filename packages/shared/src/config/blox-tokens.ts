@@ -28,14 +28,14 @@ export const bloxSpacing = {
 
 export const bloxRadius = {
   sm: 8,
-  md: 12,
-  lg: 16,
+  md: 16,   // card radius
+  lg: 20,   // surface/hero radius
 } as const;
 
 export const bloxElevation = {
-  rest: '0 1px 3px 0 rgba(22, 83, 91, 0.08), 0 1px 2px -1px rgba(22, 83, 91, 0.04)',
-  hover: '0 8px 24px rgba(22, 83, 91, 0.12)',
-  modal: '0 16px 48px rgba(15, 63, 69, 0.18)',
+  rest: '0 1px 4px rgba(15, 63, 69, 0.06), 0 1px 2px rgba(15, 63, 69, 0.04)',
+  hover: '0 6px 20px rgba(15, 63, 69, 0.10), 0 2px 8px rgba(15, 63, 69, 0.06)',
+  modal: '0 24px 48px rgba(15, 63, 69, 0.22), 0 8px 16px rgba(15, 63, 69, 0.1)',
 } as const;
 
 export const bloxMotion = {
@@ -49,6 +49,7 @@ export const bloxMeta = {
   name: 'Blox',
   tagline: "Own it, don't owe it.",
   logo: {
-    nav: '/brand/blox-logo-nav.svg',
+    nav: '/brand/blox-logo-nav.png',
+    light: '/brand/blox-logo.png',
   },
 } as const;
