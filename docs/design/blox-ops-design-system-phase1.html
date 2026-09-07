@@ -1,0 +1,879 @@
+﻿<title>Blox Ops Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<style>
+/* ───────────────────────── Page (document) tokens — dual theme ───────────────────────── */
+:root{
+  --pg-bg:#F4F7F7; --pg-surface:#FFFFFF; --pg-ink:#12383D; --pg-ink-2:#5F7378; --pg-line:#D5E0E0;
+  --pg-accent:#0B7A63; --pg-accent-soft:#E6FBF5; --pg-code:#EEF3F3; --pg-warn:#8A5400; --pg-warn-soft:#FBF1DF;
+  --pg-danger:#B42318; --pg-danger-soft:#FBEBE9;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --pg-bg:#0E2226; --pg-surface:#132D32; --pg-ink:#E4EFEE; --pg-ink-2:#9BB1B3; --pg-line:#22464C;
+    --pg-accent:#3FD9B7; --pg-accent-soft:#12403C; --pg-code:#0F2A2E; --pg-warn:#E9B25C; --pg-warn-soft:#3A2E12;
+    --pg-danger:#F08A80; --pg-danger-soft:#43201D;
+  }
+}
+:root[data-theme="dark"]{
+  --pg-bg:#0E2226; --pg-surface:#132D32; --pg-ink:#E4EFEE; --pg-ink-2:#9BB1B3; --pg-line:#22464C;
+  --pg-accent:#3FD9B7; --pg-accent-soft:#12403C; --pg-code:#0F2A2E; --pg-warn:#E9B25C; --pg-warn-soft:#3A2E12;
+  --pg-danger:#F08A80; --pg-danger-soft:#43201D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pg-bg);color:var(--pg-ink);font:14px/1.55 'IBM Plex Sans','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--pg-accent)}
+code,kbd,.mono{font-family:'IBM Plex Mono',Consolas,monospace;font-size:.92em}
+code{background:var(--pg-code);padding:1px 5px;border-radius:4px}
+h1,h2,h3,h4{margin:0;text-wrap:balance;font-weight:600;letter-spacing:-.01em}
+h1{font-size:30px;line-height:1.15}
+h2{font-size:22px;line-height:1.2;padding-top:8px}
+h3{font-size:16px}
+h4{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--pg-ink-2);font-weight:600}
+p{margin:0;max-width:68ch}
+.wrap{display:grid;grid-template-columns:220px minmax(0,1fr);gap:40px;max-width:1360px;margin:0 auto;padding:32px 28px 96px}
+.rail{position:sticky;top:24px;align-self:start;font-size:13px}
+.rail ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.rail a{display:block;padding:5px 8px;border-radius:6px;color:var(--pg-ink-2);text-decoration:none}
+.rail a:hover{background:var(--pg-surface);color:var(--pg-ink)}
+.rail .num{display:inline-block;width:22px;color:var(--pg-ink-2);font-family:'IBM Plex Mono',monospace;font-size:11px}
+main{display:grid;gap:64px;min-width:0}
+section{display:grid;gap:20px;scroll-margin-top:24px}
+.lead{font-size:16px;color:var(--pg-ink-2);max-width:72ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12px;color:var(--pg-ink-2)}
+.meta b{color:var(--pg-ink);font-weight:600}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{padding:14px 16px;border-radius:10px;background:var(--pg-surface);border:1px solid var(--pg-line)}
+.ba h4{margin-bottom:6px}
+.ba .after h4{color:var(--pg-accent)}
+.ba ul{margin:0;padding-left:18px;display:grid;gap:4px}
+table.spec{width:100%;border-collapse:collapse;font-size:13px;background:var(--pg-surface);border:1px solid var(--pg-line);border-radius:10px;overflow:hidden}
+table.spec th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--pg-ink-2);text-align:left;padding:10px 12px;border-bottom:1px solid var(--pg-line);font-weight:600}
+table.spec td{padding:9px 12px;border-bottom:1px solid var(--pg-line);vertical-align:top}
+table.spec tr:last-child td{border-bottom:0}
+table.spec td.mono{font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+.note{padding:12px 14px;border-radius:8px;background:var(--pg-warn-soft);color:var(--pg-warn);font-size:13px;max-width:none}
+.note.ok{background:var(--pg-accent-soft);color:var(--pg-accent)}
+.sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
+.sw div{border:1px solid var(--pg-line);border-radius:10px;overflow:hidden;background:var(--pg-surface)}
+.sw .chip{height:64px}
+.sw .lbl{padding:8px 10px;font-size:12px;display:grid;gap:2px}
+.sw .lbl b{font-weight:600;color:var(--pg-ink)}
+.sw .lbl code{background:none;padding:0;color:var(--pg-ink-2)}
+.sw .lbl span{color:var(--pg-ink-2)}
+/* frames that hold specimens; container queries drive the responsive demos */
+.frame{container-type:inline-size;border:1px solid var(--pg-line);border-radius:12px;overflow:hidden;background:#F0F5F5}
+.frame.pad{padding:24px}
+.frames{display:grid;gap:16px}
+.frames.two{grid-template-columns:minmax(0,1fr) 390px}
+.frame-cap{font-size:12px;color:var(--pg-ink-2);margin-top:6px;font-family:'IBM Plex Mono',monospace}
+.w390{width:390px;max-width:100%}
+.w900{width:900px;max-width:100%}
+@media (max-width:1100px){.wrap{grid-template-columns:1fr}.rail{position:static}.frames.two{grid-template-columns:1fr}}
+@media (max-width:640px){.ba{grid-template-columns:1fr}.wrap{padding:20px 16px 64px}}
+
+/* ───────────────────────── The ops system itself (light, locked palette) ───────────────────────── */
+.ops{
+  --blox-deep-green:#16535B; --blox-deep-green-dark:#0F3F45; --blox-emerald:#00CFA2; --blox-emerald-soft:#E6FBF5;
+  --blox-emerald-ink:#0B7A63; --blox-canvas:#F0F5F5; --blox-surface:#FFFFFF; --blox-muted:#E8EFEF; --blox-border:#D8E2E2;
+  --blox-field-border:#A9B8BA; --blox-slate:#708090; --blox-ink:#16535B; --blox-ink-2:#708090;
+  --blox-success:#00CFA2; --blox-success-soft:#E6FBF5; --blox-warning:#C47A00; --blox-warning-ink:#8A5400; --blox-warning-soft:#FBF1DF;
+  --blox-danger:#B42318; --blox-danger-soft:#FBEBE9;
+  --blox-status-neutral-bg:#E8EFEF;--blox-status-neutral-ink:#708090;
+  --blox-status-info-bg:#E6FBF5;--blox-status-info-ink:#0B7A63;
+  --blox-status-progress-bg:#E6FBF5;--blox-status-progress-ink:#16535B;
+  --blox-status-success-bg:#E6FBF5;--blox-status-success-ink:#0B7A63;
+  --blox-status-warning-bg:#FBF1DF;--blox-status-warning-ink:#8A5400;
+  --blox-status-danger-bg:#FBEBE9;--blox-status-danger-ink:#B42318;
+  --blox-focus:0 0 0 2px #FFFFFF,0 0 0 4px #00CFA2;
+  --blox-space-1:4px;--blox-space-2:8px;--blox-space-3:12px;--blox-space-4:16px;--blox-space-5:24px;--blox-space-6:32px;--blox-space-7:48px;
+  --blox-radius-control:8px;--blox-radius-card:16px;--blox-radius-surface:20px;--blox-radius-dialog:16px;--blox-radius-pill:999px;
+  --blox-shadow-rest:0 1px 4px rgba(15,63,69,0.06),0 1px 2px rgba(15,63,69,0.04);--blox-shadow-hover:0 6px 20px rgba(15,63,69,0.10),0 2px 8px rgba(15,63,69,0.06);--blox-shadow-pop:0 8px 24px rgba(22,83,91,.12);--blox-shadow-modal:0 16px 48px rgba(15,63,69,.18);
+  --blox-font-ui:'IBM Plex Sans','IBM Plex Sans Arabic','Segoe UI',sans-serif;--blox-font-mono:'IBM Plex Mono',Consolas,monospace;
+  font-family:var(--blox-font-ui);color:var(--blox-ink);font-size:14px;line-height:1.5;
+}
+.ops[dir="rtl"]{font-family:'IBM Plex Sans Arabic','IBM Plex Sans',sans-serif}
+.ops .num{font-family:var(--blox-font-mono);font-variant-numeric:tabular-nums;font-size:13px}
+/* type scale */
+.ops .t-page{font-size:28px;line-height:1.15;font-weight:600;letter-spacing:-.01em}
+.ops .t-section{font-size:20px;line-height:1.2;font-weight:600}
+.ops .t-panel{font-size:16px;line-height:1.3;font-weight:600}
+.ops .t-body{font-size:14px;line-height:1.5}
+.ops .t-dense{font-size:13px;line-height:1.45}
+.ops .t-label{font-size:12px;line-height:1.3;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--blox-ink-2)}
+.ops .t-caption{font-size:12px;line-height:1.4;color:var(--blox-ink-2)}
+.ops .t-num{font-family:var(--blox-font-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.ops .t-num-lg{font-family:var(--blox-font-mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+/* buttons */
+.ops .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0 14px;border-radius:var(--blox-radius-control);border:1px solid transparent;font:inherit;font-size:14px;font-weight:600;line-height:1;cursor:pointer;transition:background 150ms cubic-bezier(.4,0,.2,1),border-color 150ms,color 150ms;white-space:nowrap}
+.ops .btn:focus-visible{outline:none;box-shadow:var(--blox-focus)}
+.ops .btn.sm{height:30px;padding:0 10px;font-size:13px}
+.ops .btn.icon{width:32px;height:32px;padding:0}
+.ops .btn-primary{background:var(--blox-emerald);color:var(--blox-deep-green)}
+.ops .btn-primary:hover,.ops .btn-primary.is-hover{background:#00B890}
+.ops .btn-primary:active,.ops .btn-primary.is-active{background:#00A882}
+.ops .btn-secondary{background:var(--blox-surface);color:var(--blox-deep-green);border-color:var(--blox-field-border)}
+.ops .btn-secondary:hover,.ops .btn-secondary.is-hover{background:var(--blox-canvas);border-color:var(--blox-deep-green)}
+.ops .btn-secondary:active,.ops .btn-secondary.is-active{background:var(--blox-muted)}
+.ops .btn-ghost{background:transparent;color:var(--blox-deep-green)}
+.ops .btn-ghost:hover,.ops .btn-ghost.is-hover{background:var(--blox-canvas)}
+.ops .btn-ghost:active,.ops .btn-ghost.is-active{background:var(--blox-muted)}
+.ops .btn-danger{background:var(--blox-surface);color:var(--blox-danger);border-color:var(--blox-danger)}
+.ops .btn-danger:hover,.ops .btn-danger.is-hover{background:var(--blox-danger-soft)}
+.ops .btn-danger.solid{background:var(--blox-danger);color:#fff}
+.ops .btn-danger.solid:hover{background:#9A1D14}
+.ops .btn.is-focus{box-shadow:var(--blox-focus)}
+.ops .btn[disabled],.ops .btn.is-disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
+.ops .spin{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.ops .spin{animation:none}}
+/* fields */
+.ops .field{display:grid;gap:6px;min-width:0}
+.ops .field label{font-size:13px;font-weight:600;color:var(--blox-deep-green);display:flex;gap:4px;align-items:baseline}
+.ops .field .req{color:var(--blox-danger);font-weight:600}
+.ops .field .opt{color:var(--blox-ink-2);font-weight:400;font-size:12px;margin-inline-start:auto}
+.ops .ctl{height:36px;padding:0 12px;border:1px solid var(--blox-field-border);border-radius:var(--blox-radius-control);background:var(--blox-surface);color:var(--blox-ink);font:inherit;font-size:14px;width:100%;transition:border-color 150ms,box-shadow 150ms}
+.ops textarea.ctl{height:auto;min-height:88px;padding:9px 12px;resize:vertical;line-height:1.45}
+.ops .ctl::placeholder{color:var(--blox-slate)}
+.ops .ctl:hover,.ops .ctl.is-hover{border-color:var(--blox-deep-green)}
+.ops .ctl:focus,.ops .ctl.is-focus{outline:none;border-color:var(--blox-deep-green);box-shadow:0 0 0 3px var(--blox-emerald-soft),0 0 0 4px var(--blox-emerald)}
+.ops .ctl.is-error,.ops .field.is-error .ctl{border-color:var(--blox-danger)}
+.ops .field.is-error .ctl:focus{box-shadow:0 0 0 3px var(--blox-danger-soft),0 0 0 4px var(--blox-danger)}
+.ops .ctl[disabled],.ops .ctl.is-disabled{background:var(--blox-canvas);color:var(--blox-slate);border-color:var(--blox-border);cursor:not-allowed}
+.ops .ctl.mono{font-family:var(--blox-font-mono);font-size:13px}
+.ops .hint{font-size:12px;color:var(--blox-ink-2)}
+.ops .err{font-size:12px;color:var(--blox-danger);display:flex;gap:6px;align-items:center}
+.ops .err::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--blox-danger);flex:none}
+.ops .sel{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--blox-slate) 50%),linear-gradient(135deg,var(--blox-slate) 50%,transparent 50%);background-position:calc(100% - 16px) 15px,calc(100% - 11px) 15px;background-size:5px 5px;background-repeat:no-repeat;padding-inline-end:32px}
+.ops .fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.ops .fgrid .full{grid-column:1/-1}
+@container (max-width:640px){.ops .fgrid{grid-template-columns:1fr}}
+/* pills */
+.ops .pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 8px;border-radius:var(--blox-radius-pill);font-size:12px;font-weight:600;line-height:1;white-space:nowrap;background:var(--blox-muted);color:var(--blox-slate)}
+.ops .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.ops .pill.neutral{background:var(--blox-muted);color:var(--blox-slate)}
+.ops .pill.info{background:var(--blox-emerald-soft);color:var(--blox-emerald-ink)}
+.ops .pill.info::before{background:var(--blox-emerald)}
+.ops .pill.progress{background:var(--blox-emerald-soft);color:var(--blox-deep-green)}
+.ops .pill.progress::before{background:var(--blox-deep-green)}
+.ops .pill.success{background:var(--blox-emerald-soft);color:var(--blox-emerald-ink)}
+.ops .pill.success::before{background:var(--blox-emerald);box-shadow:0 0 0 2px rgba(0,207,162,.28)}
+.ops .pill.warning{background:var(--blox-warning-soft);color:var(--blox-warning-ink)}
+.ops .pill.warning::before{background:var(--blox-warning)}
+.ops .pill.danger{background:var(--blox-danger-soft);color:var(--blox-danger)}
+.ops .pill.ink{background:var(--blox-deep-green);color:#fff}
+.ops .pill.ink::before{background:var(--blox-emerald)}
+.ops .pill.outline{background:transparent;border:1px dashed var(--blox-field-border);color:var(--blox-slate)}
+.ops .pill.outline::before{background:transparent;border:1px solid currentColor;width:5px;height:5px}
+/* cards & panels */
+.ops .card{background:var(--blox-surface);border:1px solid var(--blox-border);border-radius:var(--blox-radius-card);padding:16px 20px}
+.ops .card-title{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600;margin:0 0 12px;color:var(--blox-deep-green)}
+.ops .card-title::before{content:"";width:3px;height:18px;border-radius:2px;background:var(--blox-emerald);flex:none}
+.ops .card-title .sp{margin-inline-start:auto;display:flex;gap:8px}
+.ops .kv{display:grid;grid-template-columns:minmax(120px,38%) 1fr;gap:6px 16px;font-size:13px}
+.ops .kv dt{color:var(--blox-ink-2);margin:0}
+.ops .kv dd{margin:0;color:var(--blox-ink);min-width:0;overflow-wrap:anywhere}
+.ops .kv dd.num{font-family:var(--blox-font-mono);font-variant-numeric:tabular-nums}
+.ops .kv.two{grid-template-columns:minmax(110px,30%) 1fr minmax(110px,30%) 1fr}
+@container (max-width:900px){.ops .kv.two{grid-template-columns:minmax(120px,38%) 1fr}}
+.ops .empty{display:grid;justify-items:center;text-align:center;gap:8px;padding:36px 20px;border:1px dashed var(--blox-field-border);border-radius:var(--blox-radius-card);background:var(--blox-surface);color:var(--blox-ink-2)}
+.ops .empty .glyph{width:44px;height:44px;border-radius:12px;background:var(--blox-emerald-soft);display:grid;place-items:center;color:var(--blox-emerald-ink)}
+.ops .empty b{color:var(--blox-deep-green);font-size:15px}
+.ops .alert{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:var(--blox-radius-control);border:1px solid;font-size:13px}
+.ops .alert b{display:block;font-weight:600;margin-bottom:2px}
+.ops .alert .bar{width:3px;align-self:stretch;border-radius:2px;flex:none}
+.ops .alert.error{background:var(--blox-danger-soft);border-color:#F1C7C3;color:var(--blox-danger)}.ops .alert.error .bar{background:var(--blox-danger)}
+.ops .alert.warn{background:var(--blox-warning-soft);border-color:#EED7A8;color:var(--blox-warning-ink)}.ops .alert.warn .bar{background:var(--blox-warning)}
+.ops .alert.info{background:var(--blox-emerald-soft);border-color:#BFEFE2;color:var(--blox-deep-green)}.ops .alert.info .bar{background:var(--blox-emerald)}
+.ops .alert .act{margin-inline-start:auto;flex:none}
+.ops .skel{background:linear-gradient(90deg,var(--blox-muted) 25%,#F5F9F9 50%,var(--blox-muted) 75%);background-size:200% 100%;animation:shimmer 1.4s linear infinite;border-radius:6px;height:12px}
+@keyframes shimmer{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.ops .skel{animation:none}}
+/* table */
+.ops .tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;background:var(--blox-surface);border:1px solid var(--blox-border);border-radius:var(--blox-radius-card);overflow:hidden}
+.ops .tbl th{background:var(--blox-deep-green);color:#CFEDE6;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:start;padding:0 12px;height:40px;white-space:nowrap}
+.ops .tbl th.sorted{color:var(--blox-emerald)}
+.ops .tbl th.sorted::after{content:" ↓";font-size:10px}
+.ops .tbl td{padding:0 12px;height:44px;border-bottom:1px solid var(--blox-border);vertical-align:middle;color:var(--blox-ink)}
+.ops .tbl.compact td{height:36px}
+.ops .tbl tr:last-child td{border-bottom:0}
+.ops .tbl tbody tr{transition:background 120ms}
+.ops .tbl tbody tr:hover,.ops .tbl tbody tr.is-hover{background:#F5FAF9}
+.ops .tbl tbody tr.is-selected{background:var(--blox-emerald-soft);box-shadow:inset 3px 0 0 var(--blox-emerald)}
+.ops .tbl tbody tr.is-selected td:first-child{box-shadow:inset 3px 0 0 var(--blox-emerald)}
+.ops .tbl td.num,.ops .tbl th.num{text-align:end;font-family:var(--blox-font-mono);font-variant-numeric:tabular-nums}
+.ops .tbl th.num{font-family:var(--blox-font-ui)}
+.ops .tbl td.id{font-family:var(--blox-font-mono);color:var(--blox-ink-2);font-size:12px}
+.ops .tbl td.act{text-align:end;white-space:nowrap}
+.ops .tbl .rowlink{color:var(--blox-deep-green);font-weight:600;text-decoration:none}
+.ops .tbl .rowlink:hover{text-decoration:underline;text-decoration-color:var(--blox-emerald)}
+.ops .chk{width:16px;height:16px;border:1.5px solid var(--blox-field-border);border-radius:4px;display:inline-block;vertical-align:middle;background:#fff}
+.ops .chk.on{background:var(--blox-emerald);border-color:var(--blox-emerald);position:relative}
+.ops .chk.on::after{content:"";position:absolute;left:4px;top:1px;width:5px;height:9px;border:solid var(--blox-deep-green);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.ops .tfoot{display:flex;align-items:center;gap:12px;padding:10px 12px;font-size:12px;color:var(--blox-ink-2);background:var(--blox-surface);border:1px solid var(--blox-border);border-top:0;border-radius:0 0 var(--blox-radius-card) var(--blox-radius-card)}
+.ops .tfoot .num{color:var(--blox-ink)}
+.ops .tfoot .pg{margin-inline-start:auto;display:flex;gap:4px;align-items:center}
+.ops .tbl-wrap{border-radius:var(--blox-radius-card)}
+.ops .tbl-wrap .tbl{border-radius:var(--blox-radius-card) var(--blox-radius-card) 0 0}
+.ops .bulk{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--blox-emerald-soft);border:1px solid #BFEFE2;border-radius:var(--blox-radius-control);font-size:13px;color:var(--blox-deep-green);margin-bottom:8px}
+.ops .bulk .sp{margin-inline-start:auto;display:flex;gap:8px}
+/* mobile card fallback */
+.ops .rowcards{display:grid;gap:10px}
+.ops .rowcard{background:var(--blox-surface);border:1px solid var(--blox-border);border-radius:var(--blox-radius-card);padding:12px 14px;display:grid;gap:8px}
+.ops .rowcard .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ops .rowcard .top b{font-weight:600;color:var(--blox-deep-green)}
+.ops .rowcard .kv{grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
+/* toolbar, search, filters */
+.ops .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ops .search{position:relative;flex:1 1 260px;min-width:200px}
+.ops .search .ctl{padding-inline-start:34px;padding-inline-end:56px}
+.ops .search svg{position:absolute;inset-inline-start:11px;top:10px;color:var(--blox-slate)}
+.ops .search kbd{position:absolute;inset-inline-end:10px;top:9px;font-size:11px;padding:1px 6px;border:1px solid var(--blox-border);border-radius:4px;background:var(--blox-canvas);color:var(--blox-ink-2);font-family:var(--blox-font-mono)}
+.ops .fchip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:var(--blox-radius-control);border:1px solid var(--blox-field-border);background:var(--blox-surface);font-size:13px;font-weight:500;color:var(--blox-deep-green);cursor:pointer}
+.ops .fchip.on{background:var(--blox-emerald-soft);border-color:var(--blox-emerald);}
+.ops .fchip .x{color:var(--blox-ink-2);font-size:14px;line-height:1}
+.ops .seg{display:inline-flex;background:var(--blox-muted);border-radius:var(--blox-radius-control);padding:3px;gap:2px}
+.ops .seg span{padding:5px 12px;border-radius:6px;font-size:13px;font-weight:600;color:var(--blox-ink-2);cursor:pointer}
+.ops .seg span.on{background:var(--blox-surface);color:var(--blox-deep-green);box-shadow:0 1px 2px rgba(22,83,91,.12)}
+/* dialog */
+.ops .scrim{background:rgba(15,63,69,.45);padding:32px 16px;display:grid;place-items:center}
+.ops .dialog{width:480px;max-width:100%;background:var(--blox-surface);border-radius:var(--blox-radius-dialog);box-shadow:var(--blox-shadow-modal);padding:24px;display:grid;gap:14px}
+.ops .dialog h3{font-size:18px;font-weight:600;color:var(--blox-deep-green)}
+.ops .dialog p{font-size:14px;color:var(--blox-ink)}
+.ops .dialog .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+/* auth layout */
+.ops .auth{display:grid;grid-template-columns:5fr 7fr;min-height:520px;background:var(--blox-canvas)}
+.ops .auth-brand{background:linear-gradient(160deg,var(--blox-deep-green-dark),var(--blox-deep-green) 70%);color:#fff;padding:36px;display:flex;flex-direction:column;gap:18px;position:relative;overflow:hidden}
+.ops .auth-brand::after{content:"";position:absolute;inset:auto -80px -120px auto;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(0,207,162,.35),transparent 65%)}
+.ops .auth-brand .portal{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--blox-emerald);font-weight:600}
+.ops .auth-brand .tag{font-size:22px;font-weight:600;line-height:1.25;max-width:14ch;text-wrap:balance}
+.ops .auth-brand ul{margin:auto 0 0;padding:0;list-style:none;display:grid;gap:8px;font-size:13px;color:rgba(255,255,255,.82)}
+.ops .auth-brand li::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--blox-emerald);margin-inline-end:10px;vertical-align:middle}
+.ops .auth-card{display:grid;place-items:center;padding:36px 24px}
+.ops .auth-inner{width:100%;max-width:400px;display:grid;gap:16px}
+.ops .auth-inner .eyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--blox-emerald-ink);font-weight:600}
+.ops .auth-inner h2{font-size:24px;font-weight:600;color:var(--blox-deep-green);line-height:1.2}
+.ops .auth-inner .foot{font-size:13px;color:var(--blox-ink-2);display:flex;gap:10px;flex-wrap:wrap}
+.ops .auth-inner .foot a{color:var(--blox-emerald-ink);text-decoration:none;font-weight:500}
+.ops .auth-inner .foot a:hover{text-decoration:underline}
+.ops .authbar{display:none;background:var(--blox-deep-green);color:#fff;height:56px;align-items:center;padding:0 16px;gap:10px}
+@container (max-width:760px){.ops .auth{grid-template-columns:1fr;min-height:0}.ops .auth-brand{display:none}.ops .authbar{display:flex}}
+.ops .logo{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:20px;letter-spacing:-.02em;color:#fff}
+.ops .logo i{width:10px;height:10px;border-radius:3px;background:var(--blox-emerald);display:inline-block}
+.ops .otp{display:flex;gap:8px}
+.ops .otp .ctl{width:44px;text-align:center;font-family:var(--blox-font-mono);font-size:18px;padding:0}
+/* shell */
+.ops .shell{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:560px;background:var(--blox-canvas)}
+.ops .shell.collapsed{grid-template-columns:72px minmax(0,1fr)}
+.ops .side{background:linear-gradient(180deg,var(--blox-deep-green-dark) 0%,var(--blox-deep-green) 100%);color:#fff;display:flex;flex-direction:column;padding:12px 10px;gap:4px}
+.ops .side .head{display:flex;align-items:center;justify-content:space-between;padding:8px 8px 14px;border-bottom:1px solid rgba(255,255,255,.16);margin-bottom:8px}
+.ops .side .badge{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--blox-emerald);font-weight:600;display:block;margin-top:2px}
+.ops .side .grp{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5);padding:10px 12px 4px;font-weight:600}
+.ops .nav{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:8px;color:rgba(255,255,255,.88);font-size:14px;font-weight:500;cursor:pointer;position:relative}
+.ops .nav svg{flex:none;opacity:.85}
+.ops .nav:hover{background:rgba(255,255,255,.08)}
+.ops .nav.on{background:rgba(0,207,162,.16);color:var(--blox-emerald);box-shadow:inset 3px 0 0 var(--blox-emerald)}
+.ops .nav.on svg{opacity:1}
+.ops .nav .cnt{margin-inline-start:auto;font-family:var(--blox-font-mono);font-size:11px;background:rgba(255,255,255,.14);padding:1px 7px;border-radius:999px}
+.ops .side .foot{margin-top:auto;border-top:1px solid rgba(255,255,255,.16);padding-top:10px;display:grid;gap:4px}
+.ops .user{display:flex;align-items:center;gap:10px;padding:8px 12px}
+.ops .avatar{width:32px;height:32px;border-radius:50%;background:var(--blox-emerald);color:var(--blox-deep-green);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.ops .user small{display:block;font-size:11px;color:rgba(255,255,255,.7)}
+.ops .user .role{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--blox-emerald)}
+.ops .collapsed .side{padding:12px 8px}
+.ops .collapsed .nav{justify-content:center;padding:0}
+.ops .collapsed .nav span,.ops .collapsed .grp,.ops .collapsed .user div,.ops .collapsed .side .badge,.ops .collapsed .head .txt{display:none}
+.ops .collapsed .nav .cnt{position:absolute;top:4px;inset-inline-end:8px;margin:0;padding:0 5px;background:var(--blox-danger);color:#fff}
+.ops .topbar{height:56px;background:var(--blox-surface);border-bottom:1px solid var(--blox-border);display:flex;align-items:center;gap:12px;padding:0 20px}
+.ops .topbar .crumb{font-size:13px;color:var(--blox-ink-2);display:flex;gap:6px;align-items:center;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ops .topbar .crumb b{color:var(--blox-deep-green);font-weight:600}
+.ops .topbar .right{margin-inline-start:auto;display:flex;align-items:center;gap:6px}
+.ops .ibtn{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--blox-deep-green);position:relative;cursor:pointer;border:1px solid transparent}
+.ops .ibtn:hover{background:var(--blox-canvas)}
+.ops .ibtn .dot{position:absolute;top:6px;right:6px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--blox-danger);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;font-family:var(--blox-font-mono)}
+.ops .main{padding:20px 24px;display:grid;gap:16px;align-content:start;min-width:0}
+.ops .burger{display:none}
+@container (max-width:900px){.ops .shell,.ops .shell.collapsed{grid-template-columns:72px minmax(0,1fr)}.ops .shell .nav{justify-content:center;padding:0}.ops .shell .nav span,.ops .shell .grp,.ops .shell .user div,.ops .shell .side .badge,.ops .shell .head .txt{display:none}.ops .shell .side{padding:12px 8px}.ops .shell .nav .cnt{position:absolute;top:4px;inset-inline-end:8px;margin:0;padding:0 5px;background:var(--blox-danger);color:#fff}}
+@container (max-width:640px){.ops .shell,.ops .shell.collapsed{grid-template-columns:1fr}.ops .shell .side{display:none}.ops .burger{display:grid}.ops .main{padding:14px 14px}}
+/* notifications drawer */
+.ops .ndrawer{width:360px;max-width:100%;background:var(--blox-surface);border-inline-start:1px solid var(--blox-border);box-shadow:var(--blox-shadow-pop);display:grid;grid-template-rows:auto auto 1fr;min-height:420px}
+.ops .ndrawer .hd{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--blox-border)}
+.ops .ndrawer .hd b{font-size:15px}
+.ops .ndrawer .hd .sp{margin-inline-start:auto;display:flex;gap:6px}
+.ops .nitem{display:grid;grid-template-columns:8px 1fr auto;gap:12px;padding:12px 16px;border-bottom:1px solid var(--blox-border);align-items:start;font-size:13px}
+.ops .nitem .dotu{width:8px;height:8px;border-radius:50%;background:var(--blox-emerald);margin-top:6px}
+.ops .nitem.read .dotu{background:transparent;border:1px solid var(--blox-border)}
+.ops .nitem b{display:block;font-weight:600;color:var(--blox-deep-green)}
+.ops .nitem .when{font-family:var(--blox-font-mono);font-size:11px;color:var(--blox-ink-2);white-space:nowrap}
+.ops .nitem .body{color:var(--blox-ink-2)}
+/* detail page / workspace */
+.ops .dhead{background:var(--blox-surface);border:1px solid var(--blox-border);border-radius:var(--blox-radius-card);padding:16px 20px 0;display:grid;gap:12px}
+.ops .dhead .back{font-size:13px;color:var(--blox-ink-2);text-decoration:none}
+.ops .dhead .row{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.ops .dhead .ttl{display:grid;gap:4px;min-width:0}
+.ops .dhead .ttl .id{font-family:var(--blox-font-mono);font-size:12px;color:var(--blox-ink-2)}
+.ops .dhead .acts{margin-inline-start:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ops .tabs{display:flex;gap:4px;border-top:1px solid var(--blox-border);margin:4px -20px 0;padding:0 12px;overflow-x:auto}
+.ops .tab{padding:12px 10px;font-size:14px;font-weight:600;color:var(--blox-ink-2);border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer}
+.ops .tab.on{color:var(--blox-deep-green);border-bottom-color:var(--blox-emerald)}
+.ops .tab .n{font-family:var(--blox-font-mono);font-size:11px;background:var(--blox-muted);padding:1px 6px;border-radius:999px;margin-inline-start:6px;color:var(--blox-ink-2)}
+.ops .facts{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--blox-border);border:1px solid var(--blox-border);border-radius:var(--blox-radius-card);overflow:hidden}
+.ops .fact{background:var(--blox-surface);padding:10px 14px;display:grid;gap:2px;min-width:0}
+.ops .fact .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--blox-ink-2);font-weight:600}
+.ops .fact .v{font-size:15px;font-weight:600;color:var(--blox-deep-green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ops .fact .v.num{font-family:var(--blox-font-mono);font-weight:500}
+@container (max-width:900px){.ops .facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@container (max-width:640px){.ops .facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ops .dgrid{display:grid;grid-template-columns:minmax(0,8fr) minmax(300px,4fr);gap:16px;align-items:start}
+.ops .dgrid > *{display:grid;gap:16px;min-width:0}
+@container (max-width:900px){.ops .dgrid{grid-template-columns:1fr}.ops .dgrid .aside{order:-1}}
+.ops .decision{border-color:var(--blox-emerald);box-shadow:0 0 0 3px var(--blox-emerald-soft)}
+.ops .decision .next{font-size:12px;color:var(--blox-ink-2)}
+.ops .decision .next b{display:block;font-size:15px;color:var(--blox-deep-green);font-weight:600;margin-top:2px}
+.ops .decision .acts{display:grid;gap:8px;margin-top:12px}
+.ops .decision .acts .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ops .bar{height:8px;border-radius:999px;background:var(--blox-muted);overflow:hidden;display:flex}
+.ops .bar i{display:block;height:100%}
+.ops .legend{display:flex;gap:14px;font-size:12px;color:var(--blox-ink-2);margin-top:8px;flex-wrap:wrap}
+.ops .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-inline-end:6px;vertical-align:middle}
+.ops .tl{display:grid;gap:0;margin:0;padding:0;list-style:none}
+.ops .tl li{display:grid;grid-template-columns:14px 1fr;gap:10px;padding:0 0 12px;position:relative;font-size:13px}
+.ops .tl li::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--blox-emerald);margin:5px 0 0 3px;z-index:1}
+.ops .tl li::after{content:"";position:absolute;left:6px;top:14px;bottom:-2px;width:2px;background:var(--blox-border)}
+.ops .tl li:last-child::after{display:none}
+.ops .tl li.muted::before{background:var(--blox-border)}
+.ops .tl .when{font-family:var(--blox-font-mono);font-size:11px;color:var(--blox-ink-2);display:block}
+.ops .docs{display:grid;gap:6px}
+.ops .doc{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--blox-border);border-radius:8px;font-size:13px}
+.ops .doc .ic{width:28px;height:28px;border-radius:6px;background:var(--blox-canvas);display:grid;place-items:center;color:var(--blox-ink-2);font-family:var(--blox-font-mono);font-size:10px;font-weight:600}
+.ops .doc .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* spec inner layout helpers */
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.stack{display:grid;gap:12px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.state-grid{display:grid;grid-template-columns:120px repeat(6,1fr);gap:8px 12px;align-items:center;font-size:12px;color:var(--pg-ink-2)}
+.state-grid .h{font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+@media (max-width:900px){.state-grid{grid-template-columns:100px repeat(3,1fr)}.state-grid .h.wide{display:none}}
+.ops .demo-bg{background:var(--blox-canvas);padding:20px;display:grid;gap:16px}
+.ops .demo-surface{background:var(--blox-surface);padding:20px;display:grid;gap:16px}
+</style>
+
+<div class="wrap">
+<nav class="rail" aria-label="Contents">
+  <h4 style="padding:6px 8px">Contents</h4>
+  <ol>
+    <li><a href="#read"><span class="num">00</span>Read me</a></li>
+    <li><a href="#tokens"><span class="num">01</span>Tokens</a></li>
+    <li><a href="#type"><span class="num">02</span>Typography</a></li>
+    <li><a href="#buttons"><span class="num">03</span>Buttons</a></li>
+    <li><a href="#fields"><span class="num">04</span>Fields &amp; forms</a></li>
+    <li><a href="#table"><span class="num">05</span>Table</a></li>
+    <li><a href="#pills"><span class="num">06</span>Status pills</a></li>
+    <li><a href="#surfaces"><span class="num">07</span>Card · Empty · Alert</a></li>
+    <li><a href="#overlays"><span class="num">08</span>Dialog · Filters · Search</a></li>
+    <li><a href="#auth"><span class="num">09</span>Auth layout</a></li>
+    <li><a href="#shell"><span class="num">10</span>BloxShell</a></li>
+    <li><a href="#workspace"><span class="num">11</span>Workspace · Overview</a></li>
+    <li><a href="#migration"><span class="num">12</span>Migration</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="read">
+  <div class="stack">
+    <h4>Blox operations platform · Phase 1 + shell + workspace overview</h4>
+    <h1>Blox Ops Design System</h1>
+    <p class="lead">Foundation for the five staff portals (Admin, Super Admin, Dealer, Credit, Finance). Everything below is rendered with the real tokens, not mocked in an image, so a specimen here is what the component should look like in the product. Numbering follows the order the work should land in.</p>
+    <div class="meta">
+      <span><b>Palette</b> locked teal ops</span>
+      <span><b>Type</b> IBM Plex Sans · Plex Sans Arabic · Plex Mono</span>
+      <span><b>Source of truth today</b> <code>blox-ops-tokens.scss</code>, <code>blox-ops.scss</code> (2 532 lines), <code>status-styles.ts</code></span>
+      <span><b>Breakpoints</b> 480 · 640 · 900 · 1200 · 1600</span>
+      <span><b>Date</b> 2026-09-06</span>
+    </div>
+  </div>
+  <div class="ba">
+    <div><h4>What is there now</h4><ul>
+      <li>Two token vocabularies coexist: <code>--blox-*</code> plus a full set of <code>--dm-*</code> and vercel <code>--primary-*</code> aliases remapped to teal. Pages mix all three.</li>
+      <li>Three table implementations: <code>OpsDataTable</code> (13 files, string columns, ReactNode rows), ops-core <code>Table</code> (9 files, MUI), and the <code>OpsCoreTable</code> alias (5 files).</li>
+      <li>ops-core Button, Input, Select, StatusBadge, ConfirmDialog and EmptyState all wrap MUI, so MUI leaks into page content despite the shell-only rule.</li>
+      <li>Auth: login sits in <code>OpsAuthLayout</code>; forgot, reset and verify still use <code>dm-auth-*</code> with an inline <code>&lt;style&gt;</code> block.</li>
+      <li>Status pills exist twice (<code>StatusBadge</code> in ops-core with MUI Chip, and in ops-ui-v2) and four application states collapse to one grey "pending" look.</li>
+    </ul></div>
+    <div class="after"><h4>What Phase 1 changes</h4><ul>
+      <li>One vocabulary: <code>--blox-*</code> only, with a deprecation shim for the aliases for one release.</li>
+      <li>One <code>OpsTable</code> primitive with typed columns, selection, skeleton, empty, error, pagination and an automatic mobile card fallback.</li>
+      <li>ops-core re-based on SCSS classes; MUI stays in <code>BloxShell</code> (drawer, popover, badge) only.</li>
+      <li>One auth layout for login, forgot, reset, verify and MFA, with named states.</li>
+      <li>One <code>StatusPill</code> with a semantic variant per state; the 13 application statuses each map to a distinct, contrast-checked pair.</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 01 TOKENS ───────────────────────── -->
+<section id="tokens">
+  <h2>01 · Tokens</h2>
+  <p>Locked palette. Two additions are needed for accessibility and are the only deviation from the brief: an <b>ink</b> variant of emerald and warning for text on their soft grounds. Pure emerald and pure warning stay on fills, dots, rails and focus rings, where contrast does not apply to text.</p>
+  <div class="ops"><div class="sw">
+    <div><div class="chip" style="background:#16535B"></div><div class="lbl"><b>Deep green</b><code>--blox-deep-green #16535B</code><span>sidebar, primary text, CTA text, table header</span></div></div>
+    <div><div class="chip" style="background:#0F3F45"></div><div class="lbl"><b>Deep green dark</b><code>--blox-deep-green-dark #0F3F45</code><span>sidebar gradient start, modal scrim base</span></div></div>
+    <div><div class="chip" style="background:#00CFA2"></div><div class="lbl"><b>Emerald</b><code>--blox-emerald #00CFA2</code><span>primary fill, focus, active rail, dots, success mark</span></div></div>
+    <div><div class="chip" style="background:#E6FBF5"></div><div class="lbl"><b>Emerald soft</b><code>--blox-emerald-soft #E6FBF5</code><span>selected rows, info/success pill ground, chip wash</span></div></div>
+    <div><div class="chip" style="background:#0B7A63"></div><div class="lbl"><b>Emerald ink <em>(new)</em></b><code>--blox-emerald-ink #0B7A63</code><span>text and icons on emerald soft · 4.9:1</span></div></div>
+    <div><div class="chip" style="background:#F0F5F5"></div><div class="lbl"><b>Canvas</b><code>--blox-canvas #F0F5F5</code><span>page ground, disabled field ground</span></div></div>
+    <div><div class="chip" style="background:#FFFFFF;border-bottom:1px solid #D8E2E2"></div><div class="lbl"><b>Surface</b><code>--blox-surface #FFFFFF</code><span>cards, panels, table body, dialogs</span></div></div>
+    <div><div class="chip" style="background:#E8EFEF"></div><div class="lbl"><b>Muted <em>(new)</em></b><code>--blox-muted #E8EFEF</code><span>neutral pill ground, segmented control track; distinct from canvas on white</span></div></div>
+    <div><div class="chip" style="background:#D8E2E2"></div><div class="lbl"><b>Border</b><code>--blox-border #D8E2E2</code><span>card and row dividers</span></div></div>
+    <div><div class="chip" style="background:#A9B8BA"></div><div class="lbl"><b>Field border <em>(new)</em></b><code>--blox-field-border #A9B8BA</code><span>inputs, secondary button, outline chips · 3.1:1 on white</span></div></div>
+    <div><div class="chip" style="background:#708090"></div><div class="lbl"><b>Slate</b><code>--blox-slate #708090</code><span>secondary text, placeholders, neutral pill text</span></div></div>
+    <div><div class="chip" style="background:#C47A00"></div><div class="lbl"><b>Warning</b><code>--blox-warning #C47A00</code><span>warning dot, bar, icon</span></div></div>
+    <div><div class="chip" style="background:#8A5400"></div><div class="lbl"><b>Warning ink <em>(new)</em></b><code>--blox-warning-ink #8A5400</code><span>warning text on warning soft · 5.6:1</span></div></div>
+    <div><div class="chip" style="background:#FBF1DF"></div><div class="lbl"><b>Warning soft</b><code>--blox-warning-soft #FBF1DF</code><span>ground for warning pills and alerts</span></div></div>
+    <div><div class="chip" style="background:#B42318"></div><div class="lbl"><b>Danger</b><code>--blox-danger #B42318</code><span>destructive text, error border, overdue · 5.7:1 on danger soft</span></div></div>
+    <div><div class="chip" style="background:#FBEBE9"></div><div class="lbl"><b>Danger soft</b><code>--blox-danger-soft #FBEBE9</code><span>ground for danger pills and error alerts</span></div></div>
+  </div></div>
+  <p class="note">Contrast check: pure emerald text on emerald soft is <b>1.9:1</b>, pure warning on warning soft is <b>3.1:1</b>. Both fail WCAG AA for 12 px pill text. The brief lists "emerald soft / emerald text" for six statuses; the specimens below keep that colour pair but move it to the dot and rail, and set the text in emerald ink. Deep green on emerald soft (8.0:1) is used where the brief asks for deep green text.</p>
+  <div class="scroll"><table class="spec">
+    <tr><th>Group</th><th>Token</th><th>Value</th><th>Use</th></tr>
+    <tr><td>Space</td><td class="mono">--blox-space-1 … -7</td><td class="mono">4 · 8 · 12 · 16 · 24 · 32 · 48</td><td>Existing scale, kept. Card padding 16/20, page gutter 24, section gap 16, dense row gap 8.</td></tr>
+    <tr><td>Radius</td><td class="mono">--blox-radius-control / -card / -dialog / -pill</td><td class="mono">8 · 12 · 16 · 999</td><td>Replaces the seven radius tokens in the vercel sheet. Controls and chips 8; cards and tables 12; dialogs and drawers 16.</td></tr>
+    <tr><td>Elevation</td><td class="mono">--blox-shadow-pop / -modal</td><td class="mono">0 8 24 / 0 16 48 (deep green α)</td><td>Only floating surfaces cast shadow: popover, drawer, dialog, toast. Cards at rest use border only.</td></tr>
+    <tr><td>Focus</td><td class="mono">--blox-focus</td><td class="mono">0 0 0 2px surface, 0 0 0 4px emerald</td><td>Buttons, links, table rows, nav items. Fields use border deep green + 3 px emerald-soft halo + 1 px emerald.</td></tr>
+    <tr><td>Motion</td><td class="mono">--blox-motion-fast / -normal / -slow</td><td class="mono">150 · 200 · 300 ms, cubic-bezier(.4,0,.2,1)</td><td>Hover and focus 150; drawer and dialog 200; skeleton shimmer 1.4 s. All gated by <code>prefers-reduced-motion</code>.</td></tr>
+    <tr><td>Type</td><td class="mono">--blox-font-ui / -mono</td><td>IBM Plex Sans (+ Arabic) · IBM Plex Mono</td><td><code>--blox-font-display</code> is dropped; headings use the UI face at 600.</td></tr>
+    <tr><td>Deprecated</td><td class="mono">--dm-*, --primary-*, --secondary-*, --table-header*, --status-*</td><td>alias shim for one release</td><td>Shim file <code>_tokens-legacy.scss</code> maps each to a <code>--blox-*</code> token; lint rule blocks new uses.</td></tr>
+  </table></div>
+</section>
+
+<!-- ───────────────────────── 02 TYPE ───────────────────────── -->
+<section id="type">
+  <h2>02 · Typography</h2>
+  <p>Seven text roles and two numeric roles. Numbers that line up in a column, and every ID, are set in Plex Mono with tabular figures. Amounts carry the currency as a prefix in the UI face so the mono digits stay aligned.</p>
+  <div class="frame pad ops"><div class="demo-surface" style="border-radius:8px">
+    <div class="scroll"><table class="tbl" style="border:0">
+      <thead><tr><th>Role</th><th>Class</th><th>Size / line / weight</th><th>Specimen</th></tr></thead>
+      <tbody>
+        <tr><td>Page title</td><td class="id">.t-page</td><td class="num">28 / 32 / 600</td><td><span class="t-page">Application</span></td></tr>
+        <tr><td>Section title</td><td class="id">.t-section</td><td class="num">20 / 24 / 600</td><td><span class="t-section">Review queue</span></td></tr>
+        <tr><td>Panel title</td><td class="id">.t-panel</td><td class="num">16 / 21 / 600</td><td><span class="t-panel">Applicant profile</span></td></tr>
+        <tr><td>Body</td><td class="id">.t-body</td><td class="num">14 / 21 / 400</td><td><span class="t-body">Download the financing contract, sign it, and upload the signed PDF.</span></td></tr>
+        <tr><td>Dense (tables, lists)</td><td class="id">.t-dense</td><td class="num">13 / 19 / 400</td><td><span class="t-dense">Chery Elite Motors · Al Sadd</span></td></tr>
+        <tr><td>Label</td><td class="id">.t-label</td><td class="num">12 / 16 / 600 · +4% tracking · caps</td><td><span class="t-label">Monthly installment</span></td></tr>
+        <tr><td>Caption</td><td class="id">.t-caption</td><td class="num">12 / 17 / 400</td><td><span class="t-caption">Updated 2 minutes ago by finance@blox.market</span></td></tr>
+        <tr><td>Number</td><td class="id">.t-num</td><td class="num">13 mono · tabular</td><td>QAR <span class="t-num">1,261.67</span> · <span class="t-num">cmto8nhql000nwv3wtze2q1gv</span></td></tr>
+        <tr><td>Number, large</td><td class="id">.t-num-lg</td><td class="num">22 mono / 500</td><td>QAR <span class="t-num-lg">60,000</span></td></tr>
+        <tr><td>Arabic</td><td class="id">[dir=rtl]</td><td class="num">same scale, Plex Sans Arabic</td><td dir="rtl" style="font-family:'IBM Plex Sans Arabic'"><span class="t-panel">ملف مقدم الطلب</span> · <span class="t-body">حمّل عقد التمويل ووقّعه ثم ارفع النسخة الموقعة.</span></td></tr>
+      </tbody>
+    </table></div>
+  </div></div>
+  <div class="ba">
+    <div><h4>Before</h4><ul><li>Vercel sheet ships 32 px h2 page titles plus an unused display face token; amounts are proportional figures in the UI face, so columns of QAR values wobble.</li><li>IDs render at full width in body type, pushing tables wide.</li></ul></div>
+    <div class="after"><h4>After</h4><ul><li>Page title steps down to 28 to match the 56 px top bar and keep two lines of header above the tabs at 1440.</li><li>Every column of digits and every ID is mono and tabular; IDs get the caption colour so they read as reference, not content.</li></ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 03 BUTTONS ───────────────────────── -->
+<section id="buttons">
+  <h2>03 · Buttons</h2>
+  <p>Five variants, two sizes, one rule: a screen has one primary. Destructive is outlined in context and solid only inside a confirmation dialog, so a red fill always means "this is the final step".</p>
+  <div class="frame pad ops"><div class="demo-surface" style="border-radius:8px">
+    <div class="state-grid">
+      <div class="h">Variant</div><div class="h">Default</div><div class="h">Hover</div><div class="h">Focus</div><div class="h wide">Active</div><div class="h wide">Loading</div><div class="h wide">Disabled</div>
+      <div>Primary</div><div><span class="btn btn-primary">Approve for finance</span></div><div><span class="btn btn-primary is-hover">Approve for finance</span></div><div><span class="btn btn-primary is-focus">Approve for finance</span></div><div><span class="btn btn-primary is-active">Approve for finance</span></div><div><span class="btn btn-primary"><i class="spin"></i>Approving…</span></div><div><span class="btn btn-primary is-disabled">Approve for finance</span></div>
+      <div>Secondary</div><div><span class="btn btn-secondary">Request resubmission</span></div><div><span class="btn btn-secondary is-hover">Request resubmission</span></div><div><span class="btn btn-secondary is-focus">Request resubmission</span></div><div><span class="btn btn-secondary is-active">Request resubmission</span></div><div><span class="btn btn-secondary"><i class="spin"></i>Sending…</span></div><div><span class="btn btn-secondary is-disabled">Request resubmission</span></div>
+      <div>Ghost</div><div><span class="btn btn-ghost">Add comment</span></div><div><span class="btn btn-ghost is-hover">Add comment</span></div><div><span class="btn btn-ghost is-focus">Add comment</span></div><div><span class="btn btn-ghost is-active">Add comment</span></div><div><span class="btn btn-ghost"><i class="spin"></i>Posting…</span></div><div><span class="btn btn-ghost is-disabled">Add comment</span></div>
+      <div>Destructive</div><div><span class="btn btn-danger">Reject</span></div><div><span class="btn btn-danger is-hover">Reject</span></div><div><span class="btn btn-danger is-focus">Reject</span></div><div><span class="btn btn-danger solid">Reject application</span></div><div><span class="btn btn-danger solid"><i class="spin"></i>Rejecting…</span></div><div><span class="btn btn-danger is-disabled">Reject</span></div>
+      <div>Icon · Small</div><div><span class="btn btn-ghost icon" aria-label="More"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg></span> <span class="btn btn-primary sm">Mark paid</span></div><div><span class="btn btn-secondary sm is-hover">Mark paid</span></div><div><span class="btn btn-secondary sm is-focus">Mark paid</span></div><div><span class="btn btn-ghost sm is-active">Mark paid</span></div><div><span class="btn btn-ghost sm"><i class="spin"></i></span></div><div><span class="btn btn-secondary sm is-disabled" title="Separation of duties">Mark paid</span></div>
+    </div>
+  </div></div>
+  <div class="scroll"><table class="spec">
+    <tr><th>Spec</th><th>Value</th></tr>
+    <tr><td>Height · padding · radius</td><td class="mono">md 36 / 0 14 · sm 30 / 0 10 · icon 32×32 · radius 8</td></tr>
+    <tr><td>Type</td><td class="mono">14 / 600 (sm 13) · label never wraps · verb first: "Approve", "Reject", "Mark paid"</td></tr>
+    <tr><td>Primary</td><td>emerald fill #00CFA2, deep green text · hover #00B890 · active #00A882 · text stays deep green in all states</td></tr>
+    <tr><td>Secondary</td><td>surface fill, 1 px field-border #A9B8BA, deep green text · hover canvas ground + deep green border</td></tr>
+    <tr><td>Ghost</td><td>transparent · hover canvas · used for tertiary and in-table actions</td></tr>
+    <tr><td>Destructive</td><td>outline danger · solid danger with white text only as dialog confirm · always separated from the primary by at least one neutral control</td></tr>
+    <tr><td>Loading</td><td>14 px ring spinner replaces the leading icon; label switches to progressive form ("Approving…"); button stays same width (min-width locked at render)</td></tr>
+    <tr><td>Disabled</td><td>45 % opacity, no hover, <code>title</code> or adjacent hint explains why (see separation-of-duties hint in the schedule table)</td></tr>
+    <tr><td>Focus</td><td><code>:focus-visible</code> only · 2 px surface + 4 px emerald ring</td></tr>
+  </table></div>
+  <div class="ba">
+    <div><h4>Before</h4><ul><li>Three button sources: <code>.blox-btn</code> classes, ops-core <code>Button</code> (MUI, seven variants), and <code>OpsPrimaryButton</code>/<code>OpsDangerButton</code> wrappers.</li><li>Vercel tokens make destructive a grey outline, so "Reject" and "Cancel" look identical.</li></ul></div>
+    <div class="after"><h4>After</h4><ul><li>One <code>&lt;Button variant size loading&gt;</code> on SCSS classes; the wrappers become thin aliases and are removed in Phase 3.</li><li>Destructive is red by definition and never adjacent to the primary.</li></ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 04 FIELDS ───────────────────────── -->
+<section id="fields">
+  <h2>04 · Fields &amp; forms</h2>
+  <p>One field shell for input, select, textarea and file. Label above, 13 px semibold deep green; required marked with a red asterisk, optional written out on the right so a long form scans without counting asterisks. Errors sit under the control and never replace the hint.</p>
+  <div class="frame pad ops"><div class="demo-surface" style="border-radius:8px">
+    <div class="fgrid">
+      <div class="field"><label>Full name <span class="req">*</span></label><input class="ctl" value="Fatima Al-Kuwari"><span class="hint">As printed on the QID.</span></div>
+      <div class="field"><label>QID <span class="req">*</span></label><input class="ctl mono is-hover" value="28912345601"><span class="hint">11 digits.</span></div>
+      <div class="field"><label>Phone <span class="req">*</span></label><input class="ctl is-focus" value="+974 5550 0001"><span class="hint">Focus: deep green border, emerald halo.</span></div>
+      <div class="field is-error"><label>Monthly income (QAR) <span class="req">*</span></label><input class="ctl mono" value="1,200"><span class="err">Below the QAR 5,000 minimum for this offer.</span></div>
+      <div class="field"><label>Employment type <span class="opt">Optional</span></label><select class="ctl sel"><option>Full time</option></select></div>
+      <div class="field"><label>Finance partner</label><input class="ctl is-disabled" value="Blox finance (set by offer)" disabled><span class="hint">Disabled: canvas ground, slate text, no hover.</span></div>
+      <div class="field full"><label>Reason for resubmission <span class="req">*</span></label><textarea class="ctl">Bank statement covers only two months. Upload the last three months.</textarea><span class="hint">Shown to the customer verbatim.</span></div>
+      <div class="field full"><label>Signed contract <span class="req">*</span></label>
+        <div class="empty" style="padding:20px;border-radius:8px"><b style="font-size:13px">Drop the signed PDF here or <span style="color:var(--blox-emerald-ink)">browse</span></b><span class="hint">PDF up to 10 MB · one file</span></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:4px;justify-content:flex-end"><span class="btn btn-ghost">Cancel</span><span class="btn btn-primary">Save applicant</span></div>
+  </div></div>
+  <div class="scroll"><table class="spec">
+    <tr><th>Spec</th><th>Value</th></tr>
+    <tr><td>Control</td><td class="mono">height 36 · padding 0 12 · radius 8 · border 1 px #A9B8BA · text 14 · placeholder slate</td></tr>
+    <tr><td>Hover · Focus</td><td>border deep green · focus adds 3 px emerald-soft halo and 1 px emerald outer ring</td></tr>
+    <tr><td>Error</td><td>border danger, halo danger-soft; message 12 px danger with 6 px dot; hint stays visible above it when both exist</td></tr>
+    <tr><td>Disabled · Read only</td><td>canvas ground, border #D8E2E2, slate text · read-only keeps surface ground and drops the border to a bottom hairline</td></tr>
+    <tr><td>Label</td><td class="mono">13 / 600 deep green · gap 6 · required "*" danger · optional "Optional" 12 px slate, right-aligned</td></tr>
+    <tr><td>Grid</td><td>two columns at ≥ 640 container width, gap 16; <code>.full</code> spans; single column below</td></tr>
+    <tr><td>Numeric fields</td><td>mono, tabular, right-aligned when in a table cell; QAR prefix as a fixed adornment, never typed</td></tr>
+    <tr><td>Form footer</td><td>right-aligned: ghost Cancel then primary Save · sticky on forms taller than the viewport</td></tr>
+  </table></div>
+  <div class="ba">
+    <div><h4>Before</h4><ul><li>Workspace edit panel and payment dialog use raw <code>&lt;label&gt;&lt;select&gt;</code> with inline grid styles; wizard and admin forms use <code>OpsField</code>; ops-core <code>Input</code> is an MUI TextField with a different height and radius.</li></ul></div>
+    <div class="after"><h4>After</h4><ul><li><code>OpsField</code>, <code>OpsSelect</code>, <code>OpsTextarea</code>, <code>OpsFileDrop</code> are the only field components; they own label, hint, error and required. ops-core <code>Input</code>/<code>Select</code> become re-exports of them.</li></ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 05 TABLE ───────────────────────── -->
+<section id="table">
+  <h2>05 · Table</h2>
+  <p>One <code>OpsTable</code>. The deep green header is the one piece of chrome that already reads as Blox across all five portals, so it stays. Everything under it gets lighter: 44 px rows, hairline dividers, no zebra, hover as a faint teal wash, selection as emerald-soft with a 3 px rail.</p>
+  <div class="frame pad ops">
+    <div class="bulk"><span class="chk on"></span> 2 selected <span class="sp"><span class="btn btn-secondary sm">Export CSV</span><span class="btn btn-primary sm">Assign to me</span></span></div>
+    <div class="scroll tbl-wrap"><table class="tbl">
+      <thead><tr><th style="width:36px"><span class="chk"></span></th><th>Applicant</th><th>Vehicle</th><th>Company</th><th class="num">Price</th><th class="num">Monthly</th><th>Status</th><th class="sorted">Submitted</th><th></th></tr></thead>
+      <tbody>
+        <tr class="is-selected"><td><span class="chk on"></span></td><td><a class="rowlink" href="#workspace">Fatima Al-Kuwari</a><div class="id">cmto8nhql000n</div></td><td>Chery Tiggo 8 Pro 2026</td><td>Chery Elite Motors</td><td class="num">60,000</td><td class="num">1,261.67</td><td><span class="pill info">Under review</span></td><td class="num">2026-09-05 11:42</td><td class="act"><span class="btn btn-ghost sm">Open</span></td></tr>
+        <tr class="is-selected"><td><span class="chk on"></span></td><td><a class="rowlink" href="#workspace">Yousef Haddad</a><div class="id">cmto8nhuw001d</div></td><td>Geely Coolray 2025</td><td>Chery Elite Motors</td><td class="num">55,000</td><td class="num">1,148.25</td><td><span class="pill warning">Resubmission required</span></td><td class="num">2026-09-05 10:08</td><td class="act"><span class="btn btn-ghost sm">Open</span></td></tr>
+        <tr class="is-hover"><td><span class="chk"></span></td><td><a class="rowlink" href="#workspace">Noora Al-Thani</a><div class="id">cmto8nihi0053</div></td><td>MG ZS 2026</td><td>Al Jazeera Motors</td><td class="num">70,000</td><td class="num">1,470.00</td><td><span class="pill progress">Contract signing required</span></td><td class="num">2026-09-04 16:31</td><td class="act"><span class="btn btn-ghost sm">Open</span></td></tr>
+        <tr><td><span class="chk"></span></td><td><a class="rowlink" href="#workspace">Omar Saleh</a><div class="id">cmtoa4dnj0005</div></td><td>QA Fix 2026</td><td>Chery Elite Motors</td><td class="num">62,000</td><td class="num">1,500.00</td><td><span class="pill success">Active</span></td><td class="num">2026-09-04 09:12</td><td class="act"><span class="btn btn-ghost sm">Open</span></td></tr>
+        <tr><td><span class="chk"></span></td><td><div class="skel" style="width:120px"></div><div class="skel" style="width:80px;margin-top:6px;height:8px"></div></td><td><div class="skel" style="width:140px"></div></td><td><div class="skel" style="width:110px"></div></td><td class="num"><div class="skel" style="width:60px;margin-inline-start:auto"></div></td><td class="num"><div class="skel" style="width:60px;margin-inline-start:auto"></div></td><td><div class="skel" style="width:90px;height:22px;border-radius:999px"></div></td><td><div class="skel" style="width:110px"></div></td><td></td></tr>
+      </tbody>
+    </table></div>
+    <div class="tfoot"><span><span class="num">1–25</span> of <span class="num">312</span></span><span>·</span><span>Rows <span class="seg" style="padding:2px;gap:0"><span class="on" style="padding:2px 8px">25</span><span style="padding:2px 8px">50</span><span style="padding:2px 8px">100</span></span></span><span class="pg"><span class="btn btn-ghost sm is-disabled">‹ Prev</span><span class="num">1 / 13</span><span class="btn btn-ghost sm">Next ›</span></span></div>
+    <div class="frame-cap">Desktop, 1440 container. Last row shows the skeleton state: same geometry, no layout shift when data lands.</div>
+  </div>
+  <div class="frames two">
+    <div>
+      <div class="frame pad ops"><div class="scroll"><table class="tbl compact">
+        <thead><tr><th>#</th><th>Due</th><th class="num">Amount</th><th>Status</th><th>Paid</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td class="num">2026-10-05</td><td class="num">1,261.67</td><td><span class="pill success">Paid</span></td><td class="num">2026-09-05</td><td class="act">—</td></tr>
+          <tr><td class="num">4</td><td class="num">2027-01-05</td><td class="num">1,261.67</td><td><span class="pill info">Due</span></td><td>—</td><td class="act"><span class="btn btn-secondary sm">Mark paid</span></td></tr>
+          <tr><td class="num">5</td><td class="num">2027-02-05</td><td class="num">1,261.67</td><td><span class="pill danger">Overdue</span></td><td>—</td><td class="act"><span class="btn btn-secondary sm">Mark paid</span></td></tr>
+          <tr><td class="num">6</td><td class="num">2027-03-05</td><td class="num">1,261.67</td><td><span class="pill neutral">Waived</span></td><td>—</td><td class="act">—</td></tr>
+        </tbody></table></div>
+        <div class="frame-cap">Compact density (36 px rows) for schedule ledgers with 48+ rows.</div></div>
+      <div class="frame pad ops" style="margin-top:16px"><div class="empty"><div class="glyph"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M7 12h6"/></svg></div><b>No applications match these filters</b><span>Try clearing the status filter or widening the date range.</span><span class="btn btn-secondary sm">Clear filters</span></div><div class="frame-cap">Empty state inside the table region: same width, dashed border, one recovery action.</div></div>
+    </div>
+    <div>
+      <div class="frame pad ops w390"><div class="rowcards">
+        <div class="rowcard"><div class="top"><b>Fatima Al-Kuwari</b><span class="pill info">Under review</span></div><dl class="kv"><dt>Vehicle</dt><dd>Chery Tiggo 8 Pro 2026</dd><dt>Price</dt><dd class="num">QAR 60,000</dd><dt>Monthly</dt><dd class="num">QAR 1,261.67</dd><dt>Submitted</dt><dd class="num">2026-09-05 11:42</dd></dl><div class="row" style="justify-content:flex-end"><span class="btn btn-secondary sm">Open</span></div></div>
+        <div class="rowcard"><div class="top"><b>Yousef Haddad</b><span class="pill warning">Resubmission</span></div><dl class="kv"><dt>Vehicle</dt><dd>Geely Coolray 2025</dd><dt>Price</dt><dd class="num">QAR 55,000</dd><dt>Monthly</dt><dd class="num">QAR 1,148.25</dd><dt>Submitted</dt><dd class="num">2026-09-05 10:08</dd></dl><div class="row" style="justify-content:flex-end"><span class="btn btn-secondary sm">Open</span></div></div>
+      </div><div class="frame-cap">390 · automatic card fallback: column labels become the key column, the first column becomes the card title, the status column moves to the top-right.</div></div>
+    </div>
+  </div>
+  <div class="scroll"><table class="spec">
+    <tr><th>Spec</th><th>Value</th></tr>
+    <tr><td>Header</td><td class="mono">height 40 · deep green ground · text #CFEDE6 11/600 caps +6% · sorted column emerald with ↓ · sticky at page scroll</td></tr>
+    <tr><td>Rows</td><td class="mono">regular 44 · compact 36 · divider 1 px border · hover #F5FAF9 · selected emerald-soft + inset 3 px emerald rail · focus ring on the row link</td></tr>
+    <tr><td>Cells</td><td>text 13 · numeric right-aligned mono tabular · IDs 12 px mono slate under the primary text · actions column right-aligned, ghost small buttons, hidden until row hover on desktop only if there is a row-level primary action</td></tr>
+    <tr><td>Selection</td><td>16 px checkbox, emerald when on · bulk bar above the table replaces the toolbar while a selection exists</td></tr>
+    <tr><td>Pagination</td><td>footer attached to the table: range and total in mono, rows-per-page segmented (25/50/100), Prev/Next ghost, page fraction mono</td></tr>
+    <tr><td>Loading · Empty · Error</td><td>skeleton rows keep column widths · empty state inside the region with one action · error uses the Alert component above the header and keeps the last good rows greyed</td></tr>
+    <tr><td>Mobile (&lt; 640 container)</td><td>card fallback generated from the same column definitions; <code>cardTitle</code>, <code>cardStatus</code> column flags choose what lifts to the card header</td></tr>
+    <tr><td>Keyboard</td><td>↑↓ move row focus, Enter opens, Space toggles selection, "/" focuses search</td></tr>
+  </table></div>
+  <div class="ba">
+    <div><h4>Before</h4><ul><li><code>OpsDataTable</code> takes <code>columns: string[]</code> and <code>rows: ReactNode[][]</code>, so it cannot sort, select or build cards; ops-core <code>Table</code> is an MUI table with its own pagination; <code>OpsCoreTable</code> is the same thing under another name in Finance.</li></ul></div>
+    <div class="after"><h4>After</h4><ul><li><code>OpsTable&lt;T&gt;</code>: <code>columns: Column&lt;T&gt;[]</code> ({id, label, align, width, mono, sortable, cardTitle, cardStatus, render}), <code>rows</code>, <code>rowKey</code>, <code>loading</code>, <code>error</code>, <code>empty</code>, <code>selection</code>, <code>pagination</code>, <code>density</code>, <code>onRowClick</code>. Migration: 27 call sites, most are column-definition rewrites only.</li></ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 06 PILLS ───────────────────────── -->
+<section id="pills">
+  <h2>06 · Status pills</h2>
+  <p>Six semantic variants carry every state in the platform. A 6 px dot in the pure hue sits at the start of each pill so the state still reads in monochrome and at 12 px. The mapping below is the brief's, with text set in the ink variants noted in 01.</p>
+  <div class="frame pad ops"><div class="demo-surface" style="border-radius:8px;gap:20px">
+    <div class="stack"><span class="t-label">Application status · 13 states, distinct pairs</span>
+      <div class="row">
+        <span class="pill neutral">Draft</span><span class="pill info">Under review</span><span class="pill warning">Resubmission required</span><span class="pill progress">Contract signing required</span><span class="pill progress">Contracts submitted</span><span class="pill info">Contract under review</span><span class="pill warning">Down payment required</span><span class="pill success">Down payment submitted</span><span class="pill info">Pending activation</span><span class="pill success">Active</span><span class="pill neutral">Completed</span><span class="pill danger">Rejected</span><span class="pill neutral">Cancelled</span><span class="pill outline">Sent to partner finance</span>
+      </div></div>
+    <div class="stack"><span class="t-label">Payment schedule</span>
+      <div class="row"><span class="pill outline">Upcoming</span><span class="pill info">Due</span><span class="pill danger">Overdue</span><span class="pill warning">Partially paid</span><span class="pill success">Paid</span><span class="pill neutral">Waived</span></div></div>
+    <div class="stack"><span class="t-label">Payment transaction · Listing · Company</span>
+      <div class="row"><span class="pill info">Pending bank</span><span class="pill success">Confirmed</span><span class="pill danger">Failed</span><span class="pill neutral">Refunded</span><span style="width:16px"></span><span class="pill neutral">Draft</span><span class="pill success">Published</span><span class="pill warning">Reserved</span><span class="pill ink">Sold</span><span class="pill neutral">Archived</span><span style="width:16px"></span><span class="pill success">Active</span><span class="pill neutral">Inactive</span></div></div>
+  </div></div>
+  <div class="scroll"><table class="spec">
+    <tr><th>Variant</th><th>Ground / text / dot</th><th>Application statuses</th><th>Other</th></tr>
+    <tr><td><b>neutral</b></td><td class="mono">muted #E8EFEF / slate #708090 / slate</td><td>draft · completed · submission_cancelled</td><td>waived, refunded, archived, inactive</td></tr>
+    <tr><td><b>info</b></td><td class="mono">emerald-soft / emerald-ink #0B7A63 / emerald</td><td>under_review · contract_under_review · pending_finance_activation</td><td>due, pending bank</td></tr>
+    <tr><td><b>progress</b></td><td class="mono">emerald-soft / deep green / deep green</td><td>contract_signing_required · contracts_submitted</td><td>—</td></tr>
+    <tr><td><b>success</b></td><td class="mono">emerald-soft / emerald-ink / emerald with halo</td><td>down_payment_submitted · active</td><td>paid, confirmed, published, company active</td></tr>
+    <tr><td><b>warning</b></td><td class="mono">warning-soft #FBF1DF / warning-ink #8A5400 / warning</td><td>resubmission_required · down_payment_required</td><td>partially paid, reserved</td></tr>
+    <tr><td><b>danger</b></td><td class="mono">danger-soft #FBEBE9 / danger #B42318 / danger</td><td>rejected</td><td>overdue, failed</td></tr>
+    <tr><td><b>ink</b> · <b>outline</b></td><td class="mono">deep green / white · dashed border, no ground</td><td>partner_processing (outline: the state lives outside Blox)</td><td>sold (ink), upcoming (outline)</td></tr>
+    <tr><td>Geometry</td><td class="mono" colspan="3">height 24 · padding 0 10 0 8 · radius 999 · 12/600 · dot 6 px, gap 6 · warning/danger carry 1px border at 15% opacity · never wraps; long labels truncate in tables with a title tooltip</td></tr>
+  </table></div>
+  <div class="ba">
+    <div><h4>Before</h4><ul><li><code>applicationOpsPillVariant</code> returns three variants for 14 statuses: everything between draft and active is the same grey "pending". A resubmission request looks like an application waiting on Blox.</li><li>Two <code>StatusBadge</code> components; ops-core's uses MUI Chip with the <code>--status-*</code> vercel colours.</li></ul></div>
+    <div class="after"><h4>After</h4><ul><li><code>StatusPill status type</code> resolves label and variant from one map in <code>status-styles.ts</code>; "waiting on the customer" (warning) is now visibly different from "waiting on Blox" (info) and "in the contract stage" (progress).</li></ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 07 SURFACES ───────────────────────── -->
+<section id="surfaces">
+  <h2>07 · Card · Empty state · Alert</h2>
+  <p>A card is a bordered surface with a titled rule, nothing more. Shadows are reserved for things that float. Alerts are inline, left-barred, and always say what to do next.</p>
+  <div class="frame pad ops"><div class="cols">
+    <div class="card"><h3 class="card-title">Payment summary <span class="sp"><span class="btn btn-ghost sm">Edit installments</span></span></h3>
+      <dl class="kv"><dt>Vehicle price</dt><dd class="num">QAR 60,000</dd><dt>Down payment</dt><dd class="num">QAR 12,000 (20 %)</dd><dt>Monthly installment</dt><dd class="num">QAR 1,261.67</dd><dt>Tenure</dt><dd>48 months</dd><dt>Rate</dt><dd class="num">11.9 %</dd></dl></div>
+    <div class="stack">
+      <div class="alert error"><span class="bar"></span><div><b>Could not record the payment</b>Separation of duties: you approved this application. Ask another finance or credit officer.</div></div>
+      <div class="alert warn"><span class="bar"></span><div><b>Compliance check required</b>Run the check before approving for finance.</div><span class="act btn btn-secondary sm">Run check</span></div>
+      <div class="alert info"><span class="bar"></span><div><b>Sent to Al Jazeera Finance</b>This application is processed by the partner. Status updates arrive from their CRM.</div></div>
+    </div>
+    <div class="empty"><div class="glyph"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h12v10H4zM4 9h12"/></svg></div><b>No bank transfers pending</b><span>Transfers appear here when a customer submits a receipt.</span></div>
+  </div></div>
+  <div class="scroll"><table class="spec">
+    <tr><th>Component</th><th>Spec</th></tr>
+    <tr><td>Card</td><td class="mono">surface · 1 px border · radius 12 · padding 16 20 · title 16/600 with 3 px emerald tick · optional action cluster right · no shadow, no hover lift (lift only for clickable summary tiles)</td></tr>
+    <tr><td>Key/value list</td><td class="mono">grid 38 % / 62 % · 13 px · key slate, value ink · numbers mono right · two-column variant on ≥ 900 containers</td></tr>
+    <tr><td>Empty state</td><td class="mono">dashed field-border · radius 12 · 44 px emerald-soft glyph · title 15/600 deep green · one line of guidance · at most one secondary action</td></tr>
+    <tr><td>Alert</td><td class="mono">error / warn / info · soft ground, tinted 1 px border, 3 px bar · title 13/600 + body 13 · optional small action on the right · inline, never a toast for anything the user must act on</td></tr>
+    <tr><td>Toast</td><td>bottom-centre, 4 s, success emerald bar, one line, only for confirmations ("Payment recorded")</td></tr>
+  </table></div>
+</section>
+
+<!-- ───────────────────────── 08 OVERLAYS ───────────────────────── -->
+<section id="overlays">
+  <h2>08 · Confirm dialog · Filter panel · Search</h2>
+  <div class="frame ops"><div class="scrim"><div class="dialog" role="dialog" aria-modal="true">
+    <h3>Reject this application?</h3>
+    <p>Fatima Al-Kuwari · Chery Tiggo 8 Pro · QAR 60,000. The vehicle is released back to inventory and the customer is notified with your reason.</p>
+    <div class="field"><label>Reason <span class="req">*</span></label><textarea class="ctl">Debt burden ratio exceeds 50 % after the requested tenure.</textarea><span class="hint">Shown to the customer and stored in the audit log.</span></div>
+    <div class="foot"><span class="btn btn-ghost">Keep reviewing</span><span class="btn btn-danger solid">Reject application</span></div>
+  </div></div></div>
+  <div class="frame pad ops"><div class="toolbar">
+    <div class="search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><input class="ctl" placeholder="Search name, QID, vehicle or ID"><kbd>/</kbd></div>
+    <span class="fchip on">Status: Under review <span class="x">×</span></span><span class="fchip on">Company: Chery Elite <span class="x">×</span></span><span class="fchip">Submitted ▾</span><span class="fchip">Assignee ▾</span>
+    <span class="btn btn-ghost sm">Clear all</span>
+    <span class="seg" style="margin-inline-start:auto"><span class="on">Pipeline</span><span>Rejected</span></span>
+  </div><div class="frame-cap">Filters are chips in the toolbar; active ones are emerald-soft with an × and stay visible while scrolling. Below 640 the chips collapse into one "Filters (2)" button that opens a bottom sheet.</div></div>
+  <div class="scroll"><table class="spec">
+    <tr><th>Component</th><th>Spec</th></tr>
+    <tr><td>ConfirmDialog</td><td class="mono">480 wide · radius 16 · padding 24 · scrim deep-green-dark 45 % · title 18/600 · body names the record and the consequence · optional reason field (required when the API needs a reason) · footer right: ghost dismiss + primary or solid-danger confirm · Esc and scrim dismiss unless a mutation is pending · focus lands on the first field or the dismiss button</td></tr>
+    <tr><td>FilterPanel</td><td>chip per filter; active chips show "Key: value ×"; select-type filters open a popover list, date filters a range picker; "Clear all" appears only with ≥ 1 active; filter state lives in the URL query so links are shareable</td></tr>
+    <tr><td>SearchBar</td><td class="mono">36 high · leading icon · "/" shortcut hint · debounced 250 ms · clears with Esc · placeholder lists the searchable fields</td></tr>
+    <tr><td>Segmented control</td><td>tabs within a list (Pipeline / Rejected, Activation / Review): muted track, surface thumb, 13/600</td></tr>
+  </table></div>
+</section>
+
+<!-- ───────────────────────── 09 AUTH ───────────────────────── -->
+<section id="auth">
+  <h2>09 · Auth layout</h2>
+  <p>One layout for every auth screen. The brand panel carries the portal name, the tagline and three portal-specific points; the card carries exactly one task. Forgot, reset, verify and MFA are states of the same card, so the chrome, spacing and error treatment never differ between them.</p>
+  <div class="frame ops"><div class="auth">
+    <aside class="auth-brand"><span class="portal">Blox Finance</span><span class="logo"><i></i>blox</span><p class="tag">Own it, don't owe it.</p><ul><li>Activation queue and active book</li><li>Payments, bank transfers and settlements</li><li>Exports for reconciliation</li></ul></aside>
+    <div class="auth-card"><div class="auth-inner">
+      <span class="eyebrow">Finance portal</span><h2>Sign in</h2>
+      <div class="alert info" style="padding:10px 12px"><span class="bar"></span><div>Your password has been updated. Sign in with your new password.</div></div>
+      <div class="field"><label>Email</label><input class="ctl" value="finance@blox.market"></div>
+      <div class="field"><label>Password</label><input class="ctl" type="password" value="••••••••••"></div>
+      <div class="row" style="justify-content:space-between;font-size:13px"><label style="display:flex;gap:8px;align-items:center;color:var(--blox-ink)"><span class="chk on"></span> Remember me</label><a href="#auth" style="color:var(--blox-emerald-ink);text-decoration:none;font-weight:500">Forgot password?</a></div>
+      <span class="btn btn-primary" style="width:100%">Sign in</span>
+      <div class="foot"><span>Wrong portal? This is Finance.</span><a href="#auth">Open the credit portal</a></div>
+    </div></div>
+  </div></div>
+  <div class="frames two">
+    <div class="frame ops w390" style="justify-self:start"><div class="auth" style="grid-template-columns:1fr;min-height:0"><div class="authbar" style="display:flex"><span class="logo" style="font-size:18px"><i></i>blox</span><span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--blox-emerald);font-weight:600;margin-inline-start:auto">Finance</span></div>
+      <div class="auth-card" style="padding:24px 16px"><div class="auth-inner">
+        <span class="eyebrow">Two-step verification</span><h2>Enter the code from your app</h2>
+        <div class="otp"><input class="ctl" value="4"><input class="ctl" value="8"><input class="ctl" value="2"><input class="ctl is-focus" value=""><input class="ctl"><input class="ctl"></div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px"><span class="chk"></span> Trust this device for 30 days</label>
+        <span class="btn btn-primary" style="width:100%">Verify</span>
+        <div class="foot"><a href="#auth">Use a backup code</a><a href="#auth">Sign out</a></div>
+      </div></div></div><div class="frame-cap">390 · brand panel becomes a 56 px bar; MFA state.</div></div>
+    <div class="scroll"><table class="spec">
+      <tr><th>State</th><th>Card content</th></tr>
+      <tr><td>Sign in</td><td>email, password, remember, forgot link, primary Sign in · wrong-portal banner uses the info alert with a link to the right portal</td></tr>
+      <tr><td>Forgot</td><td>email, primary Send reset link · after submit the card swaps to a success state that never reveals whether the address exists</td></tr>
+      <tr><td>Reset</td><td>new password + confirm with a 4-rule strength list · invalid or expired token shows an error state with "Request a new link"</td></tr>
+      <tr><td>Verify email</td><td>address shown in mono, Resend (rate-limited, shows countdown), "I verified" secondary, sign-out foot link</td></tr>
+      <tr><td>MFA</td><td>6 boxed digits, auto-advance, paste support, trust-device toggle, backup code link · setup variant adds the QR and the backup codes list with Copy</td></tr>
+      <tr><td>Locked</td><td>error alert with the unlock time in mono and a link to request a reset</td></tr>
+      <tr><td>Layout</td><td class="mono">5 / 7 columns ≥ 760 · card max 400 · gap 16 · brand panel deep-green gradient with emerald glow · one primary per card, full width</td></tr>
+    </table></div>
+  </div>
+  <div class="ba">
+    <div><h4>Before</h4><ul><li>Login renders through <code>OpsAuthLayout</code>; forgot, reset and verify render their own <code>dm-auth-layout</code> markup with a 200-line inline <code>&lt;style&gt;</code> from the marketplace era.</li><li>Post-reset success is a dead end with a text link.</li></ul></div>
+    <div class="after"><h4>After</h4><ul><li><code>OpsAuthLayout</code> gets a <code>state</code> prop and the four pages become content slots; <code>dm-auth-*</code> classes are deleted from ops.</li><li>Every terminal state carries the user forward (reset → sign-in with banner, verify → home).</li></ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 10 SHELL ───────────────────────── -->
+<section id="shell">
+  <h2>10 · BloxShell</h2>
+  <p>Navigation moves to the sidebar only; identity, notifications and language move to a 56 px top bar. That gives every page the same top edge, puts notifications where staff look for them, and frees the sidebar footer, which currently stacks four unrelated controls.</p>
+  <div class="frame ops"><div class="shell">
+    <aside class="side">
+      <div class="head"><div class="txt"><span class="logo"><i></i>blox</span><span class="badge">Finance</span></div><span class="ibtn" style="color:#fff;border-color:rgba(255,255,255,.2);width:30px;height:30px">‹</span></div>
+      <div class="grp">Work</div>
+      <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="6" height="6" rx="1.5"/><rect x="10" y="2" width="6" height="6" rx="1.5"/><rect x="2" y="10" width="6" height="6" rx="1.5"/><rect x="10" y="10" width="6" height="6" rx="1.5"/></svg><span>Dashboard</span></div>
+      <div class="nav on"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h12M3 9h12M3 13h8"/></svg><span>Queue</span><span class="cnt">14</span></div>
+      <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h12v10H3zM3 8h12"/></svg><span>Active book</span></div>
+      <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 7l7-4 7 4M4 7v6M9 7v6M14 7v6M2 15h14"/></svg><span>Payments</span><span class="cnt">3</span></div>
+      <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h12M9 3v12"/></svg><span>Settlements</span></div>
+      <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="6"/><path d="M9 6v3l2 2"/></svg><span>Credits</span></div>
+      <div class="grp">Reference</div>
+      <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h7l3 3v9H4z"/></svg><span>Applications</span></div>
+      <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3v9m-4-4l4 4 4-4M3 15h12"/></svg><span>Exports</span></div>
+      <div class="foot"><div class="user"><span class="avatar">D</span><div><b style="font-size:13px">Demo Finance</b><small>finance@blox.market</small><span class="role">Finance officer</span></div></div></div>
+    </aside>
+    <div>
+      <div class="topbar"><span class="ibtn burger">☰</span><span class="crumb"><span>Queue</span><span>›</span><b>Application · cmto8nhql000n</b></span>
+        <div class="right"><span class="ibtn" aria-label="Search"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg></span><span class="ibtn" aria-label="Notifications"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12V8a4 4 0 018 0v4l1 2H4zM7 15h4"/></svg><span class="dot">7</span></span><span class="seg" style="padding:2px"><span class="on" style="padding:3px 9px;font-size:12px">EN</span><span style="padding:3px 9px;font-size:12px;font-family:'IBM Plex Sans Arabic'">عربي</span></span><span class="avatar" style="width:30px;height:30px;font-size:12px">D</span></div></div>
+      <div class="main"><div class="facts"><div class="fact"><span class="k">In queue</span><span class="v num">14</span></div><div class="fact"><span class="k">Awaiting activation</span><span class="v num">6</span></div><div class="fact"><span class="k">Overdue installments</span><span class="v num">3</span></div><div class="fact"><span class="k">Collected this month</span><span class="v num">QAR 184,320</span></div><div class="fact"><span class="k">Settlements open</span><span class="v num">2</span></div><div class="fact"><span class="k">Bank transfers</span><span class="v num">3</span></div></div>
+        <div class="card"><h3 class="card-title">Page content</h3><p class="t-body" style="max-width:none">Templates from Phase 2 render here. Content max-width 1600, gutter 24, section gap 16.</p></div></div>
+    </div>
+  </div></div>
+  <div class="frame-cap">Desktop, expanded. Nav groups ("Work", "Reference") are a per-portal config; counts on nav items come from the same unread/queue endpoints the dashboard uses.</div>
+  <div class="frames two">
+    <div class="frame ops w900"><div class="shell collapsed">
+      <aside class="side"><div class="head"><span class="logo"><i></i></span></div>
+        <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="6" height="6" rx="1.5"/><rect x="10" y="2" width="6" height="6" rx="1.5"/><rect x="2" y="10" width="6" height="6" rx="1.5"/><rect x="10" y="10" width="6" height="6" rx="1.5"/></svg></div>
+        <div class="nav on"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h12M3 9h12M3 13h8"/></svg><span class="cnt">14</span></div>
+        <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h12v10H3zM3 8h12"/></svg></div>
+        <div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 7l7-4 7 4M4 7v6M9 7v6M14 7v6M2 15h14"/></svg><span class="cnt">3</span></div>
+        <div class="foot"><div class="user" style="justify-content:center"><span class="avatar">D</span></div></div></aside>
+      <div><div class="topbar"><span class="crumb"><b>Queue</b></span><div class="right"><span class="ibtn"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12V8a4 4 0 018 0v4l1 2H4zM7 15h4"/></svg><span class="dot">7</span></span></div></div>
+        <div class="main" style="grid-template-columns:1fr auto;align-items:start"><div class="card" style="min-height:200px"><h3 class="card-title">Queue</h3><div class="skel" style="width:60%"></div><div class="skel" style="width:80%;margin-top:8px"></div><div class="skel" style="width:40%;margin-top:8px"></div></div>
+          <div class="ndrawer"><div class="hd"><b>Notifications</b><span class="t-caption">7 unread</span><span class="sp"><span class="btn btn-ghost sm">Mark all read</span></span></div>
+            <div class="seg" style="margin:10px 16px 0;align-self:start"><span class="on">All</span><span>Applications</span><span>Payments</span></div>
+            <div>
+              <div class="nitem"><span class="dotu"></span><div><b>New financing application</b><span class="body">Fatima Al-Kuwari · Chery Tiggo 8 Pro</span></div><span class="when">11:42</span></div>
+              <div class="nitem"><span class="dotu"></span><div><b>Bank transfer receipt uploaded</b><span class="body">Omar Saleh · installment #4</span></div><span class="when">10:20</span></div>
+              <div class="nitem read"><span class="dotu"></span><div><b>Settlement request</b><span class="body">Noora Al-Thani asked to settle early</span></div><span class="when">Yesterday</span></div>
+            </div></div></div></div>
+    </div><div class="frame-cap">900 · sidebar collapses to a 72 px rail with count badges; notifications open as a right drawer (MUI Drawer, shell-only).</div></div>
+    <div class="frame ops w390"><div class="shell"><aside class="side"></aside><div><div class="topbar" style="padding:0 12px"><span class="ibtn burger">☰</span><span class="crumb"><b>Queue</b></span><div class="right"><span class="ibtn"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12V8a4 4 0 018 0v4l1 2H4zM7 15h4"/></svg><span class="dot">7</span></span><span class="avatar" style="width:30px;height:30px;font-size:12px">D</span></div></div>
+      <div class="main"><div class="facts"><div class="fact"><span class="k">In queue</span><span class="v num">14</span></div><div class="fact"><span class="k">Awaiting activation</span><span class="v num">6</span></div></div><div class="rowcards"><div class="rowcard"><div class="top"><b>Fatima Al-Kuwari</b><span class="pill info">Under review</span></div><dl class="kv"><dt>Vehicle</dt><dd>Chery Tiggo 8 Pro</dd><dt>Monthly</dt><dd class="num">QAR 1,261.67</dd></dl></div></div></div></div></div><div class="frame-cap">390 · sidebar becomes a slide-over behind ☰; language and sign-out live in the avatar menu.</div></div>
+  </div>
+  <div class="frame ops" dir="rtl"><div class="shell" style="min-height:0"><aside class="side" style="min-height:220px"><div class="head"><div class="txt"><span class="logo"><i></i>blox</span><span class="badge">التمويل</span></div></div><div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="6" height="6" rx="1.5"/><rect x="10" y="2" width="6" height="6" rx="1.5"/><rect x="2" y="10" width="6" height="6" rx="1.5"/><rect x="10" y="10" width="6" height="6" rx="1.5"/></svg><span>لوحة التحكم</span></div><div class="nav on" style="box-shadow:inset -3px 0 0 var(--blox-emerald)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h12M3 9h12M3 13h8"/></svg><span>قائمة الانتظار</span><span class="cnt">14</span></div><div class="nav"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h12v10H3zM3 8h12"/></svg><span>السجل النشط</span></div></aside>
+    <div><div class="topbar"><span class="crumb"><span>قائمة الانتظار</span><span>‹</span><b>الطلب · cmto8nhql000n</b></span><div class="right"><span class="ibtn"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12V8a4 4 0 018 0v4l1 2H4zM7 15h4"/></svg><span class="dot" style="right:auto;left:6px">7</span></span><span class="seg" style="padding:2px"><span style="padding:3px 9px;font-size:12px">EN</span><span class="on" style="padding:3px 9px;font-size:12px">عربي</span></span></div></div>
+      <div class="main"><div class="scroll"><table class="tbl compact"><thead><tr><th>مقدم الطلب</th><th>المركبة</th><th class="num">القسط الشهري</th><th>الحالة</th></tr></thead><tbody><tr><td>فاطمة الكواري</td><td>شيري تيجو 8 برو</td><td class="num">1,261.67</td><td><span class="pill info">قيد المراجعة</span></td></tr><tr><td>يوسف حداد</td><td>جيلي كولراي</td><td class="num">1,148.25</td><td><span class="pill warning">مطلوب إعادة التقديم</span></td></tr></tbody></table></div></div></div>
+  </div></div>
+  <div class="frame-cap">RTL · the sidebar and rail mirror, table alignment flips through logical properties, digits stay Latin and right-aligned inside numeric cells.</div>
+  <div class="scroll"><table class="spec">
+    <tr><th>Spec</th><th>Value</th></tr>
+    <tr><td>Sidebar</td><td class="mono">expanded 280 · collapsed 72 · gradient deep-green-dark → deep-green · padding 12 10 · nav item 40 high, radius 8, 14/500, icon 18 · group label 10/600 caps at 50 % white</td></tr>
+    <tr><td>Active item</td><td class="mono">ground emerald 16 % · text and icon emerald · inset 3 px emerald rail on the leading edge (mirrors in RTL) · hover white 8 %</td></tr>
+    <tr><td>Counts</td><td>mono 11 px in a white 14 % capsule; collapsed rail moves them to a danger badge at the top corner so they stay visible</td></tr>
+    <tr><td>Top bar</td><td class="mono">56 high · surface · hairline bottom · breadcrumb 13 (last crumb 600) · right cluster: search, notifications (danger badge, max 99+), locale segmented, avatar menu (profile, sign out)</td></tr>
+    <tr><td>Notifications</td><td>drawer 360 wide from the trailing edge; header with unread count and Mark all read; All / Applications / Payments segments; unread rows carry an emerald dot and 600 title; click marks read and navigates through the portal base path; polling stays at 60 s, drawer refetches on open</td></tr>
+    <tr><td>Locale</td><td>segmented EN / عربي in the top bar on ≥ 640, inside the avatar menu below; switching sets <code>dir</code> and the Arabic face without reload</td></tr>
+    <tr><td>Breakpoints</td><td>≥ 1200 expanded by default · 900–1200 collapsed by default, expandable · &lt; 640 hidden behind ☰ as a slide-over with scrim</td></tr>
+    <tr><td>Keyboard</td><td>"[" toggles the sidebar, "g q" jumps to queue, "n" opens notifications, Esc closes drawers</td></tr>
+  </table></div>
+  <div class="ba">
+    <div><h4>Before</h4><ul><li>Sidebar footer stacks notifications (just added), locale toggle, user card and sign-out; on tablet the collapsed rail hides everything except the avatar, so notifications vanish.</li><li>No top bar: pages start with their own title block at different offsets, and the back link floats.</li></ul></div>
+    <div class="after"><h4>After</h4><ul><li>Sidebar is navigation only; the top bar is constant across portals and gives breadcrumb, search, notifications and locale a fixed home at every width.</li><li>Nav groups let Admin's twelve items scan as three groups instead of a list.</li></ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 11 WORKSPACE ───────────────────────── -->
+<section id="workspace">
+  <h2>11 · ApplicationWorkspace · Overview tab</h2>
+  <p>The workspace is where an officer decides. The overview answers three questions in order: <b>what is this</b> (header and facts strip), <b>what do I do next</b> (decision panel, the only element with an emerald outline), and <b>what backs the decision</b> (profile, plan, documents, timeline). One primary action per status, always in the same place.</p>
+  <div class="frame ops"><div class="main" style="padding:20px 24px">
+    <div class="dhead">
+      <a class="back" href="#shell">‹ Back to queue</a>
+      <div class="row"><div class="ttl"><span class="t-page">Fatima Al-Kuwari</span><span class="id">cmto8nhql000nwv3wtze2q1gv · submitted 2026-09-05 11:42 · Chery Elite Motors</span></div><span class="pill info" style="margin-top:8px">Under review</span>
+        <div class="acts"><span class="btn btn-ghost">Add comment</span><span class="btn btn-secondary">Request resubmission</span><span class="btn btn-primary">Approve for finance</span><span class="btn btn-ghost icon" aria-label="More actions"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg></span></div></div>
+      <div class="tabs"><span class="tab on">Overview</span><span class="tab">Customer</span><span class="tab">Documents <span class="n">5</span></span><span class="tab">KYC</span><span class="tab">Schedule</span><span class="tab">Payments <span class="n">2</span></span><span class="tab">Activity</span></div>
+    </div>
+    <div class="facts"><div class="fact"><span class="k">Vehicle</span><span class="v">Chery Tiggo 8 Pro 2026</span></div><div class="fact"><span class="k">Price</span><span class="v num">QAR 60,000</span></div><div class="fact"><span class="k">Monthly</span><span class="v num">QAR 1,261.67</span></div><div class="fact"><span class="k">Tenure</span><span class="v">48 months</span></div><div class="fact"><span class="k">Compliance</span><span class="v"><span class="pill success">Pass</span></span></div><div class="fact"><span class="k">KYC</span><span class="v"><span class="pill info">Processing</span></span></div></div>
+    <div class="dgrid">
+      <div class="mainc">
+        <div class="card"><h3 class="card-title">Applicant profile <span class="sp"><span class="btn btn-ghost sm">Open customer tab</span></span></h3>
+          <dl class="kv two"><dt>Applicant type</dt><dd>Individual · Expat</dd><dt>QID</dt><dd class="num">28912345601</dd><dt>Email</dt><dd>fatima@example.com</dd><dt>Phone</dt><dd class="num">+974 5550 0001</dd><dt>Nationality</dt><dd>Qatar</dd><dt>Date of birth</dt><dd class="num">1990-01-01</dd><dt>Employer</dt><dd>Qatar Airways · Analyst</dd><dt>Stated income</dt><dd class="num">QAR 18,000 / month</dd></dl></div>
+        <div class="card"><h3 class="card-title">Plan <span class="sp"><span class="btn btn-ghost sm">Edit installments</span></span></h3>
+          <dl class="kv two"><dt>Offer</dt><dd>Blox Finance · standard</dd><dt>Rate</dt><dd class="num">11.9 %</dd><dt>Vehicle price</dt><dd class="num">QAR 60,000</dd><dt>Down payment</dt><dd class="num">QAR 12,000 (20 %)</dd><dt>Financed</dt><dd class="num">QAR 48,000</dd><dt>Debt burden</dt><dd class="num">7.0 %</dd></dl>
+          <div style="margin-top:14px"><div class="bar"><i style="width:25%;background:var(--blox-emerald)"></i><i style="width:75%;background:var(--blox-deep-green)"></i></div><div class="legend"><span><i style="background:var(--blox-emerald)"></i>Owned by customer 25.3 %</span><span><i style="background:var(--blox-deep-green)"></i>Owned by Blox 74.7 %</span></div></div></div>
+        <div class="card"><h3 class="card-title">Documents <span class="sp"><span class="pill success">3 of 3 required</span></span></h3>
+          <div class="docs"><div class="doc"><span class="ic">PDF</span><span class="nm">QID front and back</span><span class="pill success">Verified</span><span class="btn btn-ghost sm">View</span></div><div class="doc"><span class="ic">PDF</span><span class="nm">Salary certificate · Qatar Airways</span><span class="pill info">Checking</span><span class="btn btn-ghost sm">View</span></div><div class="doc"><span class="ic">PDF</span><span class="nm">Bank statement · 3 months</span><span class="pill warning">2 months only</span><span class="btn btn-ghost sm">View</span></div></div></div>
+      </div>
+      <div class="aside">
+        <div class="card decision"><span class="next">Next decision<b>Approve for finance or request changes</b></span>
+          <div class="field" style="margin-top:12px"><label>Reason <span class="opt">Required for resubmission or rejection</span></label><textarea class="ctl" style="min-height:72px" placeholder="Written to the customer and the audit log"></textarea></div>
+          <div class="acts"><span class="btn btn-primary">Approve for finance</span><div class="row2"><span class="btn btn-secondary">Request resubmission</span><span class="btn btn-danger">Reject</span></div><span class="t-caption">Compliance passed 2026-09-05 · run by credit@blox.market</span></div></div>
+        <div class="card"><h3 class="card-title">Timeline <span class="sp"><span class="btn btn-ghost sm">All activity</span></span></h3>
+          <ul class="tl"><li><span>Compliance check passed</span><span class="when">2026-09-05 12:03 · credit@blox.market</span></li><li><span>Submitted by customer · 3 documents</span><span class="when">2026-09-05 11:42</span></li><li class="muted"><span>Draft created from listing</span><span class="when">2026-09-05 11:20</span></li></ul></div>
+      </div>
+    </div>
+  </div></div>
+  <div class="frame-cap">Desktop · 8/4 grid. The header is sticky below the top bar; the tab strip scrolls horizontally when it overflows.</div>
+  <div class="frames two">
+    <div class="scroll"><table class="spec">
+      <tr><th>Region</th><th>Spec</th></tr>
+      <tr><td>Header</td><td class="mono">card surface · back link 13 slate · title 28 = applicant name (was the literal "Application") · ID line mono 12 slate with submitted time and company · pill after the title · action cluster right: ghost → secondary → primary → overflow · sticky, collapses to title + primary on scroll</td></tr>
+      <tr><td>Action rules</td><td>exactly one primary per status from <code>visibleWorkspaceActions</code>; secondary is the alternative path (resubmission, direct activate); destructive is never in the header, only in the decision panel and behind the overflow; disabled actions show the reason in a tooltip (separation of duties, compliance required)</td></tr>
+      <tr><td>Facts strip</td><td class="mono">6 cells ≥ 900 · 3 at 640–900 · 2 below · label 11 caps, value 15/600 or mono 15/500 · compliance and KYC as pills</td></tr>
+      <tr><td>Decision panel</td><td>emerald 1 px border + 3 px emerald-soft halo, the only emphasised card · "Next decision" label + sentence · reason field shown when any visible action needs one · primary full width, alternatives in a 2-up row · last check line in caption mono</td></tr>
+      <tr><td>Profile · Plan</td><td>two-column key/value at ≥ 900 containers, single column below · money mono · ownership bar emerald/deep green with percentage legend (replaces the three chart components in the current aside)</td></tr>
+      <tr><td>Documents</td><td>one row per required category with verification pill; missing categories render as a warning row with Upload; opens the Documents tab for the full list and KYC detail</td></tr>
+      <tr><td>Timeline</td><td>last three events, mono timestamps, "All activity" opens the Activity tab</td></tr>
+      <tr><td>Partner-processed</td><td>when status is <code>partner_processing</code> the decision panel is replaced by the info alert from 07 and every action is hidden, not disabled</td></tr>
+    </table></div>
+    <div class="frame ops w390"><div class="main" style="padding:14px"><div class="dhead" style="padding:12px 14px 0"><a class="back" href="#shell">‹ Queue</a><div class="row" style="gap:8px"><div class="ttl"><span class="t-section">Fatima Al-Kuwari</span><span class="id">cmto8nhql000n · 2026-09-05</span></div><span class="pill info">Under review</span></div><div class="tabs" style="margin:4px -14px 0"><span class="tab on">Overview</span><span class="tab">Customer</span><span class="tab">Documents</span><span class="tab">KYC</span><span class="tab">Schedule</span></div></div>
+      <div class="facts"><div class="fact"><span class="k">Price</span><span class="v num">QAR 60,000</span></div><div class="fact"><span class="k">Monthly</span><span class="v num">QAR 1,261.67</span></div><div class="fact"><span class="k">Compliance</span><span class="v"><span class="pill success">Pass</span></span></div><div class="fact"><span class="k">KYC</span><span class="v"><span class="pill info">Processing</span></span></div></div>
+      <div class="card decision"><span class="next">Next decision<b>Approve for finance or request changes</b></span><div class="acts"><span class="btn btn-primary">Approve for finance</span><div class="row2"><span class="btn btn-secondary">Resubmission</span><span class="btn btn-danger">Reject</span></div></div></div>
+      <div class="card"><h3 class="card-title">Applicant profile</h3><dl class="kv"><dt>QID</dt><dd class="num">28912345601</dd><dt>Employer</dt><dd>Qatar Airways · Analyst</dd><dt>Income</dt><dd class="num">QAR 18,000</dd></dl></div></div>
+    <div class="frame-cap">390 · decision panel moves above the profile; header actions collapse into the panel; tabs scroll.</div></div>
+  </div>
+  <div class="ba">
+    <div><h4>Before</h4><ul><li>One 921-line component holds six tabs, fourteen mutations, the pay dialog, the edit panel and 28 inline style blocks; the header title is the word "Application" and the applicant name sits in a mono subtitle.</li><li>Approve, activate, resubmission, reject and comment buttons render in a flat row in the header with the same weight; the reason field is a separate section far below.</li><li>The aside has three chart components for one ownership ratio.</li></ul></div>
+    <div class="after"><h4>After</h4><ul><li>Split: <code>WorkspaceHeader</code>, <code>WorkspaceFacts</code>, <code>DecisionPanel</code>, and one file per tab (<code>OverviewTab</code>, <code>CustomerTab</code>, <code>DocumentsTab</code>, <code>KycTab</code>, <code>ScheduleTab</code>, <code>PaymentsTab</code>, <code>ActivityTab</code>) fed by a <code>useWorkspaceMutations(id)</code> hook; the page component becomes routing and layout only.</li><li>Decision and reason live together; the header keeps the same primary so the officer can act from either place.</li><li>Ownership is one bar with a legend.</li></ul></div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 12 MIGRATION ───────────────────────── -->
+<section id="migration">
+  <h2>12 · Migration and file structure</h2>
+  <p>Ordered so each step is shippable and each removes a duplicate. Nothing in <code>packages/marketplace</code> is touched; the <code>dm-*</code> tokens it owns keep working because ops stops importing them.</p>
+  <div class="scroll"><table class="spec">
+    <tr><th>Step</th><th>Change</th><th>Retires</th><th>Pain point</th></tr>
+    <tr><td class="mono">1</td><td>Split <code>blox-ops.scss</code> into <code>styles/ops/_tokens.scss</code>, <code>_tokens-legacy.scss</code> (alias shim), <code>_type.scss</code>, <code>_buttons.scss</code>, <code>_fields.scss</code>, <code>_table.scss</code>, <code>_pills.scss</code>, <code>_surfaces.scss</code>, <code>_overlays.scss</code>, <code>_shell.scss</code>, <code>_auth.scss</code>, <code>_templates.scss</code>, <code>_workspace.scss</code>, <code>_wizard.scss</code>, <code>_dashboard.scss</code>, with <code>blox-ops.scss</code> as the index. Byte-identical output first, then apply 01–08.</td><td>the 2 532-line file, <code>blox-ops-tokens.scss</code></td><td>7, 5</td></tr>
+    <tr><td class="mono">2</td><td>Re-base ops-core <code>Button</code>, <code>Input</code>, <code>Select</code>, <code>StatusBadge</code>, <code>ConfirmDialog</code>, <code>EmptyState</code>, <code>Skeleton</code> on the SCSS classes; keep prop names so call sites compile. Add <code>StatusPill</code> map to <code>status-styles.ts</code>.</td><td>MUI in page content, ops-ui-v2 <code>StatusBadge</code> duplicate, <code>OpsPrimaryButton</code> family</td><td>6, 2</td></tr>
+    <tr><td class="mono">3</td><td><code>OpsTable</code> in ops-core; codemod <code>OpsDataTable</code> (string columns → column defs), alias <code>Table</code> and <code>OpsCoreTable</code> to it, then delete.</td><td>three table implementations</td><td>1</td></tr>
+    <tr><td class="mono">4</td><td><code>OpsAuthLayout state</code>; forgot, reset, verify, MFA render into it; delete <code>dm-auth-*</code> rules from ops and the inline <code>AuthPageStyles</code>.</td><td>auth split</td><td>3</td></tr>
+    <tr><td class="mono">5</td><td>BloxShell: nav groups, top bar, notifications drawer, locale in top bar; lint rule <code>no-inline-style</code> for <code>packages/{shared/src/ops-*,admin,super-admin,dealer,credit,finance}</code>.</td><td>sidebar footer stack, 78 inline style blocks in ops</td><td>5</td></tr>
+    <tr><td class="mono">6</td><td>Workspace split per 11; overview tab first, other tabs move file-by-file without visual change, then restyle in Phase 3.</td><td>921-line component</td><td>4</td></tr>
+    <tr><td class="mono">7</td><td>Phase 2: <code>OpsDashboardPage</code> gains a <code>DashboardSection</code> (title, metric row, chart slot, empty/loading) wrapping the Chart.js boilerplate once; super-admin <code>main.tsx</code> splits into <code>pages/</code> mirroring admin.</td><td>duplicated chart setup, 740-line file</td><td>8, 9</td></tr>
+  </table></div>
+  <p class="note ok">Everything in sections 01–08 is expressed as classes and tokens that already exist by name in the codebase or are added under the <code>--blox-*</code> prefix, so the migration is additive first and subtractive second. The only visual change staff will notice on day one is the status colour split (06) and the top bar (10); both were the two most-cited confusions in the 2026-09-05 QA run.</p>
+  <h3>Implementation status · 2026-09-06</h3>
+  <div class="scroll"><table class="spec">
+    <tr><th>Step</th><th>Status</th><th>Where</th></tr>
+    <tr><td class="mono">1</td><td>Done — stylesheet split into 30 partials (first split byte-identical), new tokens added, legacy aliases kept.</td><td><code>styles/ops/_*.scss</code>, <code>blox-ops.scss</code> index</td></tr>
+    <tr><td class="mono">2</td><td>Done — semantic pill variants with dot; legacy names alias. ops-core Button, EmptyState, ConfirmDialog, Skeleton, SearchBar, FilterPanel, MultiStepForm, ExportButton, credentials dialog and all chart panels re-based off MUI. New <code>Alert</code>.</td><td><code>status-styles.ts</code>, <code>ops-core/**</code>, <code>ops-ui-v2/**</code></td></tr>
+    <tr><td class="mono">3</td><td>Done — one <code>Table</code> (selection, density, skeleton, error, empty, pagination, card fallback); <code>OpsDataTable</code> is an adapter over it, so all 27 call sites render through one implementation.</td><td><code>ops-core/shared/Table</code>, <code>components/ops-ui.tsx</code></td></tr>
+    <tr><td class="mono">4</td><td>Done — forgot/reset take <code>portalKey</code> and render <code>OpsAuthLayout</code>; ops auth partial owns the card internals; brand panel is the gradient. Marketplace pages untouched.</td><td><code>auth/LoginPage.tsx</code>, <code>_auth.scss</code></td></tr>
+    <tr><td class="mono">5</td><td>Done — nav groups and counts, 56 px top bar (breadcrumb, search, notifications drawer, locale, account menu), mobile slide-over, keyboard shortcuts. Native tabs replace MUI Tabs everywhere.</td><td><code>components/BloxShell.tsx</code>, <code>_topbar.scss</code>, <code>ops-ui-v2/OpsTabs.tsx</code></td></tr>
+    <tr><td class="mono">6</td><td>Done — workspace split into a mutations hook, six tab files, facts strip, decision panel with status-aware copy (EN/AR), edit panel; applicant name is the title.</td><td><code>ops-applications/workspace/*</code></td></tr>
+    <tr><td class="mono">7</td><td>Done — templates gained <code>loading</code>/<code>error</code>/<code>footer</code> slots; <code>DashboardSection</code> + <code>DashboardGrid</code> added; super-admin split into one file per page; inline styles in ops page content down from 150 to 47 (31 of them in the KYC panel owned by another change).</td><td><code>ops-ui-v2/templates</code>, <code>super-admin/src/pages/*</code>, <code>_page.scss</code></td></tr>
+    <tr><td class="mono">8</td><td>Enhancement pass — IBM Plex Mono and Plex Sans Arabic are now actually loaded (mono digits, Arabic face under RTL); shell icons moved to <code>lucide-react</code>; nav groups and live counts configured per portal from the metrics endpoints; working global search in the top bar ("/" focuses it); table sorting (client-side, <code>sortable</code> columns), a persisted density toggle and ↑/↓/Enter/Space row navigation; sparklines and toned deltas on metric cards; icons on alerts and empty states; toasts themed to the tokens.</td><td><code>BloxShell.tsx</code>, <code>Table.tsx</code>, <code>OpsMetricRow.tsx</code>, <code>_enhance.scss</code>, <code>use-nav-counts.ts</code>, portal <code>main.tsx</code></td></tr>
+    <tr><td>Open</td><td>Chart.js doughnut/line still used inside dashboards (by design); KYC panel inline styles; per-page mobile polish for Phase 4 pages beyond the shared components.</td><td>—</td></tr>
+  </table></div>
+</section>
+
+</main>
+</div>
