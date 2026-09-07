@@ -63,7 +63,18 @@
 }
 
 .blox-chart-panel {
+  border-radius: var(--blox-radius-surface, 20px);
   min-height: 320px;
+
+  // Panel title: remove heavy left border bar, use clean text style
+  .blox-panel__title,
+  .blox-chart__title {
+    border-inline-start: none;
+    padding-inline-start: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--blox-deep-green);
+  }
 }
 
 .blox-form-grid {

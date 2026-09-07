@@ -1,6 +1,18 @@
 // Phase 2 — page templates, tabs, dashboard sections, charts, filters, stepper, export.
 @use 'vars' as *;
 
+// ── Section label ────────────────────────────────────────────────────────────
+// Used for group headings and form section labels throughout ops portals.
+.blox-section-label {
+  display: block;
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--blox-slate);
+}
+
 .blox-page__metrics {
   margin-bottom: var(--blox-space-xl);
 }
@@ -85,8 +97,15 @@
   border: 1px solid var(--blox-border);
   border-radius: var(--blox-radius-card, 12px);
   background: var(--blox-surface);
-  padding: 0 12px;
-  margin-bottom: var(--blox-space-lg);
+  padding: 0 14px;
+  margin-bottom: var(--blox-space-lg, 24px);
+  box-shadow: var(--blox-shadow-rest);
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 // ── Segmented control on dark chrome: active thumb ──────────────────────────
@@ -113,6 +132,14 @@
 
 .blox-dashboard-card {
   min-width: 0;
+  background: var(--blox-surface);
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-surface, 20px);
+  padding: 20px 22px;
+  box-shadow: var(--blox-shadow-rest);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 
   &--span-2 {
     grid-column: span 2;
@@ -120,6 +147,14 @@
 
   &--span-3 {
     grid-column: 1 / -1;
+  }
+
+  &--flat {
+    padding: 0;
+    border: none;
+    background: none;
+    box-shadow: none;
+    gap: 12px;
   }
 
   @media (max-width: $bp-lg) {
@@ -136,12 +171,19 @@
     gap: 12px;
 
     .blox-panel__title {
-      margin-bottom: 4px;
+      margin-bottom: 0;
     }
   }
 
+  &__title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+  }
+
   &__subtitle {
-    margin: 0 0 12px;
+    margin: 2px 0 0;
     font-size: 0.75rem;
     color: var(--blox-slate);
   }
@@ -155,11 +197,23 @@
   &__skeleton {
     display: grid;
     gap: 10px;
-    padding-top: 6px;
   }
 
   &__body {
     min-width: 0;
+    flex: 1;
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--blox-border);
+    font-size: 0.75rem;
+    color: var(--blox-slate);
+    margin-top: auto;
   }
 }
 
@@ -269,7 +323,7 @@
     display: block;
     width: 100%;
     min-height: 3px;
-    border-radius: 4px 4px 0 0;
+    border-radius: 6px 6px 0 0;
     transition: height var(--blox-motion-slow) var(--blox-ease-standard);
   }
 
@@ -319,7 +373,7 @@
   &__bar {
     display: block;
     height: 24px;
-    border-radius: 4px;
+    border-radius: 4px 4px 0 0;
     box-shadow: inset 0 0 0 1px rgba(22, 83, 91, 0.08);
   }
 
@@ -465,14 +519,14 @@
 // ── Stepper ─────────────────────────────────────────────────────────────────
 .blox-stepper-form {
   display: grid;
-  gap: var(--blox-space-lg);
+  gap: var(--blox-space-lg, 24px);
 
   &__actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding-top: var(--blox-space-md);
+    padding-top: 14px;
     border-top: 1px solid var(--blox-border);
   }
 
@@ -497,11 +551,13 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 8px 12px 0;
+    padding: 0 8px 14px 0;
     min-width: 0;
     font-size: 0.8125rem;
     color: var(--blox-slate);
     border-bottom: 2px solid var(--blox-border);
+    transition: color var(--blox-motion-fast) var(--blox-ease-standard),
+                border-color var(--blox-motion-fast) var(--blox-ease-standard);
 
     &.is-active {
       color: var(--blox-deep-green);
@@ -518,13 +574,16 @@
   &__index {
     display: grid;
     place-items: center;
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    border: 1px solid currentColor;
+    border: 2px solid currentColor;
     font-family: var(--blox-font-mono);
     font-size: 0.75rem;
+    font-weight: 600;
     flex: none;
+    transition: background var(--blox-motion-fast) var(--blox-ease-standard),
+                border-color var(--blox-motion-fast) var(--blox-ease-standard);
 
     .is-active > & {
       background: var(--blox-emerald);
@@ -534,7 +593,8 @@
 
     .is-done > & {
       background: var(--blox-emerald-soft);
-      border-color: var(--blox-emerald-soft);
+      border-color: var(--blox-emerald);
+      color: var(--blox-emerald-ink, #0b7a63);
     }
   }
 

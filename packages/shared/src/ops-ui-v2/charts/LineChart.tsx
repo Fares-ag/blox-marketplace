@@ -10,6 +10,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { bloxTokens } from '../../config/blox-tokens';
+import { lineChartOptions } from './chartDefaults';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
@@ -50,29 +51,13 @@ export function LineChart({
           })),
         }}
         options={{
-          responsive: true,
+          ...lineChartOptions,
           maintainAspectRatio: false,
           plugins: {
+            ...lineChartOptions.plugins,
             legend: {
+              ...lineChartOptions.plugins?.legend,
               display: series.length > 1,
-              position: 'bottom',
-              labels: { color: bloxTokens.ink, boxWidth: 12, font: { size: 11 } },
-            },
-            tooltip: {
-              backgroundColor: bloxTokens.deepGreen,
-              titleColor: '#fff',
-              bodyColor: '#fff',
-            },
-          },
-          scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: bloxTokens.slate, font: { size: 11 } },
-            },
-            y: {
-              beginAtZero: true,
-              grid: { color: 'rgba(22, 83, 91, 0.08)' },
-              ticks: { color: bloxTokens.slate, font: { size: 11 } },
             },
           },
         }}
