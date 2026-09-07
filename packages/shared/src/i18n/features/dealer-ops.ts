@@ -102,6 +102,12 @@ export const en = {
     vehicleIdentityMissing: 'This vehicle is missing its VIN, chassis or engine number, so it cannot be reserved on submit.',
     fixInInventory: 'Complete it in Inventory',
   },
+  vehicleAvailability: {
+    notPublished: 'Publish this vehicle in Inventory before you can finance it.',
+    reserved:
+      'This vehicle is already reserved by another application. Choose a different unit or cancel the other application first.',
+    unavailable: 'This vehicle is no longer available for financing.',
+  },
   submitGate: {
     identity_hold: 'This application is on identity hold. A credit officer or admin must clear the hold before it can be submitted.',
     consents_required: 'The customer has not given all consents yet. Start an assisted session or ask the customer to accept them in the app.',
@@ -502,6 +508,11 @@ export const ar: typeof en = {
     ageWarning: 'سيكون عمر المتقدم {{age}} عاماً عند نهاية المدة؛ النطاق المسموح {{min}}–{{max}}.',
     vehicleIdentityMissing: 'هذه المركبة تفتقد رقم الهيكل أو الشاصي أو المحرك، لذا لا يمكن حجزها عند الإرسال.',
     fixInInventory: 'أكملها في المخزون',
+  },
+  vehicleAvailability: {
+    notPublished: 'انشر هذه المركبة في المخزون قبل أن تتمكن من تمويلها.',
+    reserved: 'هذه المركبة محجوزة بطلب آخر. اختر وحدة أخرى أو ألغِ الطلب الآخر أولاً.',
+    unavailable: 'لم تعد هذه المركبة متاحة للتمويل.',
   },
   submitGate: {
     identity_hold: 'هذا الطلب معلق بسبب الهوية. يجب أن يرفع موظف الائتمان أو المسؤول التعليق قبل الإرسال.',
