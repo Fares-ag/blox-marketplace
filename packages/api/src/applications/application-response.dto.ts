@@ -242,6 +242,8 @@ type ApplicationCore = {
   identityHoldAt?: Date | null;
   identityHoldClearedAt?: Date | null;
   identityHoldClearedById?: string | null;
+  /** Resolved by the detail loader (no relation on the column). */
+  identityHoldClearedByName?: string | null;
   consentsCompletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -296,16 +298,24 @@ export function identityAndConsentFields(app: {
   identityHoldReason?: string | null;
   identityHoldAt?: Date | null;
   identityHoldClearedAt?: Date | null;
+  identityHoldClearedByName?: string | null;
   consentsCompletedAt?: Date | null;
 }) {
   return {
     identity_hold_reason: app.identityHoldReason ?? null,
     identity_hold_at: app.identityHoldAt ?? null,
     identity_hold_cleared_at: app.identityHoldClearedAt ?? null,
+    identity_hold_cleared_by_name: app.identityHoldClearedByName ?? null,
     consents_completed_at: app.consentsCompletedAt ?? null,
   };
 }
 
+/**
+ * Decision reasons never reach the customer: a declined applicant sees the
+ * status only (Shariah policy — no adverse-reason disclosure through the
+ * product surfaces; support handles the conversation). `resubmission_comment`
+ * is not a decision reason but the instruction of what to fix, so it stays.
+ */
 function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudience) {
   const dto: Record<string, unknown> = {
     id: app.id,
@@ -320,7 +330,6 @@ function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudien
     ...(app.installmentPlan != null ? { installment_plan: app.installmentPlan } : {}),
     status: app.status,
     contract_generated: app.contractGenerated,
-    rejection_reason: app.rejectionReason ?? null,
     resubmission_comment: app.resubmissionComment ?? null,
     submitted_at: app.submittedAt ?? null,
     activated_at: app.activatedAt ?? null,
@@ -331,6 +340,7 @@ function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudien
   };
 
   if (audience === 'ops' || audience === 'dealer') {
+    dto.rejection_reason = app.rejectionReason ?? null;
     dto.branch_id = app.branchId ?? null;
     dto.rule_flags = ruleFlagsOf(app.pricingSnapshot);
   }
@@ -419,6 +429,7 @@ export function toApplicationBlockingDto(result: {
   };
 }
 
+/** Customer list row — like the detail DTO, carries no decision reason. */
 export function toApplicationListItemDto(app: {
   id: string;
   status: ApplicationStatus;
@@ -426,7 +437,6 @@ export function toApplicationListItemDto(app: {
   submittedAt?: Date | null;
   activatedAt?: Date | null;
   contractGenerated?: boolean;
-  rejectionReason?: string | null;
   resubmissionComment?: string | null;
   pricingSnapshot?: unknown;
   identityHoldReason?: string | null;
@@ -448,7 +458,6 @@ export function toApplicationListItemDto(app: {
     submitted_at: app.submittedAt ?? null,
     activated_at: app.activatedAt ?? null,
     contract_generated: app.contractGenerated ?? false,
-    rejection_reason: app.rejectionReason ?? null,
     resubmission_comment: app.resubmissionComment ?? null,
     pricing_snapshot: app.pricingSnapshot ?? null,
     ...identityAndConsentFields(app),

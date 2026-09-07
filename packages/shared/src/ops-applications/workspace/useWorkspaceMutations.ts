@@ -22,26 +22,54 @@ export type WorkspaceMutationOptions = {
   onSignedContractUploaded?: () => void;
 };
 
+/**
+ * `transition` accepts the bare target status (every existing caller) or an
+ * object carrying a super-admin `override_reason` for a case above the DBR hard
+ * cap (`dbr_above_hard_cap`, logged server-side as `credit_override`).
+ */
+export type TransitionInput = string | { toStatus: string; override_reason?: string };
+export type ApproveInput = { override_reason?: string } | void;
+
+function overrideReasonOf(input: unknown): string | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const reason = (input as { override_reason?: string }).override_reason?.trim();
+  return reason || undefined;
+}
+
 export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions) {
   const qc = useQueryClient();
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['ops-app', id] });
+    void qc.invalidateQueries({ queryKey: ['ops-app-credit-assessment', id] });
     void qc.invalidateQueries({ queryKey: ['ops-apps'] });
     void qc.invalidateQueries({ queryKey: ['credit-queue'] });
   };
   const fail = (e: Error) => opts.onError(e.message, e);
 
   const transition = useMutation({
-    mutationFn: (toStatus: string) =>
-      apiFetch(`/api/ops/applications/${id}/transition`, {
+    mutationFn: (input: TransitionInput) => {
+      const toStatus = typeof input === 'string' ? input : input.toStatus;
+      const overrideReason = overrideReasonOf(input);
+      return apiFetch(`/api/ops/applications/${id}/transition`, {
         method: 'POST',
-        body: JSON.stringify({ toStatus, reason: opts.getReason().trim() || undefined }),
-      }),
+        body: JSON.stringify({
+          toStatus,
+          reason: opts.getReason().trim() || undefined,
+          ...(overrideReason ? { override_reason: overrideReason } : {}),
+        }),
+      });
+    },
     onSuccess: invalidate,
     onError: fail,
   });
   const approve = useMutation({
-    mutationFn: () => apiFetch(`/api/ops/applications/${id}/approve-contract`, { method: 'POST' }),
+    mutationFn: (input: ApproveInput) => {
+      const overrideReason = overrideReasonOf(input);
+      return apiFetch(`/api/ops/applications/${id}/approve-contract`, {
+        method: 'POST',
+        ...(overrideReason ? { body: JSON.stringify({ override_reason: overrideReason }) } : {}),
+      });
+    },
     onSuccess: invalidate,
     onError: fail,
   });

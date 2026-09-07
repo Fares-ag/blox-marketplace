@@ -3,7 +3,11 @@ import { SettlementStatus, User, UserRole } from '@prisma/client';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Roles } from '../auth/guards';
 import { PaginationQueryDto } from '../common/pagination.dto';
-import { SETTLEMENT_DECISION_ROLES, SettlementsService } from './settlements.service';
+import {
+  SETTLEMENT_DECISION_ROLES,
+  SETTLEMENT_QUOTE_OPS_ROLES,
+  SettlementsService,
+} from './settlements.service';
 
 class ListSettlementsQuery extends PaginationQueryDto {
   @IsOptional() @IsEnum(SettlementStatus) status?: SettlementStatus;
@@ -17,7 +21,21 @@ class DecideSettlementDto {
 export class SettlementsController {
   constructor(private readonly settlements: SettlementsService) {}
 
-  /** Customer asks to settle an active financing early. */
+  /** Live early-settlement quote for the owner of an active financing. */
+  @Roles(UserRole.customer)
+  @Get('applications/:id/settlement-quote')
+  quote(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.settlements.quote(user, id);
+  }
+
+  /** Same quote for finance / admin / credit (company scope applies). */
+  @Roles(...SETTLEMENT_QUOTE_OPS_ROLES)
+  @Get('ops/applications/:id/settlement-quote')
+  quoteOps(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.settlements.quote(user, id);
+  }
+
+  /** Customer asks to settle an active financing early, at the quoted amount. */
   @Roles(UserRole.customer)
   @HttpCode(201)
   @Post('applications/:id/settlement-request')

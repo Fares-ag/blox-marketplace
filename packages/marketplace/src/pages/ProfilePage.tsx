@@ -18,6 +18,7 @@ import {
   type GenderDto,
 } from '@drivemarket/shared';
 import { MarketplaceNav } from '../components/MarketplaceNav';
+import { YourDataSection } from '../components/YourDataSection';
 import { formatDate, todayInputValue } from '../lib/dates';
 import { uploadMultipart } from '../lib/multipart';
 
@@ -709,6 +710,8 @@ export function ProfilePage() {
                 </>
               )}
             </section>
+
+            <YourDataSection />
 
             <section className="dm-profile__card" aria-labelledby="dm-profile-security">
               <h2 id="dm-profile-security">{t('customerProfile.security.title')}</h2>

@@ -28,7 +28,15 @@ export type MyApplicationListItem = {
   product?: { make: string; model: string; model_year: number; slug: string; price?: number };
 };
 
-export type DocumentSlotsDto = { slots: DocumentSlot[]; uploaded: string[]; missing: string[] };
+export type DocumentSlotsDto = {
+  slots: DocumentSlot[];
+  uploaded: string[];
+  missing: string[];
+  /** Categories whose newest upload is older than the slot's `maxAgeDays` (wave 2). */
+  stale?: string[];
+  /** Newest upload per category, ISO timestamps (wave 2). */
+  uploaded_at?: Record<string, string>;
+};
 
 export type CreateDraftBody = {
   productId: string;
@@ -94,17 +102,37 @@ export async function fetchBlockingApplicationId(): Promise<string | null> {
   }
 }
 
-/** Uploaded categories + original file names, tolerant of the slots endpoint being unavailable. */
-export async function loadUploadedDocuments(id: string): Promise<{ uploaded: string[]; names: Record<string, string> }> {
+export type UploadedDocumentsState = {
+  uploaded: string[];
+  names: Record<string, string>;
+  /** Categories the API flagged as older than allowed (re-upload needed before submit). */
+  stale: string[];
+  /** Newest upload per category, ISO timestamps. */
+  uploadedAt: Record<string, string>;
+};
+
+/** Uploaded categories, file names and freshness, tolerant of the slots endpoint being unavailable. */
+export async function loadUploadedDocuments(id: string): Promise<UploadedDocumentsState> {
   const [slots, detail] = await Promise.allSettled([fetchDocumentSlots(id), fetchDraftDetail(id)]);
   const docs = detail.status === 'fulfilled' ? detail.value.documents ?? [] : [];
   const uploaded = new Set<string>(slots.status === 'fulfilled' ? slots.value.uploaded : docs.map((d) => d.category));
   if (uploaded.has('id')) uploaded.add('qid');
   const names: Record<string, string> = {};
+  const uploadedAt: Record<string, string> = {};
   for (const doc of docs) {
     if (doc.original_name) names[doc.category] = doc.original_name;
+    if (doc.created_at && (!uploadedAt[doc.category] || doc.created_at > uploadedAt[doc.category])) {
+      uploadedAt[doc.category] = doc.created_at;
+    }
   }
-  return { uploaded: [...uploaded], names };
+  if (slots.status === 'fulfilled' && slots.value.uploaded_at) {
+    for (const [category, at] of Object.entries(slots.value.uploaded_at)) {
+      if (typeof at === 'string' && at) uploadedAt[category] = at;
+    }
+  }
+  if (uploadedAt.id && !uploadedAt.qid) uploadedAt.qid = uploadedAt.id;
+  const stale = slots.status === 'fulfilled' && Array.isArray(slots.value.stale) ? slots.value.stale.filter((c): c is string => typeof c === 'string') : [];
+  return { uploaded: [...uploaded], names, stale, uploadedAt };
 }
 
 export type ApplyErrorCode =
@@ -114,6 +142,8 @@ export type ApplyErrorCode =
   | 'identity_hold'
   | 'consents_required'
   | 'documents_missing'
+  | 'documents_stale'
+  | 'guarantor_consent_required'
   | 'vehicle_identity_incomplete'
   | 'vehicle_age_rule'
   | 'listing_not_available'
@@ -129,6 +159,8 @@ const CODE_ALIASES: Record<string, ApplyErrorCode> = {
   consents_required: 'consents_required',
   documents_missing: 'documents_missing',
   documents_incomplete: 'documents_missing',
+  documents_stale: 'documents_stale',
+  guarantor_consent_required: 'guarantor_consent_required',
   vehicle_identity_incomplete: 'vehicle_identity_incomplete',
   vehicle_age_rule: 'vehicle_age_rule',
   listing_not_available: 'listing_not_available',
@@ -158,6 +190,13 @@ export function missingDocumentsFrom(error: unknown): string[] {
   const details = apiErrorDetails(error);
   const missing = details?.missing;
   return Array.isArray(missing) ? missing.filter((x): x is string => typeof x === 'string') : [];
+}
+
+/** `409 documents_stale` → categories whose newest upload is too old. */
+export function staleDocumentsFrom(error: unknown): string[] {
+  const details = apiErrorDetails(error);
+  const stale = details?.stale;
+  return Array.isArray(stale) ? stale.filter((x): x is string => typeof x === 'string') : [];
 }
 
 function isRuleViolation(value: unknown): value is ProductRuleViolation {

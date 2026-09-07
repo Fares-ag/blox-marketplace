@@ -84,13 +84,24 @@ function splitName(fullName: string, email: string): { first?: string; last: str
  * EXISTING monthly obligations and feeds Al Jazeera's affordability calculation.
  * Current obligations from Blox go to `Reason_for_Request` instead.
  */
+/**
+ * Values the snapshot may lack but the customer record carries. The QID comes
+ * from `IdentityService.readQid` (encrypted at rest) — never from `users.qid`
+ * directly.
+ */
+export type ZohoLeadFallbacks = {
+  qid?: string | null;
+};
+
 export function mapApplicationToZohoLead(
   app: ApplicationForZoho,
   requestSubmittedTo: string,
   leadSource = 'Partners',
+  fallbacks: ZohoLeadFallbacks = {},
 ): Record<string, unknown> {
   const customer = (app.customerSnapshot ?? {}) as Record<string, unknown>;
   const pricing = (app.pricingSnapshot ?? {}) as Record<string, unknown>;
+  const qid = String(customer.qid ?? '').trim() || String(fallbacks.qid ?? '').trim() || null;
 
   const fullName = String(customer.full_name ?? '');
   const { first, last } = splitName(fullName, app.customerEmail);
@@ -110,7 +121,7 @@ export function mapApplicationToZohoLead(
   const details = [
     `Blox application: ${app.id}`,
     `Status: ${app.status}`,
-    customer.qid ? `QID: ${customer.qid}` : null,
+    qid ? `QID: ${qid}` : null,
     usedOrNew ? `Used / New Car: ${usedOrNew}` : null,
     age != null ? `Age: ${age}` : null,
     vehicle ? `Vehicle: ${vehicle}` : null,

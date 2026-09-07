@@ -60,6 +60,8 @@ export type ConsentRecordLike = {
   acceptedAt: Date;
   applicationId: string | null;
   actor?: { name: string | null } | null;
+  /** Set when the customer withdrew this acceptance (PDPPL right to withdraw). */
+  withdrawnAt?: Date | null;
 };
 
 /** True when the catalog carries newer wording than the version this record accepted. */
@@ -79,21 +81,27 @@ export function toConsentRecordDto(record: ConsentRecordLike): ConsentRecordDto 
     application_id: record.applicationId ?? null,
     actor_name: record.actor?.name ?? null,
     outdated: consentOutdated(record),
+    withdrawn_at: record.withdrawnAt?.toISOString() ?? null,
   };
 }
 
 /**
- * Account-level status: every acceptance the customer ever gave (newest first,
- * so the page can show history) plus what is still missing or outdated.
+ * Account-level status: every live acceptance the customer ever gave (newest
+ * first, so the page can show history) plus what is still missing or
+ * outdated. Withdrawn acceptances leave `accepted` — they no longer cover
+ * anything — and are listed under `withdrawn` for the customer's history.
  */
 export function buildConsentStatus(records: ConsentRecordLike[]): ConsentStatusDto {
   const sorted = [...records].sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime());
-  const missing = missingConsents(sorted.map((r) => ({ code: r.code, version: r.version })));
+  const live = sorted.filter((r) => !r.withdrawnAt);
+  const withdrawn = sorted.filter((r) => Boolean(r.withdrawnAt));
+  const missing = missingConsents(live.map((r) => ({ code: r.code, version: r.version })));
   return {
     catalog_version: CONSENT_CATALOG_VERSION,
     required: [...CONSENT_CODES],
-    accepted: sorted.map(toConsentRecordDto),
+    accepted: live.map(toConsentRecordDto),
     missing,
     complete: missing.length === 0,
+    withdrawn: withdrawn.map(toConsentRecordDto),
   };
 }

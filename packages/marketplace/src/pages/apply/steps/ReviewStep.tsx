@@ -8,13 +8,17 @@ import {
   formatQar,
   getAppLocale,
   type ConsentStatusDto,
+  type CreditAssessment,
   type DocumentSlot,
+  type GuarantorSessionDto,
   type PricingSnapshot,
 } from '@drivemarket/shared';
 import { Notice, Pill } from '../fields';
 import { formatDate } from '../format';
 import { GENDER_OPTIONS, GUARANTOR_RELATIONSHIP_OPTIONS, parseAmount, type ApplyForm, type ApplyStep, type DerivedIdentity } from '../apply-model';
 import type { PlanVehicle } from '../PlanSummaryRail';
+import { guarantorConsentSatisfied } from '../../../lib/guarantor-api';
+import { CreditPreview } from './CreditPreview';
 
 type Props = {
   form: ApplyForm;
@@ -24,7 +28,11 @@ type Props = {
   tenure: number;
   slots: DocumentSlot[];
   uploaded: Set<string>;
+  /** Uploaded but older than the slot allows. */
+  stale: Set<string>;
   consentStatus: ConsentStatusDto | null;
+  guarantorSession: GuarantorSessionDto | null;
+  creditPreview: CreditAssessment | null;
   declaration: boolean;
   declarationError: boolean;
   onDeclarationChange: (value: boolean) => void;
@@ -36,14 +44,32 @@ function labelFor(options: ReadonlyArray<{ value: string; labelKey: string }>, v
   return hit ? t(hit.labelKey) : value;
 }
 
-export function ReviewStep({ form, derived, vehicle, pricing, tenure, slots, uploaded, consentStatus, declaration, declarationError, onDeclarationChange, onEdit }: Props) {
+export function ReviewStep({
+  form,
+  derived,
+  vehicle,
+  pricing,
+  tenure,
+  slots,
+  uploaded,
+  stale,
+  consentStatus,
+  guarantorSession,
+  creditPreview,
+  declaration,
+  declarationError,
+  onDeclarationChange,
+  onEdit,
+}: Props) {
   const { t } = useTranslation();
   const locale = getAppLocale();
   const none = t('applyFlow.review.notProvided');
   const money = (v: number | null | undefined, exact = false) => (v == null ? none : <MoneyText>{formatQar(v, exact, locale)}</MoneyText>);
   const required = slots.filter((s) => s.required);
   const missing = required.filter((s) => !uploaded.has(s.category));
+  const staleRequired = required.filter((s) => uploaded.has(s.category) && stale.has(s.category));
   const consentsMissing = consentStatus ? consentStatus.missing.length : 4;
+  const guarantorDone = guarantorConsentSatisfied(guarantorSession);
 
   return (
     <div className="dm-step">
@@ -106,15 +132,29 @@ export function ReviewStep({ form, derived, vehicle, pricing, tenure, slots, upl
             </Row>
             <Row label={t('applyFlow.review.relationship')}>{form.guarantor.relationship ? labelFor(GUARANTOR_RELATIONSHIP_OPTIONS, form.guarantor.relationship, t) : none}</Row>
             <Row label={t('applyFlow.review.income')}>{money(parseAmount(form.guarantor.monthlyIncome))}</Row>
+            <Row label={t('applyFlow.review.guarantorConsent')}>
+              <Pill tone={guarantorDone ? 'success' : guarantorSession ? 'warn' : 'neutral'}>
+                {guarantorDone
+                  ? t('applyFlow.review.guarantorConsentDone')
+                  : guarantorSession
+                    ? t('applyFlow.review.guarantorConsentPending')
+                    : t('applyFlow.review.guarantorConsentNone')}
+              </Pill>
+            </Row>
           </>
         ) : (
           <p className="dm-muted">{t('applyFlow.review.guarantorNone')}</p>
         )}
       </ReviewSection>
 
+      <CreditPreview assessment={creditPreview} hasGuarantor={form.hasGuarantor} />
+
       <ReviewSection title={t('applyFlow.review.documents')} onEdit={() => onEdit('documents')} editLabel={t('applyFlow.review.edit')}>
         <div className="dm-review__status">
-          <Pill tone={missing.length === 0 ? 'success' : 'warn'}>{t('applyFlow.review.docsProgress', { done: required.length - missing.length, total: required.length })}</Pill>
+          <Pill tone={missing.length === 0 && staleRequired.length === 0 ? 'success' : 'warn'}>
+            {t('applyFlow.review.docsProgress', { done: required.length - missing.length, total: required.length })}
+          </Pill>
+          {staleRequired.length > 0 ? <Pill tone="danger">{t('applyFlow.review.docsStale', { count: staleRequired.length })}</Pill> : null}
           {missing.length > 0 ? <p className="dm-muted">{t('applyFlow.review.docsMissing', { list: missing.map((s) => t(s.labelKey)).join(', ') })}</p> : null}
         </div>
       </ReviewSection>

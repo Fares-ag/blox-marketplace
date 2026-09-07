@@ -38,9 +38,11 @@ import {
   assertCanManageUserRole,
   assertCanProvisionRole,
   assertHomeBranchInCompany,
+  assertPartnerViewerAssignment,
 } from './user-provisioning.policy';
 
 const HOME_BRANCH_SELECT = { select: { id: true, code: true, name: true } } as const;
+const FINANCE_PARTNER_SELECT = { select: { id: true, name: true } } as const;
 
 class UpdateUserDto {
   @IsOptional() @IsString() @IsNotEmpty() name?: string;
@@ -54,6 +56,9 @@ class UpdateUserDto {
   /** Branch of the user's company; null clears it. Both spellings accepted. */
   @IsOptional() @IsString() home_branch_id?: string | null;
   @IsOptional() @IsString() homeBranchId?: string | null;
+  /** Finance provider of a `partner_viewer` (required for that role, cleared for any other). Both spellings accepted. */
+  @IsOptional() @IsString() finance_partner_id?: string | null;
+  @IsOptional() @IsString() financePartnerId?: string | null;
 }
 
 class CreateUserDto {
@@ -67,6 +72,8 @@ class CreateUserDto {
   @IsOptional() @IsArray() @IsString({ each: true }) financeCompanyIds?: string[];
   @IsOptional() @IsString() home_branch_id?: string | null;
   @IsOptional() @IsString() homeBranchId?: string | null;
+  @IsOptional() @IsString() finance_partner_id?: string | null;
+  @IsOptional() @IsString() financePartnerId?: string | null;
 }
 
 class InviteDealerAgentDto {
@@ -87,6 +94,16 @@ function requestedHomeBranch(dto: {
   homeBranchId?: string | null;
 }): string | null | undefined {
   const raw = dto.home_branch_id !== undefined ? dto.home_branch_id : dto.homeBranchId;
+  if (raw === undefined) return undefined;
+  return raw ? raw : null;
+}
+
+/** `undefined` = not mentioned in the payload; `null`/'' = clear. */
+function requestedFinancePartner(dto: {
+  finance_partner_id?: string | null;
+  financePartnerId?: string | null;
+}): string | null | undefined {
+  const raw = dto.finance_partner_id !== undefined ? dto.finance_partner_id : dto.financePartnerId;
   if (raw === undefined) return undefined;
   return raw ? raw : null;
 }
@@ -132,6 +149,7 @@ export class UsersController {
           createdAt: true,
           company: { select: { name: true } },
           homeBranch: HOME_BRANCH_SELECT,
+          financePartner: FINANCE_PARTNER_SELECT,
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -150,6 +168,7 @@ export class UsersController {
       include: {
         company: { select: { id: true, name: true } },
         homeBranch: HOME_BRANCH_SELECT,
+        financePartner: FINANCE_PARTNER_SELECT,
         creditCompanies: { select: { companyId: true } },
         financeCompanies: { select: { companyId: true } },
         _count: { select: { applications: true, agentApplications: true } },
@@ -232,6 +251,9 @@ export class UsersController {
     }
 
     const homeBranchId = await this.resolveHomeBranch(requestedHomeBranch(dto), dto.companyId ?? null);
+    // Partner viewers belong to a finance provider, never to a dealer company.
+    const financePartnerId = await this.resolveFinancePartner(dto.role, requestedFinancePartner(dto));
+    const companyId = dto.role === UserRole.partner_viewer ? null : (dto.companyId ?? null);
 
     const officerCompanyIds = [
       ...(dto.creditCompanyIds ?? []),
@@ -269,13 +291,14 @@ export class UsersController {
         where: { id: created.id },
         data: {
           role: dto.role,
-          companyId: dto.companyId ?? null,
+          companyId,
           homeBranchId: homeBranchId ?? null,
+          financePartnerId,
           creditScope: dto.creditScope ?? undefined,
           financeScope: dto.financeScope ?? undefined,
           emailVerified: staffProvisioned,
         },
-        include: { homeBranch: HOME_BRANCH_SELECT },
+        include: { homeBranch: HOME_BRANCH_SELECT, financePartner: FINANCE_PARTNER_SELECT },
       });
       if (dto.creditCompanyIds?.length) {
         await tx.creditOfficerCompany.createMany({
@@ -292,7 +315,7 @@ export class UsersController {
       return next;
     });
 
-    const loginUrl = this.appConfig.portalSignInUrl(dto.role);
+    const loginUrl = this.signInUrlFor(dto.role);
     if (staffProvisioned) {
       try {
         if (dto.role === UserRole.dealer_agent && companyName) {
@@ -329,7 +352,10 @@ export class UsersController {
       entityId: updated.id,
       action: 'user_created',
       toValue: updated.role,
-      metadata: homeBranchId ? { homeBranchId } : undefined,
+      metadata:
+        homeBranchId || financePartnerId
+          ? { ...(homeBranchId ? { homeBranchId } : {}), ...(financePartnerId ? { financePartnerId } : {}) }
+          : undefined,
     });
     return toAdminUserProvisionDto(updated, {
       temporaryPassword: password,
@@ -386,6 +412,18 @@ export class UsersController {
       homeBranchId = null;
     }
 
+    // A partner viewer must end up with a valid finance provider; any other
+    // role never carries one (leaving the role drops the link).
+    const nextRole = dto.role ?? target.role;
+    const requestedPartner = requestedFinancePartner(dto);
+    let financePartnerId: string | null | undefined;
+    if (nextRole === UserRole.partner_viewer) {
+      const effective = requestedPartner === undefined ? target.financePartnerId : requestedPartner;
+      financePartnerId = await this.resolveFinancePartner(nextRole, effective);
+    } else if (target.financePartnerId || requestedPartner) {
+      financePartnerId = null;
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.user.update({
         where: { id },
@@ -395,10 +433,11 @@ export class UsersController {
           role: dto.role ?? undefined,
           companyId: dto.companyId === undefined ? undefined : dto.companyId,
           homeBranchId: homeBranchId === undefined ? undefined : homeBranchId,
+          financePartnerId: financePartnerId === undefined ? undefined : financePartnerId,
           creditScope: dto.creditScope ?? undefined,
           financeScope: dto.financeScope ?? undefined,
         },
-        include: { homeBranch: HOME_BRANCH_SELECT },
+        include: { homeBranch: HOME_BRANCH_SELECT, financePartner: FINANCE_PARTNER_SELECT },
       });
       if (dto.creditCompanyIds) {
         await tx.creditOfficerCompany.deleteMany({ where: { userId: id } });
@@ -436,6 +475,7 @@ export class UsersController {
           ...(dto.role !== undefined ? { role: dto.role } : {}),
           ...(dto.companyId !== undefined ? { companyId: dto.companyId } : {}),
           ...(homeBranchId !== undefined ? { homeBranchId } : {}),
+          ...(financePartnerId !== undefined ? { financePartnerId } : {}),
           ...(dto.creditScope !== undefined ? { creditScope: dto.creditScope } : {}),
           ...(dto.financeScope !== undefined ? { financeScope: dto.financeScope } : {}),
         },
@@ -469,7 +509,7 @@ export class UsersController {
       });
     });
 
-    const loginUrl = this.appConfig.portalSignInUrl(target.role);
+    const loginUrl = this.signInUrlFor(target.role);
     if (dto.sendEmail !== false) {
       try {
         await this.mail.sendAdminPasswordResetEmail({
@@ -552,10 +592,34 @@ export class UsersController {
     return requested;
   }
 
+  /**
+   * Finance provider for a partner viewer: required for that role and must
+   * exist (400 partner_viewer_requires_finance_partner / finance_partner_not_found);
+   * always null for every other role.
+   */
+  private async resolveFinancePartner(role: UserRole, requested: string | null | undefined): Promise<string | null> {
+    if (role !== UserRole.partner_viewer) return null;
+    const partner = requested
+      ? await this.prisma.financePartner.findUnique({ where: { id: requested }, select: { id: true } })
+      : null;
+    return assertPartnerViewerAssignment(role, partner, requested);
+  }
+
+  /** Partner viewers sign in on the finance portal (`/partner`); every other role keeps its own portal. */
+  private signInUrlFor(role: UserRole): string {
+    return role === UserRole.partner_viewer
+      ? `${this.appConfig.financeUrl}/auth/sign-in`
+      : this.appConfig.portalSignInUrl(role);
+  }
+
   private async loadManagedUser(actor: User, id: string) {
     const target = await this.prisma.user.findUnique({
       where: { id },
-      include: { company: { select: { name: true } }, homeBranch: HOME_BRANCH_SELECT },
+      include: {
+        company: { select: { name: true } },
+        homeBranch: HOME_BRANCH_SELECT,
+        financePartner: FINANCE_PARTNER_SELECT,
+      },
     });
     if (!target) throw new NotFoundException();
     assertCanManageUserRole(actor, target.role);

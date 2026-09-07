@@ -66,9 +66,13 @@ type Props = {
   hideIntro?: boolean;
   /** Only render outstanding/outdated consents (consent centre). */
   outstandingOnly?: boolean;
+  /** Consent centre: offer "Withdraw" on accepted consents. Absent in the stepper. */
+  onWithdraw?: (code: ConsentCodeValue, record: ConsentRecordDto) => void;
+  /** Code whose withdrawal is in flight (disables its control). */
+  withdrawingCode?: ConsentCodeValue | null;
 };
 
-export function ConsentChecklist({ applicationId, onStatusChange, hideIntro, outstandingOnly }: Props) {
+export function ConsentChecklist({ applicationId, onStatusChange, hideIntro, outstandingOnly, onWithdraw, withdrawingCode }: Props) {
   const { t } = useTranslation();
   const locale = getAppLocale();
   const qc = useQueryClient();
@@ -171,6 +175,8 @@ export function ConsentChecklist({ applicationId, onStatusChange, hideIntro, out
             disabled={mutation.isPending}
             onToggle={(checked) => toggle(code, checked)}
             onToggleExpanded={() => toggleExpanded(code)}
+            onWithdraw={onWithdraw && record ? () => onWithdraw(code, record) : undefined}
+            withdrawing={withdrawingCode === code}
           />
         ))}
       </ul>
@@ -216,6 +222,8 @@ function ConsentCard({
   disabled,
   onToggle,
   onToggleExpanded,
+  onWithdraw,
+  withdrawing,
 }: {
   code: ConsentCodeValue;
   title: string;
@@ -229,6 +237,8 @@ function ConsentCard({
   disabled: boolean;
   onToggle: (checked: boolean) => void;
   onToggleExpanded: () => void;
+  onWithdraw?: () => void;
+  withdrawing?: boolean;
 }) {
   const { t } = useTranslation();
   const locale = getAppLocale();
@@ -261,11 +271,25 @@ function ConsentCard({
 
       <div className="dm-consent__foot">
         {state === 'accepted' && record ? (
-          <p className="dm-consent__accepted">
-            <span>{t('consentCentre.accepted', { date: formatDate(record.accepted_at, locale) })}</span>
-            <span className="dm-muted"> · {t('consentCentre.acceptedVersion', { version: record.version })}</span>
-            <span className="dm-muted"> · {t(channelLabelKey(record.channel))}</span>
-          </p>
+          <div className="dm-consent__accepted-row">
+            <p className="dm-consent__accepted">
+              <span>{t('consentCentre.accepted', { date: formatDate(record.accepted_at, locale) })}</span>
+              <span className="dm-muted"> · {t('consentCentre.acceptedVersion', { version: record.version })}</span>
+              <span className="dm-muted"> · {t(channelLabelKey(record.channel))}</span>
+            </p>
+            {onWithdraw ? (
+              <button
+                type="button"
+                className="dm-linkbtn dm-consent__withdraw"
+                disabled={withdrawing}
+                aria-busy={withdrawing || undefined}
+                onClick={onWithdraw}
+                aria-label={`${t('consentCentre.withdraw')}: ${title}`}
+              >
+                {withdrawing ? t('consentCentre.withdrawing') : t('consentCentre.withdraw')}
+              </button>
+            ) : null}
+          </div>
         ) : (
           <>
             {state === 'outdated' ? <p className="dm-consent__outdated">{t('consentCentre.outdated')}</p> : null}

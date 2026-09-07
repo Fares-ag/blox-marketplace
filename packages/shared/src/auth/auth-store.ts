@@ -16,6 +16,7 @@ interface AuthState {
     email: string,
     password: string,
     name: string,
+    preferredLanguage?: 'en' | 'ar',
   ) => Promise<{ error?: string; pendingVerification?: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -195,7 +196,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signUp: async (email, password, name) => {
+  signUp: async (email, password, name, preferredLanguage) => {
     set({ loading: true });
     try {
       const res = await fetch(`${getApiBase()}/api/auth/sign-up/email`, {
@@ -206,6 +207,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           email,
           password,
           name,
+          ...(preferredLanguage ? { preferredLanguage } : {}),
           // Where the emailed verification link lands once Better Auth confirms it.
           // Without this the link falls back to the API root (404).
           callbackURL: `${window.location.origin}/auth/verify-email`,

@@ -2,6 +2,7 @@ import { Controller, Get, Patch, Body, Post, HttpCode } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IsOptional, IsString, Matches } from 'class-validator';
 import type { User } from '@prisma/client';
+import { IdentityService } from '../common/identity.service';
 import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
 import { CurrentUser, MfaExempt } from './guards';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,6 +31,7 @@ export class MeController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly identity: IdentityService,
   ) {}
 
   @Get()
@@ -44,7 +46,8 @@ export class MeController {
       data: {
         name: dto.name ?? undefined,
         phone: dto.phone ?? undefined,
-        qid: dto.qid ?? undefined,
+        // Encrypted copy + blind index always; plaintext only while QID_STORE_PLAINTEXT is on.
+        ...(this.identity.prepareQidWrite(dto.qid) ?? {}),
       },
     });
     return this.toPublic(updated);
@@ -58,9 +61,16 @@ export class MeController {
     return { status: true };
   }
 
-  private toPublic(user: User) {
+  private async toPublic(user: User) {
     const mfaRequired = isMfaRequiredRole(user.role);
     const mfaEnforced = isMfaEnforcementActive(resolveMfaEnforcement(this.config));
+    // Partner viewers belong to a finance provider; every other role has none.
+    const partner = user.financePartnerId
+      ? await this.prisma.financePartner.findUnique({
+          where: { id: user.financePartnerId },
+          select: { id: true, name: true },
+        })
+      : null;
     return {
       id: user.id,
       email: user.email,
@@ -70,7 +80,7 @@ export class MeController {
       credit_scope: user.creditScope,
       finance_scope: user.financeScope,
       phone: user.phone,
-      qid: user.qid,
+      qid: this.identity.readQid(user),
       email_verified: user.emailVerified,
       is_active: user.isActive,
       two_factor_enabled: user.twoFactorEnabled,
@@ -78,6 +88,8 @@ export class MeController {
       mfa_setup_required: mfaEnforced && mfaRequired && !user.twoFactorEnabled,
       // Lets every portal run the same idle-timeout countdown the API enforces.
       session_policy: sessionPolicyDto(resolveSessionPolicy(this.config)),
+      finance_partner_id: user.financePartnerId ?? null,
+      finance_partner_name: partner?.name ?? null,
     };
   }
 }

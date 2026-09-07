@@ -5,6 +5,7 @@ import {
   snapshotForAudience,
   toApplicationBlockingDto,
   toApplicationDto,
+  toApplicationListItemDto,
   toDealerApplicationDto,
   toDealerApplicationListItemDto,
   toOpsApplicationDto,
@@ -176,6 +177,40 @@ describe('application-response.dto', () => {
     expect(ops.status_reason).toBe('ops note');
     expect(mapApplicationDto(app, 'ops').status_reason).toBe('ops note');
     expect(mapApplicationDto(app, 'customer').status_reason).toBeUndefined();
+  });
+
+  it('never gives the customer a decision reason — status only', () => {
+    const declined = { ...app, status: 'rejected' as const, rejectionReason: 'DBR above cap', statusReason: 'DBR above cap' };
+    const customer = mapApplicationDto(declined, 'customer') as Record<string, unknown>;
+    expect(customer.status).toBe('rejected');
+    expect(customer).not.toHaveProperty('rejection_reason');
+    expect(customer).not.toHaveProperty('status_reason');
+    expect(JSON.stringify(customer)).not.toContain('DBR above cap');
+    // Instructions on what to fix are not decision reasons and still reach the customer.
+    expect(mapApplicationDto({ ...declined, resubmissionComment: 'Upload a recent payslip' }, 'customer')).toMatchObject({
+      resubmission_comment: 'Upload a recent payslip',
+    });
+    // Ops (and the dealer who originated the lead) keep the reason.
+    expect(toOpsApplicationDto(declined).rejection_reason).toBe('DBR above cap');
+    expect(toDealerApplicationDto(declined).rejection_reason).toBe('DBR above cap');
+    expect(toApplicationListItemDto(declined)).not.toHaveProperty('rejection_reason');
+    expect(toApplicationListItemDto(declined)).toMatchObject({ status: 'rejected' });
+  });
+
+  it('names who cleared the identity hold when the loader resolved it', () => {
+    expect(toApplicationDto(app).identity_hold_cleared_by_name).toBeNull();
+    const cleared = {
+      ...app,
+      identityHoldClearedAt: new Date('2026-01-03T00:00:00.000Z'),
+      identityHoldClearedById: 'officer-1',
+      identityHoldClearedByName: 'Credit Officer',
+    };
+    expect(toApplicationDto(cleared)).toMatchObject({
+      identity_hold_cleared_at: cleared.identityHoldClearedAt,
+      identity_hold_cleared_by_name: 'Credit Officer',
+    });
+    expect(toOpsApplicationDto(cleared).identity_hold_cleared_by_name).toBe('Credit Officer');
+    expect(toOpsApplicationDto(cleared)).not.toHaveProperty('identity_hold_cleared_by_id');
   });
 
   it('gives the owner the full snapshot plus identity, consent, lender, branch and takaful facts', () => {

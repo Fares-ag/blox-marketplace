@@ -30,9 +30,24 @@ function isStrictRateLimitPath(pathname: string): boolean {
     pathname.startsWith('/payments/skipcash/') ||
     // Assisted-session customer links (/assist/<token>) are public and OTP-gated; /assist-sessions (staff) is not.
     pathname.startsWith('/assist/') ||
+    // Guarantor links (/guarantor/<token>) follow the same public, OTP-gated pattern.
+    pathname.startsWith('/guarantor/') ||
+    // Public takaful quote comparison; the admin master lives under /ops/takaful-providers.
+    pathname.startsWith('/takaful/providers') ||
     pathname.startsWith('/product-rules')
   );
 }
+
+/** Public, unauthenticated prefixes that get the stricter per-IP budget. */
+const PUBLIC_LIMITER_PREFIXES = [
+  '/api/products',
+  '/api/quotes',
+  '/api/payments/skipcash',
+  '/api/assist',
+  '/api/guarantor',
+  '/api/takaful/providers',
+  '/api/product-rules',
+] as const;
 
 let redisClient: RedisClientType | undefined;
 
@@ -105,11 +120,7 @@ export async function applySecurityMiddleware(
     });
 
     expressApp.use('/api/auth', authLimiter);
-    expressApp.use('/api/products', publicLimiter);
-    expressApp.use('/api/quotes', publicLimiter);
-    expressApp.use('/api/payments/skipcash', publicLimiter);
-    expressApp.use('/api/assist', publicLimiter);
-    expressApp.use('/api/product-rules', publicLimiter);
+    for (const prefix of PUBLIC_LIMITER_PREFIXES) expressApp.use(prefix, publicLimiter);
     expressApp.use('/api', globalLimiter);
     return;
   }
@@ -123,11 +134,7 @@ export async function applySecurityMiddleware(
   });
 
   expressApp.use('/api/auth', authLimiter);
-  expressApp.use('/api/products', publicLimiter);
-  expressApp.use('/api/quotes', publicLimiter);
-  expressApp.use('/api/payments/skipcash', publicLimiter);
-  expressApp.use('/api/assist', publicLimiter);
-  expressApp.use('/api/product-rules', publicLimiter);
+  for (const prefix of PUBLIC_LIMITER_PREFIXES) expressApp.use(prefix, publicLimiter);
   expressApp.use('/api', globalLimiter);
 }
 

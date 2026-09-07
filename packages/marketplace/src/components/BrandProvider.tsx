@@ -1,24 +1,33 @@
 /**
- * White-label context for dealer-branded customer entry (`/dealers/:code/*`).
+ * White-label context for dealer-branded customer journeys.
  *
- * Loads the public company record (with `branding`) whenever the route carries
- * a dealer code, exposes it through `useBrand()`, and applies the dealer's
- * colours as CSS variables (`--dm-brand-primary`, `--dm-brand-accent`,
- * `--dm-brand-on-primary`, `--dm-brand-on-accent`) for as long as a branded
- * route is mounted. Everywhere else the variables are absent and the default
- * Blox look applies.
+ * The brand activates from three sources, in this order of precedence:
+ *   1. the route carries a dealer code (`/dealers/:code/*` — showroom, branded entry);
+ *   2. a stored code (`sessionStorage['dm-brand-code']`, set when the customer
+ *      arrives through `/dealers/:code/apply` and cleared on sign-out), which keeps
+ *      the dealer's look through the stepper, dashboard and detail pages;
+ *   3. on a vehicle page, only when that vehicle's `company.code` matches the
+ *      stored code — another dealer's car never wears the wrong brand.
+ *
+ * `useBrand()` exposes the resolved branding; the provider applies the colours
+ * as CSS variables (`--dm-brand-primary`, `--dm-brand-accent`,
+ * `--dm-brand-on-primary`, `--dm-brand-on-accent`) while a brand is active.
+ * Everywhere else the variables are absent and the default Blox look applies.
  */
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { matchPath, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, type CompanyBrandingDto, type PublicCompany } from '@drivemarket/shared';
+import { apiFetch, useAuthStore, type CompanyBrandingDto, type PublicCompany } from '@drivemarket/shared';
+import { clearStoredBrandCode, readStoredBrandCode, storeBrandCode } from '../lib/brand-storage';
 
 export type BrandedCompany = PublicCompany & {
   address?: string | null;
   contact_phone?: string | null;
   branding?: CompanyBrandingDto | null;
 };
+
+export type BrandSource = 'route' | 'stored' | null;
 
 export type BrandContextValue = {
   branding: CompanyBrandingDto | null;
@@ -30,10 +39,18 @@ export type BrandContextValue = {
   logoUrl: string | null;
   primary: string | null;
   accent: string | null;
-  /** True when a dealer route is active and the company resolved. */
+  /** True when a dealer route or stored entry is active and the company resolved. */
   isBranded: boolean;
   isLoading: boolean;
   notFound: boolean;
+  /** Where the active brand came from. */
+  source: BrandSource;
+  /**
+   * Pages about one specific dealer (vehicle detail) declare it here so a
+   * stored brand only shows when the codes match. `undefined` = page is not
+   * dealer-specific; `null` = dealer-specific but not known yet.
+   */
+  setPageCompanyCode: (code: string | null | undefined) => void;
 };
 
 const EMPTY: BrandContextValue = {
@@ -49,6 +66,8 @@ const EMPTY: BrandContextValue = {
   isBranded: false,
   isLoading: false,
   notFound: false,
+  source: null,
+  setPageCompanyCode: () => {},
 };
 
 const BrandContext = createContext<BrandContextValue>(EMPTY);
@@ -82,9 +101,48 @@ export function brandCodeFromPath(pathname: string): string | null {
   return code ? code : null;
 }
 
+/** True on the branded entry page, the only route that persists the brand for the visit. */
+export function isBrandedEntryPath(pathname: string): boolean {
+  return !!matchPath({ path: '/dealers/:code/apply', end: true }, pathname);
+}
+
+function sameCode(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 export function BrandProvider({ children, value }: { children: ReactNode; value?: Partial<BrandContextValue> }) {
   const location = useLocation();
-  const code = value ? null : brandCodeFromPath(location.pathname);
+  const routeCode = value ? null : brandCodeFromPath(location.pathname);
+  const [storedCode, setStoredCode] = useState<string | null>(() => readStoredBrandCode());
+  const [pageCompanyCode, setPageCompanyCodeState] = useState<string | null | undefined>(undefined);
+
+  // Arriving through the branded entry keeps the dealer's look for the rest of the visit.
+  useEffect(() => {
+    if (routeCode && isBrandedEntryPath(location.pathname)) {
+      storeBrandCode(routeCode);
+      setStoredCode(routeCode);
+    }
+  }, [routeCode, location.pathname]);
+
+  // Signing out ends the branded visit (the auth store is shared code; we only listen).
+  useEffect(
+    () =>
+      useAuthStore.subscribe((state, prev) => {
+        if (prev.user && !state.user) {
+          clearStoredBrandCode();
+          setStoredCode(null);
+        }
+      }),
+    [],
+  );
+
+  const setPageCompanyCode = useCallback((code: string | null | undefined) => {
+    setPageCompanyCodeState(code);
+  }, []);
+
+  const storedApplies = !!storedCode && (pageCompanyCode === undefined || sameCode(pageCompanyCode, storedCode));
+  const code = value ? null : routeCode ?? (storedApplies ? storedCode : null);
+  const source: BrandSource = routeCode ? 'route' : code ? 'stored' : null;
 
   const query = useQuery({
     queryKey: ['company-by-code', code],
@@ -94,9 +152,17 @@ export function BrandProvider({ children, value }: { children: ReactNode; value?
     retry: false,
   });
 
+  // A stored code that no longer resolves (dealer link deactivated) is dropped.
+  useEffect(() => {
+    if (source === 'stored' && query.isSuccess && !query.data) {
+      clearStoredBrandCode();
+      setStoredCode(null);
+    }
+  }, [source, query.isSuccess, query.data]);
+
   const computed = useMemo<BrandContextValue>(() => {
-    if (value) return { ...EMPTY, ...value };
-    if (!code) return EMPTY;
+    if (value) return { ...EMPTY, ...value, setPageCompanyCode };
+    if (!code) return { ...EMPTY, setPageCompanyCode };
     const company = query.data ?? null;
     const branding = company?.branding ?? null;
     const primary = isSafeHexColour(branding?.primary) ? branding!.primary!.trim() : null;
@@ -114,8 +180,10 @@ export function BrandProvider({ children, value }: { children: ReactNode; value?
       isBranded: !!company,
       isLoading: query.isLoading,
       notFound: query.isSuccess && !company,
+      source: company ? source : null,
+      setPageCompanyCode,
     };
-  }, [value, code, query.data, query.isLoading, query.isSuccess]);
+  }, [value, code, source, query.data, query.isLoading, query.isSuccess, setPageCompanyCode]);
 
   useEffect(() => {
     if (!computed.isBranded) return;
@@ -140,6 +208,18 @@ export function BrandProvider({ children, value }: { children: ReactNode; value?
 
 export function useBrand(): BrandContextValue {
   return useContext(BrandContext);
+}
+
+/**
+ * Declares the dealer a page is about (vehicle detail) so a stored brand only
+ * shows when the codes match. Pass `null` while the page's company is loading.
+ */
+export function useBrandPageScope(companyCode: string | null): void {
+  const { setPageCompanyCode } = useBrand();
+  useEffect(() => {
+    setPageCompanyCode(companyCode);
+    return () => setPageCompanyCode(undefined);
+  }, [companyCode, setPageCompanyCode]);
 }
 
 /** Dealer logo + display name with the "Financing by Blox" attribution. */

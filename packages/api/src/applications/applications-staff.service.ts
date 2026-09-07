@@ -34,6 +34,7 @@ import { ApplicationIntakeService } from './application-intake.service';
 import { assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
 import { normalizeCustomerSnapshot, type NormalizedCustomerSnapshot } from './customer-snapshot';
 import { assertSubmitGates, vehicleIdentityComplete } from './submit-gates';
+import { assessApplicationCredit, creditAssessedLogMetadata, creditAssessmentData } from './credit-assessment';
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
@@ -235,6 +236,13 @@ export class ApplicationsStaffService {
       };
       if (bulkBatchId) customerSnapshot.bulkBatchId = bulkBatchId;
 
+      // Submitted straight away → the credit assessment is captured now, as it
+      // is for a customer submit.
+      const assessed =
+        initialStatus !== ApplicationStatus.draft
+          ? assessApplicationCredit({ customerSnapshot, pricingSnapshot: pricingWithFlags, product })
+          : null;
+
       const now = new Date();
       const app = await this.prisma.$transaction(async (tx) => {
         const created = await tx.application.create({
@@ -255,6 +263,7 @@ export class ApplicationsStaffService {
             qidHash,
             submittedAt: initialStatus !== ApplicationStatus.draft ? now : null,
             ...this.intake.holdColumns(identity, now),
+            ...(assessed ? creditAssessmentData(assessed) : {}),
           },
         });
 
@@ -279,6 +288,16 @@ export class ApplicationsStaffService {
         toValue: initialStatus,
         metadata: { staff: true, walk_in: true, branch_id: branchId },
       });
+      if (assessed) {
+        await this.activity.log({
+          actorUserId: actor.id,
+          entityType: 'application',
+          entityId: app.id,
+          action: 'credit_assessed',
+          toValue: assessed.assessment.path,
+          metadata: creditAssessedLogMetadata(assessed, 'submit'),
+        });
+      }
       if (identity) {
         await this.intake.recordHold({
           applicationId: app.id,
@@ -319,7 +338,11 @@ export class ApplicationsStaffService {
 
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { documents: true, product: true, financePartner: true },
+      include: {
+        documents: { include: { uploadedBy: { select: { role: true } } } },
+        product: true,
+        financePartner: true,
+      },
     });
     if (!app) throw new NotFoundException();
     if (isDealer && app.companyId !== actor.companyId) throw new ForbiddenException('forbidden_role');
@@ -327,15 +350,27 @@ export class ApplicationsStaffService {
       throw new BadRequestException('invalid_status_transition');
     }
     const fromStatus = app.status;
-    // identity_hold → consents_required → documents_missing →
-    // vehicle_identity_incomplete (only when reserving) → vehicle_age_rule
+    // identity_hold → consents_required → documents_missing → documents_stale →
+    // guarantor_consent_required → vehicle_identity_incomplete (only when
+    // reserving) → vehicle_age_rule
     assertSubmitGates({
       application: app,
-      documents: app.documents,
+      documents: app.documents.map(({ uploadedBy, ...doc }) => ({ ...doc, uploadedByRole: uploadedBy?.role ?? null })),
       product: app.product,
       requireVehicleIdentity: fromStatus === ApplicationStatus.draft,
+      guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
+      identityPolicy: {
+        ekycRequired: this.appConfig.kycEkycRequired,
+        allowStaffManualIdentity: this.appConfig.kycAllowStaffManualIdentity,
+      },
+      now: new Date(),
     });
 
+    const assessed = assessApplicationCredit({
+      customerSnapshot: app.customerSnapshot,
+      pricingSnapshot: app.pricingSnapshot,
+      product: app.product,
+    });
     const nextStatus = submittedStatusForPartner(app.financePartner?.crmAdapter);
     const lenderId = app.financePartnerId ?? (await this.intake.defaultLenderId());
     const autoTagged = !app.financePartnerId && !!lenderId;
@@ -344,6 +379,7 @@ export class ApplicationsStaffService {
       await transitionApplication(tx, id, fromStatus, {
         status: nextStatus,
         submittedAt: app.submittedAt ?? new Date(),
+        ...creditAssessmentData(assessed),
       });
       if (autoTagged || (branchId && branchId !== app.branchId)) {
         await tx.application.update({
@@ -370,6 +406,14 @@ export class ApplicationsStaffService {
       action: 'status_transition',
       fromValue: fromStatus,
       toValue: nextStatus,
+    });
+    await this.activity.log({
+      actorUserId: actor.id,
+      entityType: 'application',
+      entityId: id,
+      action: 'credit_assessed',
+      toValue: assessed.assessment.path,
+      metadata: creditAssessedLogMetadata(assessed, 'submit'),
     });
     if (autoTagged) {
       await this.activity.log({

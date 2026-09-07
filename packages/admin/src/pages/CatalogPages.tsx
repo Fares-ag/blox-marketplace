@@ -256,10 +256,10 @@ export function SettlementSettingsPage() {
             checked={form.interestDiscountEnabled}
             onChange={(e) => setForm((p) => ({ ...p, interestDiscountEnabled: e.target.checked }))}
           />
-          <span>Interest discount enabled</span>
+          <span>Profit discount enabled</span>
         </label>
         <OpsField
-          label="Interest discount value"
+          label="Profit discount value"
           type="number"
           value={form.interestDiscountValue}
           onChange={(e) => setForm((p) => ({ ...p, interestDiscountValue: Number(e.target.value) }))}

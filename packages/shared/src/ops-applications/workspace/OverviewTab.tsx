@@ -16,6 +16,8 @@ import type { OpsRuleFlag } from '../types';
 import { DecisionPanel } from './DecisionPanel';
 import { AssistedSessionPanel } from './AssistedSessionPanel';
 import { ConsentsPanel } from './ConsentsPanel';
+import { CreditAssessmentPanel } from './CreditAssessmentPanel';
+import { GuarantorPanel } from './GuarantorPanel';
 import { TakafulPanel } from './TakafulPanel';
 import type { WorkspacePanelProps } from './types';
 
@@ -46,9 +48,10 @@ function ruleFlagLabel(flag: OpsRuleFlag, t: (key: string, opts?: Record<string,
 
 /**
  * Overview tab — Phase 1 §11. Main: applicant profile (masked identity with
- * audited reveal), plan with rule flags, documents checklist. Aside: the
- * decision panel first, then the customer-platform cards (assisted session for
- * dealers, consents, takaful) and the last three events.
+ * audited reveal), plan with rule flags, the credit assessment (ops audiences),
+ * documents checklist. Aside: the decision panel first, then the
+ * customer-platform cards (assisted session for dealers, consents, guarantor
+ * consent, takaful) and the last three events.
  */
 export function OverviewTab(props: Props) {
   const { id, data, customerPct, bloxPct, showOwnership, onOpenTab, canSeeLogs, platform } = props;
@@ -151,6 +154,15 @@ export function OverviewTab(props: Props) {
             )}
           </section>
 
+          {platform && audience !== 'dealer' && (
+            <CreditAssessmentPanel
+              assessment={platform.creditAssessment ?? data.credit_assessment ?? null}
+              loading={platform.creditAssessmentPending}
+              error={platform.creditAssessmentError}
+              showApprover
+            />
+          )}
+
           <section className="blox-detail-section">
             <h2 className="blox-panel__title">
               {t('ops.workspace.tab.docs')}
@@ -236,6 +248,14 @@ export function OverviewTab(props: Props) {
               loading={platform.consentsPending}
               error={platform.consentsError}
               completedAt={data.consents_completed_at}
+            />
+          )}
+          {platform?.guarantor?.hasGuarantor && (
+            <GuarantorPanel
+              applicationId={id}
+              snapshot={snap}
+              canSend={platform.guarantor.canSend}
+              canStart={!ASSIST_CLOSED_STATUSES.has(data.status)}
             />
           )}
           {platform && audience !== 'dealer' && (

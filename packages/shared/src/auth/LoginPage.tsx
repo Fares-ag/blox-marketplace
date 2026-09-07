@@ -8,6 +8,7 @@ import { opsPortalAuthKeys } from '../config/ops-portal-auth';
 import { BloxLogo } from '../components/BloxLogo';
 import { OpsAuthCardInner, OpsAuthLayout } from '../ops-ui-v2';
 import { getApiBase } from '../lib/api';
+import { getAppLocale, setAppLocale, type AppLocale } from '../i18n';
 import { useAuthStore, readAuthError } from './auth-store';
 
 const PORTAL_MISMATCH_REASONS = new Set([
@@ -207,12 +208,21 @@ export function RegisterPage({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Captured at registration (LOS FSD Stage 1) so every later message, contract
+  // and reminder goes out in the customer's language; choosing it also flips the
+  // page so the customer sees the effect at once.
+  const [preferredLanguage, setPreferredLanguage] = useState<AppLocale>(() => getAppLocale());
   const [error, setError] = useState<string | null>(null);
   const signUp = useAuthStore((s) => s.signUp);
   const loading = useAuthStore((s) => s.loading);
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnUrl = params.get('returnUrl');
+
+  function chooseLanguage(locale: AppLocale) {
+    setPreferredLanguage(locale);
+    setAppLocale(locale);
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -222,7 +232,7 @@ export function RegisterPage({
       return;
     }
     trackProductEvent('signup_started', { source: 'marketplace' });
-    const result = await signUp(email.trim(), password, name.trim());
+    const result = await signUp(email.trim(), password, name.trim(), preferredLanguage);
     if (result.error) {
       setError(result.error);
       return;
@@ -281,6 +291,26 @@ export function RegisterPage({
                 placeholder="At least 8 characters"
               />
             </label>
+            <fieldset className="dm-auth-language" aria-describedby="dm-auth-language-hint">
+              <legend>{t('customerProfile.preferences.language')}</legend>
+              <div className="dm-auth-language__options" role="radiogroup">
+                {(['en', 'ar'] as const).map((locale) => (
+                  <label key={locale} className={preferredLanguage === locale ? 'is-active' : ''}>
+                    <input
+                      type="radio"
+                      name="preferred_language"
+                      value={locale}
+                      checked={preferredLanguage === locale}
+                      onChange={() => chooseLanguage(locale)}
+                    />
+                    {locale === 'en' ? t('customerProfile.preferences.languageEn') : t('customerProfile.preferences.languageAr')}
+                  </label>
+                ))}
+              </div>
+              <p id="dm-auth-language-hint" className="dm-auth-language__hint">
+                {t('auth.languageHint', { defaultValue: 'Used for messages, reminders and your agreement.' })}
+              </p>
+            </fieldset>
             {error && <p className="dm-auth-error blox-auth-error">{error}</p>}
             <button type="submit" className="dm-btn-cta dm-auth-submit blox-auth-submit" disabled={loading}>
               {loading ? 'Creating account…' : 'Create account'}
@@ -974,6 +1004,55 @@ function AuthPageStyles() {
         margin: 0 0 8px;
         color: var(--dm-danger, #b42318);
         font-size: 0.875rem;
+      }
+
+      .dm-auth-language {
+        border: 0;
+        margin: 0 0 12px;
+        padding: 0;
+        min-inline-size: 0;
+      }
+      .dm-auth-language legend {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--dm-slate-600, #475467);
+        margin-block-end: 6px;
+        padding: 0;
+      }
+      .dm-auth-language__options {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .dm-auth-language__options label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 44px;
+        border: 1px solid var(--dm-slate-200, #d0d5dd);
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        margin: 0;
+      }
+      .dm-auth-language__options label.is-active {
+        border-color: var(--dm-steel, #16535b);
+        background: var(--dm-steel-soft, #e6f2f0);
+      }
+      .dm-auth-language__options input {
+        position: absolute;
+        opacity: 0;
+        inline-size: 1px;
+        block-size: 1px;
+      }
+      .dm-auth-language__options label:focus-within {
+        box-shadow: 0 0 0 3px rgba(0, 207, 162, 0.22);
+      }
+      .dm-auth-language__hint {
+        margin: 6px 0 0;
+        font-size: 0.8125rem;
+        color: var(--dm-slate-600, #475467);
       }
 
       .dm-auth-banner {

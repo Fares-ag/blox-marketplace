@@ -10,8 +10,18 @@ export type HomeBranchRef = { id: string; code: string; name: string } | null;
 
 type WithHomeBranch = { homeBranch?: HomeBranchRef | null };
 
+/** Finance provider a `partner_viewer` belongs to (`finance_partner` in user DTOs). */
+export type FinancePartnerRef = { id: string; name: string } | null;
+
+type WithFinancePartner = { financePartner?: FinancePartnerRef | null };
+
+export function toFinancePartnerRefDto(partner: FinancePartnerRef | undefined) {
+  if (!partner) return null;
+  return { id: partner.id, name: partner.name };
+}
+
 export function toAdminUserDto(
-  user: AdminUserRow & { company?: { name: string } | null } & WithHomeBranch,
+  user: AdminUserRow & { company?: { name: string } | null } & WithHomeBranch & WithFinancePartner,
 ) {
   return {
     id: user.id,
@@ -21,6 +31,7 @@ export function toAdminUserDto(
     company_id: user.companyId,
     company_name: user.company?.name ?? null,
     home_branch: toBranchRefDto(user.homeBranch),
+    finance_partner: toFinancePartnerRefDto(user.financePartner),
     is_active: user.isActive,
     email_verified: user.emailVerified,
     created_at: user.createdAt,
@@ -28,7 +39,7 @@ export function toAdminUserDto(
 }
 
 export function toAdminUserUpdateDto(
-  user: Pick<User, 'id' | 'email' | 'name' | 'role' | 'companyId' | 'isActive'> & WithHomeBranch,
+  user: Pick<User, 'id' | 'email' | 'name' | 'role' | 'companyId' | 'isActive'> & WithHomeBranch & WithFinancePartner,
 ) {
   return {
     id: user.id,
@@ -37,12 +48,13 @@ export function toAdminUserUpdateDto(
     role: user.role,
     company_id: user.companyId,
     home_branch: toBranchRefDto(user.homeBranch),
+    finance_partner: toFinancePartnerRefDto(user.financePartner),
     is_active: user.isActive,
   };
 }
 
 export function toAdminUserProvisionDto(
-  user: Pick<User, 'id' | 'email' | 'name' | 'role' | 'companyId' | 'isActive'> & WithHomeBranch,
+  user: Pick<User, 'id' | 'email' | 'name' | 'role' | 'companyId' | 'isActive'> & WithHomeBranch & WithFinancePartner,
   extras: {
     temporaryPassword: string;
     loginUrl: string;
@@ -58,7 +70,7 @@ export function toAdminUserProvisionDto(
 }
 
 export function toAdminUserListResponse(
-  items: Array<AdminUserRow & { company?: { name: string } | null } & WithHomeBranch>,
+  items: Array<AdminUserRow & { company?: { name: string } | null } & WithHomeBranch & WithFinancePartner>,
   total: number,
   limit: number,
   offset: number,

@@ -13,6 +13,7 @@ import {
   buildPricingSnapshot,
   seedActiveApplicationWithSchedule,
   seedCompany,
+  seedConsentRecords,
   seedOffer,
   seedPassingComplianceCheck,
   seedPendingFinanceActivationApplication,
@@ -114,6 +115,9 @@ describe('ops role journeys', () => {
     expect(draft.body.status).toBe('draft');
 
     await seedRequiredDocuments(ctx.prisma, draft.body.id, admin.user.id);
+    // Staff submit runs the same gates as the customer submit: consents first.
+    const walkIn = await ctx.prisma.user.findUniqueOrThrow({ where: { email: customerEmail } });
+    await seedConsentRecords(ctx.prisma, { userId: walkIn.id, applicationId: draft.body.id });
     const submitted = await authed(admin.agent).post(`/api/v1/ops/applications/${draft.body.id}/submit`);
     expect(submitted.status).toBe(200);
     expect(submitted.body.status).toBe('under_review');

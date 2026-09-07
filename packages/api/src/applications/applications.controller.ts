@@ -180,10 +180,17 @@ class UpdateDraftDto {
 class TransitionDto {
   @IsEnum(ApplicationStatus) toStatus!: ApplicationStatus;
   @IsOptional() @IsString() reason?: string;
+  /** Super-admin justification for approving above the DBR hard cap (logged as `credit_override`). */
+  @IsOptional() @IsString() @MaxLength(2000) override_reason?: string;
 }
 
 class ActivateDto {
   @IsOptional() @IsBoolean() direct?: boolean;
+  @IsOptional() @IsString() @MaxLength(2000) override_reason?: string;
+}
+
+class ApproveContractDto {
+  @IsOptional() @IsString() @MaxLength(2000) override_reason?: string;
 }
 
 class RecordDownPaymentDto {
@@ -271,6 +278,8 @@ class OpsApplicationsQueryDto extends PaginationQueryDto {
   @IsOptional() @IsString() statusIn?: string;
   @IsOptional() @IsString() q?: string;
   @IsOptional() @IsString() companyId?: string;
+  /** Lender-of-record filter. */
+  @IsOptional() @IsString() financePartnerId?: string;
   @IsOptional() @IsString() scheduleHealth?: string;
   @IsOptional() @IsString() createdFrom?: string;
   @IsOptional() @IsString() createdTo?: string;
@@ -387,6 +396,19 @@ export class ApplicationsController {
   @Get('ops/applications/:id/document-slots')
   documentSlotsOps(@CurrentUser() user: User, @Param('id') id: string) {
     return this.apps.documentSlots(user, id);
+  }
+
+  /** Live credit assessment with the approver block computed for the caller. */
+  @Roles(
+    UserRole.credit_officer,
+    UserRole.finance_officer,
+    UserRole.admin,
+    UserRole.super_admin,
+    UserRole.group_admin,
+  )
+  @Get('ops/applications/:id/credit-assessment')
+  creditAssessment(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.apps.creditAssessment(user, id);
   }
 
   @Roles(UserRole.customer)
@@ -584,7 +606,7 @@ export class ApplicationsController {
     @Param('id') id: string,
     @Body() dto: TransitionDto,
   ) {
-    return this.apps.transition(user, id, dto.toStatus, dto.reason);
+    return this.apps.transition(user, id, dto.toStatus, dto.reason, dto.override_reason);
   }
 
   @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
@@ -597,15 +619,19 @@ export class ApplicationsController {
   @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/applications/:id/approve-contract')
-  approveContract(@CurrentUser() user: User, @Param('id') id: string) {
-    return this.lifecycle.approveWithContract(user, id);
+  approveContract(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: ApproveContractDto,
+  ) {
+    return this.lifecycle.approveWithContract(user, id, { overrideReason: dto?.override_reason });
   }
 
   @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/applications/:id/activate')
   activate(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: ActivateDto) {
-    return this.lifecycle.activate(user, id, { direct: dto.direct });
+    return this.lifecycle.activate(user, id, { direct: dto.direct, overrideReason: dto.override_reason });
   }
 
   @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)

@@ -70,8 +70,9 @@ export function composeName(first: string | null | undefined, last: string | nul
   return f && l ? `${f} ${l}` : null;
 }
 
-export function toCustomerProfileDto(user: User): CustomerProfileDto {
-  const parsed = user.qid ? parseQid(user.qid) : null;
+/** `qid` is the plaintext read through `IdentityService.readQid(user)` — never `user.qid` directly. */
+export function toCustomerProfileDto(user: User, qid: string | null): CustomerProfileDto {
+  const parsed = qid ? parseQid(qid) : null;
   return {
     id: user.id,
     email: user.email,
@@ -83,7 +84,7 @@ export function toCustomerProfileDto(user: User): CustomerProfileDto {
     nationality: user.nationality ?? null,
     residency: parsed?.valid ? parsed.residency : null,
     phone: user.phone ?? null,
-    qid_masked: user.qid ? maskQid(user.qid) || null : null,
+    qid_masked: qid ? maskQid(qid) || null : null,
     preferred_language: user.preferredLanguage === 'ar' ? 'ar' : 'en',
     notification_preferences: resolveNotificationPreferences(user.notificationPreferences),
     address: addressFromJson(user.address),

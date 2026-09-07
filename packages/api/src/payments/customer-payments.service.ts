@@ -4,13 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ScheduleStatus, User } from '@prisma/client';
+import { ApplicationStatus, User } from '@prisma/client';
 import type { InstallmentPlan, PaymentScheduleRow } from '@drivemarket/shared/installment-plan';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreditsService } from '../credits/credits.service';
+import { quoteForApplication, toSettlementQuoteDto } from '../settlements/settlement-quote';
 import { DEFERRALS_PER_CALENDAR_YEAR } from './customer-payments.constants';
-
-const DEFERRABLE_STATUSES: ScheduleStatus[] = ['pending', 'overdue'];
+import { assertScheduleDeferrable } from './deferral-guard';
 
 export function hasActiveBloxMembership(bloxMembership: unknown): boolean {
   if (!bloxMembership || typeof bloxMembership !== 'object') return false;
@@ -54,7 +54,27 @@ export class CustomerPaymentsService {
       orderBy: { dueDate: 'asc' },
     });
     const credits = await this.credits.getBalance(user);
-    return { schedules, credits };
+    // No "settle all / pay the remainder" total: settling early means buying
+    // Blox's remaining share plus the rent accrued to today, so the hub
+    // carries the live settlement quote for the active financing instead.
+    const active = await this.prisma.application.findFirst({
+      where: { customerUserId: user.id, status: ApplicationStatus.active },
+      orderBy: { activatedAt: 'desc' },
+      select: {
+        id: true,
+        pricingSnapshot: true,
+        activatedAt: true,
+        paymentSchedules: { orderBy: { sequence: 'asc' } },
+      },
+    });
+    const settlementQuote =
+      active && active.paymentSchedules.length > 0 ? toSettlementQuoteDto(quoteForApplication(active)) : null;
+    return {
+      schedules,
+      credits,
+      settlement_application_id: settlementQuote ? active!.id : null,
+      settlement_quote: settlementQuote,
+    };
   }
 
   async deferralStatus(user: User) {
@@ -109,9 +129,10 @@ export class CustomerPaymentsService {
     });
     if (!schedule) throw new NotFoundException('schedule_not_found');
 
-    if (!DEFERRABLE_STATUSES.includes(schedule.status)) {
-      throw new BadRequestException('schedule_not_deferrable');
-    }
+    // Overdue installments (status overdue, or past due with money owed) are
+    // not deferrable — 409 schedule_overdue_not_deferrable; paid/waived rows
+    // are simply not deferrable.
+    assertScheduleDeferrable(schedule, new Date());
 
     const originalDueDate = schedule.dueDate;
     const deferredToDate = addOneCalendarMonth(originalDueDate);

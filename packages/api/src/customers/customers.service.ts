@@ -3,6 +3,7 @@ import { Gender, Prisma, User } from '@prisma/client';
 import { dateOfBirthMatchesQid } from '@drivemarket/shared/domain-rules';
 import type { CustomerProfileDto } from '../../../shared/src/types/customer-platform';
 import { ActivityService } from '../common/activity.service';
+import { IdentityService } from '../common/identity.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizePhone } from '../sms/sms.service';
 import { composeName, mergeAddressJson, parseIsoDate, toCustomerProfileDto, type AddressPatch } from './customer-profile';
@@ -30,10 +31,11 @@ export class CustomersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
+    private readonly identity: IdentityService,
   ) {}
 
   profile(user: User): CustomerProfileDto {
-    return toCustomerProfileDto(user);
+    return toCustomerProfileDto(user, this.identity.readQid(user));
   }
 
   async updateProfile(user: User, input: UpdateCustomerProfileInput): Promise<CustomerProfileDto> {
@@ -60,7 +62,8 @@ export class CustomersService {
         const dob = parseIsoDate(raw);
         if (!dob || dob.getTime() > Date.now()) throw new BadRequestException('date_of_birth_invalid');
         // Same cross-check the apply flow runs: the QID encodes the birth year.
-        if (user.qid && dateOfBirthMatchesQid(raw, user.qid) === false) {
+        const qid = this.identity.readQid(user);
+        if (qid && dateOfBirthMatchesQid(raw, qid) === false) {
           throw new BadRequestException('dob_qid_mismatch');
         }
         data.dateOfBirth = dob;
@@ -109,7 +112,7 @@ export class CustomersService {
       }
     }
 
-    if (!changed.length) return toCustomerProfileDto(user);
+    if (!changed.length) return toCustomerProfileDto(user, this.identity.readQid(user));
 
     const updated = await this.prisma.user.update({ where: { id: user.id }, data });
     await this.activity.log({
@@ -119,6 +122,6 @@ export class CustomersService {
       action: 'profile_updated',
       metadata: { fields: changed },
     });
-    return toCustomerProfileDto(updated);
+    return toCustomerProfileDto(updated, this.identity.readQid(updated));
   }
 }

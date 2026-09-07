@@ -217,4 +217,21 @@ describe('zoho-lead.mapper', () => {
       expect(payload).not.toHaveProperty('Work_Sector');
     });
   });
+
+  describe('QID fallback from the customer record', () => {
+    const comments = (over: Record<string, unknown>, fallbacks?: { qid?: string | null }) =>
+      String(mapApplicationToZohoLead({ ...base, ...over } as never, 'Direct to Partner', 'Partners', fallbacks).Sales_Agent_Comments);
+
+    it('keeps the snapshot QID when present', () => {
+      expect(comments({}, { qid: '29999999999' })).toContain('QID: 28012345678');
+      expect(comments({}, { qid: '29999999999' })).not.toContain('29999999999');
+    });
+
+    it('falls back to the decrypted customer QID when the snapshot has none', () => {
+      const snapshot = { ...base.customerSnapshot, qid: undefined };
+      expect(comments({ customerSnapshot: snapshot }, { qid: '29999999999' })).toContain('QID: 29999999999');
+      expect(comments({ customerSnapshot: snapshot }, { qid: null })).not.toContain('QID:');
+      expect(comments({ customerSnapshot: snapshot })).not.toContain('QID:');
+    });
+  });
 });

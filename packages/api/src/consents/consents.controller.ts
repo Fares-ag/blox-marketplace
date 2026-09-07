@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsIn, IsOptional, IsString, Length, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsOptional, IsString, Length, MaxLength, ValidateNested } from 'class-validator';
 import { CurrentUser, Roles, type AuthRequest } from '../auth/guards';
 import { consentChannelFromHeader } from './consent-logic';
 import { ConsentsService } from './consents.service';
@@ -32,6 +32,13 @@ class RecordConsentsDto {
   application_id?: string;
 }
 
+class WithdrawConsentDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
 @Controller()
 export class ConsentsController {
   constructor(private readonly consents: ConsentsService) {}
@@ -54,6 +61,14 @@ export class ConsentsController {
       channel: consentChannelFromHeader(req.headers['x-blox-channel']),
       ...requestMeta(req),
     });
+  }
+
+  /** PDPPL withdrawal: 409 `consent_withdrawal_blocked` (with a data-rights request opened) while a live application relies on it. */
+  @Roles(UserRole.customer)
+  @Post('me/consents/:code/withdraw')
+  @HttpCode(200)
+  withdraw(@CurrentUser() user: User, @Param('code') code: string, @Body() dto: WithdrawConsentDto) {
+    return this.consents.withdraw({ userId: user.id, code, reason: dto.reason ?? null });
   }
 
   @Roles(

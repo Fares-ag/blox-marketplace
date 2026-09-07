@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { documentSlotsFor } from '@drivemarket/shared';
 import {
+  buildPlanPricing,
+  creditPreviewFor,
   deriveIdentity,
   emptyApplyForm,
   firstIncompleteStep,
@@ -8,6 +11,7 @@ import {
   planFromPricingSnapshot,
   prefillFromAccount,
   snapshotFromForm,
+  staleDocumentCategories,
   validateEmployment,
   validateGuarantor,
   validateIdentity,
@@ -217,5 +221,65 @@ describe('prefill and resume', () => {
     expect(firstIncompleteStep(emptyApplyForm(), { tenure: 36, downPct: 20 }, CTX, null, NOW)).toBe('identity');
     expect(firstIncompleteStep(filledForm({ employer: '' }), { tenure: 36, downPct: 20 }, CTX, 'expat', NOW)).toBe('employment');
     expect(firstIncompleteStep(filledForm(), { tenure: 36, downPct: 20 }, CTX, 'expat', NOW)).toBe('documents');
+  });
+});
+
+describe('creditPreviewFor', () => {
+  const pricing = buildPlanPricing({ tenure: 36, downPct: 20 }, CTX);
+
+  it('is null until the plan is priced', () => {
+    expect(creditPreviewFor(filledForm(), 'expat', null, [], NOW)).toBeNull();
+  });
+
+  it('refers with affordability_unknown when the income is missing', () => {
+    const preview = creditPreviewFor(filledForm({ monthlyIncome: '' }), 'expat', pricing, [], NOW);
+    expect(preview?.affordability).toBeNull();
+    expect(preview?.path).toBe('refer');
+    expect(preview?.reasons).toContain('affordability_unknown');
+  });
+
+  it('declines above the hard cap and adds the guarantor view when their income is given', () => {
+    const alone = creditPreviewFor(filledForm({ monthlyIncome: '3000' }), 'expat', pricing, [], NOW);
+    expect(alone?.path).toBe('decline');
+    expect(alone?.reasons).toContain('dbr_above_hard_cap');
+    expect(alone?.affordabilityWithGuarantor).toBeNull();
+
+    const withGuarantor = creditPreviewFor(
+      filledForm({
+        monthlyIncome: '3000',
+        hasGuarantor: true,
+        guarantor: { fullName: 'Sami', qid: QATARI_QID, phone: '55551235', relationship: 'spouse', monthlyIncome: '20000' },
+      }),
+      'expat',
+      pricing,
+      [],
+      NOW,
+    );
+    expect(withGuarantor?.affordabilityWithGuarantor).not.toBeNull();
+    expect(withGuarantor!.affordabilityWithGuarantor!.dbr).toBeLessThan(alone!.affordability!.dbr);
+    expect(withGuarantor?.path).not.toBe('decline');
+  });
+
+  it('carries plan violations into the preview', () => {
+    const preview = creditPreviewFor(
+      filledForm({ monthlyIncome: '40000', monthlyLiabilities: '0' }),
+      'expat',
+      pricing,
+      [{ code: 'financing_amount_exceeds_cap', severity: 'soft', params: {} }],
+      NOW,
+    );
+    expect(preview?.reasons).toContain('soft_rule_flags');
+    expect(preview?.path).not.toBe('approve');
+  });
+});
+
+describe('staleDocumentCategories', () => {
+  const slots = documentSlotsFor({ residency: 'expat', employmentType: 'private-local', hasGuarantor: false, applicantType: 'individual' });
+
+  it('flags time-sensitive uploads older than their max age and keeps the server list', () => {
+    const uploadedAt = { salary: '2026-07-01T00:00:00Z', bank: '2026-09-01T00:00:00Z', qid: '2026-01-01T00:00:00Z' };
+    expect(staleDocumentCategories(slots, uploadedAt, [], NOW)).toEqual(['salary']);
+    expect(staleDocumentCategories(slots, uploadedAt, ['bank'], NOW)).toEqual(['salary', 'bank']);
+    expect(staleDocumentCategories(slots, {}, [], NOW)).toEqual([]);
   });
 });

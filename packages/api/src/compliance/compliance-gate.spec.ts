@@ -63,7 +63,8 @@ describe('compliance-gate', () => {
 describe('ApplicationsLifecycleService.approveWithContract compliance gate', () => {
   const opsUser = {
     id: 'ops-1',
-    role: UserRole.admin,
+    // Above the head-of-credit limit (QAR 70k financed): only a super admin may approve.
+    role: UserRole.super_admin,
     companyId: 'co-1',
   } as never;
 
@@ -156,7 +157,8 @@ describe('ApplicationsLifecycleService.approveWithContract compliance gate', () 
 describe('ApplicationsLifecycleService.activate direct-activate compliance gate', () => {
   const opsUser = {
     id: 'ops-1',
-    role: UserRole.admin,
+    // Above the head-of-credit limit (QAR 70k financed): only a super admin may approve.
+    role: UserRole.super_admin,
     companyId: 'co-1',
   } as never;
 

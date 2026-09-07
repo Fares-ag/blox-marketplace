@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { seedFinancePartners } from './seed-finance-partners';
 import { seedCheryInventory } from './seed-chery';
 import { seedBranches } from './seed-branches';
+import { seedTakafulProviders } from './seed-takaful-providers';
 
 const prisma = new PrismaClient();
 
@@ -21,6 +22,10 @@ async function main() {
   console.log(
     `Branches seeded for ${branches.branches} dealership(s); ${branches.agentsAssigned} dealer agent(s) assigned a home branch.`,
   );
+
+  // Takaful provider master for the public quote comparison (sample rate cards).
+  const takaful = await seedTakafulProviders(prisma);
+  console.log(`Takaful providers seeded: ${takaful.codes.join(', ')}.`);
 }
 
 main()

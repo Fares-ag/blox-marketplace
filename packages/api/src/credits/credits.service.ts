@@ -3,11 +3,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, User } from '@prisma/client';
+import { Prisma, ScheduleStatus, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdempotencyService } from '../common/idempotency.service';
+import { assertNotSettleAll } from '../payments/settle-all-guard';
+import { BLOX_CREDITS_WALLET_ACTION, buildBloxCreditsLedgerEntry } from './credits-ledger';
 
 const BLOX_CREDIT_QAR_VALUE = 250;
+
+/** Wallet balances are stored with three decimals. */
+function roundWallet(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
 
 @Injectable()
 export class CreditsService {
@@ -29,41 +36,89 @@ export class CreditsService {
     });
   }
 
+  /**
+   * Pay (part of) an installment from the Blox-credits wallet. The wallet
+   * debit and a `blox_credits` payment event land in the same transaction and
+   * share the reference `CR-<creditTransactionId>`, so the schedule ledger
+   * (`computeScheduleAmountsFromEvents`) and finance reconciliation both see
+   * the credits exactly like a cash receipt.
+   */
   async payInstallment(user: User, applicationId: string, dueDate: string, amount: number) {
-    if (amount <= 0) throw new BadRequestException('invalid_amount');
+    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('invalid_amount');
+    // Sweeping the whole remainder with credits is a settlement: quote first.
+    assertNotSettleAll({ dueDate });
     const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
     if (!app || app.customerUserId !== user.id) throw new NotFoundException();
 
     const due = new Date(dueDate);
+    if (Number.isNaN(due.getTime())) throw new BadRequestException('validation_failed');
     const schedule = await this.prisma.paymentSchedule.findFirst({
       where: { applicationId, dueDate: due },
     });
     if (!schedule) throw new NotFoundException('schedule_not_found');
+    if (schedule.status === ScheduleStatus.paid || schedule.status === ScheduleStatus.waived) {
+      throw new BadRequestException('schedule_already_settled');
+    }
 
+    const debit = roundWallet(amount);
     return this.prisma.$transaction(async (tx) => {
       const credit = await tx.userCredit.findUnique({ where: { userId: user.id } });
       const balance = credit ? Number(credit.balance) : 0;
-      if (balance < amount) throw new BadRequestException('insufficient_credits');
+      if (balance < debit) throw new BadRequestException('insufficient_credits');
+      const nextBalance = roundWallet(balance - debit);
 
       await tx.userCredit.update({
         where: { userId: user.id },
-        data: { balance: new Prisma.Decimal(balance - amount) },
+        data: { balance: new Prisma.Decimal(nextBalance) },
       });
 
-      const remaining = Math.max(0, Number(schedule.remainingAmount) - amount);
-      const paidAmount = Number(schedule.paidAmount) + amount;
+      // Wallet transaction first (its id is the ledger reference), then the
+      // payment event carrying the same reference.
+      const wallet = await tx.creditTransaction.create({
+        data: {
+          userId: user.id,
+          action: BLOX_CREDITS_WALLET_ACTION,
+          amount: new Prisma.Decimal(debit),
+          balanceAfter: new Prisma.Decimal(nextBalance),
+          actorUserId: user.id,
+        },
+      });
+      const entry = buildBloxCreditsLedgerEntry({
+        creditTransactionId: wallet.id,
+        amount: debit,
+        applicationId,
+        scheduleId: schedule.id,
+        scheduleSequence: schedule.sequence,
+        actorUserId: user.id,
+      });
+      await tx.creditTransaction.update({
+        where: { id: wallet.id },
+        data: { description: entry.description },
+      });
+      await tx.paymentEvent.create({ data: entry.paymentEvent });
+
+      const remaining = Math.max(0, Math.round((Number(schedule.remainingAmount) - debit) * 100) / 100);
+      const paidAmount = Math.round((Number(schedule.paidAmount) + debit) * 100) / 100;
       await tx.paymentSchedule.update({
         where: { id: schedule.id },
         data: {
           paidAmount,
           remainingAmount: remaining,
-          status: remaining <= 0 ? 'paid' : schedule.status,
+          status: remaining <= 0 ? ScheduleStatus.paid : schedule.status,
           paidAt: remaining <= 0 ? new Date() : schedule.paidAt,
           paymentMethod: 'credits',
+          paymentReference: entry.reference,
         },
       });
 
-      return { ok: true, remaining, balance: balance - amount };
+      return {
+        ok: true,
+        remaining,
+        balance: nextBalance,
+        reference: entry.reference,
+        credit_transaction_id: wallet.id,
+        credits_debited: debit,
+      };
     });
   }
 

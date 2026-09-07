@@ -46,8 +46,29 @@ import { assertCompanyScope } from './company-scope';
 import { assertApplicationCanView, BLOCKING_APPLICATION_STATUSES } from './application-access';
 import { transitionApplication } from './guarded-transitions';
 import { toApplicationDto, toOpsApplicationDto } from './application-response.dto';
+import {
+  assessApplicationCredit,
+  creditAssessedLogMetadata,
+  creditAssessmentData,
+  type AssessedApplicationCredit,
+} from './credit-assessment';
+import { assertApprovalAuthorized, type ApprovalDecisionOutcome } from './credit-decision';
+import { customerNotificationBody } from './customer-notifications';
 
 const OPS_ROLES: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
+
+/** What an approval out of review carries once the matrix let the officer through. */
+type CreditApproval = {
+  assessed: AssessedApplicationCredit;
+  decision: Extract<ApprovalDecisionOutcome, { ok: true }>;
+  columns: ReturnType<typeof creditAssessmentData>;
+};
+
+type CreditApprovalSource = {
+  customerSnapshot: unknown;
+  pricingSnapshot: unknown;
+  product?: { attributes?: unknown; bodyType?: string | null } | null;
+};
 
 /**
  * Review decisions (generate contract, contract review, reject, resubmit,
@@ -109,12 +130,69 @@ export class ApplicationsLifecycleService {
     }
   }
 
-  async approveWithContract(user: User, id: string) {
+  /**
+   * Approval matrix gate on every approval out of review (LOS FSD §1.5
+   * authority, EXC001 DBR tiers, §9.2 hard cap). Recomputed live from the
+   * stored snapshots so a snapshot corrected during review is judged as it
+   * stands; throws 403 `approval_authority_required` /
+   * `dbr_exception_escalation_required` or 409 `dbr_above_hard_cap`.
+   */
+  private evaluateCreditApproval(
+    user: User,
+    app: CreditApprovalSource,
+    overrideReason?: string | null,
+  ): CreditApproval {
+    const assessed = assessApplicationCredit(app);
+    const decision = assertApprovalAuthorized({
+      role: user.role,
+      assessment: assessed.assessment,
+      overrideReason,
+    });
+    return { assessed, decision, columns: creditAssessmentData(assessed) };
+  }
+
+  private async logCreditDecision(
+    user: User,
+    applicationId: string,
+    credit: CreditApproval,
+    overrideReason?: string | null,
+  ) {
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: applicationId,
+      action: 'credit_assessed',
+      toValue: credit.assessed.assessment.path,
+      metadata: {
+        ...creditAssessedLogMetadata(credit.assessed, 'approval'),
+        approver_role: user.role,
+        tier: credit.decision.tier,
+      },
+    });
+    if (credit.decision.overridden) {
+      await this.activity.log({
+        actorUserId: user.id,
+        entityType: 'application',
+        entityId: applicationId,
+        action: 'credit_override',
+        fromValue: 'dbr_above_hard_cap',
+        toValue: 'approved',
+        metadata: {
+          reason: overrideReason?.trim() ?? null,
+          authority: credit.decision.authority,
+          tier: credit.decision.tier,
+          approver_role: user.role,
+        },
+      });
+    }
+  }
+
+  async approveWithContract(user: User, id: string, opts?: { overrideReason?: string | null }) {
     this.assertDecisionRole(user);
     const app = await this.prisma.application.findUnique({
       where: { id },
       include: {
-        product: { select: { make: true, model: true, modelYear: true } },
+        product: { select: { make: true, model: true, modelYear: true, attributes: true, bodyType: true } },
         company: { select: { name: true } },
         financePartner: { select: { name: true } },
         offer: { include: { financePartner: { select: { name: true } } } },
@@ -126,6 +204,7 @@ export class ApplicationsLifecycleService {
       throw new BadRequestException('invalid_status_transition');
     }
     await this.compliance.assertPassedForApproval(id);
+    const credit = this.evaluateCreditApproval(user, app, opts?.overrideReason);
 
     const snap = app.customerSnapshot as Record<string, unknown>;
     const pricing = app.pricingSnapshot as Record<string, unknown>;
@@ -193,6 +272,7 @@ export class ApplicationsLifecycleService {
           generatedContentSha256: contentSha256,
         }),
         contractPdfPath,
+        ...credit.columns,
       },
     });
 
@@ -204,6 +284,7 @@ export class ApplicationsLifecycleService {
       fromValue: 'under_review',
       toValue: 'contract_signing_required',
     });
+    await this.logCreditDecision(user, id, credit, opts?.overrideReason);
     await this.activity.notify(
       app.customerUserId,
       'Contract ready to sign',
@@ -323,13 +404,22 @@ export class ApplicationsLifecycleService {
     return toOpsApplicationDto(updated);
   }
 
-  async opsTransition(user: User, id: string, toStatus: ApplicationStatus, reason?: string) {
+  async opsTransition(
+    user: User,
+    id: string,
+    toStatus: ApplicationStatus,
+    reason?: string,
+    overrideReason?: string | null,
+  ) {
     // The per-edge actor table in application-transitions.ts is the
     // authoritative gate; this only rejects roles that never transition.
     this.assertDecisionRole(user);
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { financePartner: { select: { crmAdapter: true } } },
+      include: {
+        financePartner: { select: { crmAdapter: true } },
+        product: { select: { attributes: true, bodyType: true } },
+      },
     });
     if (!app) throw new NotFoundException();
     await assertCompanyScope(this.prisma, user, app.companyId);
@@ -351,12 +441,14 @@ export class ApplicationsLifecycleService {
     }
 
     // "Approve for Finance" straight from review is an approval: the same
-    // compliance gate as approve-contract applies.
+    // compliance gate as approve-contract applies, then the approval matrix.
+    let credit: CreditApproval | null = null;
     if (
       toStatus === ApplicationStatus.pending_finance_activation &&
       (app.status === ApplicationStatus.under_review || app.status === ApplicationStatus.draft)
     ) {
       await this.compliance.assertPassedForApproval(id);
+      credit = this.evaluateCreditApproval(user, app, overrideReason);
     }
 
     if (
@@ -407,6 +499,7 @@ export class ApplicationsLifecycleService {
             toStatus === 'contract_signing_required' || toStatus === 'resubmission_required'
               ? reason
               : app.resubmissionComment,
+          ...(credit ? credit.columns : {}),
         },
       });
 
@@ -426,6 +519,7 @@ export class ApplicationsLifecycleService {
       toValue: toStatus,
       metadata: { reason },
     });
+    if (credit) await this.logCreditDecision(user, id, credit, overrideReason);
 
     const notifyTitle =
       toStatus === 'rejected'
@@ -441,7 +535,12 @@ export class ApplicationsLifecycleService {
               : reopensListing
                 ? 'Application reopened'
                 : 'Application update';
-    await this.activity.notify(app.customerUserId, notifyTitle, reason, `/app/applications/${id}`);
+    await this.activity.notify(
+      app.customerUserId,
+      notifyTitle,
+      customerNotificationBody(toStatus, reason),
+      `/app/applications/${id}`,
+    );
 
     if (toStatus === 'rejected') {
       this.analytics.track('rejection', {
@@ -535,7 +634,7 @@ export class ApplicationsLifecycleService {
     return toOpsApplicationDto(updated);
   }
 
-  async activate(user: User, id: string, opts?: { direct?: boolean }) {
+  async activate(user: User, id: string, opts?: { direct?: boolean; overrideReason?: string | null }) {
     this.assertOps(user);
     if (user.role === UserRole.finance_officer) {
       throw new ForbiddenException('forbidden_role');
@@ -545,6 +644,7 @@ export class ApplicationsLifecycleService {
       where: { id },
       include: {
         company: { select: { allowDirectActivate: true } },
+        product: { select: { attributes: true, bodyType: true } },
       },
     });
     if (!app) throw new NotFoundException();
@@ -559,6 +659,9 @@ export class ApplicationsLifecycleService {
 
     let expectedFromStatus: ApplicationStatus;
     let adminOverride = false;
+    // Activation straight out of review (direct or admin override) is an
+    // approval: the credit matrix applies as it does to approve-contract.
+    let credit: CreditApproval | null = null;
     if (opts?.direct) {
       // Company-policy shortcut: credit/admin activate from review when the
       // dealer company opted in and contract + compliance are already in place.
@@ -575,6 +678,7 @@ export class ApplicationsLifecycleService {
       if (!app.signedContractPath) {
         throw new BadRequestException('signed_contract_required');
       }
+      credit = this.evaluateCreditApproval(user, app, opts.overrideReason);
       expectedFromStatus = ApplicationStatus.under_review;
     } else if (ACTIVATE_FROM_STATUSES.includes(app.status)) {
       // vercel: credit/admin "Activate Financing" from the handoff states.
@@ -586,6 +690,7 @@ export class ApplicationsLifecycleService {
       // vercel: admin "Activate (Admin)" / "Activate draft" — still behind the
       // compliance gate, which is a marketplace P0 control.
       await this.compliance.assertPassedForApproval(id);
+      credit = this.evaluateCreditApproval(user, app, opts?.overrideReason);
       expectedFromStatus = app.status;
       adminOverride = true;
     } else {
@@ -626,6 +731,7 @@ export class ApplicationsLifecycleService {
       await transitionApplication(tx, id, expectedFromStatus, {
         status: ApplicationStatus.active,
         activatedAt: new Date(),
+        ...(credit ? credit.columns : {}),
       });
 
       await tx.product.update({
@@ -645,6 +751,7 @@ export class ApplicationsLifecycleService {
       toValue: 'active',
       metadata: opts?.direct ? { direct: true } : adminOverride ? { admin_override: true } : undefined,
     });
+    if (credit) await this.logCreditDecision(user, id, credit, opts?.overrideReason);
     await this.activity.notify(
       app.customerUserId,
       'Financing activated',

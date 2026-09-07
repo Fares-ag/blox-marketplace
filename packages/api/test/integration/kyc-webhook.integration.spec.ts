@@ -20,7 +20,7 @@ function signWebhook(rawBody: string, secret = WEBHOOK_SECRET) {
 
 describe('KYC webhook handling (integration)', () => {
   let ctx: IntegrationContext;
-  const getCaseDetail = vi.fn<Parameters<KycPlatformClient['getCaseDetail']>, ReturnType<KycPlatformClient['getCaseDetail']>>();
+  const getCaseDetail = vi.fn<KycPlatformClient['getCaseDetail']>();
 
   beforeAll(async () => {
     getCaseDetail.mockResolvedValue({

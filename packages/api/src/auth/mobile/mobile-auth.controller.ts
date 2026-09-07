@@ -1,5 +1,5 @@
 import { Body, Controller, HttpCode, Post } from '@nestjs/common';
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { CurrentUser, Public } from '../guards';
 import type { User } from '@prisma/client';
 import { MobileAuthService } from './mobile-auth.service';
@@ -16,6 +16,7 @@ class MobileSignUpDto {
   @IsString() lastName!: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() qid?: string;
+  @IsOptional() @IsIn(['en', 'ar']) preferredLanguage?: 'en' | 'ar';
 }
 
 class MobileRefreshDto {

@@ -1,7 +1,13 @@
 import { ConflictException } from '@nestjs/common';
 import { PRODUCT_RULES, vehicleAgeAtTenureEnd } from '@drivemarket/shared/domain-rules';
-import { missingDocumentsForApplication, type ApplicationDocumentForValidation } from './application-documents';
+import {
+  missingDocumentsForApplication,
+  staleDocumentCategories,
+  type ApplicationDocumentForValidation,
+  type IdentityPolicy,
+} from './application-documents';
 import { resolveTenureMonths } from './application-pricing';
+import { hasGuarantorOf, readCustomerSnapshot } from './customer-snapshot';
 
 /**
  * Submit gates, evaluated in this order (each a 409 with the code as message):
@@ -9,8 +15,10 @@ import { resolveTenureMonths } from './application-pricing';
  *   1. `identity_hold`               — MISMATCHED_IDENTITY hold set and not cleared by credit
  *   2. `consents_required`           — the four mandatory consents were not captured
  *   3. `documents_missing`           — required document slots still empty (`missing` list)
- *   4. `vehicle_identity_incomplete` — VIN + chassis + engine number before the listing is reserved
- *   5. `vehicle_age_rule`            — vehicle older than 10 years at tenure end
+ *   4. `documents_stale`             — time-sensitive uploads older than the slot allows (`stale` list)
+ *   5. `guarantor_consent_required`  — a declared guarantor has not completed the consent session
+ *   6. `vehicle_identity_incomplete` — VIN + chassis + engine number before the listing is reserved
+ *   7. `vehicle_age_rule`            — vehicle older than 10 years at tenure end
  *
  * Pure so the ordering is unit-tested without a database.
  */
@@ -19,6 +27,8 @@ export const SUBMIT_GATE_ORDER = [
   'identity_hold',
   'consents_required',
   'documents_missing',
+  'documents_stale',
+  'guarantor_consent_required',
   'vehicle_identity_incomplete',
   'vehicle_age_rule',
 ] as const;
@@ -28,6 +38,7 @@ export type SubmitGateCode = (typeof SUBMIT_GATE_ORDER)[number];
 export type SubmitGateFailure = {
   code: SubmitGateCode;
   missing?: string[];
+  stale?: string[];
   params?: Record<string, number>;
 };
 
@@ -54,8 +65,22 @@ export type SubmitGateInput = {
   requireVehicleIdentity: boolean;
   /** Defaults to true; the consent gate is skipped only for flows that capture consents later. */
   requireConsents?: boolean;
+  /**
+   * Whether a `GuarantorConsentSession` with `consentsCompletedAt` exists for the
+   * application. Only consulted when the snapshot declares a guarantor.
+   */
+  guarantorConsentCompleted?: boolean;
+  /** e-KYC policy for the identity slot (BRD BR-3): omitted ⇒ manual QID uploads still count. */
+  identityPolicy?: IdentityPolicy;
   now?: Date;
 };
+
+export function guarantorConsentRequired(
+  application: Pick<SubmitGateApplication, 'customerSnapshot'>,
+  guarantorConsentCompleted: boolean | undefined,
+): boolean {
+  return hasGuarantorOf(readCustomerSnapshot(application.customerSnapshot)) && guarantorConsentCompleted !== true;
+}
 
 export function identityHoldActive(app: Pick<SubmitGateApplication, 'identityHoldAt' | 'identityHoldClearedAt'>): boolean {
   return !!app.identityHoldAt && !app.identityHoldClearedAt;
@@ -76,8 +101,19 @@ export function evaluateSubmitGates(input: SubmitGateInput): SubmitGateFailure |
     return { code: 'consents_required' };
   }
 
-  const missing = missingDocumentsForApplication(application.customerSnapshot, input.documents);
+  const missing = missingDocumentsForApplication(
+    application.customerSnapshot,
+    input.documents,
+    input.identityPolicy ?? {},
+  );
   if (missing.length > 0) return { code: 'documents_missing', missing };
+
+  const stale = staleDocumentCategories(application.customerSnapshot, input.documents, input.now);
+  if (stale.length > 0) return { code: 'documents_stale', stale };
+
+  if (guarantorConsentRequired(application, input.guarantorConsentCompleted)) {
+    return { code: 'guarantor_consent_required' };
+  }
 
   if (input.requireVehicleIdentity && !vehicleIdentityComplete(product)) {
     return { code: 'vehicle_identity_incomplete' };
@@ -107,6 +143,9 @@ export function assertSubmitGates(input: SubmitGateInput): void {
   if (!failure) return;
   if (failure.code === 'documents_missing') {
     throw new ConflictException({ message: 'documents_missing', missing: failure.missing ?? [] });
+  }
+  if (failure.code === 'documents_stale') {
+    throw new ConflictException({ message: 'documents_stale', stale: failure.stale ?? [] });
   }
   if (failure.code === 'vehicle_age_rule') {
     throw new ConflictException({ message: 'vehicle_age_rule', ...(failure.params ?? {}) });

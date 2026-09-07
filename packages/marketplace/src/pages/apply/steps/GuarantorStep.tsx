@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QID_LENGTH, normalizeQid } from '@drivemarket/shared';
 import { ChipRadioGroup, Field, Notice, SelectInput, TextInput } from '../fields';
@@ -9,9 +10,11 @@ type Props = {
   onChange: (patch: Partial<ApplyForm>) => void;
   onGuarantorChange: (patch: Partial<GuarantorForm>) => void;
   onBlur: (field: string) => void;
+  /** Consent-request panel, rendered once the guarantor block is on (wave 2). */
+  consentPanel?: ReactNode;
 };
 
-export function GuarantorStep({ form, errors, onChange, onGuarantorChange, onBlur }: Props) {
+export function GuarantorStep({ form, errors, onChange, onGuarantorChange, onBlur, consentPanel }: Props) {
   const { t } = useTranslation();
   const err = (field: string) => (errors[field] ? t(errors[field]) : null);
   const g = form.guarantor;
@@ -72,7 +75,7 @@ export function GuarantorStep({ form, errors, onChange, onGuarantorChange, onBlu
               {(a11y) => <TextInput {...a11y} numeric inputMode="decimal" value={g.monthlyIncome} onChange={(e) => onGuarantorChange({ monthlyIncome: e.target.value })} onBlur={() => onBlur('guarantor.monthlyIncome')} />}
             </Field>
           </div>
-          <Notice tone="info">{t('applyFlow.guarantor.consentNote')}</Notice>
+          {consentPanel ?? <Notice tone="info">{t('applyFlow.guarantor.consentNote')}</Notice>}
         </div>
       ) : null}
     </div>

@@ -32,6 +32,12 @@ class DeviceTokenDto {
 class SkipCashInitiateDto {
   @IsString() applicationId!: string;
   @IsString() scheduleId!: string;
+  /**
+   * Sent by the app alongside `scheduleId` (same value). Accepted so a
+   * "settle all" checkout reaches the settlement guard (409
+   * `settlement_quote_required`) instead of failing whitelist validation.
+   */
+  @IsOptional() @IsString() scheduleItemId?: string;
   @IsOptional() @IsString() returnUrl?: string;
   @IsOptional() @IsString() transactionId?: string;
   @IsOptional() @IsString() firstName?: string;

@@ -8,8 +8,13 @@ import {
   sumInstallmentAmounts,
 } from '@drivemarket/shared/pricing';
 import { buildScheduleDrafts } from './payment-schedules';
-import { QATAR_CONSUMER_CREDIT_DISCLOSURES } from './contract-disclosures';
+import { QATAR_FINANCING_DISCLOSURES } from './contract-disclosures';
 
+/**
+ * One installment of the contract schedule. `interest` is the historical key
+ * for the rent (profit) component — kept so stored `contractData` and the
+ * content fingerprint stay stable; the rendered text says "rent (profit)".
+ */
 export type ContractScheduleRow = {
   sequence: number;
   dueDate: string;
@@ -201,17 +206,94 @@ class PdfWriter {
   finish() {
     this.drawFooter();
     this.line('');
-    this.line(`Document fingerprint (SHA-256): ${this.contentSha256}`, { size: 9 });
-    this.line(
-      'Sign this contract without altering the terms above. Upload the signed PDF in your Blox portal.',
-      { size: 9 },
-    );
+    for (const trailer of contractTrailerLines(this.contentSha256)) {
+      this.line(trailer, { size: 9 });
+    }
   }
 
   embedDocumentMetadata(contentSha256: string, applicationId: string) {
     this.doc.setSubject(contentSha256);
     this.doc.setKeywords([applicationId, contentSha256]);
   }
+}
+
+export type ContractLine = { text: string; bold?: boolean; size?: number; gap?: number };
+
+/** Lines printed after the signatures block (fingerprint + signing instruction). */
+export function contractTrailerLines(contentSha256: string): string[] {
+  return [
+    `Document fingerprint (SHA-256): ${contentSha256}`,
+    'Sign this contract without altering the terms above. Upload the signed PDF in your Blox portal.',
+  ];
+}
+
+/**
+ * Every line of the contract body, in print order. Exported so the
+ * terminology spec can scan the rendered text: the product is Diminishing
+ * Musharakah, so the vocabulary is rent / profit, never interest, APR, cost
+ * of credit or late charges.
+ */
+export function buildContractLines(input: ContractPdfInput): ContractLine[] {
+  const amountFinanced = roundMoney(Math.max(input.listPrice - input.downPayment, 0));
+  const totalPayable = roundMoney(input.downPayment + input.financedTotal);
+  const totalRentPayable = roundMoney(Math.max(input.financedTotal - amountFinanced, 0));
+  const approvedDate = input.approvedAt.slice(0, 10);
+  const lines: ContractLine[] = [];
+  const line = (text: string, opts?: Omit<ContractLine, 'text'>) => lines.push({ text, ...(opts ?? {}) });
+
+  line('Vehicle Co-Ownership Financing Agreement (Diminishing Musharakah)', { size: 16, bold: true });
+  line('');
+  line(`Application ID: ${input.applicationId}`);
+  line(`Approval date: ${approvedDate}`);
+  line(`Lender of record: ${input.lenderName}`, { bold: true });
+  line('');
+  line('1. Parties', { bold: true });
+  line(`Customer: ${input.customerName}`);
+  line(`Email: ${input.customerEmail}`);
+  line(`Phone: ${input.customerPhone}`);
+  line(`QID: ${input.customerQid}`);
+  line(`Dealer: ${input.dealerName}`);
+  line('');
+  line('2. Financed asset', { bold: true });
+  line(`Vehicle: ${input.vehicleLabel}`);
+  line(`Cash price (list): ${qar(input.listPrice)}`);
+  line('');
+  line('3. Financing summary (locked at approval)', { bold: true });
+  line(`Down payment (${input.downPaymentPct.toFixed(2)}%): ${qar(input.downPayment)}`);
+  line(`Amount financed (co-owner share purchased over the term): ${qar(amountFinanced)}`);
+  line(`Annual profit rate: ${input.annualRate.toFixed(2)}%`);
+  line(`Tenure: ${input.tenor} months`);
+  line(`Monthly installment (principal + rent): ${qar(input.monthly)}`);
+  line(`Total installments payable: ${qar(input.financedTotal)}`);
+  line(`Total amount payable (down payment + installments): ${qar(totalPayable)}`);
+  line(`Total rent payable (profit over the term): ${qar(totalRentPayable)}`);
+  line('');
+  line('4. Disclosures', { bold: true });
+  for (const paragraph of QATAR_FINANCING_DISCLOSURES) {
+    line(paragraph);
+  }
+  line('');
+  line('5. Payment schedule', { bold: true });
+  line('#   Due date     Payment       Principal     Monthly rent (profit)  Balance', { size: 9, bold: true });
+
+  for (const row of input.schedule) {
+    line(
+      `${String(row.sequence).padStart(2, ' ')}  ${row.dueDate}  ${qar(row.payment).padStart(12, ' ')}  ${qar(row.principal).padStart(12, ' ')}  ${qar(row.interest).padStart(21, ' ')}  ${qar(row.balance).padStart(12, ' ')}`,
+      { size: 9, gap: 12 },
+    );
+  }
+
+  line('');
+  line('6. Signatures', { bold: true });
+  line('Customer signature: _________________________________   Date: ______________');
+  line('Lender representative: _____________________________   Date: ______________');
+  return lines;
+}
+
+/** The complete printable text of the contract (body + trailer), for terminology checks. */
+export function contractTextFor(input: ContractPdfInput): string {
+  const contentSha256 = hashContractContent(input);
+  return [...buildContractLines(input).map((entry) => entry.text), ...contractTrailerLines(contentSha256)].join('\n');
 }
 
 export async function buildContractPdf(input: ContractPdfInput): Promise<ContractPdfResult> {
@@ -221,60 +303,9 @@ export async function buildContractPdf(input: ContractPdfInput): Promise<Contrac
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const writer = new PdfWriter(doc, font, bold, contentSha256, input.applicationId);
 
-  const amountFinanced = roundMoney(Math.max(input.listPrice - input.downPayment, 0));
-  const totalPayable = roundMoney(input.downPayment + input.financedTotal);
-  const totalCostOfCredit = roundMoney(Math.max(input.financedTotal - amountFinanced, 0));
-  const approvedDate = input.approvedAt.slice(0, 10);
-
-  writer.line('Vehicle Co-Ownership Financing Agreement', { size: 16, bold: true });
-  writer.line('');
-  writer.line(`Application ID: ${input.applicationId}`);
-  writer.line(`Approval date: ${approvedDate}`);
-  writer.line(`Lender of record: ${input.lenderName}`, { bold: true });
-  writer.line('');
-  writer.line('1. Parties', { bold: true });
-  writer.line(`Customer: ${input.customerName}`);
-  writer.line(`Email: ${input.customerEmail}`);
-  writer.line(`Phone: ${input.customerPhone}`);
-  writer.line(`QID: ${input.customerQid}`);
-  writer.line(`Dealer: ${input.dealerName}`);
-  writer.line('');
-  writer.line('2. Financed asset', { bold: true });
-  writer.line(`Vehicle: ${input.vehicleLabel}`);
-  writer.line(`Cash price (list): ${qar(input.listPrice)}`);
-  writer.line('');
-  writer.line('3. Financing summary (locked at approval)', { bold: true });
-  writer.line(`Down payment (${input.downPaymentPct.toFixed(2)}%): ${qar(input.downPayment)}`);
-  writer.line(`Amount financed: ${qar(amountFinanced)}`);
-  writer.line(`Annual percentage rate (APR): ${input.annualRate.toFixed(2)}%`);
-  writer.line(`Tenure: ${input.tenor} months`);
-  writer.line(`Representative monthly installment: ${qar(input.monthly)}`);
-  writer.line(`Total installment payments: ${qar(input.financedTotal)}`);
-  writer.line(`Total amount payable (down payment + installments): ${qar(totalPayable)}`);
-  writer.line(`Total cost of credit (interest component): ${qar(totalCostOfCredit)}`);
-  writer.line('');
-  writer.line('4. Disclosures', { bold: true });
-  for (const paragraph of QATAR_CONSUMER_CREDIT_DISCLOSURES) {
-    writer.line(paragraph);
+  for (const entry of buildContractLines(input)) {
+    writer.line(entry.text, { bold: entry.bold, size: entry.size, gap: entry.gap });
   }
-  writer.line('');
-  writer.line('5. Amortization schedule', { bold: true });
-  writer.line(
-    '#   Due date     Payment      Principal    Profit/rent  Balance',
-    { size: 9, bold: true },
-  );
-
-  for (const row of input.schedule) {
-    writer.line(
-      `${String(row.sequence).padStart(2, ' ')}  ${row.dueDate}  ${qar(row.payment).padStart(12, ' ')}  ${qar(row.principal).padStart(12, ' ')}  ${qar(row.interest).padStart(12, ' ')}  ${qar(row.balance).padStart(12, ' ')}`,
-      { size: 9, gap: 12 },
-    );
-  }
-
-  writer.line('');
-  writer.line('6. Signatures', { bold: true });
-  writer.line('Customer signature: _________________________________   Date: ______________');
-  writer.line('Lender representative: _____________________________   Date: ______________');
   writer.finish();
   writer.embedDocumentMetadata(contentSha256, input.applicationId);
 

@@ -29,6 +29,11 @@ export type SettlementRow = {
   remaining_principal: number;
   discount_amount: number;
   forgiven_rent: number;
+  /** Rent earned up to the quote date (Diminishing Musharakah settlement, wave 2). */
+  accrued_profit?: number | null;
+  quote_as_of?: string | null;
+  /** What the customer keeps versus simply completing the schedule. */
+  savings?: number | null;
   requested_at: string;
   decided_at: string | null;
   decision_reason: string | null;
@@ -38,7 +43,15 @@ type SettlementsResponse = { total: number; summary: { pending: number }; items:
 
 const PAGE = 50;
 
-/** blox-vercel `/finance/settlements` — approve / reject pending early-settlement requests. */
+function qar(value: number | null | undefined): string {
+  return value == null ? '—' : `QAR ${Number(value).toLocaleString()}`;
+}
+
+/**
+ * blox-vercel `/finance/settlements` — approve / reject pending early-settlement requests.
+ * Each row shows the quote the customer accepted: principal outstanding, rent to date,
+ * forgiven rent and the saving against the remaining schedule.
+ */
 export function FinanceSettlementsPage() {
   const { t } = useOpsLabels();
   const qc = useQueryClient();
@@ -70,9 +83,23 @@ export function FinanceSettlementsPage() {
 
   const columns: OpsTableColumn<SettlementRow>[] = useMemo(
     () => [
-      { id: 'requested_at', label: t('ops.finance.requestedAt'), format: (_, r) => r.requested_at.slice(0, 10) },
+      {
+        id: 'requested_at',
+        label: t('ops.finance.requestedAt'),
+        format: (_, r) => (
+          <span className="blox-cell-stack">
+            <span>{r.requested_at.slice(0, 10)}</span>
+            <small className="blox-table__id">
+              {r.quote_as_of
+                ? t('dealerOps.settlement.quoteAsOf', { date: new Date(r.quote_as_of).toLocaleDateString() })
+                : t('dealerOps.settlement.noQuote')}
+            </small>
+          </span>
+        ),
+      },
       {
         id: 'customer',
+        cardTitle: true,
         label: t('ops.col.customer'),
         format: (_, r) => (
           <Link to={`/applications/${r.application_id}`}>
@@ -83,20 +110,41 @@ export function FinanceSettlementsPage() {
         ),
       },
       { id: 'vehicle', label: t('ops.col.vehicle'), format: (_, r) => r.vehicle },
-      { id: 'company_name', label: t('ops.col.dealer'), format: (_, r) => r.company_name },
+      { id: 'company_name', hideOnCard: true, label: t('ops.col.dealer'), format: (_, r) => r.company_name },
       {
         id: 'remaining_principal',
-        label: t('ops.finance.remainingPrincipal'),
-        format: (_, r) => `QAR ${r.remaining_principal.toLocaleString()}`,
+        numeric: true,
+        label: t('dealerOps.settlement.principalOutstanding'),
+        format: (_, r) => qar(r.remaining_principal),
+      },
+      {
+        id: 'accrued_profit',
+        numeric: true,
+        label: t('dealerOps.settlement.accruedProfit'),
+        format: (_, r) => qar(r.accrued_profit),
+      },
+      {
+        id: 'forgiven_rent',
+        numeric: true,
+        label: t('dealerOps.settlement.forgivenRent'),
+        format: (_, r) => qar(r.forgiven_rent),
       },
       {
         id: 'settlement_amount',
+        numeric: true,
         label: t('ops.finance.settlementAmount'),
-        format: (_, r) => `QAR ${r.settlement_amount.toLocaleString()}`,
+        format: (_, r) => <strong>{qar(r.settlement_amount)}</strong>,
       },
-      { id: 'status', label: t('ops.col.status'), format: (_, r) => r.status },
+      {
+        id: 'savings',
+        numeric: true,
+        label: t('dealerOps.settlement.savings'),
+        format: (_, r) => qar(r.savings),
+      },
+      { id: 'status', cardStatus: true, label: t('ops.col.status'), format: (_, r) => r.status },
       {
         id: 'actions',
+        actions: true,
         label: '',
         format: (_, r) =>
           r.status === 'pending' ? (
@@ -184,6 +232,18 @@ export function FinanceSettlementsPage() {
           setConfirm(null);
         }}
       >
+        {confirm?.decision === 'approved' && (
+          <dl className="blox-kv blox-kv--two">
+            <dt>{t('dealerOps.settlement.principalOutstanding')}</dt>
+            <dd className="blox-kv__num">{qar(confirm.row.remaining_principal)}</dd>
+            <dt>{t('dealerOps.settlement.accruedProfit')}</dt>
+            <dd className="blox-kv__num">{qar(confirm.row.accrued_profit)}</dd>
+            <dt>{t('dealerOps.settlement.forgivenRent')}</dt>
+            <dd className="blox-kv__num">{qar(confirm.row.forgiven_rent)}</dd>
+            <dt>{t('dealerOps.settlement.savings')}</dt>
+            <dd className="blox-kv__num">{qar(confirm.row.savings)}</dd>
+          </dl>
+        )}
         {confirm?.decision === 'rejected' && (
           <label className="blox-field">
             <span>{t('ops.finance.rejectReason')}</span>

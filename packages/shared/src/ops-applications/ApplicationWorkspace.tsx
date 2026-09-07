@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { apiFetch } from '../lib/api';
@@ -9,12 +9,15 @@ import { Alert, ConfirmDialog, OpsDetailPage, PageSkeleton } from '../ops-ui-v2'
 import { calculateOwnershipTimeline } from '../lib/ownership';
 import { resolveDisplaySchedule } from '../lib/resolve-display-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
-import type { ConsentStatusDto } from '../types/customer-platform';
+import type { ConsentStatusDto, CreditAssessmentDto } from '../types/customer-platform';
 import type { OpsAudience, OpsUnmaskField, OpsWorkspace } from './types';
 import { canCreditDecide, isFullAdminRole, visibleWorkspaceActions } from './useApplicationActions';
 import { submitGateMessage } from './submit-gate';
+import { decisionErrorMessage } from './credit-decision';
+import { customerInfoFromSnapshot } from './customer-info';
 import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
 import { useWorkspaceMutations } from './workspace/useWorkspaceMutations';
+import { useGuarantorSession } from './workspace/GuarantorPanel';
 import { WorkspaceFacts } from './workspace/WorkspaceFacts';
 import { IdentityHoldBanner } from './workspace/IdentityHoldBanner';
 import { ReasonDialog } from './workspace/ReasonDialog';
@@ -40,7 +43,8 @@ type ReasonRequest = { kind: 'unmask'; field: OpsUnmaskField } | { kind: 'clearH
  * Server actions live in `useWorkspaceMutations`, each tab in `./workspace/*Tab.tsx`.
  *
  * Customer-platform additions wired here: masked identity with audited reveal,
- * identity hold + clear, consents status, lender tagging and takaful verification.
+ * identity hold + clear, consents status, lender tagging, takaful verification,
+ * the live credit assessment (ops audiences) and the guarantor consent session.
  */
 export function ApplicationWorkspace({
   id,
@@ -80,6 +84,20 @@ export function ApplicationWorkspace({
     retry: false,
   });
 
+  // Live assessment for the signed-in officer (approver block is role-specific); dealers never see it.
+  const assessment = useQuery({
+    queryKey: ['ops-app-credit-assessment', id],
+    queryFn: () => apiFetch<CreditAssessmentDto>(`/api/ops/applications/${id}/credit-assessment`),
+    enabled: !!id && !!data && audience !== 'dealer',
+    retry: false,
+  });
+
+  const hasGuarantor = useMemo(
+    () => !!data && customerInfoFromSnapshot(data.customer_snapshot ?? {}).hasGuarantor,
+    [data],
+  );
+  const guarantorSession = useGuarantorSession(id, !!data && hasGuarantor);
+
   const actions = visibleWorkspaceActions(data?.status ?? 'draft', role);
 
   const mutations = useWorkspaceMutations(id, {
@@ -88,8 +106,8 @@ export function ApplicationWorkspace({
     getComment: () => comment,
     downPaymentAmount: () => Number((data?.pricing_snapshot as { down_payment?: number } | undefined)?.down_payment ?? 0),
     loadCompanies: !!actions.assignCompany,
-    // Submit gates come back as machine codes; map them to guidance before showing.
-    onError: (message, err) => setError(submitGateMessage(err, t) ?? message),
+    // Submit gates and approval enforcement come back as machine codes; map them to guidance before showing.
+    onError: (message, err) => setError(submitGateMessage(err, t) ?? decisionErrorMessage(err, t) ?? message),
     onCommentPosted: () => setComment(''),
   });
 
@@ -105,6 +123,8 @@ export function ApplicationWorkspace({
   const canClearHold = role === 'credit_officer' || isFullAdminRole(role);
   const canTagLender = role === 'finance_officer' || isFullAdminRole(role);
   const canVerifyTakaful = canCreditDecide(role);
+  // Guarantor requests: dealer (own company), credit, admin, super-admin — finance reads only.
+  const canSendGuarantorRequest = dealerRole || role === 'credit_officer' || isFullAdminRole(role);
   const revealFields: OpsUnmaskField[] = canCreditDecide(role) ? ['qid', 'phone'] : dealerRole ? ['qid'] : [];
 
   const customerName = data.customer?.name || data.customer_email || t('ops.workspace.title');
@@ -163,6 +183,10 @@ export function ApplicationWorkspace({
       mutations.verifyTakaful.mutate(policyId, { onSuccess: () => toast.success(t('dealerOps.takaful.verifiedToast')) }),
     verifyingTakaful: mutations.verifyTakaful.isPending,
     onTagLender: canTagLender ? () => setLenderOpen(true) : undefined,
+    creditAssessment: assessment.data ?? null,
+    creditAssessmentPending: assessment.isLoading,
+    creditAssessmentError: assessment.error ? (assessment.error as Error).message : null,
+    guarantor: { hasGuarantor, session: guarantorSession.data ?? null, canSend: canSendGuarantorRequest },
   };
 
   const panelProps: WorkspacePanelProps = { id, data, actions, mutations, label, setConfirm, setError, platform };
@@ -290,6 +314,7 @@ export function ApplicationWorkspace({
           consents={consents.data ?? null}
           consentsPending={consents.isLoading}
           onTagLender={platform.onTagLender}
+          guarantor={platform.guarantor}
         />
 
         {actions.edit && <EditPanel data={data} actions={actions} mutations={mutations} />}

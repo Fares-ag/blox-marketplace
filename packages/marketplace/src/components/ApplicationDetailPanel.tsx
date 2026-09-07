@@ -1,34 +1,44 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel, getAppLocale } from '@drivemarket/shared';
+import { DOCUMENT_UPLOAD_ACCEPT, apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel, getAppLocale, type DocumentSlot } from '@drivemarket/shared';
 import { ApplicationStatusView } from './ApplicationStatusView';
 import { OwnershipProgress } from './OwnershipProgress';
 import { TakafulSection, takafulSectionVisible } from './TakafulSection';
+import { SettlementQuoteCard } from './SettlementQuoteCard';
 import type { CustomerApplication } from '../lib/application-dto';
 import { formatDate } from '../lib/dates';
+import { SETTLEMENT_ERROR_CODES, useSettlementQuote } from '../lib/settlement-quote';
+import { hasErrorCode } from '../lib/errors';
+import { fetchDocumentSlots } from '../pages/apply/apply-api';
+import { staleDocumentCategories } from '../pages/apply/apply-model';
+import { Pill } from '../pages/apply/fields';
 
 /** The customer detail view model — the normalised `GET /api/applications/:id` DTO. */
 export type ApplicationDetailData = CustomerApplication;
 
-// Identity documents are uploaded here like any other file, straight to S3.
-// `passport` was missing, so a non-Qatari applicant had no way to supply the
-// one identity document they can actually produce — and the finance partner's
-// CRM therefore never received it.
+// Fallback slots when the document-slots endpoint is unavailable. Identity
+// documents are uploaded here like any other file, straight to S3.
 const UPLOAD_CATEGORIES = ['qid', 'passport', 'salary', 'bank', 'other'] as const;
 
 /**
- * What the application actually needs before it can be submitted. Mirrors
- * REQUIRED_APPLICATION_DOC_CATEGORIES in the API — deliberately NOT the same as
- * UPLOAD_CATEGORIES, which is merely what we offer a slot for. Gating on the
- * offered list would demand a passport from every Qatari applicant (who has a
- * QID and no passport to give) and an "other" document from everyone.
+ * Legacy submit gate mirror (REQUIRED_APPLICATION_DOC_CATEGORIES in the API),
+ * used only when the slots endpoint does not answer.
  */
 const REQUIRED_UPLOAD_CATEGORIES = ['qid', 'salary', 'bank'] as const;
 
 /** Statuses where the customer can still act on outstanding consents. */
 const CONSENTS_ACTIONABLE_STATUSES = new Set(['draft', 'resubmission_required', 'under_review']);
+
+const GROUP_ORDER: DocumentSlot['group'][] = ['identity', 'income', 'business', 'guarantor', 'supporting'];
+const GROUP_KEY: Record<DocumentSlot['group'], string> = {
+  identity: 'applyFlow.docs.groupIdentity',
+  income: 'applyFlow.docs.groupIncome',
+  business: 'applyFlow.docs.groupBusiness',
+  guarantor: 'applyFlow.docs.groupGuarantor',
+  supporting: 'applyFlow.docs.groupSupporting',
+};
 
 function documentDownloadUrl(appId: string, docId: string) {
   return apiFileUrl(`/applications/${appId}/documents/${docId}/file`);
@@ -41,9 +51,11 @@ function submitErrorMessage(error: Error, t: Translate): string {
   const code = `${(error as { code?: string }).code ?? ''} ${error.message}`;
   if (code.includes('identity_hold')) return t('applyFlow.error.identityHold');
   if (code.includes('consents_required')) return t('applyFlow.error.consentsRequired');
+  if (code.includes('documents_stale')) return t('applyFlow.error.documentsStale');
   if (code.includes('documents_missing') || code.includes('documents_incomplete')) {
     return t('applyFlow.error.documentsRequired', { defaultValue: t('application.submitFailed') });
   }
+  if (code.includes('guarantor_consent_required')) return t('applyFlow.error.guarantorConsentRequired');
   if (code.includes('vehicle_identity_incomplete')) return t('ownershipHero.plan.submitVehicleIdentity');
   if (code.includes('vehicle_age_rule')) return t('ownershipHero.plan.submitVehicleAge');
   if (code.includes('blocking_application')) return t('applyFlow.error.blocking');
@@ -144,6 +156,89 @@ function DocumentUploadCard({
   );
 }
 
+/** One row of the slot-driven checklist: label, required/optional, freshness and its own upload control. */
+function SlotRow({
+  slot,
+  uploaded,
+  stale,
+  uploadedAt,
+  onUpload,
+}: {
+  slot: DocumentSlot;
+  uploaded: boolean;
+  stale: boolean;
+  uploadedAt: string | null;
+  onUpload: (file: File) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const locale = getAppLocale();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const inputId = `detail-doc-${slot.category}`;
+
+  async function handleFile(file: File | undefined) {
+    if (!file || uploading) return;
+    setUploading(true);
+    try {
+      await onUpload(file);
+    } catch {
+      /* parent shows the error */
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  return (
+    <li className={`dm-docs__row${uploaded && !stale ? ' is-done' : ''}${stale ? ' is-stale' : ''}`}>
+      <div className="dm-docs__icon" aria-hidden>
+        {stale ? '!' : uploaded ? '✓' : ''}
+      </div>
+      <div className="dm-docs__body">
+        <div className="dm-docs__title-row">
+          <span className="dm-docs__title">{t(slot.labelKey)}</span>
+          <Pill tone={slot.required ? 'info' : 'neutral'}>{slot.required ? t('applyFlow.docs.required') : t('applyFlow.docs.optional')}</Pill>
+          {stale ? <Pill tone="danger">{t('applyFlow.docs.stale')}</Pill> : null}
+        </div>
+        <p className="dm-docs__hint">
+          {stale && slot.maxAgeDays ? t('applyFlow.docs.staleHint', { days: slot.maxAgeDays }) : t(`${slot.labelKey}Hint`)}
+          {!stale && slot.maxAgeDays ? ` ${t('applyFlow.docs.freshness', { days: slot.maxAgeDays })}` : ''}
+        </p>
+        <p className="dm-docs__status">
+          {uploading ? (
+            t('applyFlow.docs.uploading')
+          ) : uploaded ? (
+            <>
+              <span className={stale ? 'dm-docs__stale' : 'dm-docs__done'}>{stale ? t('applyFlow.docs.reupload') : t('applyFlow.docs.uploaded')}</span>
+              {uploadedAt ? <span className="dm-docs__file"> · {t('applyFlow.docs.uploadedOn', { date: formatDate(uploadedAt, locale) })}</span> : null}
+            </>
+          ) : (
+            <span className="dm-muted">{t('applyFlow.docs.notUploaded')}</span>
+          )}
+        </p>
+      </div>
+      <div className="dm-docs__action">
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="file"
+          className="dm-sr-only"
+          accept={DOCUMENT_UPLOAD_ACCEPT}
+          disabled={uploading}
+          onChange={(e) => void handleFile(e.target.files?.[0])}
+        />
+        <label
+          htmlFor={inputId}
+          className={`dm-btn-ghost dm-btn-ghost--on-light dm-docs__btn${uploading ? ' is-disabled' : ''}`}
+          aria-label={`${stale ? t('applyFlow.docs.reupload') : uploaded ? t('applyFlow.docs.replace') : t('applyFlow.docs.upload')}: ${t(slot.labelKey)}`}
+        >
+          {uploading ? t('applyFlow.docs.uploading') : stale ? t('applyFlow.docs.reupload') : uploaded ? t('applyFlow.docs.replace') : t('applyFlow.docs.upload')}
+        </label>
+      </div>
+    </li>
+  );
+}
+
 export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) {
   const { t } = useTranslation();
   const locale = getAppLocale();
@@ -153,9 +248,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const [actionError, setActionError] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const scheduleRef = useRef<HTMLElement>(null);
-
-  const uploadedCategories = new Set((app.documents ?? []).map((d) => d.category));
-  const hasAllDocs = REQUIRED_UPLOAD_CATEGORIES.every((c) => uploadedCategories.has(c));
+  const settlementRef = useRef<HTMLElement>(null);
 
   const canUpload = ['resubmission_required', 'draft'].includes(app.status);
   const canSubmitDraft = app.status === 'draft';
@@ -170,6 +263,46 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const [contractError, setContractError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<'submit' | 'resubmit' | null>(null);
 
+  // ---- document slots (required/optional + freshness) ---------------------
+  const slotsQuery = useQuery({
+    queryKey: ['app', app.id, 'document-slots'],
+    queryFn: () => fetchDocumentSlots(app.id),
+    enabled: canUpload,
+    retry: false,
+  });
+  const slotsData = slotsQuery.data;
+  const uploadedAt = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const doc of app.documents ?? []) {
+      if (doc.createdAt && (!out[doc.category] || doc.createdAt > out[doc.category])) out[doc.category] = doc.createdAt;
+    }
+    for (const [category, at] of Object.entries(slotsData?.uploaded_at ?? {})) {
+      if (typeof at === 'string' && at) out[category] = at;
+    }
+    if (out.id && !out.qid) out.qid = out.id;
+    return out;
+  }, [app.documents, slotsData?.uploaded_at]);
+  const uploadedCategories = useMemo(() => {
+    const set = new Set<string>(slotsData?.uploaded ?? (app.documents ?? []).map((d) => d.category));
+    if (set.has('id')) set.add('qid');
+    return set;
+  }, [slotsData?.uploaded, app.documents]);
+  const staleSet = useMemo(
+    () => new Set(slotsData ? staleDocumentCategories(slotsData.slots, uploadedAt, slotsData.stale ?? []) : []),
+    [slotsData, uploadedAt],
+  );
+  const staleRequired = useMemo(
+    () => (slotsData ? slotsData.slots.filter((s) => s.required && uploadedCategories.has(s.category) && staleSet.has(s.category)) : []),
+    [slotsData, uploadedCategories, staleSet],
+  );
+  const missingRequired = useMemo(
+    () => (slotsData ? slotsData.slots.filter((s) => s.required && !uploadedCategories.has(s.category)) : []),
+    [slotsData, uploadedCategories],
+  );
+  const hasAllDocs = slotsData
+    ? missingRequired.length === 0 && staleRequired.length === 0
+    : REQUIRED_UPLOAD_CATEGORIES.every((c) => uploadedCategories.has(c));
+
   const identityHoldOpen = !!app.identityHold && !app.identityHold.clearedAt;
   const lenderLabel =
     app.lenderName?.trim() || (app.financingSource === 'blox' ? t('ownershipHero.plan.lenderBlox') : null);
@@ -181,13 +314,18 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const showFacts = !!lenderLabel || !!app.dealerName || !!app.branchName || consentsRow !== null;
   const ruleFlags = app.ruleFlags ?? [];
   const showSchedule = app.status === 'active' && (app.paymentSchedules?.length ?? 0) > 0;
+  const showSettlement = app.status === 'active';
+  const settlementQuote = useSettlementQuote(app.id, showSettlement);
 
-  // The dashboard hero deep-links to `#schedule`; the section only exists once
-  // the detail has loaded, so scroll after render instead of relying on the browser.
+  // The dashboard hero deep-links to `#schedule` / `#settlement`; the sections
+  // only exist once the detail has loaded, so scroll after render.
   useEffect(() => {
-    if (location.hash !== '#schedule' || !showSchedule) return;
-    scheduleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [location.hash, showSchedule]);
+    if (location.hash === '#schedule' && showSchedule) {
+      scheduleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (location.hash === '#settlement' && showSettlement) {
+      settlementRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [location.hash, showSchedule, showSettlement]);
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['app', app.id] });
@@ -204,7 +342,10 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       setActionError(null);
       invalidate();
     },
-    onError: (e: Error) => setActionError(submitErrorMessage(e, t)),
+    onError: (e: Error) => {
+      setActionError(submitErrorMessage(e, t));
+      void slotsQuery.refetch();
+    },
   });
 
   const resubmit = useMutation({
@@ -215,7 +356,10 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       setActionError(null);
       invalidate();
     },
-    onError: (e: Error) => setActionError(submitErrorMessage(e, t)),
+    onError: (e: Error) => {
+      setActionError(submitErrorMessage(e, t));
+      void slotsQuery.refetch();
+    },
   });
 
   const cancel = useMutation({
@@ -246,7 +390,8 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       }
       window.location.href = redirectUrl;
     },
-    onError: (e: Error) => setActionError(e.message),
+    onError: (e: Error) =>
+      setActionError(hasErrorCode(e, SETTLEMENT_ERROR_CODES.quoteRequired) ? t('ownershipHero.settlement.quoteRequired') : e.message),
   });
 
   const deferralStatus = useQuery({
@@ -271,14 +416,16 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       void qc.invalidateQueries({ queryKey: ['customer-payments-hub'] });
       void qc.invalidateQueries({ queryKey: ['deferral-status'] });
     },
-    onError: (e: Error) => setActionError(e.message),
+    // An overdue installment is settled, never deferred (wave 2 rule).
+    onError: (e: Error) =>
+      setActionError(hasErrorCode(e, SETTLEMENT_ERROR_CODES.overdueNotDeferrable) ? t('ownershipHero.settlement.overdueNotDeferrable') : e.message),
   });
 
   const canDefer =
     (deferralStatus.data?.membership_active ?? false) &&
     (deferralStatus.data?.remaining ?? 0) > 0;
 
-  async function uploadDocument(file: File, category: (typeof UPLOAD_CATEGORIES)[number]) {
+  async function uploadDocument(file: File, category: string) {
     setUploadError(null);
     const body = new FormData();
     body.append('file', file);
@@ -301,6 +448,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         throw new Error(message);
       }
       invalidate();
+      void qc.invalidateQueries({ queryKey: ['app', app.id, 'document-slots'] });
     } catch (err) {
       const message = err instanceof Error ? err.message : t('application.uploadFailed');
       setUploadError(message);
@@ -439,6 +587,19 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         />
       )}
 
+      {showSettlement && (
+        <section className="dm-app-detail__settlement" id="settlement" ref={settlementRef}>
+          <SettlementQuoteCard
+            applicationId={app.id}
+            quote={settlementQuote.data}
+            loading={settlementQuote.isLoading}
+            error={settlementQuote.isError}
+            variant="detail"
+            canSettle
+          />
+        </section>
+      )}
+
       {(app.documents?.length ?? 0) > 0 && (
         <section className="dm-app-detail__section">
           <h3>{t('application.documentsTitle')}</h3>
@@ -449,6 +610,12 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
                   {applicationDocumentLabel(doc, (category) =>
                     t(`application.docCategory.${category}`, { defaultValue: category }),
                   )}
+                  {staleSet.has(doc.category) && uploadedAt[doc.category] === doc.createdAt ? (
+                    <>
+                      {' '}
+                      <Pill tone="danger">{t('applyFlow.docs.stale')}</Pill>
+                    </>
+                  ) : null}
                 </span>
                 <a href={documentDownloadUrl(app.id, doc.id)} target="_blank" rel="noreferrer">
                   {t('application.download')}
@@ -465,33 +632,79 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           <p className="dm-app-detail__hint">
             {canSubmitDraft ? t('application.draftHint') : t('application.uploadHint')}
           </p>
-          <div className="dm-app-detail__checklist" aria-label={t('application.documentsChecklist')}>
-            {UPLOAD_CATEGORIES.map((cat) => {
-              const done = uploadedCategories.has(cat);
-              return (
-                <div
-                  key={cat}
-                  className={`dm-app-detail__check${done ? ' is-done' : ' is-missing'}`}
-                >
-                  <span className="dm-app-detail__check-label">
-                    {t(`application.docCategory.${cat}`, { defaultValue: cat })}
-                  </span>
-                  <span className="dm-app-detail__check-state">
-                    {done ? t('application.docChecklistDone') : t('application.docChecklistMissing')}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="dm-app-detail__upload-grid">
-            {UPLOAD_CATEGORIES.map((cat) => (
-              <DocumentUploadCard
-                key={cat}
-                category={cat}
-                onUpload={(file) => uploadDocument(file, cat)}
-              />
-            ))}
-          </div>
+          {slotsData ? (
+            <>
+              <div className="dm-docs__summary" aria-live="polite">
+                <Pill tone={missingRequired.length === 0 && staleRequired.length === 0 ? 'success' : 'warn'}>
+                  {missingRequired.length === 0 && staleRequired.length === 0
+                    ? t('applyFlow.docs.allRequired')
+                    : t('applyFlow.docs.progress', {
+                        done: slotsData.slots.filter((s) => s.required).length - missingRequired.length,
+                        total: slotsData.slots.filter((s) => s.required).length,
+                      })}
+                </Pill>
+                <span className="dm-muted">{t('applyFlow.docs.accept')}</span>
+              </div>
+              {staleRequired.length > 0 && (
+                <p className="dm-app-detail__hint dm-app-detail__hint--warn">
+                  {t('applyFlow.docs.staleCount', { count: staleRequired.length })} {t('applyFlow.error.documentsStale')}
+                </p>
+              )}
+              {GROUP_ORDER.map((group) => {
+                const groupSlots = slotsData.slots.filter((s) => s.group === group);
+                if (!groupSlots.length) return null;
+                return (
+                  <section key={group} className="dm-docs__group" aria-labelledby={`detail-docs-group-${group}`}>
+                    <h4 id={`detail-docs-group-${group}`} className="dm-step__subtitle">
+                      {t(GROUP_KEY[group])}
+                    </h4>
+                    <ul className="dm-docs__list">
+                      {groupSlots.map((slot) => (
+                        <SlotRow
+                          key={slot.category}
+                          slot={slot}
+                          uploaded={uploadedCategories.has(slot.category)}
+                          stale={staleSet.has(slot.category)}
+                          uploadedAt={uploadedAt[slot.category] ?? null}
+                          onUpload={(file) => uploadDocument(file, slot.category)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              <div className="dm-app-detail__checklist" aria-label={t('application.documentsChecklist')}>
+                {UPLOAD_CATEGORIES.map((cat) => {
+                  const done = uploadedCategories.has(cat);
+                  return (
+                    <div
+                      key={cat}
+                      className={`dm-app-detail__check${done ? ' is-done' : ' is-missing'}`}
+                    >
+                      <span className="dm-app-detail__check-label">
+                        {t(`application.docCategory.${cat}`, { defaultValue: cat })}
+                      </span>
+                      <span className="dm-app-detail__check-state">
+                        {done ? t('application.docChecklistDone') : t('application.docChecklistMissing')}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="dm-app-detail__upload-grid">
+                {UPLOAD_CATEGORIES.map((cat) => (
+                  <DocumentUploadCard
+                    key={cat}
+                    category={cat}
+                    onUpload={(file) => uploadDocument(file, cat)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
           {uploadError && <p className="dm-app-detail__error">{uploadError}</p>}
         </section>
       )}
@@ -547,7 +760,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
                         ? t('application.startingPayment', { defaultValue: 'Starting payment…' })
                         : t('application.payInstallment', { defaultValue: 'Pay online' })}
                     </button>
-                    {canDefer && (
+                    {canDefer && s.status !== 'overdue' && (
                       <button
                         type="button"
                         className="dm-app-detail__link-btn"
@@ -650,6 +863,9 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           padding: 20px;
         }
         .dm-app-detail__section h3 { margin: 0 0 12px; font-size: 1rem; }
+        .dm-app-detail__section h4.dm-step__subtitle { margin: 16px 0 8px; font-size: 0.85rem; }
+        .dm-app-detail__section .dm-docs__summary { margin-bottom: 4px; }
+        .dm-app-detail__settlement { scroll-margin-top: 16px; }
         .dm-app-detail__hint { margin: 0 0 12px; font-size: 14px; color: var(--dm-slate-600); line-height: 1.5; }
         .dm-app-detail__hint--warn { color: var(--dm-warning, #c47a00); font-weight: 600; }
         .dm-app-detail__error { margin: 12px 0 0; color: var(--dm-danger); font-size: 14px; }

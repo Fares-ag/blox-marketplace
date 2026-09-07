@@ -9,12 +9,16 @@
 import {
   PRODUCT_RULES,
   allowedTenureOptions,
+  assessCredit,
   buildPricingSnapshot,
   dateOfBirthMatchesQid,
+  employerCategoryFromEmploymentType,
   minDownPaymentPctFor,
   normalizeQid,
   parseQid,
   validateFinancingRequest,
+  type CreditAssessment,
+  type DocumentSlot,
   type DocumentSlotProfile,
   type ParsedQid,
   type PricingSnapshot,
@@ -474,6 +478,75 @@ export function snapshotFromForm(form: ApplyForm, derived: DerivedIdentity): Rec
     hasGuarantor: form.hasGuarantor,
     guarantor,
   });
+}
+
+/**
+ * Informational credit preview for the review step: the same `assessCredit`
+ * the credit officer's screen runs, fed from the form. With a guarantor income
+ * the assessment carries both the "income alone" and "with guarantor" views.
+ * Null until the plan is priced; incomplete income yields a `refer` preview
+ * with `affordability_unknown`, which the UI explains rather than hides.
+ */
+export function creditPreviewFor(
+  form: ApplyForm,
+  residency: ResidencyClass | null,
+  pricing: PricingSnapshot | null,
+  violations: ProductRuleViolation[],
+  now: Date = new Date(),
+): CreditAssessment | null {
+  if (!pricing || !(pricing.list_price > 0)) return null;
+  const income = parseAmount(form.monthlyIncome) ?? 0;
+  const liabilities = parseAmount(form.monthlyLiabilities) ?? 0;
+  const installment = Number(pricing.monthly) || 0;
+  const financedAmount = Math.max(pricing.list_price - pricing.down_payment, 0);
+  const affordability =
+    income > 0 && installment > 0
+      ? {
+          monthlyIncome: income,
+          monthlyLiabilities: liabilities,
+          proposedInstallment: installment,
+          residency: residency ?? 'expat',
+          employerCategory: employerCategoryFromEmploymentType(form.employmentType),
+          financedAmount,
+        }
+      : null;
+  const guarantorIncome = form.hasGuarantor ? (parseAmount(form.guarantor.monthlyIncome) ?? 0) : 0;
+  return assessCredit(
+    {
+      affordability,
+      financedAmount,
+      vehicleCategory: 'car',
+      ruleFlags: violations,
+      guarantorMonthlyIncome: guarantorIncome > 0 ? guarantorIncome : null,
+    },
+    now,
+  );
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Categories whose newest upload is older than the slot allows. The API's own
+ * `stale` list wins when present; the date maths covers builds where the slots
+ * endpoint predates the freshness rule.
+ */
+export function staleDocumentCategories(
+  slots: DocumentSlot[],
+  uploadedAt: Record<string, string>,
+  serverStale: Iterable<string> = [],
+  now: Date = new Date(),
+): string[] {
+  const stale = new Set<string>(serverStale);
+  for (const slot of slots) {
+    if (!slot.maxAgeDays) continue;
+    const at = uploadedAt[slot.category];
+    if (!at) continue;
+    const uploaded = new Date(at);
+    if (Number.isNaN(uploaded.getTime())) continue;
+    const ageDays = (now.getTime() - uploaded.getTime()) / DAY_MS;
+    if (ageDays > slot.maxAgeDays) stale.add(slot.category);
+  }
+  return slots.map((s) => s.category).filter((c) => stale.has(c));
 }
 
 /** First step whose data is still incomplete — where a resumed draft should reopen. */

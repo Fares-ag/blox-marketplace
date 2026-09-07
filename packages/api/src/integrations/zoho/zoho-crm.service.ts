@@ -10,6 +10,7 @@ import { KycBridgeService } from '../../kyc/kyc-bridge.service';
 
 import { ActivityService } from '../../common/activity.service';
 import { fetchWithTimeout } from '../../common/fetch-with-timeout';
+import { IdentityService } from '../../common/identity.service';
 
 import { ZohoAuthService } from './zoho-auth.service';
 
@@ -62,6 +63,7 @@ export class ZohoCrmService {
     private readonly activity: ActivityService,
     private readonly storage: StorageService,
     private readonly kycBridge: KycBridgeService,
+    private readonly identity: IdentityService,
   ) {}
 
   async syncApplicationToZoho(
@@ -81,6 +83,8 @@ export class ZohoCrmService {
         offer: true,
         financePartner: true,
         documents: true,
+        // QID fallback for snapshots that lack one; decrypted via IdentityService, never read raw.
+        customer: { select: { qid: true, qidEnc: true } },
       },
     });
 
@@ -119,6 +123,7 @@ export class ZohoCrmService {
         app as ApplicationForZoho,
         this.config.requestSubmittedTo,
         this.config.leadSource,
+        { qid: this.identity.readQid(app.customer) },
       );
 
       let leadId: string | null = app.zohoLeadId;

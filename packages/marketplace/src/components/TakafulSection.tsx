@@ -8,6 +8,7 @@ import {
   documentUploadRejection,
   formatQar,
   getAppLocale,
+  type TakafulQuoteDto,
 } from '@drivemarket/shared';
 import {
   normalizeTakafulPolicy,
@@ -16,6 +17,7 @@ import {
 } from '../lib/application-dto';
 import { daysUntil, formatDate, toDateInputValue } from '../lib/dates';
 import { uploadMultipart } from '../lib/multipart';
+import { TakafulQuoteCompare, type TakafulCoverage } from './TakafulQuoteCompare';
 
 /** Takaful is asked for from contract signing onwards (the vehicle is about to be co-owned). */
 const TAKAFUL_STATUSES = new Set([
@@ -139,6 +141,8 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [compareCoverage, setCompareCoverage] = useState<TakafulCoverage>('comprehensive');
+  const [compareOpen, setCompareOpen] = useState<boolean | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const policiesQuery = useQuery({
@@ -204,6 +208,22 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
     setFormError(null);
     setNotice(null);
     setMode({ kind: 'edit', policy });
+  }
+
+  /** "Use this provider": open the policy form prefilled from the indicative quote. */
+  function useQuote(quote: TakafulQuoteDto) {
+    const knownRiders = new Set<string>(RIDER_OPTIONS.map((r) => r.value));
+    setForm({
+      ...emptyForm(vehiclePrice),
+      provider: quote.provider.name,
+      coverageType: quote.coverage_type,
+      premiumAmount: String(Math.round(quote.annual_contribution)),
+      riders: quote.provider.riders.map((r) => r.code).filter((code) => knownRiders.has(code)),
+    });
+    setFormError(null);
+    setNotice(t('takaful.compare.prefilled'));
+    setMode({ kind: 'create' });
+    setCompareOpen(false);
   }
 
   function submitForm() {
@@ -438,6 +458,31 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
 
       {current && !(mode?.kind === 'edit' && mode.policy.id === current.id) && renderPolicyCard(current)}
 
+      {canCreate && (
+        <div className="dm-takaful__compare">
+          <button
+            type="button"
+            className="dm-takaful__link-btn"
+            aria-expanded={compareOpen ?? !current}
+            aria-controls="dm-takaful-compare"
+            onClick={() => setCompareOpen((open) => !(open ?? !current))}
+          >
+            {(compareOpen ?? !current) ? t('takaful.compare.hide') : t('takaful.compare.show')}
+          </button>
+          {(compareOpen ?? !current) && (
+            <div id="dm-takaful-compare">
+              <TakafulQuoteCompare
+                vehiclePrice={vehiclePrice}
+                coverage={compareCoverage}
+                onCoverageChange={setCompareCoverage}
+                onUse={useQuote}
+                disabled={save.isPending}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {mode && (
         <form
           className="dm-takaful__form"
@@ -583,11 +628,11 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
         </details>
       )}
 
-      <p className="dm-takaful__footnote">
-        {t('takaful.reminderNote')} {t('takaful.compareSoon')}
-      </p>
+      <p className="dm-takaful__footnote">{t('takaful.reminderNote')}</p>
 
       <style>{`
+        .dm-takaful__compare { display: grid; gap: 10px; margin-top: 14px; justify-items: start; }
+        .dm-takaful__compare > div { width: 100%; }
         .dm-takaful__head {
           display: flex;
           flex-wrap: wrap;

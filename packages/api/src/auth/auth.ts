@@ -100,6 +100,13 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
           required: false,
           input: true,
         },
+        // Captured at registration; normalised to en|ar in the sign-up hook below.
+        preferredLanguage: {
+          type: 'string',
+          required: false,
+          defaultValue: 'en',
+          input: true,
+        },
         twoFactorEnabled: {
           type: 'boolean',
           required: false,
@@ -172,6 +179,12 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
               ? await prisma.user.findUnique({ where: { email } })
               : null;
           if (!user) return;
+          if (user.preferredLanguage !== 'en' && user.preferredLanguage !== 'ar') {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { preferredLanguage: 'en' },
+            });
+          }
           if (
             process.env.QA_SMOKE_AUTO_VERIFY === 'true' &&
             user.email.endsWith('@drivemarket.local')

@@ -39,6 +39,12 @@ export async function createIntegrationApp(
       sendPasswordResetEmail: async () => undefined,
       sendWalkInInviteEmail: async () => undefined,
       sendStaffAccountCreatedEmail: async () => undefined,
+      sendDealerAgentWelcomeEmail: async () => undefined,
+      sendAdminPasswordResetEmail: async () => undefined,
+      sendDealerQuoteEmail: async () => undefined,
+      sendAssistedSessionEmail: async () => undefined,
+      sendDocumentExpiryEmail: async () => undefined,
+      sendTakafulRenewalEmail: async () => undefined,
       processOutbox: async () => ({ processed: 0, sent: 0, failed: 0 }),
       markForRetry: async () => undefined,
     } satisfies Partial<MailService>);

@@ -48,9 +48,25 @@ import { EligibilityPage } from './pages/EligibilityPage';
 import { ConsentsPage } from './pages/ConsentsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AssistPage } from './pages/AssistPage';
+import { GuarantorPage } from './pages/GuarantorPage';
 import { BrandedEntryPage } from './pages/BrandedEntryPage';
-import { BrandProvider } from './components/BrandProvider';
+import { BrandBadge, BrandProvider, useBrand, useBrandPageScope } from './components/BrandProvider';
 import { ApplyPage } from './pages/apply/ApplyPage';
+
+/** Dark header band that takes the dealer's primary colour while a brand is active. */
+const BRANDABLE_BAND_CSS = `
+  .dm-band-brandable { background: var(--dm-graphite-900); color: #fff; }
+  .dm-band-brandable.is-branded {
+    background: linear-gradient(
+      180deg,
+      var(--dm-brand-primary, var(--dm-graphite-900)) 0%,
+      color-mix(in srgb, var(--dm-brand-primary, var(--dm-graphite-900)) 82%, #000) 100%
+    );
+    color: var(--dm-brand-on-primary, #fff);
+  }
+  .dm-brand-strip { padding: 72px 24px 16px; }
+  .dm-brand-strip .dm-brand-badge__powered { opacity: 0.85; }
+`;
 
 function VehiclesBrowseRedirect() {
   const { search } = useLocation();
@@ -227,6 +243,9 @@ function VehicleDetailPage() {
   const offer = data?.offer;
   const company = data?.company;
   const images = data?.images ?? [];
+  // A stored dealer brand only shows on this dealer's own vehicles.
+  const brand = useBrand();
+  useBrandPageScope(company?.code ?? null);
 
   const [tenure, setTenure] = useState(36);
   const [downPct, setDownPct] = useState(10);
@@ -275,9 +294,15 @@ function VehicleDetailPage() {
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
       <DocumentMeta title={metaTitle} description={metaDesc} />
-      <div style={{ background: 'var(--dm-graphite-900)', height: 72 }}>
+      <div className={`dm-band-brandable${brand.isBranded ? ' is-branded' : ''}`} style={{ minHeight: 72 }}>
         <MarketplaceNav />
+        {brand.isBranded ? (
+          <div className="dm-brand-strip">
+            <BrandBadge size="sm" />
+          </div>
+        ) : null}
       </div>
+      <style>{BRANDABLE_BAND_CSS}</style>
       <div className="blox-detail-layout">
         <div>
           <ImageGallery images={images} />
@@ -421,6 +446,7 @@ function DealersDirectoryPage() {
 function DealerShowroomPage() {
   const { code } = useParams();
   const { t } = useTranslation();
+  const brand = useBrand();
   const company = useQuery({
     queryKey: ['company-by-code', code],
     queryFn: () => apiFetch<PublicCompany & { address?: string; contact_phone?: string } | null>(`/api/companies/by-code/${code}`),
@@ -439,19 +465,26 @@ function DealerShowroomPage() {
   const c = company.data;
   const metaTitle = t('meta.showroomTitle', { name: c.name });
 
+  const branded = brand.isBranded && !!brand.companyCode && brand.companyCode.toLowerCase() === (code ?? '').toLowerCase();
+
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
       <DocumentMeta title={metaTitle} />
-      <div style={{ background: 'var(--dm-graphite-900)', color: '#fff', padding: '20px 24px' }}>
+      <div className={`dm-band-brandable${branded ? ' is-branded' : ''}`} style={{ padding: '20px 24px' }}>
         <MarketplaceNav />
-        <div style={{ paddingTop: 56, display: 'flex', alignItems: 'center', gap: 16 }}>
-          {c.logo_url && <img src={c.logo_url} alt="" style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }} />}
+        <div style={{ paddingTop: 56, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
+          {branded ? (
+            <BrandBadge size="lg" />
+          ) : (
+            c.logo_url && <img src={c.logo_url} alt="" style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }} />
+          )}
           <div>
-            <h1 style={{ fontFamily: 'var(--dm-font-display)', margin: '0 0 8px' }}>{t('dealers.showroomTitle', { name: c.name })}</h1>
-            <p style={{ margin: 0, color: 'rgba(255,255,255,0.75)' }}>{t('dealers.showroomBody')}</p>
+            <h1 style={{ fontFamily: 'var(--dm-font-display)', margin: '0 0 8px' }}>{t('dealers.showroomTitle', { name: brand.displayName ?? c.name })}</h1>
+            <p style={{ margin: 0, opacity: 0.78 }}>{brand.tagline ?? t('dealers.showroomBody')}</p>
           </div>
         </div>
       </div>
+      <style>{BRANDABLE_BAND_CSS}</style>
       <div style={{ width: '100%', margin: 0, padding: '24px 32px', boxSizing: 'border-box' }}>
         <p style={{ color: 'var(--dm-slate-600)' }}>{t('dealers.listings', { count: products.data?.total ?? 0 })}</p>
         <div className="dm-listing-stack">
@@ -677,6 +710,7 @@ export function AppRoutes() {
       <Route path="/dealers/:code/apply" element={<BrandedEntryPage />} />
       <Route path="/eligibility" element={<EligibilityPage />} />
       <Route path="/assist/:token" element={<AssistPage />} />
+      <Route path="/guarantor/:token" element={<GuarantorPage />} />
       <Route path="/compare" element={<ComparePage />} />
       <Route path="/help" element={<HelpPage />} />
       <Route path="/quotes/:token" element={<QuoteRedeemPage />} />

@@ -7,7 +7,8 @@ export type UserRole =
   | 'finance_officer'
   | 'admin'
   | 'super_admin'
-  | 'group_admin';
+  | 'group_admin'
+  | 'partner_viewer';
 
 export type OfficerScope = 'all' | 'assigned';
 
@@ -160,6 +161,9 @@ export interface DmUser {
   mfa_setup_required: boolean;
   /** Idle/absolute timeout the API enforces; drives the client countdown. */
   session_policy?: SessionPolicyDto | null;
+  /** Partner viewers: the finance provider whose applications they may read. */
+  finance_partner_id?: string | null;
+  finance_partner_name?: string | null;
 }
 
 export interface Company {
@@ -334,6 +338,8 @@ export interface AdminUser {
   is_active: boolean;
   email_verified: boolean;
   created_at: string;
+  /** Partner viewers: the finance provider whose applications they may read. */
+  finance_partner?: { id: string; name: string } | null;
 }
 
 export interface AdminUserProvision {

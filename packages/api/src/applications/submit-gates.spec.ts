@@ -4,6 +4,7 @@ import {
   SUBMIT_GATE_ORDER,
   assertSubmitGates,
   evaluateSubmitGates,
+  guarantorConsentRequired,
   identityHoldActive,
   vehicleIdentityComplete,
   type SubmitGateInput,
@@ -52,6 +53,8 @@ describe('evaluateSubmitGates', () => {
       'identity_hold',
       'consents_required',
       'documents_missing',
+      'documents_stale',
+      'guarantor_consent_required',
       'vehicle_identity_incomplete',
       'vehicle_age_rule',
     ]);
@@ -86,6 +89,33 @@ describe('evaluateSubmitGates', () => {
       code: 'documents_missing',
       missing: ['qid', 'passport', 'salary', 'bank'],
     });
+
+    // Documents in but the salary certificate is 45 days old → freshness.
+    const staleDocs = input({
+      ...consented,
+      documents: input().documents.map((doc) =>
+        doc.category === 'salary' ? { ...doc, createdAt: new Date('2026-07-24T00:00:00.000Z') } : doc,
+      ),
+    });
+    expect(evaluateSubmitGates(staleDocs)).toEqual({ code: 'documents_stale', stale: ['salary'] });
+
+    // Fresh documents, a declared guarantor without a completed consent session → guarantor gate.
+    const guarantorPending = input({
+      ...consented,
+      application: {
+        ...consented.application,
+        customerSnapshot: {
+          ...EXPAT_SNAPSHOT,
+          hasGuarantor: true,
+          guarantor: { fullName: 'A', qid: '28563412345', phone: '+97455598765', relationship: 'sibling' },
+        },
+      },
+      documents: [...input().documents, { category: 'guarantor_qid' }, { category: 'guarantor_salary' }],
+    });
+    expect(evaluateSubmitGates(guarantorPending)?.code).toBe('guarantor_consent_required');
+    expect(evaluateSubmitGates({ ...guarantorPending, guarantorConsentCompleted: true })?.code).toBe(
+      'vehicle_identity_incomplete',
+    );
 
     // Documents in → vehicle identity before the listing is reserved.
     const documented = input({ ...consented, documents: input().documents });
@@ -185,6 +215,53 @@ describe('evaluateSubmitGates', () => {
     });
     expect(evaluateSubmitGates(noConsents)).toBeNull();
   });
+
+  it('flags only time-sensitive slots whose newest upload is older than allowed', () => {
+    const old = new Date('2026-07-01T00:00:00.000Z');
+    const recent = new Date('2026-09-01T00:00:00.000Z');
+    // A re-upload of the bank statement supersedes the old one; the passport has no max age.
+    const docs = input({
+      documents: [
+        { category: 'qid', createdAt: old },
+        { category: 'passport', createdAt: old },
+        { category: 'salary', createdAt: recent },
+        { category: 'bank', createdAt: old },
+        { category: 'bank', createdAt: recent },
+      ],
+    });
+    expect(evaluateSubmitGates(docs)).toBeNull();
+
+    const staleBoth = input({
+      documents: [
+        { category: 'qid', createdAt: old },
+        { category: 'passport', createdAt: old },
+        { category: 'salary', createdAt: old },
+        { category: 'bank', createdAt: old },
+      ],
+    });
+    expect(evaluateSubmitGates(staleBoth)).toEqual({ code: 'documents_stale', stale: ['salary', 'bank'] });
+  });
+
+  it('requires the guarantor consent session only when a guarantor is declared', () => {
+    const withGuarantor = input({
+      application: {
+        ...input().application,
+        customerSnapshot: {
+          ...EXPAT_SNAPSHOT,
+          hasGuarantor: true,
+          guarantor: { fullName: 'A', qid: '28563412345', phone: '+97455598765', relationship: 'sibling' },
+        },
+      },
+      documents: [...input().documents, { category: 'guarantor_qid' }, { category: 'guarantor_salary' }],
+    });
+    expect(guarantorConsentRequired(withGuarantor.application, undefined)).toBe(true);
+    expect(guarantorConsentRequired(withGuarantor.application, false)).toBe(true);
+    expect(guarantorConsentRequired(withGuarantor.application, true)).toBe(false);
+    expect(guarantorConsentRequired(input().application, undefined)).toBe(false);
+    expect(evaluateSubmitGates(withGuarantor)?.code).toBe('guarantor_consent_required');
+    expect(evaluateSubmitGates({ ...withGuarantor, guarantorConsentCompleted: true })).toBeNull();
+    expect(evaluateSubmitGates(input({ guarantorConsentCompleted: false }))).toBeNull();
+  });
 });
 
 describe('assertSubmitGates', () => {
@@ -210,6 +287,24 @@ describe('assertSubmitGates', () => {
       expect(response.missing).toEqual(['qid', 'passport', 'salary', 'bank']);
     }
   });
+
+  it('carries the stale list on documents_stale', () => {
+    try {
+      assertSubmitGates(
+        input({
+          documents: input().documents.map((doc) =>
+            doc.category === 'bank' ? { ...doc, createdAt: new Date('2026-06-01T00:00:00.000Z') } : doc,
+          ),
+        }),
+      );
+      throw new Error('expected to throw');
+    } catch (error) {
+      expect((error as ConflictException).getStatus()).toBe(409);
+      const response = (error as ConflictException).getResponse() as { message: string; stale: string[] };
+      expect(response.message).toBe('documents_stale');
+      expect(response.stale).toEqual(['bank']);
+    }
+  });
 });
 
 describe('helpers', () => {
@@ -223,5 +318,36 @@ describe('helpers', () => {
     expect(vehicleIdentityComplete({ vin: 'V', chassisNumber: 'C', engineNumber: 'E' })).toBe(true);
     expect(vehicleIdentityComplete({ vin: 'V', chassisNumber: 'C', engineNumber: '  ' })).toBe(false);
     expect(vehicleIdentityComplete({ vin: 'V', chassisNumber: null, engineNumber: 'E' })).toBe(false);
+  });
+
+  it('fails documents_missing with qid when e-KYC is required and the QID was hand-uploaded by the customer', () => {
+    const failure = evaluateSubmitGates(
+      input({
+        documents: [
+          { category: 'qid', uploadedByRole: 'customer' },
+          { category: 'passport' },
+          { category: 'salary' },
+          { category: 'bank' },
+        ],
+        identityPolicy: { ekycRequired: true },
+      }),
+    );
+    expect(failure).toEqual({ code: 'documents_missing', missing: ['qid'] });
+  });
+
+  it('passes under e-KYC when the identity came from the KYC platform', () => {
+    expect(
+      evaluateSubmitGates(
+        input({
+          documents: [
+            { category: 'qid', kycDocumentType: 'qid_front', verificationStatus: 'verified', uploadedByRole: 'customer' },
+            { category: 'passport' },
+            { category: 'salary' },
+            { category: 'bank' },
+          ],
+          identityPolicy: { ekycRequired: true, allowStaffManualIdentity: false },
+        }),
+      ),
+    ).toBeNull();
   });
 });

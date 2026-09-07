@@ -2,6 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmailOutbox, EmailOutboxStatus, Prisma } from '@prisma/client';
 import nodemailer, { type Transporter } from 'nodemailer';
+import {
+  escapeHtml,
+  finalizeText,
+  formatQatarDate,
+  formatQatarDateTime,
+  isolateLtr,
+  notificationTexts,
+  wrapHtml,
+  type NotificationLocale,
+} from '../notifications/notification-texts';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolvePostmarkHttpTimeoutMs, resolvePostmarkServerToken, sendPostmarkEmail } from './postmark-mail';
 
@@ -13,7 +23,27 @@ export type MailTemplate =
   | 'assisted_session'
   | 'document_expiry'
   | 'takaful_renewal'
+  | 'notification'
   | 'transactional';
+
+export const MAIL_TEMPLATES: readonly MailTemplate[] = [
+  'password_reset',
+  'email_verification',
+  'walk_in_invite',
+  'staff_account_created',
+  'assisted_session',
+  'document_expiry',
+  'takaful_renewal',
+  'notification',
+  'transactional',
+];
+
+export function isMailTemplate(value: unknown): value is MailTemplate {
+  return typeof value === 'string' && (MAIL_TEMPLATES as readonly string[]).includes(value);
+}
+
+/** Subject/text/html of a templated email, rendered without sending (the notification router gates delivery). */
+export type RenderedEmail = { subject: string; text: string; html: string };
 
 export type MailInput = {
   to: string;
@@ -80,27 +110,163 @@ type OutboxPayload = {
 
 type MailTransport = 'postmark' | 'smtp' | 'none';
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+/** A URL on its own line inside Arabic plain text is isolated so it keeps its left-to-right shape. */
+function plainUrl(url: string, locale: NotificationLocale): string {
+  return locale === 'ar' ? isolateLtr(url) : url;
 }
 
-function formatQatarDate(date: Date): string {
-  return date.toLocaleDateString('en-QA', { dateStyle: 'medium', timeZone: 'Asia/Qatar' });
+const FOOTER_STYLE = 'color:#64748b;font-size:14px;';
+
+export type DocumentExpiryEmailInput = {
+  name: string;
+  /** `CustomerDocumentCategory`; the label is rendered per language. */
+  documentCategory: string;
+  expiresAt: Date;
+  daysToExpiry: number;
+  url: string;
+};
+
+/** Document vault reminder copy (60/30/7 days before expiry, and once when expired). */
+export function renderDocumentExpiryEmail(input: DocumentExpiryEmailInput, locale: NotificationLocale = 'en'): RenderedEmail {
+  const t = notificationTexts(locale, 'text');
+  const h = notificationTexts(locale, 'html');
+  const values = { category: input.documentCategory, days: input.daysToExpiry, date: formatQatarDate(input.expiresAt, locale) };
+  const subject = finalizeText(t.documentEmailSubject(values), locale);
+  const text = finalizeText(
+    [t.greeting(input.name), '', t.documentEmailLead(values), '', t.documentEmailCta, plainUrl(input.url, locale), '', t.documentEmailFooter].join(
+      '\n',
+    ),
+    locale,
+  );
+  const html = wrapHtml(
+    `<p>${h.greeting(input.name)}</p>` +
+      `<p>${h.documentEmailLead(values)}</p>` +
+      `<p><a href="${escapeHtml(input.url)}">${h.documentEmailLink}</a></p>` +
+      `<p style="${FOOTER_STYLE}">${h.documentEmailFooter}</p>`,
+    locale,
+  );
+  return { subject, text, html };
 }
 
-function formatQatarDateTime(date: Date): string {
-  return date.toLocaleString('en-QA', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Qatar' });
+export type TakafulRenewalEmailInput = {
+  name: string;
+  vehicleLabel: string;
+  provider: string | null;
+  expiresAt: Date;
+  daysToExpiry: number;
+  url: string;
+};
+
+/** Takaful renewal reminder copy (30/14/3 days before the policy lapses, and once when it has). */
+export function renderTakafulRenewalEmail(input: TakafulRenewalEmailInput, locale: NotificationLocale = 'en'): RenderedEmail {
+  const t = notificationTexts(locale, 'text');
+  const h = notificationTexts(locale, 'html');
+  const values = {
+    vehicle: input.vehicleLabel,
+    provider: input.provider,
+    days: input.daysToExpiry,
+    date: formatQatarDate(input.expiresAt, locale),
+  };
+  const subject = finalizeText(t.takafulEmailSubject(values), locale);
+  const text = finalizeText(
+    [
+      t.greeting(input.name),
+      '',
+      t.takafulEmailLead(values),
+      '',
+      `${t.takafulEmailRequirement} ${t.takafulEmailCta}`,
+      plainUrl(input.url, locale),
+      '',
+      t.takafulEmailFooter,
+    ].join('\n'),
+    locale,
+  );
+  const html = wrapHtml(
+    `<p>${h.greeting(input.name)}</p>` +
+      `<p>${h.takafulEmailLead(values)}</p>` +
+      `<p>${h.takafulEmailRequirement}</p>` +
+      `<p><a href="${escapeHtml(input.url)}">${h.takafulEmailLink}</a></p>` +
+      `<p style="${FOOTER_STYLE}">${h.takafulEmailFooter}</p>`,
+    locale,
+  );
+  return { subject, text, html };
 }
 
-function daysPhrase(days: number): string {
-  if (days < 0) return 'has expired';
-  if (days === 0) return 'expires today';
-  return `expires in ${days} day${days === 1 ? '' : 's'}`;
+export type NotificationEmailInput = {
+  name: string;
+  title: string;
+  body: string | null;
+  url: string | null;
+  category: string;
+};
+
+/** Generic copy for any in-app notification fanned out by the notification router. */
+export function renderNotificationEmail(input: NotificationEmailInput, locale: NotificationLocale = 'en'): RenderedEmail {
+  const t = notificationTexts(locale, 'text');
+  const h = notificationTexts(locale, 'html');
+  const body = input.body?.trim() || '';
+  const url = input.url?.trim() || '';
+  const text = finalizeText(
+    [
+      t.greeting(input.name),
+      '',
+      input.title,
+      ...(body ? ['', body] : []),
+      ...(url ? ['', t.openInBloxLine(url)] : []),
+      '',
+      t.notificationFooter,
+    ].join('\n'),
+    locale,
+  );
+  const html = wrapHtml(
+    `<p>${h.greeting(input.name)}</p>` +
+      `<p><strong>${escapeHtml(input.title)}</strong></p>` +
+      (body ? `<p>${escapeHtml(body)}</p>` : '') +
+      (url ? `<p><a href="${escapeHtml(url)}">${h.openInBloxLabel}</a></p>` : '') +
+      `<p style="${FOOTER_STYLE}">${h.notificationFooter}</p>`,
+    locale,
+  );
+  return { subject: input.title, text, html };
+}
+
+export type AssistedSessionEmailInput = {
+  url: string;
+  dealerName: string;
+  agentName?: string | null;
+  expiresAt: Date;
+};
+
+/**
+ * Assisted journey: the customer link. The one-time code travels by SMS only —
+ * it is never included here, so a compromised mailbox cannot complete the flow.
+ */
+export function renderAssistedSessionEmail(input: AssistedSessionEmailInput, locale: NotificationLocale = 'en'): RenderedEmail {
+  const t = notificationTexts(locale, 'text');
+  const h = notificationTexts(locale, 'html');
+  const expires = formatQatarDateTime(input.expiresAt, locale);
+  const party = { dealerName: input.dealerName, agentName: input.agentName ?? null };
+  const subject = finalizeText(t.assistEmailSubject(party), locale);
+  const text = finalizeText(
+    [
+      t.assistEmailIntro(party),
+      '',
+      t.assistEmailInstructions,
+      plainUrl(input.url, locale),
+      '',
+      t.assistEmailExpiry({ expires, dealerName: input.dealerName }),
+      '',
+      t.assistEmailIgnore,
+    ].join('\n'),
+    locale,
+  );
+  const html = wrapHtml(
+    `<p>${h.assistEmailIntro(party)}</p>` +
+      `<p>${h.assistEmailInstructions}</p>` +
+      `<p><a href="${escapeHtml(input.url)}">${h.assistEmailLink}</a></p>` +
+      `<p style="${FOOTER_STYLE}">${h.assistEmailExpiry({ expires, dealerName: input.dealerName })} ${h.assistEmailIgnore}</p>`,
+    locale,
+  );
+  return { subject, text, html };
 }
 
 /**
@@ -530,32 +696,12 @@ export class MailService {
     });
   }
 
-  /**
-   * Assisted journey: the customer link. The one-time code travels by SMS only —
-   * it is never included here, so a compromised mailbox cannot complete the flow.
-   */
-  async sendAssistedSessionEmail(input: {
-    to: string;
-    url: string;
-    dealerName: string;
-    agentName?: string | null;
-    expiresAt: Date;
-  }): Promise<void> {
-    const expires = formatQatarDateTime(input.expiresAt);
-    const startedBy = input.agentName ? `${input.agentName} at ${input.dealerName}` : input.dealerName;
-    const subject = `Continue your Blox financing application with ${input.dealerName}`;
-    const text =
-      `${startedBy} started a vehicle financing application for you on Blox.\n\n` +
-      `Open this link on your phone, enter the one-time code we sent you by SMS, review the consents and verify your identity:\n${input.url}\n\n` +
-      `The link expires on ${expires}. The code is never sent by email — if you did not receive it, ask ${input.dealerName} to resend it.\n\n` +
-      `If you were not expecting this, ignore this email.`;
-    const html =
-      `<p><strong>${escapeHtml(startedBy)}</strong> started a vehicle financing application for you on Blox.</p>` +
-      `<p>Open the link on your phone, enter the one-time code we sent you by SMS, review the consents and verify your identity.</p>` +
-      `<p><a href="${escapeHtml(input.url)}">Continue your application</a></p>` +
-      `<p style="color:#64748b;font-size:14px;">The link expires on ${escapeHtml(expires)}. The code is never sent by email — ` +
-      `if you did not receive it, ask ${escapeHtml(input.dealerName)} to resend it. If you were not expecting this, ignore this email.</p>`;
-
+  /** Assisted journey customer link, in the customer's language (see `renderAssistedSessionEmail`). */
+  async sendAssistedSessionEmail(
+    input: AssistedSessionEmailInput & { to: string; locale?: NotificationLocale },
+  ): Promise<void> {
+    const locale = input.locale ?? 'en';
+    const { subject, text, html } = renderAssistedSessionEmail(input, locale);
     await this.send({
       to: input.to,
       subject,
@@ -567,33 +713,17 @@ export class MailService {
         dealerName: input.dealerName,
         agentName: input.agentName ?? null,
         expiresAt: input.expiresAt.toISOString(),
+        locale,
       },
     });
   }
 
   /** Document vault reminder (60/30/7 days before expiry, and once when expired). */
-  async sendDocumentExpiryEmail(input: {
-    to: string;
-    name: string;
-    documentLabel: string;
-    expiresAt: Date;
-    daysToExpiry: number;
-    url: string;
-  }): Promise<void> {
-    const expires = formatQatarDate(input.expiresAt);
-    const phrase = daysPhrase(input.daysToExpiry);
-    const subject = `Your ${input.documentLabel} ${phrase}`;
-    const lead = `The ${input.documentLabel} in your Blox document vault ${phrase} (${expires}).`;
-    const text =
-      `Hi ${input.name},\n\n${lead}\n\n` +
-      `Upload the renewed document so your financing applications are not delayed:\n${input.url}\n\n` +
-      `You can switch document reminders off in your profile preferences.`;
-    const html =
-      `<p>Hi ${escapeHtml(input.name)},</p>` +
-      `<p>${escapeHtml(lead)}</p>` +
-      `<p><a href="${escapeHtml(input.url)}">Upload the renewed document</a></p>` +
-      `<p style="color:#64748b;font-size:14px;">You can switch document reminders off in your profile preferences.</p>`;
-
+  async sendDocumentExpiryEmail(
+    input: DocumentExpiryEmailInput & { to: string; locale?: NotificationLocale },
+  ): Promise<void> {
+    const locale = input.locale ?? 'en';
+    const { subject, text, html } = renderDocumentExpiryEmail(input, locale);
     await this.send({
       to: input.to,
       subject,
@@ -602,40 +732,20 @@ export class MailService {
       template: 'document_expiry',
       payload: {
         url: input.url,
-        documentLabel: input.documentLabel,
+        documentCategory: input.documentCategory,
         expiresAt: input.expiresAt.toISOString(),
         daysToExpiry: input.daysToExpiry,
+        locale,
       },
     });
   }
 
   /** Takaful renewal reminder (30/14/3 days before the policy lapses, and once when it has). */
-  async sendTakafulRenewalEmail(input: {
-    to: string;
-    name: string;
-    vehicleLabel: string;
-    provider: string | null;
-    expiresAt: Date;
-    daysToExpiry: number;
-    url: string;
-  }): Promise<void> {
-    const expires = formatQatarDate(input.expiresAt);
-    const phrase = daysPhrase(input.daysToExpiry);
-    const withProvider = input.provider ? ` with ${input.provider}` : '';
-    const subject = `Takaful cover for your ${input.vehicleLabel} ${phrase}`;
-    const lead = `The takaful policy${withProvider} covering your ${input.vehicleLabel} ${phrase} (${expires}).`;
-    const text =
-      `Hi ${input.name},\n\n${lead}\n\n` +
-      `Your Diminishing Musharakah agreement requires the vehicle to stay insured for the whole financing term. ` +
-      `Renew the policy and record the new details here:\n${input.url}\n\n` +
-      `You can switch takaful reminders off in your profile preferences.`;
-    const html =
-      `<p>Hi ${escapeHtml(input.name)},</p>` +
-      `<p>${escapeHtml(lead)}</p>` +
-      `<p>Your Diminishing Musharakah agreement requires the vehicle to stay insured for the whole financing term.</p>` +
-      `<p><a href="${escapeHtml(input.url)}">Record the renewed policy</a></p>` +
-      `<p style="color:#64748b;font-size:14px;">You can switch takaful reminders off in your profile preferences.</p>`;
-
+  async sendTakafulRenewalEmail(
+    input: TakafulRenewalEmailInput & { to: string; locale?: NotificationLocale },
+  ): Promise<void> {
+    const locale = input.locale ?? 'en';
+    const { subject, text, html } = renderTakafulRenewalEmail(input, locale);
     await this.send({
       to: input.to,
       subject,
@@ -648,7 +758,28 @@ export class MailService {
         provider: input.provider,
         expiresAt: input.expiresAt.toISOString(),
         daysToExpiry: input.daysToExpiry,
+        locale,
       },
+    });
+  }
+
+  /**
+   * Generic email for an in-app notification (payments, documents, takaful,
+   * application progress, security). Used by the notification router; the
+   * reminder crons pass their richer templates through the router instead.
+   */
+  async sendNotificationEmail(
+    input: NotificationEmailInput & { to: string; locale?: NotificationLocale },
+  ): Promise<void> {
+    const locale = input.locale ?? 'en';
+    const { subject, text, html } = renderNotificationEmail(input, locale);
+    await this.send({
+      to: input.to,
+      subject,
+      text,
+      html,
+      template: 'notification',
+      payload: { url: input.url, category: input.category, locale },
     });
   }
 }

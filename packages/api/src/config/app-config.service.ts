@@ -18,6 +18,14 @@ function parsePositiveInt(raw: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
+function parseBool(raw: string | undefined, fallback: boolean): boolean {
+  const trimmed = raw?.trim().toLowerCase();
+  if (!trimmed) return fallback;
+  if (['1', 'true', 'yes', 'on'].includes(trimmed)) return true;
+  if (['0', 'false', 'no', 'off'].includes(trimmed)) return false;
+  return fallback;
+}
+
 function parseOrigins(raw: string | undefined, fallback: string): string[] {
   return (raw ?? fallback)
     .split(',')
@@ -55,6 +63,16 @@ export class AppConfigService {
   readonly databaseUrl: string;
   /** Lifetime of an assisted-session link (minutes); the customer must verify the OTP within it. */
   readonly assistSessionTtlMinutes: number;
+  /**
+   * BRD Qatar e-KYC BR-3: identity must be established by the KYC platform
+   * (OCR + liveness + face match), never by a customer's hand-uploaded QID
+   * photo. Defaults to on whenever the KYC integrator is configured;
+   * KYC_EKYC_REQUIRED=false keeps the legacy manual slot for environments
+   * without the platform.
+   */
+  readonly kycEkycRequired: boolean;
+  /** Face-to-face branch procedure: staff may still attach the QID they inspected in person. */
+  readonly kycAllowStaffManualIdentity: boolean;
 
   constructor(config: ConfigService) {
     this.nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
@@ -76,6 +94,12 @@ export class AppConfigService {
 
     this.databaseUrl = requireNonEmpty(config.get<string>('DATABASE_URL'), 'DATABASE_URL');
     this.assistSessionTtlMinutes = parsePositiveInt(config.get<string>('ASSIST_SESSION_TTL_MINUTES'), 120);
+    const kycConfigured = !!config.get<string>('KYC_API_KEY')?.trim();
+    this.kycEkycRequired = parseBool(config.get<string>('KYC_EKYC_REQUIRED'), kycConfigured);
+    this.kycAllowStaffManualIdentity = parseBool(config.get<string>('KYC_ALLOW_STAFF_MANUAL_IDENTITY'), true);
+    if (kycConfigured && !this.kycEkycRequired) {
+      this.logger.warn('KYC_EKYC_REQUIRED=false: customers may satisfy the identity slot with a manual QID upload');
+    }
 
     // Fail fast on auth misconfiguration (throws with actionable message).
     resolveAuthSecret(config);

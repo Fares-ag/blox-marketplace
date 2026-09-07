@@ -18,6 +18,7 @@ export type ConsentRecordDto = {
   actor_name: string | null;
   /** True when the catalog has newer wording than this acceptance. */
   outdated: boolean;
+  withdrawn_at?: string | null;
 };
 
 export type ConsentStatusDto = {
@@ -26,6 +27,7 @@ export type ConsentStatusDto = {
   accepted: ConsentRecordDto[];
   missing: ConsentCodeDto[];
   complete: boolean;
+  withdrawn?: ConsentRecordDto[];
 };
 
 export type GenderDto = 'male' | 'female' | 'prefer_not_to_say';
@@ -235,4 +237,141 @@ export type IdentityHoldDto = {
   held_at: string;
   cleared_at: string | null;
   cleared_by_name?: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Wave 2: settlement quotes, credit assessment, guarantors, takaful providers,
+// data rights, partner view.
+// ---------------------------------------------------------------------------
+
+export type SettlementQuoteRowDto = {
+  sequence: number;
+  due_date: string;
+  kind: 'settled' | 'overdue' | 'current' | 'future';
+  principal_outstanding: number;
+  rent_outstanding: number;
+  accrued_rent: number;
+  forgiven_rent: number;
+};
+
+export type SettlementQuoteDto = {
+  as_of: string;
+  principal_outstanding: number;
+  accrued_profit: number;
+  overdue_amount: number;
+  forgiven_rent: number;
+  settlement_amount: number;
+  remaining_scheduled: number;
+  savings: number;
+  rows: SettlementQuoteRowDto[];
+};
+
+export type AffordabilityDto = {
+  dbr: number;
+  cap: number;
+  hard_cap: number;
+  status: 'within_cap' | 'exception_tier_1' | 'exception_tier_2' | 'exception_tier_3' | 'above_hard_cap';
+  exception_tier: 0 | 1 | 2 | 3;
+  max_installment_within_cap: number;
+  headroom: number;
+  stressed: { dbr: number; within_limit: boolean } | null;
+};
+
+export type CreditAssessmentDto = {
+  affordability: AffordabilityDto | null;
+  affordability_with_guarantor: AffordabilityDto | null;
+  approval_authority: 'senior_manager' | 'head_of_credit' | 'above_matrix';
+  path: 'approve' | 'refer' | 'decline';
+  reasons: string[];
+  rule_flags: Array<{ code: string; severity: 'hard' | 'soft'; params: Record<string, number | string> }>;
+  assessed_at: string;
+  financed_amount: number;
+  monthly_installment: number;
+  /** Computed for the requesting officer. */
+  approver: { role_may_approve: boolean; required_roles: string[]; max_tier_for_role: number };
+};
+
+export type GuarantorSessionStatusDto = 'pending' | 'otp_verified' | 'consents_done' | 'completed' | 'expired' | 'cancelled';
+
+export type GuarantorSessionDto = {
+  id: string;
+  application_id: string;
+  status: GuarantorSessionStatusDto;
+  guarantor_name: string;
+  phone_masked: string;
+  relationship: string | null;
+  consents_completed_at: string | null;
+  kyc_status: string | null;
+  expires_at: string;
+  last_opened_at: string | null;
+  /** Returned on create/resend only. */
+  link?: string;
+  created_at: string;
+};
+
+export type GuarantorSessionPublicDto = {
+  status: GuarantorSessionStatusDto;
+  guarantor_first_name: string;
+  applicant_first_name: string | null;
+  dealer_name: string | null;
+  vehicle: { make: string; model: string; model_year: number | null } | null;
+  consent_codes: ConsentCodeDto[];
+  consent_locale: 'en' | 'ar';
+  expires_at: string;
+  kyc_url: string | null;
+};
+
+export type TakafulProviderDto = {
+  id: string;
+  code: string;
+  name: string;
+  name_ar: string | null;
+  comprehensive_rate_pct: number;
+  third_party_annual: number | null;
+  min_contribution: number | null;
+  riders: Array<{ code: string; label: string; label_ar?: string | null; annual_amount: number }>;
+  contact_phone: string | null;
+  contact_email: string | null;
+  website: string | null;
+  active: boolean;
+  sort_order: number;
+};
+
+export type TakafulQuoteDto = {
+  provider: TakafulProviderDto;
+  coverage_type: 'comprehensive' | 'third_party';
+  annual_contribution: number;
+  monthly_equivalent: number;
+};
+
+export type DataRightsRequestKindDto = 'access' | 'correction' | 'deletion' | 'consent_withdrawal';
+export type DataRightsRequestStatusDto = 'open' | 'in_progress' | 'completed' | 'rejected';
+
+export type DataRightsRequestDto = {
+  id: string;
+  kind: DataRightsRequestKindDto;
+  status: DataRightsRequestStatusDto;
+  details: string | null;
+  consent_code: ConsentCodeDto | null;
+  resolution_note: string | null;
+  due_at: string | null;
+  handled_at: string | null;
+  handled_by_name?: string | null;
+  customer?: { id: string; name: string | null; email: string } | null;
+  created_at: string;
+};
+
+export type PartnerApplicationDto = {
+  id: string;
+  status: string;
+  submitted_at: string | null;
+  updated_at: string;
+  company_name: string;
+  branch_name: string | null;
+  vehicle: { make: string; model: string; model_year: number; price: number | null };
+  customer: { name: string | null; qid_masked: string | null; nationality: string | null; residency: 'qatari' | 'expat' | null };
+  financing: { financed_amount: number | null; tenure_months: number | null; monthly: number | null; down_payment_pct: number | null };
+  credit_assessment: CreditAssessmentDto | null;
+  consents_completed_at: string | null;
+  documents: Array<{ id: string; category: string; original_name: string | null; created_at: string }>;
 };

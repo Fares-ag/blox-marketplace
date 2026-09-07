@@ -36,6 +36,7 @@ import {
 } from '../applications/separation-of-duties';
 import { computeScheduleAmountsFromEvents } from './payment-ledger';
 import { toPaymentScheduleDto, toPaymentTransactionDto } from './payment-response.dto';
+import { assertNotSettleAll } from './settle-all-guard';
 import { mapSkipCashPaid, SkipCashClient } from './skipcash.client';
 
 const BLOX_CREDIT_QAR_VALUE = 250;
@@ -820,6 +821,9 @@ export class PaymentsService {
   /** Sandbox SkipCash: create pending transaction and return redirect URL. */
   async createSkipCashPayment(user: User, applicationId: string, scheduleId: string) {
     if (user.role !== UserRole.customer) throw new ForbiddenException('forbidden_role');
+    // Settling the remainder goes through the settlement quote, never a sweep
+    // of the scheduled total (409 settlement_quote_required).
+    assertNotSettleAll({ scheduleId });
 
     const schedule = await this.prisma.paymentSchedule.findUnique({
       where: { id: scheduleId },
@@ -904,6 +908,9 @@ export class PaymentsService {
 
   /** Mobile installment checkout — resolves schedule, creates txn, opens SkipCash when configured. */
   async initiateMobileInstallmentPayment(user: User, input: MobileSkipCashInitiateInput) {
+    // The app's "settle all" checkout (`scheduleId: 'settlement'`,
+    // `custom1.isSettlement`) must use the settlement quote instead.
+    assertNotSettleAll({ scheduleId: input.scheduleId, custom1: input.custom1 });
     const base = await this.createSkipCashPayment(user, input.applicationId, input.scheduleId);
     let txn = await this.prisma.paymentTransaction.findUnique({
       where: { id: base.transaction_id as string },

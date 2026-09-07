@@ -188,9 +188,13 @@ describe('ApplicationsLifecycleService.activate down-payment guard', () => {
   });
 
   it('applies the down-payment check on direct activate too', async () => {
+    // Direct activation is an approval out of review, so the credit matrix
+    // runs first: QAR 64,000 financed sits at head-of-credit authority, which
+    // an admin may sign off — the down-payment guard is then what refuses.
     const directApp = {
       ...baseApp,
       status: ApplicationStatus.under_review,
+      pricingSnapshot: { list_price: 80_000, down_payment: 16_000, down_payment_pct: 20, monthly: 2_100, tenor: 36 },
       company: { allowDirectActivate: true, separationOfDutiesEnabled: true },
       contractGenerated: true,
       contractPdfPath: 'app-1/generated/contract.pdf',
@@ -206,6 +210,30 @@ describe('ApplicationsLifecycleService.activate down-payment guard', () => {
     await expect(service.activate(opsUser, 'app-1', { direct: true })).rejects.toMatchObject({
       message: 'down_payment_incomplete',
     });
+  });
+
+  it('refuses direct activation above the approval matrix before looking at the down payment', async () => {
+    // baseApp finances QAR 80,000 on a car → outside the matrix: super admin only.
+    const directApp = {
+      ...baseApp,
+      status: ApplicationStatus.under_review,
+      company: { allowDirectActivate: true, separationOfDutiesEnabled: true },
+      contractGenerated: true,
+      contractPdfPath: 'app-1/generated/contract.pdf',
+      signedContractPath: 'app-1/signed/contract.pdf',
+    };
+    const paymentEventFindMany = vi.fn().mockResolvedValue([]);
+    const prisma = prismaWithSodMocks({
+      application: { findUnique: vi.fn().mockResolvedValue(directApp) },
+      paymentEvent: { findMany: paymentEventFindMany },
+      $transaction: vi.fn().mockRejectedValue(new Error('transaction should not run')),
+    });
+    const service = buildService(prisma);
+
+    await expect(service.activate(opsUser, 'app-1', { direct: true })).rejects.toMatchObject({
+      response: { message: 'approval_authority_required', authority: 'above_matrix', required_roles: ['super_admin'] },
+    });
+    expect(paymentEventFindMany).not.toHaveBeenCalled();
   });
 });
 

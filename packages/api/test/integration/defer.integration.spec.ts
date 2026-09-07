@@ -135,6 +135,34 @@ describe('customer payment deferrals (integration)', () => {
     expect(res.body.error?.code).toBe('deferral_quota_exhausted');
   });
 
+  it('refuses to defer an installment that is already overdue (wave 2)', async () => {
+    const { customerEmail, application, schedule } = await seedMemberApplication();
+    await ctx.prisma.paymentSchedule.update({
+      where: { id: schedule.id },
+      data: { dueDate: new Date(Date.now() - 3 * 86_400_000), status: 'overdue' },
+    });
+    const agent = createAgent(ctx);
+    await signIn(agent, customerEmail);
+
+    const res = await authed(agent)
+      .post(`/api/v1/applications/${application.id}/schedules/${schedule.id}/defer`)
+      .send({ reason: 'Late salary' });
+    expect(res.status).toBe(409);
+    expect(res.body.error?.code).toBe('schedule_overdue_not_deferrable');
+
+    // A pending installment whose due date has already passed is overdue too, whatever its status says.
+    await ctx.prisma.paymentSchedule.update({
+      where: { id: schedule.id },
+      data: { status: 'pending' },
+    });
+    const lateButPending = await authed(agent)
+      .post(`/api/v1/applications/${application.id}/schedules/${schedule.id}/defer`)
+      .send({});
+    expect(lateButPending.status).toBe(409);
+    expect(lateButPending.body.error?.code).toBe('schedule_overdue_not_deferrable');
+    expect(await ctx.prisma.paymentDeferral.count({ where: { applicationId: application.id } })).toBe(0);
+  });
+
   it('forbids deferring another customer schedule', async () => {
     const { application, schedule } = await seedMemberApplication();
     const otherEmail = await signUpFresh(createAgent(ctx), 'defer-other');

@@ -5,6 +5,7 @@ import {
   assertCanManageUserRole,
   assertCanProvisionRole,
   assertHomeBranchInCompany,
+  assertPartnerViewerAssignment,
 } from './user-provisioning.policy';
 
 const admin = { role: UserRole.admin } as never;
@@ -53,6 +54,35 @@ describe('user provisioning policy', () => {
       expect(() => assertHomeBranchInCompany({ id: 'b1', companyId: 'audi' }, null)).toThrow(
         'branch_requires_company',
       );
+    });
+  });
+
+  describe('partner viewer', () => {
+    it('only admins may provision partner viewers (group admins are refused)', () => {
+      expect(() => assertCanProvisionRole(admin, UserRole.partner_viewer)).not.toThrow();
+      expect(() => assertCanProvisionRole(superAdmin, UserRole.partner_viewer)).not.toThrow();
+      expect(() => assertCanProvisionRole(groupAdmin, UserRole.partner_viewer)).toThrow('forbidden_role');
+      expect(() => assertCanManageUserRole(groupAdmin, UserRole.customer, UserRole.partner_viewer)).toThrow(
+        'forbidden_role',
+      );
+    });
+
+    it('requires a finance provider that exists', () => {
+      expect(assertPartnerViewerAssignment(UserRole.partner_viewer, { id: 'fp1' }, 'fp1')).toBe('fp1');
+      expect(() => assertPartnerViewerAssignment(UserRole.partner_viewer, null, null)).toThrow(
+        'partner_viewer_requires_finance_partner',
+      );
+      expect(() => assertPartnerViewerAssignment(UserRole.partner_viewer, null, 'missing')).toThrow(
+        'finance_partner_not_found',
+      );
+      expect(() => assertPartnerViewerAssignment(UserRole.partner_viewer, { id: 'other' }, 'fp1')).toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('never stores a provider on any other role', () => {
+      expect(assertPartnerViewerAssignment(UserRole.finance_officer, { id: 'fp1' }, 'fp1')).toBeNull();
+      expect(assertPartnerViewerAssignment(UserRole.customer, null, null)).toBeNull();
     });
   });
 });

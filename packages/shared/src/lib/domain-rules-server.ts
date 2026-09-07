@@ -10,3 +10,6 @@ export * from './qid';
 export * from './consents';
 export * from './document-slots';
 export * from './masking';
+export * from './settlement';
+export * from './credit-assessment';
+export * from './terminology';

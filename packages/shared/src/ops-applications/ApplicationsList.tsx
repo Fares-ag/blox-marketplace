@@ -20,7 +20,15 @@ import {
   type FilterConfig,
 } from '../ops-ui-v2';
 import type { PaginatedResponse } from '../types/domain';
+import type { FinancePartnerAdminDto } from '../types/customer-platform';
 import type { OpsAudience, OpsQueueItem } from './types';
+
+function partnerItems(
+  data: FinancePartnerAdminDto[] | PaginatedResponse<FinancePartnerAdminDto> | undefined,
+): FinancePartnerAdminDto[] {
+  if (!data) return [];
+  return Array.isArray(data) ? data : data.items ?? [];
+}
 
 const STATUS_TABS = [
   { id: 'all', statusIn: '' },
@@ -63,15 +71,16 @@ export function ApplicationsList({
   const statusIn = STATUS_TABS[tab]?.statusIn ?? '';
 
   const companyId = typeof filters.companyId === 'string' ? filters.companyId : '';
+  const financePartnerId = typeof filters.financePartnerId === 'string' ? filters.financePartnerId : '';
   const scheduleHealth = typeof filters.scheduleHealth === 'string' ? filters.scheduleHealth : '';
   const createdRange = (filters.createdRange as { startDate?: string; endDate?: string }) ?? {};
 
   const path = dealer
     ? `/api/dealer/applications?${buildPaginationQuery(page)}${q ? `&q=${encodeURIComponent(q)}` : ''}${dealerTab !== 'all' ? `&tab=${dealerTab}` : ''}`
-    : `/api/ops/applications?${buildPaginationQuery(page)}${q ? `&q=${encodeURIComponent(q)}` : ''}${statusIn ? `&statusIn=${encodeURIComponent(statusIn)}` : ''}${companyId ? `&companyId=${encodeURIComponent(companyId)}` : ''}${scheduleHealth ? `&scheduleHealth=${encodeURIComponent(scheduleHealth)}` : ''}${createdRange.startDate ? `&createdFrom=${createdRange.startDate}` : ''}${createdRange.endDate ? `&createdTo=${createdRange.endDate}` : ''}`;
+    : `/api/ops/applications?${buildPaginationQuery(page)}${q ? `&q=${encodeURIComponent(q)}` : ''}${statusIn ? `&statusIn=${encodeURIComponent(statusIn)}` : ''}${companyId ? `&companyId=${encodeURIComponent(companyId)}` : ''}${financePartnerId ? `&financePartnerId=${encodeURIComponent(financePartnerId)}` : ''}${scheduleHealth ? `&scheduleHealth=${encodeURIComponent(scheduleHealth)}` : ''}${createdRange.startDate ? `&createdFrom=${createdRange.startDate}` : ''}${createdRange.endDate ? `&createdTo=${createdRange.endDate}` : ''}`;
 
   const { data, error, isLoading } = useQuery({
-    queryKey: ['ops-apps', audience, page, q, tab, dealerTab, companyId, scheduleHealth, createdRange],
+    queryKey: ['ops-apps', audience, page, q, tab, dealerTab, companyId, financePartnerId, scheduleHealth, createdRange],
     queryFn: () =>
       apiFetch<PaginatedResponse<OpsQueueItem> & { metrics?: { loan_value: number; receivable: number; avg_payment: number } }>(path),
   });
@@ -85,6 +94,16 @@ export function ApplicationsList({
     enabled: !dealer,
   });
 
+  // Lender filter (`financePartnerId`): the finance-provider master, admin / finance / super-admin lists only.
+  const partners = useQuery({
+    queryKey: ['finance-partners', 'list-filter'],
+    queryFn: () =>
+      apiFetch<FinancePartnerAdminDto[] | PaginatedResponse<FinancePartnerAdminDto>>('/api/finance-partners?limit=100&offset=0'),
+    enabled: !dealer,
+    retry: false,
+  });
+  const lenders = partnerItems(partners.data);
+
   const filterConfigs: FilterConfig[] = useMemo(() => {
     const configs: FilterConfig[] = [];
     if (!dealer) {
@@ -93,6 +112,14 @@ export function ApplicationsList({
         label: 'Company',
         type: 'select',
         options: (companies.data?.items ?? []).map((c) => ({ value: c.id, label: c.name })),
+      });
+    }
+    if (!dealer && lenders.length > 0) {
+      configs.push({
+        id: 'financePartnerId',
+        label: t('financeProviders.lender'),
+        type: 'select',
+        options: lenders.map((p) => ({ value: p.id, label: p.name })),
       });
     }
     configs.push(
@@ -109,7 +136,7 @@ export function ApplicationsList({
       { id: 'createdRange', label: 'Created date', type: 'daterange' },
     );
     return configs;
-  }, [companies.data, dealer]);
+  }, [companies.data, dealer, lenders, t]);
 
   const listMetrics = !dealer && metrics
     ? [
@@ -170,7 +197,7 @@ export function ApplicationsList({
       },
       {
         id: 'finance',
-        label: 'Finance',
+        label: t('financeProviders.lender'),
         format: (_, a) => a.finance_partner_name ?? (a.financing_source === 'partner' ? t('ops.common.partnerFinance') : t('ops.common.bloxFinance')),
       },
       {

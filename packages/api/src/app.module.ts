@@ -32,6 +32,9 @@ import { CustomersModule } from './customers/customers.module';
 import { TakafulModule } from './takaful/takaful.module';
 import { AssistModule } from './assist/assist.module';
 import { ProductRulesModule } from './product-rules/product-rules.module';
+import { GuarantorsModule } from './guarantors/guarantors.module';
+import { PartnerModule } from './partner/partner.module';
+import { PushModule } from './push/push.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -70,6 +73,9 @@ import { HealthController } from './health.controller';
     TakafulModule,
     AssistModule,
     ProductRulesModule,
+    GuarantorsModule,
+    PartnerModule,
+    PushModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

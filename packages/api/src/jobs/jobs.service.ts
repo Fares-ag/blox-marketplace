@@ -8,10 +8,13 @@ import { cronJobLockKey, tryWithAdvisoryLock } from '../common/pg-advisory-lock'
 import { isUniqueConstraintError } from '../common/prisma-errors';
 import { SYSTEM_ACTOR_USER_ID } from '../common/system-actor';
 import { AppConfigService } from '../config/app-config.service';
-import { channelEnabled, reminderEnabled } from '../customers/notification-preferences';
-import { CUSTOMER_DOCUMENT_LABELS, daysBetweenUtc } from '../customers/vault-logic';
+import { reminderEnabled } from '../customers/notification-preferences';
+import { daysBetweenUtc } from '../customers/vault-logic';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
-import { MailService } from '../mail/mail.service';
+import { MailService, renderDocumentExpiryEmail, renderTakafulRenewalEmail } from '../mail/mail.service';
+import { NotificationRouterService } from '../notifications/notification-router.service';
+import { dispatchSummary } from '../notifications/notification-routing';
+import { localizedText } from '../notifications/notification-texts';
 import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuotesService } from '../quotes/quotes.service';
@@ -31,12 +34,6 @@ const TAKAFUL_LIVE_STATUSES: TakafulStatus[] = [
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-function expiryPhrase(days: number, expiresOn: string): string {
-  if (days < 0) return `expired on ${expiresOn}`;
-  if (days === 0) return `expires today (${expiresOn})`;
-  return `expires in ${days} day${days === 1 ? '' : 's'}, on ${expiresOn}`;
-}
 
 /** Statuses where a Zoho-partner application should already have a CRM lead. */
 const CRM_SYNC_STATUSES: ApplicationStatus[] = [
@@ -97,6 +94,7 @@ export class JobsService implements OnModuleInit {
     private readonly activity: ActivityService,
     private readonly prisma: PrismaService,
     private readonly appConfig: AppConfigService,
+    private readonly router: NotificationRouterService,
   ) {}
 
   onModuleInit(): void {
@@ -215,34 +213,17 @@ export class JobsService implements OnModuleInit {
       const dueDate = schedule.dueDate.toISOString().slice(0, 10);
       const amount = Number(schedule.remainingAmount).toFixed(2);
 
-      const title = isOverdue
-        ? 'Installment overdue'
-        : 'Installment due soon';
-      const body = isOverdue
-        ? `Your ${vehicle} installment of QAR ${amount} was due on ${dueDate}. Please arrange payment.`
-        : `Your ${vehicle} installment of QAR ${amount} is due on ${dueDate}.`;
-
-      await this.activity.notify(
-        schedule.application.customerUserId,
-        title,
-        body,
-        `/app/applications/${schedule.application.id}`,
-      );
-
-      if (this.mail.enabled) {
-        await this.mail.send({
-          to: schedule.application.customerEmail,
-          subject: title,
-          text: `${body}\n\nView your application: /app/applications/${schedule.application.id}`,
-          template: 'transactional',
-          payload: {
-            scheduleId: schedule.id,
-            kind,
-            dueDate,
-            amount,
-          },
-        });
-      }
+      // Fan-out (email / SMS / WhatsApp / push) follows the customer's
+      // `channels.*` and `reminders.payments` preferences; in-app is always
+      // written. Texts are rendered in the customer's language by the router.
+      const dispatch = await this.router.dispatch({
+        userId: schedule.application.customerUserId,
+        category: 'payments',
+        title: localizedText((t) => t.paymentTitle(kind)),
+        body: localizedText((t) => t.paymentBody(kind, { vehicle, amount, dueDate })),
+        linkPath: `/app/applications/${schedule.application.id}`,
+        data: { schedule_id: schedule.id, application_id: schedule.application.id, kind, due_date: dueDate, amount },
+      });
 
       await this.activity.log({
         actorUserId: SYSTEM_ACTOR_USER_ID,
@@ -253,7 +234,7 @@ export class JobsService implements OnModuleInit {
           applicationId: schedule.application.id,
           kind,
           dueDate,
-          emailSent: this.mail.enabled,
+          channels: dispatchSummary(dispatch),
         },
       });
 
@@ -357,24 +338,32 @@ export class JobsService implements OnModuleInit {
         continue;
       }
 
-      const label = CUSTOMER_DOCUMENT_LABELS[doc.category];
       const expiresOn = doc.expiresAt.toISOString().slice(0, 10);
-      const title = days < 0 ? 'Document expired' : 'Document expiring soon';
-      const body = `Your ${label} ${expiryPhrase(days, expiresOn)}. Upload the renewed document in your profile.`;
-      const emailWanted = this.mail.enabled && channelEnabled(doc.user.notificationPreferences, 'email');
+      const linkPath = '/app/profile';
+      const expiresAt = doc.expiresAt;
 
       try {
-        await this.activity.notify(doc.user.id, title, body, '/app/profile');
-        if (emailWanted) {
-          await this.mail.sendDocumentExpiryEmail({
-            to: doc.user.email,
-            name: doc.user.name,
-            documentLabel: label,
-            expiresAt: doc.expiresAt,
-            daysToExpiry: days,
-            url: this.appConfig.marketplacePath('/app/profile'),
-          });
-        }
+        const dispatch = await this.router.dispatch({
+          userId: doc.user.id,
+          category: 'documents',
+          title: localizedText((t) => t.documentTitle(days < 0)),
+          body: localizedText((t) => t.documentBody({ category: doc.category, days, date: expiresOn })),
+          linkPath,
+          data: { document_id: doc.id, document_category: doc.category, days_to_expiry: days, stage: kind },
+          email: (locale) => ({
+            ...renderDocumentExpiryEmail(
+              {
+                name: doc.user.name,
+                documentCategory: doc.category,
+                expiresAt,
+                daysToExpiry: days,
+                url: this.appConfig.marketplacePath(linkPath),
+              },
+              locale,
+            ),
+            template: 'document_expiry',
+          }),
+        });
         await this.prisma.customerDocument.update({
           where: { id: doc.id },
           data: { lastReminderKind: kind, lastReminderAt: new Date() },
@@ -386,7 +375,7 @@ export class JobsService implements OnModuleInit {
           action: 'document_expiry_reminder',
           fromValue: doc.lastReminderKind,
           toValue: kind,
-          metadata: { user_id: doc.user.id, days_to_expiry: days, email_sent: emailWanted },
+          metadata: { user_id: doc.user.id, days_to_expiry: days, channels: dispatchSummary(dispatch) },
         });
         notified += 1;
       } catch (err) {
@@ -468,25 +457,31 @@ export class JobsService implements OnModuleInit {
 
         const vehicle = `${app.product.make} ${app.product.model} ${app.product.modelYear}`;
         const expiresOn = policy.expiresAt.toISOString().slice(0, 10);
-        const title = days < 0 ? 'Takaful policy expired' : 'Takaful policy expiring soon';
-        const body =
-          `The takaful cover for your ${vehicle} ${expiryPhrase(days, expiresOn)}. ` +
-          `Renew the policy and record the new details on your application.`;
+        const expiresAt = policy.expiresAt;
         const link = `/app/applications/${app.id}`;
-        const emailWanted = this.mail.enabled && channelEnabled(app.customer.notificationPreferences, 'email');
 
-        await this.activity.notify(app.customerUserId, title, body, link);
-        if (emailWanted) {
-          await this.mail.sendTakafulRenewalEmail({
-            to: app.customerEmail,
-            name: app.customer.name,
-            vehicleLabel: vehicle,
-            provider: policy.provider || null,
-            expiresAt: policy.expiresAt,
-            daysToExpiry: days,
-            url: this.appConfig.marketplacePath(link),
-          });
-        }
+        const dispatch = await this.router.dispatch({
+          userId: app.customerUserId,
+          category: 'takaful',
+          title: localizedText((t) => t.takafulTitle(days < 0)),
+          body: localizedText((t) => t.takafulBody({ vehicle, days, date: expiresOn })),
+          linkPath: link,
+          data: { policy_id: policy.id, application_id: app.id, days_to_expiry: days, stage: kind },
+          email: (locale) => ({
+            ...renderTakafulRenewalEmail(
+              {
+                name: app.customer.name,
+                vehicleLabel: vehicle,
+                provider: policy.provider || null,
+                expiresAt,
+                daysToExpiry: days,
+                url: this.appConfig.marketplacePath(link),
+              },
+              locale,
+            ),
+            template: 'takaful_renewal',
+          }),
+        });
         await this.prisma.takafulPolicy.update({
           where: { id: policy.id },
           data: { lastReminderKind: kind, lastReminderAt: new Date() },
@@ -498,7 +493,7 @@ export class JobsService implements OnModuleInit {
           action: 'takaful_expiry_reminder',
           fromValue: policy.lastReminderKind,
           toValue: kind,
-          metadata: { application_id: app.id, days_to_expiry: days, email_sent: emailWanted },
+          metadata: { application_id: app.id, days_to_expiry: days, channels: dispatchSummary(dispatch) },
         });
         notified += 1;
       } catch (err) {

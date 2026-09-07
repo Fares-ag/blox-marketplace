@@ -9,6 +9,8 @@ import {
   getAppLocale,
 } from '@drivemarket/shared';
 import { MarketplaceNav } from '../components/MarketplaceNav';
+import { SETTLEMENT_ERROR_CODES } from '../lib/settlement-quote';
+import { hasErrorCode } from '../lib/errors';
 
 type HubSchedule = {
   id: string;
@@ -135,7 +137,8 @@ export function PaymentCalendarPage() {
     },
     onError: (e: Error) => {
       setActionMessage(null);
-      setActionError(e.message);
+      // An overdue installment is settled, never deferred (wave 2 rule).
+      setActionError(hasErrorCode(e, SETTLEMENT_ERROR_CODES.overdueNotDeferrable) ? t('ownershipHero.settlement.overdueNotDeferrable') : e.message);
     },
   });
 

@@ -15,6 +15,8 @@ enum UserRole {
   admin
   super_admin
   group_admin
+  /// Read-only NBFC / finance-provider staff (see PartnerModule).
+  partner_viewer
 }
 
 enum OfficerScope {
@@ -202,6 +204,8 @@ enum PaymentEventType {
   waive
   adjustment
   reversal
+  /// Installment settled from the customer Blox-credits wallet (ledger reference = credit transaction id).
+  blox_credits
 }
 
 enum EmailOutboxStatus {
@@ -235,6 +239,8 @@ model User {
   qid          String?
   /// HMAC blind index of the QID — lets us de-duplicate identities without querying plaintext.
   qidHash      String?      @map("qid_hash")
+  /// AES-256-GCM copy of the QID (IdentityService). The plaintext column is retired once backfilled.
+  qidEnc       String?      @map("qid_enc")
   isActive     Boolean      @default(true)
 
   /// Customer profile (self-service, see MeController)
@@ -250,6 +256,10 @@ model User {
   /// Dealer staff: the branch they work from (drives lead attribution and branch-scoped views).
   homeBranchId String? @map("home_branch_id")
   homeBranch   Branch? @relation("BranchStaff", fields: [homeBranchId], references: [id], onDelete: SetNull)
+
+  /// Partner viewers belong to a finance provider instead of a dealer company.
+  financePartnerId String?         @map("finance_partner_id")
+  financePartner   FinancePartner? @relation("PartnerViewers", fields: [financePartnerId], references: [id], onDelete: SetNull)
 
   /// Better Auth two-factor plugin
   twoFactorEnabled    Boolean   @default(false)
@@ -277,6 +287,9 @@ model User {
   deviceTokens         DeviceToken[]
   mobileRefreshTokens  MobileRefreshToken[]
   paymentDeferrals     PaymentDeferral[]
+  guarantorSessionsCreated GuarantorConsentSession[] @relation("GuarantorSessionCreator")
+  dataRightsRequests   DataRightsRequest[]   @relation("DataRightsSubject")
+  dataRightsHandled    DataRightsRequest[]   @relation("DataRightsHandler")
   consentRecords       ConsentRecord[]       @relation("ConsentSubject")
   consentsCaptured     ConsentRecord[]       @relation("ConsentActor")
   customerDocuments    CustomerDocument[]    @relation("VaultOwner")
@@ -445,6 +458,7 @@ model FinancePartner {
   offers       Offer[]
   applications Application[]
   branches     FinancePartnerBranch[]
+  viewers      User[]                 @relation("PartnerViewers")
 
   @@map("finance_partners")
 }
@@ -607,6 +621,9 @@ model Application {
   identityHoldClearedById String?   @map("identity_hold_cleared_by_id")
   /// Set when all four mandatory consents were captured for this application.
   consentsCompletedAt     DateTime? @map("consents_completed_at")
+  /// Server-side credit assessment captured at submission (shared credit-assessment module).
+  creditAssessment        Json?     @map("credit_assessment")
+  approvalAuthority       String?   @map("approval_authority")
 
   documents         ApplicationDocument[]
   paymentSchedules  PaymentSchedule[]
@@ -619,6 +636,7 @@ model Application {
   consentRecords    ConsentRecord[]
   takafulPolicies   TakafulPolicy[]
   assistedSessions  AssistedSession[]
+  guarantorSessions GuarantorConsentSession[]
 
   @@index([customerUserId, status])
   @@index([companyId, status])
@@ -649,6 +667,8 @@ model ConsentRecord {
   userAgent     String?        @map("user_agent")
   sessionId     String?        @map("session_id")
   deviceInfo    Json?          @map("device_info")
+  withdrawnAt   DateTime?      @map("withdrawn_at")
+  withdrawalReason String?     @map("withdrawal_reason")
   /// Staff member present when the consent was captured on the customer's device (assisted journey).
   actorUserId   String?        @map("actor_user_id")
   actor         User?          @relation("ConsentActor", fields: [actorUserId], references: [id], onDelete: SetNull)
@@ -1072,6 +1092,9 @@ model ApplicationSettlement {
   remainingPrincipal Decimal          @map("remaining_principal") @db.Decimal(12, 2)
   discountAmount     Decimal          @default(0) @map("discount_amount") @db.Decimal(12, 2)
   forgivenRent       Decimal          @default(0) @map("forgiven_rent") @db.Decimal(12, 2)
+  /// Rent earned up to the quote date (Shariah: profit accrues only for time elapsed).
+  accruedProfit      Decimal          @default(0) @map("accrued_profit") @db.Decimal(12, 2)
+  quoteAsOf          DateTime?        @map("quote_as_of")
   requestedAt        DateTime         @default(now()) @map("requested_at")
   decidedAt          DateTime?        @map("decided_at")
   decidedByUserId    String?          @map("decided_by_user_id")
@@ -1179,4 +1202,114 @@ model MigrationError {
 
   @@index([entity, createdAt])
   @@map("migration_errors")
+}
+
+enum GuarantorSessionStatus {
+  pending
+  otp_verified
+  consents_done
+  completed
+  expired
+  cancelled
+}
+
+/// A guarantor gives their own consents (and optionally completes KYC) from a link + OTP, like the assisted journey.
+model GuarantorConsentSession {
+  id                  String                  @id @default(cuid())
+  token               String                  @unique
+  applicationId       String                  @map("application_id")
+  application         Application             @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  createdByUserId     String?                 @map("created_by_user_id")
+  createdBy           User?                   @relation("GuarantorSessionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  fullName            String                  @map("full_name")
+  phone               String
+  email               String?
+  qidHash             String?                 @map("qid_hash")
+  relationship        String?
+  status              GuarantorSessionStatus  @default(pending)
+  otpCodeHash         String?                 @map("otp_code_hash")
+  otpExpiresAt        DateTime?               @map("otp_expires_at")
+  otpAttempts         Int                     @default(0) @map("otp_attempts")
+  otpLockedUntil      DateTime?               @map("otp_locked_until")
+  otpResendCount      Int                     @default(0) @map("otp_resend_count")
+  otpResendWindowStart DateTime?              @map("otp_resend_window_start")
+  otpVerifiedAt       DateTime?               @map("otp_verified_at")
+  proofHash           String?                 @map("proof_hash")
+  /// [{ code, version, textHash, locale, acceptedAt }] — the guarantor is not a User, so acceptances live here.
+  acceptances         Json?
+  consentsCompletedAt DateTime?               @map("consents_completed_at")
+  ipAddress           String?                 @map("ip_address")
+  userAgent           String?                 @map("user_agent")
+  kycCaseId           String?                 @map("kyc_case_id")
+  kycInviteUrl        String?                 @map("kyc_invite_url")
+  kycStatus           String?                 @map("kyc_status")
+  completedAt         DateTime?               @map("completed_at")
+  expiresAt           DateTime                @map("expires_at")
+  lastOpenedAt        DateTime?               @map("last_opened_at")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+
+  @@index([applicationId, status])
+  @@map("guarantor_consent_sessions")
+}
+
+/// Takaful provider master for indicative quote comparison (admin-maintained rates).
+model TakafulProvider {
+  id                   String   @id @default(cuid())
+  code                 String   @unique
+  name                 String
+  nameAr               String?  @map("name_ar")
+  /// Comprehensive cover as % of vehicle value per year.
+  comprehensiveRatePct Decimal  @map("comprehensive_rate_pct") @db.Decimal(6, 3)
+  thirdPartyAnnual     Decimal? @map("third_party_annual") @db.Decimal(12, 2)
+  minContribution      Decimal? @map("min_contribution") @db.Decimal(12, 2)
+  /// [{ code, label, labelAr, annualAmount }]
+  riders               Json?
+  contactPhone         String?  @map("contact_phone")
+  contactEmail         String?  @map("contact_email")
+  website              String?
+  notes                String?
+  active               Boolean  @default(true)
+  sortOrder            Int      @default(0) @map("sort_order")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("takaful_providers")
+}
+
+enum DataRightsRequestKind {
+  access
+  correction
+  deletion
+  consent_withdrawal
+}
+
+enum DataRightsRequestStatus {
+  open
+  in_progress
+  completed
+  rejected
+}
+
+/// Customer data-rights requests (Qatar PDPPL): access, correction, deletion, consent withdrawal.
+model DataRightsRequest {
+  id             String                  @id @default(cuid())
+  userId         String                  @map("user_id")
+  user           User                    @relation("DataRightsSubject", fields: [userId], references: [id], onDelete: Cascade)
+  kind           DataRightsRequestKind
+  status         DataRightsRequestStatus @default(open)
+  details        String?
+  consentCode    ConsentCode?            @map("consent_code")
+  resolutionNote String?                 @map("resolution_note")
+  handledById    String?                 @map("handled_by_id")
+  handledBy      User?                   @relation("DataRightsHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  handledAt      DateTime?               @map("handled_at")
+  /// Statutory response deadline (30 days from the request).
+  dueAt          DateTime?               @map("due_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("data_rights_requests")
 }

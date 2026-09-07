@@ -22,6 +22,8 @@ const TRUNCATE_TABLES = [
   'users',
   'finance_partners',
   'companies',
+  // No foreign keys, so the users/companies cascade never reaches it.
+  'takaful_providers',
 ];
 
 export async function resetDatabase(prisma: PrismaService) {

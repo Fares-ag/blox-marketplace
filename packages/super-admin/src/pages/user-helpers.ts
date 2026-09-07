@@ -9,10 +9,16 @@ export const ASSIGNABLE_ROLES = [
   'admin',
   'group_admin',
   'super_admin',
+  'partner_viewer',
 ] as const;
 
 export function companyRequiredForRole(role: string) {
   return role === 'dealer_agent' || role === 'group_admin';
+}
+
+/** Partner viewers read one finance provider's applications; the provider is mandatory. */
+export function financePartnerRequiredForRole(role: string) {
+  return role === 'partner_viewer';
 }
 
 export function showsCreditFields(role: string) {

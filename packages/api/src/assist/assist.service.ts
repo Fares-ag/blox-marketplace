@@ -25,8 +25,10 @@ import type { ConsentAcceptanceInput } from '../consents/consent-logic';
 import { ConsentsService } from '../consents/consents.service';
 import { KycBridgeService } from '../kyc/kyc-bridge.service';
 import { MailService } from '../mail/mail.service';
+import { localizedText } from '../notifications/notification-texts';
 import { PrismaService } from '../prisma/prisma.service';
-import { normalizePhone, SmsService, type SmsKind } from '../sms/sms.service';
+import { assistSmsBody, resolveNotificationLocale, type AssistSmsInput } from '../sms/sms-texts';
+import { normalizePhone, SmsService } from '../sms/sms.service';
 import {
   advanceAssistStatus,
   assistProofMatches,
@@ -184,6 +186,7 @@ export class AssistService {
         dealerName: app.company.name,
         agentName: user.name,
         expiresAt,
+        locale: resolveNotificationLocale(session.customer.preferredLanguage),
       });
     }
 
@@ -389,8 +392,8 @@ export class AssistService {
     });
     await this.activity.notify(
       session.createdByUserId,
-      'Assisted session completed',
-      `${session.customer.name} finished the OTP, consent and identity steps on their device.`,
+      localizedText((t) => t.assistCompletedTitle),
+      localizedText((t) => t.assistCompletedBody({ customerName: session.customer.name })),
       `/applications/${session.applicationId}`,
     );
     return { status: AssistedSessionStatus.completed };
@@ -485,12 +488,20 @@ export class AssistService {
     return this.appConfig.marketplacePath(`/assist/${token}`);
   }
 
-  private async deliverSms(session: SessionWithRelations, code: string, link: string, kind: SmsKind): Promise<void> {
-    const dealerName = session.application.company.name;
-    const body =
-      kind === 'assist_link'
-        ? `${dealerName} started your Blox vehicle financing application. Open ${link} and enter code ${code} (valid 5 minutes). Do not share this code.`
-        : `Your Blox verification code is ${code} (valid 5 minutes). Continue here: ${link}`;
+  private async deliverSms(
+    session: SessionWithRelations,
+    code: string,
+    link: string,
+    kind: AssistSmsInput['kind'],
+  ): Promise<void> {
+    // Rendered in the customer's language (Arabic when their profile says so, English otherwise).
+    const body = assistSmsBody({
+      kind,
+      locale: resolveNotificationLocale(session.customer.preferredLanguage),
+      dealerName: session.application.company.name,
+      link,
+      code,
+    });
     try {
       await this.sms.send({ to: session.phone, body, kind });
     } catch (err) {

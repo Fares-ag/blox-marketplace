@@ -16,10 +16,13 @@ import {
   wizardDocumentSlots,
   type WizardDocumentSlot,
 } from '../customer-info';
+import { newestUploadAt, staleDocumentCategories } from '../document-freshness';
 import type { OpsDocumentSlotsResponse } from '../types';
 import type { WorkspacePanelProps } from './types';
 
 const QUOTATION_CATEGORY = 'vehicle_quotation';
+
+type ChecklistSlot = WizardDocumentSlot & { uploaded_at?: string | null };
 
 export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePanelProps) {
   const { t } = useOpsLabels();
@@ -35,7 +38,7 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
     enabled: !!id,
     retry: false,
   });
-  const slots: WizardDocumentSlot[] = useMemo(() => {
+  const slots: ChecklistSlot[] = useMemo(() => {
     const server = slotsQuery.data?.slots;
     if (server?.length) return server.map((slot) => ({ ...slot }));
     return wizardDocumentSlots(info);
@@ -49,6 +52,13 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
     if (kycFront && kycBack) set.add('qid');
     return set;
   }, [slotsQuery.data, docs]);
+
+  // Freshness: the API's `stale` list plus what `maxAgeDays` and the newest upload imply,
+  // so the badge is right even before the checklist endpoint answers.
+  const stale = useMemo(
+    () => new Set(staleDocumentCategories({ slots, documents: docs, serverStale: slotsQuery.data?.stale })),
+    [slots, docs, slotsQuery.data],
+  );
 
   const groups = groupDocumentSlots(slots);
   const requiredMissing = slots.filter((slot) => slot.required && !slotSatisfiedBy(slot.category, uploaded));
@@ -77,17 +87,20 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
     });
   }
 
+  const headerPill =
+    slotsQuery.isLoading && !slots.length ? null : requiredMissing.length ? (
+      <OpsStatusPill label={t('dealerOps.docs.missingCount', { count: requiredMissing.length })} variant="warning" />
+    ) : stale.size ? (
+      <OpsStatusPill label={t('dealerOps.docs.staleCount', { count: stale.size })} variant="danger" />
+    ) : (
+      <OpsStatusPill label={t('dealerOps.docs.complete')} variant="success" />
+    );
+
   return (
     <section className="blox-detail-section">
       <h2 className="blox-panel__title">
         {t('dealerOps.docs.checklist')}
-        <span className="blox-panel__title-aside">
-          {slotsQuery.isLoading && !slots.length ? null : requiredMissing.length ? (
-            <OpsStatusPill label={t('dealerOps.docs.missingCount', { count: requiredMissing.length })} variant="warning" />
-          ) : (
-            <OpsStatusPill label={t('dealerOps.docs.complete')} variant="success" />
-          )}
-        </span>
+        <span className="blox-panel__title-aside">{headerPill}</span>
       </h2>
       <p className="blox-muted">{t('dealerOps.intake.docsIntro')}</p>
 
@@ -101,6 +114,9 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
               const hint = t(`${slot.labelKey}Hint`, { defaultValue: '' });
               const freshness = slot.maxAgeDays ? t('applyFlow.docs.freshness', { days: slot.maxAgeDays }) : '';
               const isQuotation = slot.category === QUOTATION_CATEGORY;
+              const isStale = stale.has(slot.category);
+              const uploadedAt = (slot as ChecklistSlot).uploaded_at ?? newestUploadAt(slot.category, docs);
+              const uploadedDate = uploadedAt ? new Date(uploadedAt).toLocaleDateString() : '';
               const first = files[0];
               return (
                 <li key={slot.category} className="blox-doc-row">
@@ -121,13 +137,30 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                         </small>
                       </>
                     )}
+                    {isStale ? (
+                      <>
+                        <br />
+                        <small className="blox-field__error" role="status">
+                          {t('dealerOps.docs.staleHint', { date: uploadedDate, days: slot.maxAgeDays ?? '' })}
+                        </small>
+                      </>
+                    ) : satisfied && uploadedDate && !isQuotation ? (
+                      <>
+                        <br />
+                        <small className="blox-muted">{t('dealerOps.docs.uploadedAt', { date: uploadedDate })}</small>
+                      </>
+                    ) : null}
                   </span>
                   <OpsStatusPill
                     label={slot.required ? t('dealerOps.intake.slotRequired') : t('dealerOps.intake.slotOptional')}
                     variant={slot.required ? 'ink' : 'outline'}
                   />
                   {satisfied ? (
-                    <OpsStatusPill label={t('dealerOps.docs.fileCount', { count: Math.max(files.length, 1) })} variant="success" />
+                    isStale ? (
+                      <OpsStatusPill label={t('dealerOps.docs.stale')} variant="danger" />
+                    ) : (
+                      <OpsStatusPill label={t('dealerOps.docs.fileCount', { count: Math.max(files.length, 1) })} variant="success" />
+                    )
                   ) : (
                     <OpsStatusPill label={t('dealerOps.intake.slotMissing')} variant={slot.required ? 'warning' : 'neutral'} />
                   )}

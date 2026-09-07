@@ -15,6 +15,9 @@ import {
 } from '@drivemarket/shared';
 import { customerApplicationVehicleLabel, type CustomerApplication } from '../lib/application-dto';
 import { formatDate, formatMonthYear, localeTag, monthsUntil, parseDate } from '../lib/dates';
+import { SETTLEMENT_ERROR_CODES, useSettlementQuote } from '../lib/settlement-quote';
+import { hasErrorCode } from '../lib/errors';
+import { SettlementQuoteCard } from './SettlementQuoteCard';
 
 /** Statuses whose application carries a live (or finished) co-ownership. */
 export const OWNERSHIP_HERO_STATUSES = new Set(['active', 'completed']);
@@ -240,14 +243,19 @@ export function OwnershipHero({ app, loading = false }: Props) {
       }
       window.location.href = url;
     },
-    onError: () => setNotice({ tone: 'error', text: t('ownershipHero.payNowFailed') }),
+    onError: (error: unknown) =>
+      setNotice({
+        tone: 'error',
+        text: hasErrorCode(error, SETTLEMENT_ERROR_CODES.quoteRequired)
+          ? t('ownershipHero.settlement.quoteRequired')
+          : t('ownershipHero.payNowFailed'),
+      }),
   });
 
-  const settleEarly = useMutation({
-    mutationFn: () => apiFetch(`/api/applications/${app!.id}/settlement-request`, { method: 'POST' }),
-    onSuccess: () => setNotice({ tone: 'ok', text: t('ownershipHero.earlySettlementRequested') }),
-    onError: () => setNotice({ tone: 'error', text: t('ownershipHero.earlySettlementFailed') }),
-  });
+  // The early-settlement figure always comes from the API quote (principal
+  // outstanding + rent to date); the card below owns the settle action.
+  const settlementActive = !!app && app.status === 'active';
+  const settlementQuote = useSettlementQuote(app?.id ?? null, settlementActive);
 
   const styles = <style>{HERO_CSS}</style>;
 
@@ -445,19 +453,9 @@ export function OwnershipHero({ app, loading = false }: Props) {
           {t('ownershipHero.viewCalendar')}
         </Link>
         {isActive && (
-          <button
-            type="button"
-            className="dm-btn-ghost dm-ohero__ghost"
-            title={t('ownershipHero.earlySettlementHint')}
-            disabled={settleEarly.isPending}
-            onClick={() => {
-              if (!window.confirm(t('ownershipHero.earlySettlementConfirm'))) return;
-              setNotice(null);
-              settleEarly.mutate();
-            }}
-          >
+          <a className="dm-btn-ghost dm-ohero__ghost" href="#dm-settlement-hero" title={t('ownershipHero.earlySettlementHint')}>
             {t('ownershipHero.earlySettlement')}
-          </button>
+          </a>
         )}
         {!isActive && (
           <Link className="dm-btn-ghost dm-ohero__ghost" to={`/app/applications/${app.id}`}>
@@ -465,7 +463,19 @@ export function OwnershipHero({ app, loading = false }: Props) {
           </Link>
         )}
       </div>
-      {isActive && <p className="dm-ohero__hint">{t('ownershipHero.earlySettlementHint')}</p>}
+      {isActive && (
+        <div id="dm-settlement-hero" className="dm-ohero__settlement">
+          <SettlementQuoteCard
+            applicationId={app.id}
+            quote={settlementQuote.data}
+            loading={settlementQuote.isLoading}
+            error={settlementQuote.isError}
+            variant="hero"
+            canSettle
+            compact
+          />
+        </div>
+      )}
       {styles}
     </section>
   );
@@ -677,6 +687,7 @@ const HERO_CSS = `
   .dm-ohero__ghost:hover:not(:disabled) { border-color: #fff !important; background: rgba(255,255,255,0.08); }
   .dm-ohero__ghost:disabled { opacity: 0.6; cursor: not-allowed; }
   .dm-ohero__hint { margin: -8px 0 0; font-size: 12px; color: rgba(255,255,255,0.62); }
+  .dm-ohero__settlement { scroll-margin-top: 16px; }
   .dm-ohero__muted { margin: 0; color: rgba(255,255,255,0.72); line-height: 1.5; max-width: 48ch; }
   .dm-ohero--empty {
     grid-template-columns: auto minmax(0, 1fr) auto;

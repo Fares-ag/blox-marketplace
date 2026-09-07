@@ -28,6 +28,11 @@ function statusIndex(status: string): number {
   return idx >= 0 ? idx : 0;
 }
 
+/**
+ * Status header, plan estimate and progress timeline. A declined application
+ * shows a neutral card — customers are never shown the decision reason
+ * (wave 2); a resubmission request, being an instruction, is still surfaced.
+ */
 export function ApplicationStatusView({
   app,
 }: {
@@ -37,7 +42,6 @@ export function ApplicationStatusView({
     createdAt?: string;
     pricingSnapshot?: Record<string, unknown> | null;
     product?: { make?: string; model?: string; slug?: string; modelYear?: number };
-    rejectionReason?: string | null;
     resubmissionComment?: string | null;
   };
 }) {
@@ -47,7 +51,8 @@ export function ApplicationStatusView({
   const pricing = app.pricingSnapshot ?? {};
   const monthly = Number(pricing.monthly ?? 0);
   const down = Number(pricing.down_payment ?? 0);
-  const tenor = Number(pricing.tenor ?? pricing.tenor ?? 0);
+  const tenor = Number(pricing.tenor ?? pricing.tenure ?? 0);
+  const declined = app.status === 'rejected';
 
   return (
     <div className="dm-app-status">
@@ -74,7 +79,28 @@ export function ApplicationStatusView({
         </div>
       )}
 
-      {(monthly > 0 || down > 0) && (
+      {declined && (
+        <section className="dm-app-status__declined" aria-labelledby="dm-declined-title">
+          <div className="dm-app-status__declined-icon" aria-hidden>
+            –
+          </div>
+          <div className="dm-app-status__declined-body">
+            <h3 id="dm-declined-title">{t('ownershipHero.decision.declinedTitle')}</h3>
+            <p>{t('ownershipHero.decision.declinedBody')}</p>
+            <p className="dm-app-status__declined-support">{t('ownershipHero.decision.declinedSupport')}</p>
+            <div className="dm-app-status__declined-actions">
+              <Link className="dm-btn-cta dm-app-status__declined-cta" to="/help">
+                {t('ownershipHero.decision.contactSupport')}
+              </Link>
+              <Link className="dm-btn-ghost dm-btn-ghost--on-light" to="/vehicles">
+                {t('ownershipHero.decision.browseAgain')}
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {(monthly > 0 || down > 0) && !declined && (
         <div className="dm-app-status__pricing">
           <h3>{t('application.pricingSummary')}</h3>
           <dl>
@@ -118,10 +144,7 @@ export function ApplicationStatusView({
         </div>
       )}
 
-      {app.rejectionReason && (
-        <p className="dm-app-status__alert">{app.rejectionReason}</p>
-      )}
-      {app.resubmissionComment && (
+      {app.resubmissionComment && !declined && (
         <p className="dm-app-status__alert">{app.resubmissionComment}</p>
       )}
 
@@ -141,6 +164,34 @@ export function ApplicationStatusView({
         .dm-status-pill--pending { background: var(--dm-steel-soft); color: var(--dm-ink); }
         .dm-status-pill--rejected { background: var(--dm-danger-soft); color: var(--dm-danger); }
         .dm-app-status__vehicle h2 { margin: 0 0 8px; font-family: var(--dm-font-display); font-size: 1.25rem; }
+        .dm-app-status__declined {
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+          padding: 20px 22px;
+          border-radius: 14px;
+          background: var(--dm-surface);
+          border: 1px solid var(--dm-slate-200);
+          border-inline-start: 4px solid var(--dm-slate-400);
+        }
+        .dm-app-status__declined-icon {
+          flex-shrink: 0;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          background: var(--dm-canvas);
+          color: var(--dm-slate-600);
+          font-weight: 800;
+          font-size: 1.2rem;
+        }
+        .dm-app-status__declined-body { display: grid; gap: 8px; min-width: 0; }
+        .dm-app-status__declined h3 { margin: 0; font-family: var(--dm-font-display); font-size: 1.15rem; line-height: 1.3; }
+        .dm-app-status__declined p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--dm-slate-600); max-width: 60ch; }
+        .dm-app-status__declined-support { color: var(--dm-ink) !important; }
+        .dm-app-status__declined-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+        .dm-app-status__declined-cta { min-height: 42px !important; padding: 0 18px !important; font-size: 0.9rem !important; }
         .dm-app-status__pricing, .dm-app-status__timeline {
           background: var(--dm-surface);
           border: 1px solid var(--dm-slate-200);
@@ -184,6 +235,10 @@ export function ApplicationStatusView({
           color: var(--dm-warning);
           margin: 0;
           font-size: 14px;
+        }
+        @media (max-width: 480px) {
+          .dm-app-status__declined { flex-direction: column; }
+          .dm-app-status__declined-actions > * { flex: 1 1 auto; text-align: center; }
         }
       `}</style>
     </div>

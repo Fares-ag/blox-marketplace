@@ -16,6 +16,8 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivityService } from '../common/activity.service';
+import { IdentityService } from '../common/identity.service';
+import { isUniqueConstraintError } from '../common/prisma-errors';
 import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
 import { CREDIT_QUEUE_STATUSES } from './application-transitions';
 import { submittedStatusForPartner } from './partner-finance';
@@ -74,6 +76,15 @@ import {
   type CustomerSnapshotInput,
 } from './customer-snapshot';
 import { assertSubmitGates, identityHoldActive } from './submit-gates';
+import { AppConfigService } from '../config/app-config.service';
+import type { IdentityPolicy } from './application-documents';
+import {
+  assessApplicationCredit,
+  creditAssessedLogMetadata,
+  creditAssessmentData,
+  toCreditAssessmentDto,
+  type CreditAssessmentDto,
+} from './credit-assessment';
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
@@ -112,7 +123,17 @@ export class ApplicationsService {
     private readonly zoho: ZohoCrmService,
     private readonly kycBridge: KycBridgeService,
     private readonly intake: ApplicationIntakeService,
+    private readonly identity: IdentityService,
+    private readonly appConfig: AppConfigService,
   ) {}
+
+  /** Identity-slot policy for submit gates and slot DTOs (BRD e-KYC BR-3). */
+  private identityPolicy(): IdentityPolicy {
+    return {
+      ekycRequired: this.appConfig.kycEkycRequired,
+      allowStaffManualIdentity: this.appConfig.kycAllowStaffManualIdentity,
+    };
+  }
 
   /** Truthful answer for `GET /applications/blocking` — mirrors the create-time dedup decision. */
   async hasBlocking(userId: string, productId?: string) {
@@ -241,10 +262,15 @@ export class ApplicationsService {
         assertRowsUpdated(redeemed.count, 'stale_transition');
       }
 
-      await tx.user.update({
-        where: { id: user.id },
-        data: this.intake.userProfileData(user, normalized),
-      });
+      try {
+        await tx.user.update({
+          where: { id: user.id },
+          data: this.intake.userProfileData(user, normalized, { omitQid: !!identity }),
+        });
+      } catch (err) {
+        if (isUniqueConstraintError(err)) throw new ConflictException('user_already_exists');
+        throw err;
+      }
 
       return created;
     });
@@ -357,10 +383,15 @@ export class ApplicationsService {
           ...this.intake.holdColumns(identity),
         },
       });
-      await tx.user.update({
-        where: { id: user.id },
-        data: this.intake.userProfileData(user, normalized),
-      });
+      try {
+        await tx.user.update({
+          where: { id: user.id },
+          data: this.intake.userProfileData(user, normalized, { omitQid: !!identity }),
+        });
+      } catch (err) {
+        if (isUniqueConstraintError(err)) throw new ConflictException('user_already_exists');
+        throw err;
+      }
     });
 
     await this.activity.log({
@@ -391,7 +422,33 @@ export class ApplicationsService {
     if (!app) throw new NotFoundException();
     await assertApplicationCanView(this.prisma, user, app);
     const documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
-    return documentSlotsForApplication(app.customerSnapshot, documents);
+    return documentSlotsForApplication(app.customerSnapshot, documents, new Date(), this.identityPolicy());
+  }
+
+  /** Live credit assessment (`GET /ops/applications/:id/credit-assessment`) with the approver block for the caller. */
+  async creditAssessment(user: User, id: string): Promise<CreditAssessmentDto> {
+    const allowed: UserRole[] = [
+      UserRole.credit_officer,
+      UserRole.finance_officer,
+      UserRole.admin,
+      UserRole.super_admin,
+      UserRole.group_admin,
+    ];
+    if (!allowed.includes(user.role)) throw new ForbiddenException('forbidden_role');
+    const app = await this.prisma.application.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        customerUserId: true,
+        companyId: true,
+        customerSnapshot: true,
+        pricingSnapshot: true,
+        product: { select: { attributes: true, bodyType: true } },
+      },
+    });
+    if (!app) throw new NotFoundException();
+    await assertApplicationCanView(this.prisma, user, app);
+    return toCreditAssessmentDto(assessApplicationCredit(app), user.role);
   }
 
   private async loadDocumentsForSubmit(applicationId: string, kycCaseId: string | null) {
@@ -402,10 +459,12 @@ export class ApplicationsService {
         // Non-fatal — validate whatever was synced via webhook or prior uploads.
       }
     }
-    return this.prisma.applicationDocument.findMany({
+    const rows = await this.prisma.applicationDocument.findMany({
       where: { applicationId },
       orderBy: { createdAt: 'asc' },
+      include: { uploadedBy: { select: { role: true } } },
     });
+    return rows.map(({ uploadedBy, ...doc }) => ({ ...doc, uploadedByRole: uploadedBy?.role ?? null }));
   }
 
   async submit(user: User, id: string) {
@@ -418,13 +477,17 @@ export class ApplicationsService {
       throw new BadRequestException('invalid_status_transition');
     }
     const documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
-    // identity_hold → consents_required → documents_missing →
-    // vehicle_identity_incomplete (only when reserving) → vehicle_age_rule
+    // identity_hold → consents_required → documents_missing → documents_stale →
+    // guarantor_consent_required → vehicle_identity_incomplete (only when
+    // reserving) → vehicle_age_rule
     assertSubmitGates({
       application: app,
       documents,
       product: app.product,
       requireVehicleIdentity: app.status === ApplicationStatus.draft,
+      guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
+      identityPolicy: this.identityPolicy(),
+      now: new Date(),
     });
 
     if (app.product.listingStatus !== ListingStatus.published && app.status === 'draft') {
@@ -432,6 +495,14 @@ export class ApplicationsService {
     }
 
     const fromStatus = app.status;
+    // Credit assessment captured at submission (DBR, exception tier, approval
+    // authority) — recomputed live at decision time, stored here for the
+    // partner view and the audit trail.
+    const assessed = assessApplicationCredit({
+      customerSnapshot: app.customerSnapshot,
+      pricingSnapshot: app.pricingSnapshot,
+      product: app.product,
+    });
     // Routing follows the offer's own partner (or a lender ops tagged before
     // submit); the default lender only fills the lender-of-record gap.
     const nextStatus = submittedStatusForPartner(app.financePartner?.crmAdapter);
@@ -441,6 +512,7 @@ export class ApplicationsService {
       await transitionApplication(tx, id, fromStatus, {
         status: nextStatus,
         submittedAt: app.submittedAt ?? new Date(),
+        ...creditAssessmentData(assessed),
       });
       if (autoTagged) {
         await tx.application.update({ where: { id }, data: { financePartnerId: lenderId } });
@@ -464,6 +536,14 @@ export class ApplicationsService {
       action: 'status_transition',
       fromValue: app.status,
       toValue: nextStatus,
+    });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: id,
+      action: 'credit_assessed',
+      toValue: assessed.assessment.path,
+      metadata: creditAssessedLogMetadata(assessed, 'submit'),
     });
     if (autoTagged) {
       await this.activity.log({
@@ -532,6 +612,7 @@ export class ApplicationsService {
     if (!app) throw new NotFoundException();
     await assertApplicationCanView(this.prisma, user, app);
     const audience = this.audienceForUser(user, app);
+    const identityHoldClearedByName = await this.identityHoldClearedByName(app.identityHoldClearedById);
 
     let kycVerification: KycVerificationSummaryDto | null = null;
     if ((audience === 'ops' || audience === 'dealer') && app.kycCaseId) {
@@ -551,7 +632,7 @@ export class ApplicationsService {
       }
     }
 
-    const dto = mapApplicationDto(app, audience) as Record<string, unknown>;
+    const dto = mapApplicationDto({ ...app, identityHoldClearedByName }, audience) as Record<string, unknown>;
 
     if (audience === 'ops' || audience === 'dealer') {
       if (kycVerification) dto.kyc_verification = kycVerification;
@@ -615,6 +696,16 @@ export class ApplicationsService {
     return dto;
   }
 
+  /** Who cleared the identity hold — the column has no relation, so resolve the name here. */
+  private async identityHoldClearedByName(userId: string | null | undefined): Promise<string | null> {
+    if (!userId) return null;
+    const clearedBy = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true },
+    });
+    return clearedBy?.name?.trim() || clearedBy?.email || null;
+  }
+
   async opsQueue(
     user: User,
     query: PaginationQueryDto & {
@@ -622,6 +713,8 @@ export class ApplicationsService {
       statusIn?: string;
       q?: string;
       companyId?: string;
+      /** Lender-of-record filter (admin applications list). */
+      financePartnerId?: string;
       scheduleHealth?: string;
       createdFrom?: string;
       createdTo?: string;
@@ -652,9 +745,11 @@ export class ApplicationsService {
       : requestedCompany
         ? [requestedCompany]
         : undefined;
+    const financePartnerId = query.financePartnerId?.trim();
     const where: Prisma.ApplicationWhereInput = {
       ...(statusIn ? { status: { in: statusIn } } : {}),
       ...(scopedCompanyIds ? { companyId: { in: scopedCompanyIds } } : {}),
+      ...(financePartnerId ? { financePartnerId } : {}),
       ...(createdFrom && !Number.isNaN(createdFrom.getTime()) ? { createdAt: { gte: createdFrom } } : {}),
       ...(createdTo && !Number.isNaN(createdTo.getTime())
         ? { createdAt: { ...(createdFrom ? { gte: createdFrom } : {}), lte: createdTo } }
@@ -870,7 +965,7 @@ export class ApplicationsService {
     if (user.role === UserRole.customer) throw new ForbiddenException('forbidden_role');
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { customer: { select: { qid: true, phone: true } } },
+      include: { customer: { select: { qid: true, qidEnc: true, phone: true } } },
     });
     if (!app) throw new NotFoundException();
     // Dealer agents are limited to their own company; ops to their scope.
@@ -879,7 +974,7 @@ export class ApplicationsService {
     const snapshot = readCustomerSnapshot(app.customerSnapshot);
     const value =
       field === 'qid'
-        ? snapshot.qid || app.customer?.qid || null
+        ? snapshot.qid || this.identity.readQid(app.customer) || null
         : snapshot.phone || app.customer?.phone || null;
 
     await this.activity.log({
@@ -962,8 +1057,14 @@ export class ApplicationsService {
     return undefined;
   }
 
-  async transition(user: User, id: string, toStatus: ApplicationStatus, reason?: string) {
-    return this.lifecycle.opsTransition(user, id, toStatus, reason);
+  async transition(
+    user: User,
+    id: string,
+    toStatus: ApplicationStatus,
+    reason?: string,
+    overrideReason?: string,
+  ) {
+    return this.lifecycle.opsTransition(user, id, toStatus, reason, overrideReason);
   }
 
   async resubmit(user: User, id: string) {
@@ -981,12 +1082,22 @@ export class ApplicationsService {
       documents,
       product: app.product,
       requireVehicleIdentity: false,
+      guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
+      identityPolicy: this.identityPolicy(),
+      now: new Date(),
     });
 
+    // Re-assessed: the snapshot or documents may have changed since the first submit.
+    const assessed = assessApplicationCredit({
+      customerSnapshot: app.customerSnapshot,
+      pricingSnapshot: app.pricingSnapshot,
+      product: app.product,
+    });
     const nextStatus = submittedStatusForPartner(app.financePartner?.crmAdapter);
     const updated = await this.prisma.$transaction(async (tx) => {
       await transitionApplication(tx, id, ApplicationStatus.resubmission_required, {
         status: nextStatus,
+        ...creditAssessmentData(assessed),
       });
       return tx.application.findUniqueOrThrow({ where: { id } });
     });
@@ -998,6 +1109,14 @@ export class ApplicationsService {
       action: 'status_transition',
       fromValue: 'resubmission_required',
       toValue: nextStatus,
+    });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: id,
+      action: 'credit_assessed',
+      toValue: assessed.assessment.path,
+      metadata: creditAssessedLogMetadata(assessed, 'submit'),
     });
 
     await this.syncToCrmIfNeeded(id, nextStatus, user.id);

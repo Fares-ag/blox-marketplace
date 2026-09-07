@@ -1,14 +1,10 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { APIError } from 'better-auth/api';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { IdentityService } from '../../common/identity.service';
+import { isUniqueConstraintError } from '../../common/prisma-errors';
 import { AUTH_INSTANCE } from '../auth.constants';
 import type { DmAuth } from '../auth';
 import { resolveAuthSecret } from '../auth-config';
@@ -29,6 +25,7 @@ export class MobileAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly identity: IdentityService,
     @Inject(AUTH_INSTANCE) private readonly auth: DmAuth,
   ) {}
 
@@ -61,6 +58,7 @@ export class MobileAuthService {
     lastName: string;
     phone?: string;
     qid?: string;
+    preferredLanguage?: 'en' | 'ar';
   }) {
     const email = input.email.trim().toLowerCase();
     const name = `${input.firstName} ${input.lastName}`.trim();
@@ -80,15 +78,22 @@ export class MobileAuthService {
     }
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('signup_failed');
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        role: UserRole.customer,
-        phone: input.phone ?? user.phone,
-        qid: input.qid ?? user.qid,
-        name: name || user.name,
-      },
-    });
+    try {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          role: UserRole.customer,
+          phone: input.phone ?? user.phone,
+          // Encrypted copy + blind index; plaintext only while QID_STORE_PLAINTEXT is on.
+          ...(input.qid ? this.identity.prepareQidWrite(input.qid) : {}),
+          ...(input.preferredLanguage ? { preferredLanguage: input.preferredLanguage } : {}),
+          name: name || user.name,
+        },
+      });
+    } catch (err) {
+      if (isUniqueConstraintError(err)) throw new ConflictException('user_already_exists');
+      throw err;
+    }
     const refreshed = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     return this.issueSession(refreshed);
   }

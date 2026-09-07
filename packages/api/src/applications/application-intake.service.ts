@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, UserRole } from '@prisma/client';
+import { GuarantorSessionStatus, Prisma, UserRole } from '@prisma/client';
 import { ActivityService } from '../common/activity.service';
 import { EncryptionService } from '../common/encryption.service';
+import { IdentityService } from '../common/identity.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   decideIdentityHold,
@@ -29,6 +30,7 @@ export class ApplicationIntakeService {
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
     private readonly encryption: EncryptionService,
+    private readonly identity: IdentityService,
     private readonly config: ConfigService,
   ) {}
 
@@ -138,6 +140,22 @@ export class ApplicationIntakeService {
     );
   }
 
+  /**
+   * The guarantor submit gate reads the consent session the guarantors module
+   * writes: a session that captured its consents and was not cancelled since.
+   */
+  async guarantorConsentCompleted(applicationId: string): Promise<boolean> {
+    const session = await this.prisma.guarantorConsentSession.findFirst({
+      where: {
+        applicationId,
+        consentsCompletedAt: { not: null },
+        status: { not: GuarantorSessionStatus.cancelled },
+      },
+      select: { id: true },
+    });
+    return !!session;
+  }
+
   /** `FinancePartner.isDefaultLender` — lender of record for offers without a partner. */
   async defaultLenderId(): Promise<string | null> {
     const partner = await this.prisma.financePartner.findFirst({
@@ -148,19 +166,26 @@ export class ApplicationIntakeService {
     return partner?.id ?? null;
   }
 
-  /** Profile columns mirrored onto the customer account (only what was provided). */
+  /**
+   * Profile columns mirrored onto the customer account (only what was
+   * provided). The Qatar ID is written through `IdentityService` so the
+   * encrypted copy and blind index stay in step with the plaintext column
+   * while it is still retained.
+   */
   userProfileData(
-    user: { name: string | null; phone: string | null; qid: string | null },
+    user: { name: string | null; phone: string | null; qid: string | null; qidEnc?: string | null },
     normalized: NormalizedCustomerSnapshot,
+    opts?: { omitQid?: boolean },
   ): Prisma.UserUpdateInput {
-    const keptQid = user.qid || normalized.snapshot.qid || null;
+    const keptQid = this.identity.readQid(user) || normalized.snapshot.qid || null;
     const profile: CustomerProfileFields = normalized.profile;
     const data: Prisma.UserUpdateInput = {
       name: user.name || normalized.snapshot.full_name,
       phone: user.phone || normalized.snapshot.phone,
-      qid: keptQid,
-      qidHash: this.encryption.qidHash(keptQid),
     };
+    if (!opts?.omitQid) {
+      Object.assign(data, this.identity.prepareQidWrite(keptQid) ?? {});
+    }
     if (profile.firstName) data.firstName = profile.firstName;
     if (profile.lastName) data.lastName = profile.lastName;
     if (profile.gender) data.gender = profile.gender;

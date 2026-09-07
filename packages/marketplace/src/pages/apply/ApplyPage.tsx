@@ -5,6 +5,10 @@
  * "About you" (the first step with identifying data), then patched on every
  * later step and on "Save and continue later". An existing draft for the same
  * vehicle is detected up front and offered for resumption.
+ *
+ * Wave 2: guarantor consent request from the guarantor step, document
+ * freshness (`documents_stale`), and an informational credit preview on the
+ * review step.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -26,10 +30,12 @@ import {
   type ProductRuleViolation,
 } from '@drivemarket/shared';
 import { MarketplaceNav } from '../../components/MarketplaceNav';
+import { BrandBadge } from '../../components/BrandProvider';
 import { ConsentChecklist } from '../../components/consents/ConsentChecklist';
 import {
   APPLY_STEPS,
   buildPlanPricing,
+  creditPreviewFor,
   deriveIdentity,
   documentProfile,
   emptyApplyForm,
@@ -42,7 +48,9 @@ import {
   planViolations,
   prefillFromAccount,
   snapshotFromForm,
+  staleDocumentCategories,
   stepIndex,
+  validateGuarantor,
   validateIdentity,
   validateStep,
   type ApplyForm,
@@ -63,10 +71,19 @@ import {
   missingDocumentsFrom,
   patchDraft,
   ruleViolationsFrom,
+  staleDocumentsFrom,
   submitApplication,
   uploadApplicationDocument,
   type ApplicationDraftDto,
 } from './apply-api';
+import {
+  cancelGuarantorSession,
+  createGuarantorSession,
+  fetchGuarantorSessionForApplication,
+  guarantorSessionIsOpen,
+  resendGuarantorSessionLink,
+} from '../../lib/guarantor-api';
+import { apiErrorCode, errorStatus } from '../../lib/errors';
 import { Notice, type NoticeTone } from './fields';
 import { StepProgress } from './StepProgress';
 import { ApplyStickyBar, PlanSummaryRail, type PlanVehicle } from './PlanSummaryRail';
@@ -74,6 +91,7 @@ import { VehiclePlanStep } from './steps/VehiclePlanStep';
 import { IdentityStep } from './steps/IdentityStep';
 import { EmploymentStep } from './steps/EmploymentStep';
 import { GuarantorStep } from './steps/GuarantorStep';
+import { GuarantorConsentPanel, type GuarantorBusy } from './steps/GuarantorConsentPanel';
 import { DocumentsStep, type UploadState } from './steps/DocumentsStep';
 import { ReviewStep } from './steps/ReviewStep';
 
@@ -92,6 +110,10 @@ const STEP_TITLE_KEY: Record<ApplyStep, string> = {
 function newIdempotencyKey(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function guarantorQueryKey(draftId: string | null) {
+  return ['app', draftId ?? '', 'guarantor-session'] as const;
 }
 
 function Shell({ children, title }: { children: React.ReactNode; title: string }) {
@@ -183,6 +205,9 @@ export function ApplyPage() {
   const [uploads, setUploads] = useState<Record<string, UploadState>>({});
   /** Violations the API reported on the last save (its env flags may be stricter than ours). */
   const [serverViolations, setServerViolations] = useState<ProductRuleViolation[]>([]);
+  const [guarantorBusy, setGuarantorBusy] = useState<GuarantorBusy>(null);
+  const [guarantorLink, setGuarantorLink] = useState<string | null>(null);
+  const [guarantorNotice, setGuarantorNotice] = useState<{ tone: NoticeTone; text: string } | null>(null);
   const idempotencyKey = useRef(newIdempotencyKey());
   const stepTitleRef = useRef<HTMLHeadingElement>(null);
   const firstRender = useRef(true);
@@ -262,6 +287,7 @@ export function ApplyPage() {
   }, [localViolations, serverViolations]);
   const tenureOptions = useMemo(() => (ctx ? planTenureOptions(ctx, residency) : []), [ctx, residency]);
   const minDownPct = ctx ? planMinDownPct(ctx) : 0;
+  const creditPreview = useMemo(() => creditPreviewFor(form, residency, pricing, violations), [form, residency, pricing, violations]);
 
   // ---- validation ---------------------------------------------------------
   const stepErrors = useMemo(
@@ -309,8 +335,18 @@ export function ApplyPage() {
   });
   const slots = useMemo(() => documentSlotsFor(documentProfile(form, residency)), [form, residency]);
   const uploadedSet = useMemo(() => new Set(docsQuery.data?.uploaded ?? []), [docsQuery.data]);
+  const uploadedAt = useMemo(() => docsQuery.data?.uploadedAt ?? {}, [docsQuery.data]);
+  const staleSet = useMemo(
+    () => new Set(staleDocumentCategories(slots, uploadedAt, docsQuery.data?.stale ?? [])),
+    [slots, uploadedAt, docsQuery.data?.stale],
+  );
   const requiredSlots = useMemo(() => slots.filter((s) => s.required), [slots]);
   const missingRequired = useMemo(() => requiredSlots.filter((s) => !uploadedSet.has(s.category)), [requiredSlots, uploadedSet]);
+  const staleRequired = useMemo(
+    () => requiredSlots.filter((s) => uploadedSet.has(s.category) && staleSet.has(s.category)),
+    [requiredSlots, uploadedSet, staleSet],
+  );
+  const docsReady = missingRequired.length === 0 && staleRequired.length === 0;
 
   async function onUpload(slot: DocumentSlot, file: File) {
     if (!draftId) return;
@@ -330,6 +366,79 @@ export function ApplyPage() {
   }
   function onRejectUpload(slot: DocumentSlot, message: string) {
     setUploads((u) => ({ ...u, [slot.category]: { status: 'error', error: message } }));
+  }
+
+  // ---- guarantor consent session --------------------------------------------
+  const guarantorQuery = useQuery({
+    queryKey: guarantorQueryKey(draftId),
+    queryFn: () => fetchGuarantorSessionForApplication(draftId!),
+    enabled: !!draftId && form.hasGuarantor,
+    retry: false,
+    refetchInterval: (query) => (guarantorSessionIsOpen(query.state.data ?? null) ? 10_000 : false),
+  });
+  const guarantorSession = form.hasGuarantor ? (guarantorQuery.data ?? null) : null;
+  const guarantorNeedsFix = form.hasGuarantor && Object.keys(validateGuarantor(form)).length > 0;
+
+  async function sendGuarantorRequest() {
+    if (busy || guarantorBusy) return;
+    if (Object.keys(validateGuarantor(form)).length) {
+      setSubmittedSteps((s) => ({ ...s, guarantor: true }));
+      setGuarantorNotice({ tone: 'warn', text: t('applyFlow.guarantor.consent.fixFirst') });
+      focusFirstInvalid();
+      return;
+    }
+    setGuarantorBusy('send');
+    setGuarantorNotice(null);
+    try {
+      // The session is built from the saved snapshot, so the guarantor details go up first.
+      const id = await persistDraft();
+      if (!id) return;
+      const created = await createGuarantorSession(id);
+      qc.setQueryData(guarantorQueryKey(id), created);
+      setGuarantorLink(created.link ?? null);
+      setGuarantorNotice({ tone: 'success', text: t('applyFlow.guarantor.consent.sent', { phone: created.phone_masked }) });
+    } catch (error) {
+      const code = apiErrorCode(error);
+      setGuarantorNotice({
+        tone: 'danger',
+        text: code === 'application_closed' ? t('applyFlow.error.generic') : t('applyFlow.guarantor.consent.sendError'),
+      });
+    } finally {
+      setGuarantorBusy(null);
+    }
+  }
+
+  async function resendGuarantorRequest() {
+    if (!draftId || guarantorBusy) return;
+    setGuarantorBusy('resend');
+    setGuarantorNotice(null);
+    try {
+      const updated = await resendGuarantorSessionLink(draftId);
+      qc.setQueryData(guarantorQueryKey(draftId), updated);
+      if (updated.link) setGuarantorLink(updated.link);
+      setGuarantorNotice({ tone: 'success', text: t('applyFlow.guarantor.consent.resent') });
+    } catch (error) {
+      const limited = errorStatus(error) === 429 || apiErrorCode(error) === 'otp_resend_limit';
+      setGuarantorNotice({ tone: limited ? 'warn' : 'danger', text: limited ? t('applyFlow.guarantor.consent.resendLimit') : t('applyFlow.guarantor.consent.sendError') });
+    } finally {
+      setGuarantorBusy(null);
+    }
+  }
+
+  async function cancelGuarantorRequest() {
+    if (!draftId || guarantorBusy) return;
+    setGuarantorBusy('cancel');
+    setGuarantorNotice(null);
+    try {
+      await cancelGuarantorSession(draftId);
+      setGuarantorLink(null);
+      await guarantorQuery.refetch();
+      setGuarantorNotice({ tone: 'info', text: t('applyFlow.guarantor.consent.cancelled') });
+    } catch {
+      setGuarantorNotice({ tone: 'danger', text: t('applyFlow.error.generic') });
+    } finally {
+      setGuarantorBusy(null);
+    }
   }
 
   // ---- persistence ----------------------------------------------------------
@@ -383,6 +492,24 @@ export function ApplyPage() {
         void docsQuery.refetch();
         return;
       }
+      case 'documents_stale': {
+        const labels = staleDocumentsFrom(error).map((category) => {
+          const slot = slots.find((s) => s.category === category);
+          return slot ? t(slot.labelKey) : category;
+        });
+        goTo('documents');
+        setBanner({
+          tone: 'warn',
+          text: labels.length ? `${t('applyFlow.error.documentsStale')} ${labels.join(', ')}` : t('applyFlow.error.documentsStale'),
+        });
+        void docsQuery.refetch();
+        return;
+      }
+      case 'guarantor_consent_required':
+        goTo('guarantor');
+        setBanner({ tone: 'warn', text: t('applyFlow.error.guarantorConsentRequired') });
+        void guarantorQuery.refetch();
+        return;
       case 'vehicle_identity_incomplete':
         setBanner({ tone: 'warn', text: t('applyFlow.error.vehicleIdentity') });
         return;
@@ -456,7 +583,7 @@ export function ApplyPage() {
   const primaryDisabled =
     busy ||
     (step === 'vehicle' && violations.some((v) => v.severity === 'hard')) ||
-    (step === 'documents' && (!draftId || docsQuery.isLoading || missingRequired.length > 0)) ||
+    (step === 'documents' && (!draftId || docsQuery.isLoading || !docsReady)) ||
     (step === 'consents' && !consentStatus?.complete);
 
   async function goNext() {
@@ -469,6 +596,10 @@ export function ApplyPage() {
     }
     if (step === 'documents' && missingRequired.length) {
       setBanner({ tone: 'warn', text: t('applyFlow.docs.missing', { count: missingRequired.length }) });
+      return;
+    }
+    if (step === 'documents' && staleRequired.length) {
+      setBanner({ tone: 'warn', text: t('applyFlow.docs.staleCount', { count: staleRequired.length }) });
       return;
     }
     if (step === 'consents' && !consentStatus?.complete) {
@@ -552,7 +683,7 @@ export function ApplyPage() {
     (s: ApplyStep): boolean => {
       switch (s) {
         case 'documents':
-          return !!draftId && docsQuery.isSuccess && missingRequired.length === 0;
+          return !!draftId && docsQuery.isSuccess && docsReady;
         case 'consents':
           return !!consentStatus?.complete;
         case 'review':
@@ -561,7 +692,7 @@ export function ApplyPage() {
           return Object.keys(validateStep(s, form, plan, ctx, residency)).length === 0;
       }
     },
-    [draftId, docsQuery.isSuccess, missingRequired.length, consentStatus?.complete, form, plan, ctx, residency],
+    [draftId, docsQuery.isSuccess, docsReady, consentStatus?.complete, form, plan, ctx, residency],
   );
 
   // ---- render -----------------------------------------------------------------
@@ -604,6 +735,7 @@ export function ApplyPage() {
           <MarketplaceNav />
           <div className="dm-apply__head-row">
             <div className="dm-apply__head-copy">
+              <BrandBadge size="sm" className="dm-apply__brand" />
               <p className="dm-band__eyebrow">{t('applyFlow.header.eyebrow')}</p>
               <h1>{t('applyFlow.title')}</h1>
               <p className="dm-band__lead">
@@ -697,12 +829,35 @@ export function ApplyPage() {
                 />
               ) : null}
               {step === 'guarantor' ? (
-                <GuarantorStep form={form} errors={visibleErrors} onChange={updateForm} onGuarantorChange={updateGuarantor} onBlur={markTouched} />
+                <GuarantorStep
+                  form={form}
+                  errors={visibleErrors}
+                  onChange={updateForm}
+                  onGuarantorChange={updateGuarantor}
+                  onBlur={markTouched}
+                  consentPanel={
+                    <GuarantorConsentPanel
+                      session={guarantorSession}
+                      loading={guarantorQuery.isLoading}
+                      error={guarantorQuery.isError}
+                      draftExists={!!draftId}
+                      needsFix={guarantorNeedsFix}
+                      busy={guarantorBusy}
+                      link={guarantorLink}
+                      notice={guarantorNotice}
+                      onSend={() => void sendGuarantorRequest()}
+                      onResend={() => void resendGuarantorRequest()}
+                      onCancel={() => void cancelGuarantorRequest()}
+                    />
+                  }
+                />
               ) : null}
               {step === 'documents' ? (
                 <DocumentsStep
                   slots={slots}
                   uploaded={uploadedSet}
+                  stale={staleSet}
+                  uploadedAt={uploadedAt}
                   fileNames={docsQuery.data?.names ?? {}}
                   uploads={uploads}
                   onUpload={(slot, file) => void onUpload(slot, file)}
@@ -712,6 +867,7 @@ export function ApplyPage() {
                   loading={docsQuery.isFetching}
                   requiredDone={requiredSlots.length - missingRequired.length}
                   requiredTotal={requiredSlots.length}
+                  staleRequired={staleRequired.length}
                 />
               ) : null}
               {step === 'consents' ? (
@@ -729,7 +885,10 @@ export function ApplyPage() {
                   tenure={plan.tenure}
                   slots={slots}
                   uploaded={uploadedSet}
+                  stale={staleSet}
                   consentStatus={consentStatus}
+                  guarantorSession={guarantorSession}
+                  creditPreview={creditPreview}
                   declaration={declaration}
                   declarationError={declarationError}
                   onDeclarationChange={(v) => {

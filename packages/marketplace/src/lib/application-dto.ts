@@ -75,7 +75,11 @@ export type CustomerApplication = {
   completedAt?: string | null;
   pricingSnapshot?: Record<string, unknown> | null;
   installmentPlan?: InstallmentPlan | null;
-  rejectionReason?: string | null;
+  /**
+   * Customers never see a decision reason (wave 2): a declined application
+   * renders a neutral card. Only the resubmission request — an instruction,
+   * not a reason — is surfaced.
+   */
   resubmissionComment?: string | null;
   contractGenerated?: boolean;
   /** Identity-level dedup hold (QID on file with different name/DOB). */
@@ -177,7 +181,6 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
     completedAt: asNullableIso(pick(raw, 'completedAt', 'completed_at')),
     pricingSnapshot,
     installmentPlan: pick<InstallmentPlan | null>(raw, 'installmentPlan', 'installment_plan') ?? null,
-    rejectionReason: pick<string | null>(raw, 'rejectionReason', 'rejection_reason') ?? null,
     resubmissionComment: pick<string | null>(raw, 'resubmissionComment', 'resubmission_comment') ?? null,
     contractGenerated: Boolean(pick(raw, 'contractGenerated', 'contract_generated') ?? false),
     identityHold: identityHoldReason

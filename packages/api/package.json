@@ -18,6 +18,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "ensure:seed-users": "node scripts/ensure-seed-users.mjs",
     "db:backfill-installment-plan": "tsx scripts/backfill-installment-plan.ts",
+    "qid:backfill": "tsx scripts/backfill-qid-encryption.ts",
+    "qid:drop-plaintext": "tsx scripts/drop-qid-plaintext.ts",
     "bootstrap:qauto": "tsx scripts/bootstrap-qauto.ts",
     "seed:qauto-inventory": "tsx scripts/seed-qauto-inventory.ts",
     "seed:qauto": "tsx scripts/run-qauto-seed.mjs",

@@ -44,6 +44,24 @@ export function assertCanManageUserRole(actor: User, targetRole: UserRole, nextR
 }
 
 /**
+ * Partner viewers belong to a finance provider instead of a dealer company:
+ * the role requires one, and the id must resolve. Any other role never
+ * carries a provider (the caller clears it). Returns the provider id to store.
+ */
+export function assertPartnerViewerAssignment(
+  role: UserRole,
+  financePartner: { id: string } | null,
+  requested: string | null | undefined,
+): string | null {
+  if (role !== UserRole.partner_viewer) return null;
+  if (!requested) throw new BadRequestException('partner_viewer_requires_finance_partner');
+  if (!financePartner || financePartner.id !== requested) {
+    throw new BadRequestException('finance_partner_not_found');
+  }
+  return financePartner.id;
+}
+
+/**
  * A home branch must belong to the company the user is (being) assigned to.
  * `branch` is null when the id did not resolve.
  */

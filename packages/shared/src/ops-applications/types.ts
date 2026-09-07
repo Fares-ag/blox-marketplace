@@ -1,5 +1,13 @@
 import type { ApplicationStatus, PublicOffer } from '../types/domain';
-import type { AssistedSessionDto, TakafulPolicyDto } from '../types/customer-platform';
+import type {
+  AssistedSessionDto,
+  CreditAssessmentDto,
+  DataRightsRequestDto,
+  GuarantorSessionDto,
+  PartnerApplicationDto,
+  TakafulPolicyDto,
+  TakafulProviderDto,
+} from '../types/customer-platform';
 import type { DocumentSlot } from '../lib/document-slots';
 
 export type OpsAudience = 'admin' | 'dealer' | 'credit' | 'finance' | 'super_admin';
@@ -14,15 +22,34 @@ export type OpsRuleFlag =
   | string
   | { code: string; severity?: 'hard' | 'soft'; params?: Record<string, string | number> };
 
+/** A checklist slot as the API returns it: the shared slot plus the newest upload date. */
+export type OpsDocumentSlot = DocumentSlot & { uploaded_at?: string | null };
+
 /** `GET /api/ops/applications/:id/document-slots`. */
 export type OpsDocumentSlotsResponse = {
-  slots: DocumentSlot[];
+  slots: OpsDocumentSlot[];
   uploaded: string[];
   missing: string[];
+  /** Categories whose newest upload is older than the slot's `maxAgeDays` (wave 2). */
+  stale?: string[];
 };
 
 /** `GET /api/assist-sessions?application_id=` — accepted as a bare array or a paginated envelope. */
 export type AssistedSessionListResponse = AssistedSessionDto[] | { items: AssistedSessionDto[] };
+
+/** `GET /api/applications/:id/guarantor/session` — null while no request has been sent. */
+export type GuarantorSessionResponse = GuarantorSessionDto | null;
+
+/** `GET /api/ops/takaful-providers` — bare array or envelope. */
+export type TakafulProviderListResponse = TakafulProviderDto[] | { items: TakafulProviderDto[] };
+
+/** `GET /api/ops/data-rights?status=` — bare array or envelope. */
+export type DataRightsListResponse = DataRightsRequestDto[] | { items: DataRightsRequestDto[]; total?: number };
+
+/** `GET /api/partner/applications?status=&limit=&offset=` — bare array or paginated envelope. */
+export type PartnerApplicationListResponse =
+  | PartnerApplicationDto[]
+  | { items: PartnerApplicationDto[]; total?: number; limit?: number; offset?: number };
 
 /** `POST /api/ops/applications/:id/unmask`. */
 export type OpsUnmaskField = 'qid' | 'phone';
@@ -139,7 +166,12 @@ export type OpsWorkspace = {
   identity_hold_reason?: string | null;
   identity_hold_at?: string | null;
   identity_hold_cleared_at?: string | null;
+  identity_hold_cleared_by_name?: string | null;
   consents_completed_at?: string | null;
+  activated_at?: string | null;
+  /** Assessment stored at submit (wave 2); the workspace prefers the live endpoint. */
+  credit_assessment?: CreditAssessmentDto | null;
+  approval_authority?: string | null;
   branch_id?: string | null;
   branch_name?: string | null;
   /** Soft product-rule findings recorded at intake for credit review. */
