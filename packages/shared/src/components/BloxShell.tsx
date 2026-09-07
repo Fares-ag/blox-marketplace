@@ -180,15 +180,25 @@ export function BloxShell({ title, nav, children, homePaths = ['/'], breadcrumb,
 
   const notifications = useNotifications(!!user, notifOpen);
 
-  function isActive(path: string) {
-    if (homePaths.includes(path)) {
-      return location.pathname === path || (path !== '/' && location.pathname.startsWith(`${path}/`));
+  /** Longest matching nav path wins — avoids /applications and /applications/new both active. */
+  const activeNavPath = useMemo(() => {
+    function matches(pathname: string, navPath: string): boolean {
+      if (homePaths.includes(navPath)) {
+        return pathname === navPath || (navPath !== '/' && pathname.startsWith(`${navPath}/`));
+      }
+      if (navPath === '/') return pathname === '/';
+      return pathname === navPath || pathname.startsWith(`${navPath}/`);
     }
-    if (path === '/') return location.pathname === '/';
-    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+    const hits = nav.filter((item) => matches(location.pathname, item.to));
+    if (hits.length === 0) return null;
+    return hits.reduce((best, item) => (item.to.length > best.to.length ? item : best)).to;
+  }, [nav, location.pathname, homePaths]);
+
+  function isActive(path: string) {
+    return path === activeNavPath;
   }
 
-  const activeItem = useMemo(() => nav.find((item) => isActive(item.to)), [nav, location.pathname]);
+  const activeItem = useMemo(() => nav.find((item) => item.to === activeNavPath), [nav, activeNavPath]);
   const groups = useMemo(() => groupNav(nav), [nav]);
 
   // Keyboard: "[" toggles the sidebar, "n" opens notifications, "/" focuses global search, Esc closes drawers.
