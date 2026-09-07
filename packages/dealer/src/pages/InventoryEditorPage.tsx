@@ -178,11 +178,12 @@ export function InventoryEditorPage() {
 
   return (
     <OpsFormPage
+      wide
       title={isNew ? t('ops.dealer.newListing') : t('ops.dealer.editListing')}
       subtitle={t('ops.dealer.listingSubtitle')}
     >
       <OpsFormSection title={t('ops.dealer.listingDetails')}>
-      <form onSubmit={onSubmit} className="blox-form">
+      <form onSubmit={onSubmit} className="blox-form-grid__full blox-form blox-form--wide blox-form--3col">
         <label>
           Make
           <input required value={make} onChange={(e) => setMake(e.target.value)} />
@@ -265,11 +266,11 @@ export function InventoryEditorPage() {
           Price (QAR)
           <input type="number" required value={price} onChange={(e) => setPrice(Number(e.target.value))} />
         </label>
-        <label>
+        <label className="blox-form__full">
           Description
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
         </label>
-        <label className="blox-checkbox-row">
+        <label className="blox-checkbox-row blox-form__full">
           <input
             type="checkbox"
             checked={financeEligible}
@@ -281,28 +282,30 @@ export function InventoryEditorPage() {
         <div className="blox-form-block">
           <h3 className="blox-panel__subtitle">{t('inventoryRules.identityTitle')}</h3>
           <p className="blox-field__hint">{t('inventoryRules.identityHint')}</p>
-          <label>
-            {t('inventoryRules.vin')}
-            <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} autoComplete="off" spellCheck={false} />
-          </label>
-          <label>
-            {t('inventoryRules.chassisNumber')}
-            <input
-              value={chassisNumber}
-              onChange={(e) => setChassisNumber(e.target.value.toUpperCase())}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
-          <label>
-            {t('inventoryRules.engineNumber')}
-            <input
-              value={engineNumber}
-              onChange={(e) => setEngineNumber(e.target.value.toUpperCase())}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
+          <div className="blox-grid-3">
+            <label>
+              {t('inventoryRules.vin')}
+              <input value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} autoComplete="off" spellCheck={false} />
+            </label>
+            <label>
+              {t('inventoryRules.chassisNumber')}
+              <input
+                value={chassisNumber}
+                onChange={(e) => setChassisNumber(e.target.value.toUpperCase())}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <label>
+              {t('inventoryRules.engineNumber')}
+              <input
+                value={engineNumber}
+                onChange={(e) => setEngineNumber(e.target.value.toUpperCase())}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+          </div>
           {identityComplete ? (
             <OpsAlert variant="success" title={t('inventoryRules.identityTitle')}>
               {t('dealerOps.vehicle.identityComplete')}
@@ -325,8 +328,8 @@ export function InventoryEditorPage() {
           )}
         </div>
 
-        {error && <p className="blox-form-error" role="alert">{error}</p>}
-        <button type="submit" className="blox-btn blox-btn--primary" disabled={inventoryBusy}>
+        {error && <p className="blox-form-error blox-form__full" role="alert">{error}</p>}
+        <button type="submit" className="blox-btn blox-btn--primary blox-form__full" disabled={inventoryBusy}>
           {save.isPending ? t('dealerOps.vehicle.saving') : t('dealerOps.vehicle.save')}
         </button>
       </form>

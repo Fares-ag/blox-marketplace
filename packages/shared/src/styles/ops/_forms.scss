@@ -23,6 +23,30 @@
     }
   }
 
+  &--3col {
+    max-width: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    @media (max-width: 1100px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 700px) {
+      grid-template-columns: 1fr;
+    }
+
+    > .blox-form__span,
+    > button,
+    > .blox-form__full,
+    > .blox-form-block {
+      grid-column: 1 / -1;
+    }
+  }
+
+  &--wide .blox-form-block {
+    max-width: none;
+  }
+
   label {
     display: grid;
     gap: 5px;
