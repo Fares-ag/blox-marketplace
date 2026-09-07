@@ -103,12 +103,6 @@ export function WizardReviewStep({
               />
               <InfoItem label={t('ops.wizard.listPrice')} value={formatQar(Number(vehicle.price ?? 0))} />
               {vehicle.company_name && <InfoItem label={t('ops.col.dealer')} value={vehicle.company_name} />}
-              {vehicle.identity_complete === false && (
-                <InfoItem
-                  label={t('inventoryRules.identityTitle')}
-                  value={<OpsStatusPill label={t('inventoryRules.incomplete')} variant="warning" />}
-                />
-              )}
             </div>
           ))
         )}

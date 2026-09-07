@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { apiFetch } from '../lib/api';
@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from '../auth/auth-store';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsPageHeader, OpsStatusPill } from '../components/ops-ui';
+import { StatusBadge } from '../ops-ui-v2';
 import {
   Alert,
   MultiStepForm,
@@ -26,14 +27,20 @@ import {
   type StepConfig,
   type StepProps,
 } from '../ops-ui-v2';
-import type { PaginatedResponse, PublicOffer } from '../types/domain';
+import type { PaginatedResponse, PublicOffer, DealerInventoryItem } from '../types/domain';
 import type { OpsAgent, OpsAudience } from './types';
 import { VehicleSelectionCards, type VehicleCardOption } from './VehicleSelectionCards';
 import { WizardAgentInvite } from './WizardAgentInvite';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { InstallmentPlanStep } from './InstallmentPlanStep';
 import { WizardReviewStep } from './WizardReviewStep';
-import { submitGateMessage } from './submit-gate';
+import { submitGateMessage, apiErrorCodeOf } from './submit-gate';
+import {
+  isListingSelectableForFinancing,
+  listingFinancingBlock,
+  willReserveListingOnSubmit,
+  type ListingFinancingBlock,
+} from './vehicle-availability';
 import type { InstallmentPlan } from '../types/installment-plan';
 import {
   DOCUMENT_SLOT_GROUP_LABEL_KEYS,
@@ -93,6 +100,52 @@ function identityComplete(v: VehicleOption): boolean | undefined {
   if (typeof v.identity_complete === 'boolean') return v.identity_complete;
   if (v.vin === undefined && v.chassis_number === undefined && v.engine_number === undefined) return undefined;
   return !!(v.vin?.trim() && v.chassis_number?.trim() && v.engine_number?.trim());
+}
+
+function vehicleAvailabilityMessage(
+  block: ListingFinancingBlock | null,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string | null {
+  if (!block) return null;
+  if (block.code === 'vehicle_unavailable') return t('dealerOps.vehicleAvailability.reserved');
+  if (block.status === 'draft') return t('dealerOps.vehicleAvailability.notPublished');
+  return t('dealerOps.vehicleAvailability.unavailable');
+}
+
+function validateSelectedVehicles(
+  data: WizardData,
+  vehicleItems: VehicleCardOption[],
+  isAdmin: boolean,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string | null {
+  if (!data.productIds.length) return t('ops.wizard.selectVehicle');
+  const willReserve = willReserveListingOnSubmit(isAdmin, data.submitOnCreate);
+  for (const id of data.productIds) {
+    const vehicle = vehicleItems.find((v) => v.id === id);
+    const message = vehicleAvailabilityMessage(
+      listingFinancingBlock(vehicle?.listing_status, willReserve),
+      t,
+    );
+    if (message) return message;
+  }
+  return null;
+}
+
+async function refreshSelectedListingStatuses(
+  productIds: string[],
+  isAdmin: boolean,
+): Promise<Map<string, string>> {
+  const statuses = new Map<string, string>();
+  for (const id of productIds) {
+    if (isAdmin) {
+      const row = await apiFetch<{ listing_status?: string }>(`/api/ops/products/${id}`);
+      statuses.set(id, String(row.listing_status ?? 'unknown'));
+    } else {
+      const row = await apiFetch<DealerInventoryItem>(`/api/dealer/inventory/${id}`);
+      statuses.set(id, String(row.listing_status ?? 'unknown'));
+    }
+  }
+  return statuses;
 }
 
 function filterVehicleItems(items: VehicleOption[], isAdmin: boolean, companyId: string): VehicleCardOption[] {
@@ -317,9 +370,11 @@ export function AddApplicationWizard({
     },
     {
       label: t('ops.wizard.step.vehicle'),
+      validate: (data) => validateSelectedVehicles(data, filterVehicleItems(vehicles.data?.items ?? [], isAdmin, data.companyId), isAdmin, t),
       component: ({ data, updateData }: StepProps<WizardData>) => {
         const items = filterVehicleItems(vehicles.data?.items ?? [], isAdmin, data.companyId);
-        const incomplete = items.filter((v) => data.productIds.includes(v.id) && v.identity_complete === false);
+        const willReserve = willReserveListingOnSubmit(isAdmin, data.submitOnCreate);
+        const vehicleSelectionError = validateSelectedVehicles(data, items, isAdmin, t);
         return (
           <>
             {isAdmin && (
@@ -343,18 +398,30 @@ export function AddApplicationWizard({
               onToggle={(id) => updateData(toggleProduct(data, id, items))}
               multiple={data.customerInfo.applicantType === 'corporate'}
               loading={vehicles.isLoading}
-              statusFor={(item) =>
-                item.identity_complete === false ? (
-                  <OpsStatusPill label={t('inventoryRules.incomplete')} variant="warning" />
-                ) : null
-              }
+              isSelectable={(item) => isListingSelectableForFinancing(item.listing_status, willReserve)}
+              statusFor={(item) => {
+                const block = listingFinancingBlock(item.listing_status, willReserve);
+                return (
+                  <>
+                    {item.listing_status && item.listing_status !== 'published' && (
+                      <StatusBadge
+                        status={item.listing_status}
+                        type="listing"
+                        label={t(`ops.listingStatus.${item.listing_status}`, {
+                          defaultValue: item.listing_status.replace(/_/g, ' '),
+                        })}
+                      />
+                    )}
+                    {block && (
+                      <OpsStatusPill label={t('dealerOps.vehicleAvailability.unavailable')} variant="warning" />
+                    )}
+                  </>
+                );
+              }}
             />
-            {incomplete.length > 0 && (
-              <Alert variant="warning" title={t('inventoryRules.incomplete')}>
-                {t('dealerOps.plan.vehicleIdentityMissing')}{' '}
-                {audience === 'dealer' && (
-                  <Link to={`/inventory/${incomplete[0].id}`}>{t('dealerOps.plan.fixInInventory')}</Link>
-                )}
+            {vehicleSelectionError && data.productIds.length > 0 && (
+              <Alert variant="warning" title={t('dealerOps.vehicleAvailability.unavailable')}>
+                {vehicleSelectionError}
               </Alert>
             )}
           </>
@@ -590,7 +657,13 @@ export function AddApplicationWizard({
         if (customerError) return customerError;
         const docsError = validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t);
         if (docsError) return docsError;
-        if (!data.productIds.length) return t('ops.wizard.selectVehicle');
+        const vehicleError = validateSelectedVehicles(
+          data,
+          filterVehicleItems(vehicles.data?.items ?? [], isAdmin, data.companyId),
+          isAdmin,
+          t,
+        );
+        if (vehicleError) return vehicleError;
         if (!data.offerId) return t('ops.wizard.selectOffer');
         if (planContext(data).hard.length) return t('dealerOps.validation.rulesBlocking');
         if (!data.planPricingSnapshot || !data.installmentPlan) return t('ops.wizard.completePlan');
@@ -633,6 +706,20 @@ export function AddApplicationWizard({
     setError(null);
 
     try {
+      const willReserve = willReserveListingOnSubmit(isAdmin, data.submitOnCreate);
+      const statuses = await refreshSelectedListingStatuses(data.productIds, isAdmin);
+      for (const id of data.productIds) {
+        const availabilityError = vehicleAvailabilityMessage(
+          listingFinancingBlock(statuses.get(id), willReserve),
+          t,
+        );
+        if (availabilityError) {
+          setError(availabilityError);
+          toast.error(availabilityError);
+          return;
+        }
+      }
+
       const customerSnapshot = buildCustomerSnapshot(data.customerInfo);
       const created = await apiFetch<{ id: string; created_ids?: string[] }>(
         '/api/ops/applications',
@@ -670,7 +757,15 @@ export function AddApplicationWizard({
 
       navigate(`${detailBase}/${ids[0]}`);
     } catch (err) {
-      const message = submitGateMessage(err, t) ?? (err instanceof Error ? err.message : t('ops.wizard.submitFailed'));
+      const code = apiErrorCodeOf(err);
+      const message =
+        submitGateMessage(err, t) ??
+        (code === 'vehicle_unavailable'
+          ? t('dealerOps.vehicleAvailability.reserved')
+          : code === 'listing_not_available'
+            ? t('dealerOps.vehicleAvailability.unavailable')
+            : null) ??
+        (err instanceof Error ? err.message : t('ops.wizard.submitFailed'));
       setError(message);
       toast.error(message);
     } finally {

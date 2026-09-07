@@ -81,6 +81,7 @@ export function VehicleCardGrid({
   hrefFor,
   statusFor,
   emptyTitle,
+  isSelectable,
 }: {
   items: VehicleCardOption[];
   loading?: boolean;
@@ -91,6 +92,8 @@ export function VehicleCardGrid({
   hrefFor?: (item: VehicleCardOption) => string;
   statusFor?: (item: VehicleCardOption) => ReactNode;
   emptyTitle?: string;
+  /** When false, the card cannot be selected (e.g. draft or reserved listings). */
+  isSelectable?: (item: VehicleCardOption) => boolean;
 }) {
   const { t } = useOpsLabels();
   const [query, setQuery] = useState('');
@@ -122,8 +125,11 @@ export function VehicleCardGrid({
         <div className={`blox-vehicle-grid${searchable ? ' blox-vehicle-grid--with-search' : ''}`}>
           {filtered.map((v) => {
             const selected = selectedIds.includes(v.id);
+            const selectable = isSelectable?.(v) ?? true;
             const imageUrl = resolveListingImageUrl(v.primary_image);
-            const cardClass = `blox-vehicle-card${selected ? ` ${selectedCardClass}` : ''}`;
+            const cardClass = `blox-vehicle-card${selected ? ` ${selectedCardClass}` : ''}${
+              !selectable ? ' blox-vehicle-card--disabled' : ''
+            }`;
 
             if (hrefFor) {
               return (
@@ -133,7 +139,8 @@ export function VehicleCardGrid({
                       <input
                         type="checkbox"
                         checked={selected}
-                        onChange={() => onToggle(v.id)}
+                        disabled={!selectable}
+                        onChange={() => selectable && onToggle(v.id)}
                         aria-label={`Select ${v.make} ${v.model}`}
                       />
                     </label>
@@ -157,7 +164,8 @@ export function VehicleCardGrid({
                 key={v.id}
                 type="button"
                 className={`${cardClass} blox-vehicle-card--button`}
-                onClick={() => onToggle?.(v.id)}
+                disabled={!selectable}
+                onClick={() => selectable && onToggle?.(v.id)}
               >
                 <VehicleCardBody
                   item={v}
@@ -183,6 +191,7 @@ export function VehicleSelectionCards({
   multiple,
   loading,
   statusFor,
+  isSelectable,
 }: {
   items: VehicleCardOption[];
   selectedIds: string[];
@@ -190,6 +199,7 @@ export function VehicleSelectionCards({
   multiple: boolean;
   loading?: boolean;
   statusFor?: (item: VehicleCardOption) => ReactNode;
+  isSelectable?: (item: VehicleCardOption) => boolean;
 }) {
   return (
     <VehicleCardGrid
@@ -199,6 +209,7 @@ export function VehicleSelectionCards({
       multiple={multiple}
       loading={loading}
       statusFor={statusFor}
+      isSelectable={isSelectable}
     />
   );
 }

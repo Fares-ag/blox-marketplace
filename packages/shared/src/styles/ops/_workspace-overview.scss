@@ -6,11 +6,12 @@
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
-  margin: 0 0 var(--blox-space-lg);
+  margin: 0 0 var(--blox-space-lg, 24px);
   background: var(--blox-border);
   border: 1px solid var(--blox-border);
   border-radius: var(--blox-radius-card, 12px);
   overflow: hidden;
+  box-shadow: var(--blox-shadow-rest);
 
   @media (max-width: $bp-md) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -23,16 +24,21 @@
 
 .blox-fact {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
-  padding: 10px 14px;
+  padding: 12px 16px;
   background: var(--blox-surface);
+  transition: background var(--blox-motion-fast) var(--blox-ease-standard);
+
+  &:hover {
+    background: #fafefe;
+  }
 
   dt {
     margin: 0;
-    font-size: 0.6875rem;
+    font-size: 0.625rem;
     font-weight: 600;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--blox-slate);
   }
@@ -49,8 +55,9 @@
 
   &__num {
     font-family: var(--blox-font-mono);
-    font-weight: 500;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -155,20 +162,23 @@
 
 .blox-decision {
   border-color: var(--blox-emerald);
-  box-shadow: 0 0 0 3px var(--blox-emerald-soft);
+  box-shadow: 0 0 0 3px var(--blox-emerald-soft), var(--blox-shadow-rest);
+
+  // Emerald accent on the inline-start edge
+  border-inline-start: 3px solid var(--blox-emerald);
 
   &__eyebrow {
     margin: 0;
-    font-size: 0.6875rem;
+    font-size: 0.625rem;
     font-weight: 600;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--blox-slate);
+    color: var(--blox-emerald-ink, #0b7a63);
   }
 
   &__title {
-    margin: 2px 0 12px;
-    font-size: 0.9375rem;
+    margin: 4px 0 14px;
+    font-size: 1rem;
     font-weight: 600;
     line-height: 1.35;
     color: var(--blox-deep-green);
@@ -178,10 +188,11 @@
   &__actions {
     display: grid;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: 14px;
 
     > .blox-btn {
       width: 100%;
+      height: 40px;
     }
   }
 
@@ -195,6 +206,20 @@
     }
   }
 
+  &__block {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--blox-radius-control, 8px);
+    background: var(--blox-warning-soft);
+    border: 1px solid #eed7a8;
+    color: var(--blox-warning-ink, #8a5400);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    margin-top: 10px;
+  }
+
   &__none {
     margin: 0;
     font-size: 0.8125rem;
@@ -203,8 +228,8 @@
 }
 
 .blox-decision-footer {
-  margin-top: var(--blox-space-lg);
-  max-width: 520px;
+  margin-top: var(--blox-space-lg, 24px);
+  max-width: 560px;
 }
 
 .blox-tl {
@@ -342,23 +367,34 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 1px solid var(--blox-border);
   border-radius: var(--blox-radius-control, 8px);
   font-size: 0.8125rem;
+  background: var(--blox-surface);
+  transition: border-color var(--blox-motion-fast) var(--blox-ease-standard),
+              box-shadow var(--blox-motion-fast) var(--blox-ease-standard);
+
+  @media (hover: hover) {
+    &:hover {
+      border-color: var(--blox-field-border, #a9b8ba);
+      box-shadow: var(--blox-shadow-rest);
+    }
+  }
 
   &__ic {
     display: grid;
     place-items: center;
-    width: 30px;
-    height: 28px;
+    width: 32px;
+    height: 30px;
     border-radius: 6px;
-    background: var(--blox-canvas);
-    color: var(--blox-slate);
+    background: var(--blox-emerald-soft);
+    color: var(--blox-emerald-ink, #0b7a63);
     font-family: var(--blox-font-mono);
     font-size: 0.625rem;
-    font-weight: 600;
+    font-weight: 700;
     flex: none;
+    letter-spacing: 0.02em;
   }
 
   &__name {
@@ -367,6 +403,21 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: 500;
+    color: var(--blox-deep-green);
+  }
+
+  &__sub {
+    font-size: 0.6875rem;
+    color: var(--blox-slate);
+    margin-top: 1px;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
   }
 }
 
