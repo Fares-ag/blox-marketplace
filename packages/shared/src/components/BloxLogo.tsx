@@ -6,14 +6,14 @@ export type BloxLogoTone = 'onDark' | 'onLight';
 type BloxLogoProps = {
   /** Visual height in px (width scales). Default 28 for nav. */
   height?: number;
-  /** onDark = white wordmark on dark UI; onLight = wordmark on brand plate for light UI */
+  /** onDark = light wordmark on dark chrome; onLight = deep-green wordmark on light surfaces */
   tone?: BloxLogoTone;
   className?: string;
   style?: CSSProperties;
   alt?: string;
 };
 
-/** Standard Blox wordmark (nav / shell / auth). */
+/** Standard Blox wordmark — same PNG assets as blox-app (`BloxLogoNav` / `BloxLogo`). */
 export function BloxLogo({
   height = 28,
   tone = 'onDark',
@@ -21,44 +21,25 @@ export function BloxLogo({
   style,
   alt = bloxMeta.name,
 }: BloxLogoProps) {
-  const width = Math.round(height * (120 / 32));
-  const mark = (
-    <img
-      src={BLOX_LOGO_PUBLIC_PATH}
-      alt={alt}
-      width={width}
-      height={height}
-      className={`blox-logo ${className}`.trim()}
-      style={{ display: 'block', height, width: 'auto', ...style }}
-    />
-  );
-
-  if (tone === 'onLight') {
-    return (
-      <span
-        className={`blox-logo-plate ${className}`.trim()}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: `${Math.max(4, Math.round(height * 0.22))}px ${Math.max(8, Math.round(height * 0.45))}px`,
-          borderRadius: Math.max(6, Math.round(height * 0.28)),
-          background: 'var(--blox-deep-green, #16535B)',
-          lineHeight: 0,
-          ...style,
-        }}
-      >
-        {mark}
-      </span>
-    );
-  }
-
+  const src = tone === 'onDark' ? BLOX_LOGO_NAV_PATH : BLOX_LOGO_PATH;
   return (
-    <span className="blox-logo-wrap" style={{ display: 'inline-flex', lineHeight: 0 }}>
-      {mark}
+    <span className="blox-logo-wrap" style={{ display: 'inline-flex', lineHeight: 0, ...style }}>
+      <img
+        src={src}
+        alt={alt}
+        height={height}
+        className={`blox-logo ${className}`.trim()}
+        style={{ display: 'block', height, width: 'auto' }}
+      />
     </span>
   );
 }
 
-/** Public path for static HTML / favicon use (served from shared public/). */
-export const BLOX_LOGO_PUBLIC_PATH = '/brand/blox-logo-nav.svg';
+/** Nav wordmark for dark chrome (white + emerald). */
+export const BLOX_LOGO_NAV_PATH = '/brand/blox-logo-nav.png';
+
+/** Full wordmark for light surfaces (deep green + emerald). */
+export const BLOX_LOGO_PATH = '/brand/blox-logo.png';
+
+/** @deprecated use BLOX_LOGO_NAV_PATH */
+export const BLOX_LOGO_PUBLIC_PATH = BLOX_LOGO_NAV_PATH;

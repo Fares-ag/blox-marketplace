@@ -17,7 +17,7 @@ export const Loading: React.FC<LoadingProps> = ({
     <Box className={`loading-container ${fullScreen ? 'fullscreen' : ''}`}>
       <Box className="animated-logo-wrapper" style={{ width: size, height: size }}>
         <img
-          src="/brand/blox-logo-nav.svg"
+          src="/brand/blox-logo-nav.png"
           alt="Blox Logo"
           className="animated-logo"
         />

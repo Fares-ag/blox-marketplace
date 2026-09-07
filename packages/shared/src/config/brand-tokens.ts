@@ -28,9 +28,9 @@ export const brandMeta = {
   tagline: "Own it, don't owe it.",
   direction: 'Editorial Automotive Marketplace',
   logo: {
-    wordmarkOnDark: '/brand/dm-wordmark-light.svg',
-    wordmarkOnLight: '/brand/dm-wordmark-dark.svg',
-    mark: '/brand/dm-mark.svg',
+    wordmarkOnDark: '/brand/blox-logo-nav.png',
+    wordmarkOnLight: '/brand/blox-logo.png',
+    mark: '/brand/blox-logo-nav.png',
   },
 } as const;
 
