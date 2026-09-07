@@ -10,7 +10,7 @@
 .blox-page {
   display: flex;
   flex-direction: column;
-  gap: var(--blox-space);
+  gap: var(--blox-space-lg, 24px);
   max-width: min(100%, var(--bp-content-max));
   width: 100%;
 }
@@ -36,18 +36,18 @@
 .blox-page-header {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
 
-  // Phase 1 §02: page title 28/32/600.
+  // Phase 1 §02: page title 28/32/700.
   h1,
   h2 {
     margin: 0;
     font-family: var(--blox-font-ui);
     font-size: 1.75rem;
     line-height: 1.15;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: -0.01em;
     color: var(--blox-deep-green);
     text-wrap: balance;

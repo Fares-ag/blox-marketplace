@@ -178,12 +178,12 @@
 
   input {
     width: 100%;
-    height: 34px;
+    height: 36px;
     padding: 0 30px 0 32px;
     padding-inline-start: 32px;
     padding-inline-end: 30px;
     border: 1px solid var(--blox-border);
-    border-radius: var(--blox-radius-control, 8px);
+    border-radius: 20px;
     background: var(--blox-canvas);
     color: var(--blox-ink);
     font-family: var(--blox-font-ui);
