@@ -33,7 +33,7 @@ import { shouldSyncStatusToCrm } from '../integrations/zoho/zoho-sync-policy';
 import { ApplicationIntakeService } from './application-intake.service';
 import { assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
 import { normalizeCustomerSnapshot, type NormalizedCustomerSnapshot } from './customer-snapshot';
-import { assertSubmitGates, vehicleIdentityComplete } from './submit-gates';
+import { assertSubmitGates, VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE } from './submit-gates';
 import { assessApplicationCredit, creditAssessedLogMetadata, creditAssessmentData } from './credit-assessment';
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
@@ -191,10 +191,6 @@ export class ApplicationsStaffService {
         }
         if (product.listingStatus !== ListingStatus.published) {
           throw new BadRequestException('listing_not_available');
-        }
-        // VIN + chassis + engine number must be on file before the listing is reserved.
-        if (!vehicleIdentityComplete(product)) {
-          throw new ConflictException('vehicle_identity_incomplete');
         }
       }
 
@@ -357,7 +353,8 @@ export class ApplicationsStaffService {
       application: app,
       documents: app.documents.map(({ uploadedBy, ...doc }) => ({ ...doc, uploadedByRole: uploadedBy?.role ?? null })),
       product: app.product,
-      requireVehicleIdentity: fromStatus === ApplicationStatus.draft,
+      requireVehicleIdentity:
+        VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE && fromStatus === ApplicationStatus.draft,
       guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
       identityPolicy: {
         ekycRequired: this.appConfig.kycEkycRequired,

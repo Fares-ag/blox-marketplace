@@ -1,0 +1,12 @@
+export declare function formatDateYmd(d: Date): string;
+export declare function parseYmd(s: string): Date;
+export declare function startOfDay(d?: Date): Date;
+export declare function startOfMonth(d: Date): Date;
+export declare function addMonths(d: Date, months: number): Date;
+export declare function addDays(d: Date, days: number): Date;
+export declare function daysInMonth(d: Date): number;
+export declare function isSameMonth(a: Date, b: Date): boolean;
+export declare function isSameDay(a: Date, b: Date): boolean;
+export declare function isBeforeMonth(a: Date, b: Date): boolean;
+export declare function isBeforeDay(a: Date, b: Date): boolean;
+export declare function monthKey(d: Date): string;

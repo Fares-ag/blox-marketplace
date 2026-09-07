@@ -57,6 +57,9 @@ export type SubmitGateProduct = {
   modelYear?: number | null;
 };
 
+/** Re-enable when inventory requires VIN, chassis and engine before reserve. */
+export const VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE = false;
+
 export type SubmitGateInput = {
   application: SubmitGateApplication;
   documents: ApplicationDocumentForValidation[];
@@ -115,7 +118,11 @@ export function evaluateSubmitGates(input: SubmitGateInput): SubmitGateFailure |
     return { code: 'guarantor_consent_required' };
   }
 
-  if (input.requireVehicleIdentity && !vehicleIdentityComplete(product)) {
+  if (
+    VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE &&
+    input.requireVehicleIdentity &&
+    !vehicleIdentityComplete(product)
+  ) {
     return { code: 'vehicle_identity_incomplete' };
   }
 

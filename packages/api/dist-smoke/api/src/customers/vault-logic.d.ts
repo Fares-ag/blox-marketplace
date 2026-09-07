@@ -1,0 +1,11 @@
+import type { CustomerDocument, CustomerDocumentCategory } from '@prisma/client';
+import type { CustomerDocumentDto } from '../../../shared/src/types/customer-platform';
+export declare const VAULT_EXPIRING_SOON_DAYS = 60;
+export declare function startOfUtcDay(now?: Date): Date;
+export declare function daysBetweenUtc(from: Date, to: Date): number;
+export declare function daysToExpiry(expiresAt: Date | null | undefined, now?: Date): number | null;
+export type ExpiryState = CustomerDocumentDto['expiry_state'];
+export declare function expiryState(days: number | null, soonDays?: number): ExpiryState;
+export declare function maskDocumentNumber(plain: string | null | undefined): string | null;
+export declare const CUSTOMER_DOCUMENT_LABELS: Record<CustomerDocumentCategory, string>;
+export declare function toCustomerDocumentDto(doc: CustomerDocument, documentNumber: string | null, now?: Date): CustomerDocumentDto;

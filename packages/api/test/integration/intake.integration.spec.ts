@@ -14,7 +14,6 @@ import {
   seedOffer,
   seedProduct,
   seedUnderReviewApplication,
-  setVehicleIdentity,
 } from './support/fixtures';
 import {
   acceptConsents,
@@ -371,11 +370,7 @@ describe('customer intake (integration)', () => {
     expect(opsSlots.status).toBe(200);
     expect(opsSlots.body.uploaded).toEqual(['bank', 'passport', 'qid', 'salary']);
 
-    // 4. vehicle identity before the listing is reserved
-    expectApiError(await submit(bilal, applicationId), 409, 'vehicle_identity_incomplete');
-    await setVehicleIdentity(ctx.prisma, secondCar.id);
-
-    // 5. submitted: reserved listing, default lender of record, ops notified
+    // 4. submitted: reserved listing, default lender of record, ops notified
     const submitted = await submit(bilal, applicationId);
     expect(submitted.status).toBe(200);
     expect(submitted.body).toEqual(

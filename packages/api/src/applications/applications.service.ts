@@ -75,7 +75,7 @@ import {
   readCustomerSnapshot,
   type CustomerSnapshotInput,
 } from './customer-snapshot';
-import { assertSubmitGates, identityHoldActive } from './submit-gates';
+import { assertSubmitGates, identityHoldActive, VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE } from './submit-gates';
 import { AppConfigService } from '../config/app-config.service';
 import type { IdentityPolicy } from './application-documents';
 import {
@@ -484,7 +484,8 @@ export class ApplicationsService {
       application: app,
       documents,
       product: app.product,
-      requireVehicleIdentity: app.status === ApplicationStatus.draft,
+      requireVehicleIdentity:
+        VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE && app.status === ApplicationStatus.draft,
       guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
       identityPolicy: this.identityPolicy(),
       now: new Date(),

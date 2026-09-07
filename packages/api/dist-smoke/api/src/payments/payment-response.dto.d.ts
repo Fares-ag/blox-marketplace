@@ -1,0 +1,43 @@
+import type { PaymentTransaction, Prisma, ScheduleStatus } from '@prisma/client';
+export declare function toPaymentScheduleDto(s: {
+    id: string;
+    applicationId: string;
+    sequence: number;
+    dueDate: Date;
+    amount: Prisma.Decimal;
+    paidAmount: Prisma.Decimal;
+    remainingAmount: Prisma.Decimal;
+    status: ScheduleStatus;
+    paymentMethod: string | null;
+    paymentReference: string | null;
+    paidAt: Date | null;
+    pendingWaiveReason?: string | null;
+    pendingWaiveRequestedById?: string | null;
+    pendingWaiveRequestedAt?: Date | null;
+}): {
+    id: string;
+    application_id: string;
+    sequence: number;
+    due_date: string;
+    amount: number;
+    paid_amount: number;
+    remaining_amount: number;
+    status: import(".prisma/client").$Enums.ScheduleStatus;
+    payment_method: string | null;
+    payment_reference: string | null;
+    paid_at: string | null;
+    pending_waive_reason: string | null;
+    pending_waive_requested_by_id: string | null;
+    pending_waive_requested_at: string | null;
+};
+export declare function toPaymentTransactionDto(txn: PaymentTransaction): {
+    id: string;
+    idempotency_key: string;
+    application_id: string;
+    schedule_id: string | null;
+    amount: number;
+    status: import(".prisma/client").$Enums.PaymentTransactionStatus;
+    gateway_payment_id: string | null;
+    created_at: Date;
+    updated_at: Date;
+};

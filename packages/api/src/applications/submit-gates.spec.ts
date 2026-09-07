@@ -114,22 +114,20 @@ describe('evaluateSubmitGates', () => {
     });
     expect(evaluateSubmitGates(guarantorPending)?.code).toBe('guarantor_consent_required');
     expect(evaluateSubmitGates({ ...guarantorPending, guarantorConsentCompleted: true })?.code).toBe(
-      'vehicle_identity_incomplete',
+      'vehicle_age_rule',
     );
 
-    // Documents in → vehicle identity before the listing is reserved.
-    const documented = input({ ...consented, documents: input().documents });
-    expect(evaluateSubmitGates(documented)?.code).toBe('vehicle_identity_incomplete');
-
-    // Vehicle identity complete → age rule (2010 car, 60 months → 21 years at tenure end).
-    const identified = input({ ...documented, product: { ...input().product, modelYear: 2010 } });
-    expect(evaluateSubmitGates(identified)).toEqual({
-      code: 'vehicle_age_rule',
-      params: { max_years_at_tenure_end: 10, age_at_tenure_end: 21 },
+    // Documents in → age rule when the vehicle would exceed the limit (identity gate optional for now).
+    const documented = input({
+      ...consented,
+      documents: input().documents,
+      product: { vin: null, chassisNumber: null, engineNumber: null, modelYear: 2010 },
     });
+    expect(evaluateSubmitGates(documented)?.code).toBe('vehicle_age_rule');
 
-    // Recent model year → passes.
-    expect(evaluateSubmitGates(input({ ...identified, product: input().product }))).toBeNull();
+    // Recent model year with optional identity → passes.
+    const identified = input({ ...consented, documents: input().documents, product: input().product });
+    expect(evaluateSubmitGates(identified)).toBeNull();
   });
 
   it('requires the passport only for expatriates', () => {
