@@ -1,7 +1,7 @@
 // Skeletons — Phase 1 §05. Shimmer on the muted ground; static under reduced motion.
 .blox-skel {
   display: block;
-  border-radius: 6px;
+  border-radius: var(--blox-radius-control, 8px);
   background: linear-gradient(90deg, var(--blox-muted, #e8efef) 25%, #f5f9f9 50%, var(--blox-muted, #e8efef) 75%);
   background-size: 200% 100%;
   animation: blox-shimmer 1.4s linear infinite;
@@ -28,7 +28,7 @@
 
 .blox-skel-table {
   border: 1px solid var(--blox-border);
-  border-radius: var(--blox-radius-card, 12px);
+  border-radius: var(--blox-radius-card, 16px);
   overflow: hidden;
   background: var(--blox-surface);
 
@@ -64,7 +64,7 @@
   padding: 16px 20px;
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: var(--blox-radius-card, 12px);
+  border-radius: var(--blox-radius-card, 16px);
 }
 
 @media (prefers-reduced-motion: reduce) {

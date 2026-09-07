@@ -33,7 +33,7 @@
   }
 
   &--error {
-    background: var(--blox-danger-soft, #fbebe9);
+    background: var(--blox-status-danger-bg, #FBEBE9);
     border-color: #f1c7c3;
     color: var(--blox-danger);
 
@@ -43,7 +43,7 @@
   }
 
   &--warning {
-    background: var(--blox-warning-soft, #fbf1df);
+    background: var(--blox-status-warning-bg, #FBF1DF);
     border-color: #eed7a8;
     color: var(--blox-warning-ink, #8a5400);
 
@@ -53,7 +53,7 @@
   }
 
   &--info {
-    background: var(--blox-emerald-soft);
+    background: var(--blox-status-info-bg, #E6FBF5);
     border-color: #bfefe2;
     color: var(--blox-deep-green);
 
@@ -63,7 +63,7 @@
   }
 
   &--success {
-    background: var(--blox-success-soft, var(--blox-emerald-soft));
+    background: var(--blox-status-success-bg, #E6FBF5);
     border-color: #bfefe2;
     color: var(--blox-emerald-ink, #0b7a63);
 

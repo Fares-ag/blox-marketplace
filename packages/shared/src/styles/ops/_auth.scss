@@ -125,6 +125,10 @@
     display: grid;
     gap: 16px;
     animation: dm-auth-rise 560ms 80ms var(--blox-ease-standard) both;
+    background: var(--blox-surface);
+    border-radius: var(--blox-radius-card, 16px);
+    padding: 28px 32px;
+    box-shadow: var(--blox-shadow-rest);
   }
 
   .dm-auth-card__eyebrow,

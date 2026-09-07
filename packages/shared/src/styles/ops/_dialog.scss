@@ -51,7 +51,11 @@
 
   @media (max-width: 480px) {
     padding: 20px 16px;
-    border-radius: var(--blox-radius-card, 12px);
+    border-radius: var(--blox-radius-card, 16px);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    width: 100%;
+    max-width: 100%;
 
     &__actions {
       flex-direction: column-reverse;
@@ -60,5 +64,12 @@
         width: 100%;
       }
     }
+  }
+}
+
+.blox-dialog-scrim {
+  @media (max-width: 480px) {
+    place-items: end center;
+    padding: 0;
   }
 }

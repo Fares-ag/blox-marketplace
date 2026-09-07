@@ -96,8 +96,8 @@
   text-align: center;
   color: var(--blox-slate);
   background: var(--blox-surface);
-  border: 1px dashed var(--blox-field-border, #a9b8ba);
-  border-radius: var(--blox-radius-card, 12px);
+  border: 1.5px dashed var(--blox-field-border, #a9b8ba);
+  border-radius: var(--blox-radius-card, 16px);
   font-size: 0.875rem;
 
   &__glyph,
