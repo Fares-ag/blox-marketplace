@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 
 type FieldShellProps = {
@@ -137,6 +138,93 @@ export function OpsTextarea({
   );
 }
 
+type OpsNumberFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> &
+  ShellExtras & {
+    value: number | null;
+    onValueChange: (value: number) => void;
+    /** Inclusive band the committed value is held inside on blur. */
+    min?: number;
+    max?: number;
+    /** Committed when the box is left empty. */
+    emptyValue?: number;
+  };
+
+function clampNumber(value: number, min?: number, max?: number): number {
+  let out = value;
+  if (typeof min === 'number' && out < min) out = min;
+  if (typeof max === 'number' && out > max) out = max;
+  return out;
+}
+
+/**
+ * Numeric input that keeps what the user typed while they are typing.
+ *
+ * A plain `value={n}` number box mangles its own contents: emptying it parses
+ * to 0, React writes "0" back, and the next keystroke reads "030". Holding the
+ * draft text locally lets the box be empty, and shows a real 0 instead of
+ * blanking it the way `value={n || ''}` does. The band is applied on blur, not
+ * per keystroke, so typing "3" on the way to "30" is not snapped to the
+ * minimum.
+ */
+export function OpsNumberField({
+  label,
+  hint,
+  error,
+  fullWidth,
+  optionalLabel,
+  mono,
+  value,
+  onValueChange,
+  min,
+  max,
+  emptyValue = 0,
+  onBlur,
+  ...rest
+}: OpsNumberFieldProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? (value == null ? '' : String(value));
+
+  return (
+    <OpsFieldShell
+      label={label}
+      hint={hint}
+      error={error}
+      fullWidth={fullWidth}
+      required={rest.required}
+      optionalLabel={optionalLabel}
+      mono={mono}
+      htmlFor={rest.id}
+    >
+      <input
+        type="number"
+        inputMode="decimal"
+        aria-invalid={error ? true : undefined}
+        {...rest}
+        min={min}
+        max={max}
+        value={shown}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setDraft(raw);
+          if (raw.trim() === '') {
+            onValueChange(emptyValue);
+            return;
+          }
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed)) onValueChange(parsed);
+        }}
+        onBlur={(e) => {
+          const raw = e.target.value.trim();
+          const parsed = raw === '' ? emptyValue : Number(raw);
+          const committed = clampNumber(Number.isFinite(parsed) ? parsed : emptyValue, min, max);
+          setDraft(null);
+          onValueChange(committed);
+          onBlur?.(e);
+        }}
+      />
+    </OpsFieldShell>
+  );
+}
 export function OpsFormGrid({ children }: { children: ReactNode }) {
   return <div className="blox-form-grid">{children}</div>;
 }

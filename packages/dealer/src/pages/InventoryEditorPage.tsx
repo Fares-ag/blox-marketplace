@@ -82,7 +82,7 @@ export function InventoryEditorPage() {
   const identityComplete = !!vin.trim() && !!chassisNumber.trim() && !!engineNumber.trim();
   const identitySaved = !isNew && existing.data?.identity_complete === identityComplete;
   const maxTenureForYear = Number.isFinite(modelYear) ? maxTenureMonthsForModelYear(modelYear) : null;
-  const longestTenure = PRODUCT_RULES.tenure.maxMonths.qatari;
+  const longestTenure = PRODUCT_RULES.tenure.maxMonths;
 
   const save = useMutation({
     mutationFn: async () => {

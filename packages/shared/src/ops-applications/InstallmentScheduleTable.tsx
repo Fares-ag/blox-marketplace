@@ -1,11 +1,15 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { formatQar } from '../lib/format';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsStatusPill } from '../components/ops-ui';
 import { EmptyState, Table, type Column } from '../ops-ui-v2';
 import { scheduleOpsPillVariant } from '../config/status-styles';
-import { isScheduleLikelyDaily, normalizeInstallmentInterval } from '../lib/installment-plan-utils';
-import { parseTenureToMonths } from '../lib/tenure';
+import {
+  aggregateDailyScheduleToMonthly,
+  isScheduleLikelyDaily,
+  normalizeInstallmentInterval,
+} from '../lib/installment-plan-utils';
+import { MAX_TENURE_MONTHS, parseTenureToMonths } from '../lib/tenure';
 import { resolveDisplaySchedule, type DisplayScheduleRow } from '../lib/resolve-display-schedule';
 import { rowOwnershipShares } from '../lib/plan-ownership';
 import type { InstallmentPlan } from '../types/installment-plan';
@@ -77,11 +81,24 @@ export function InstallmentScheduleTable({
   const planRows = installmentPlan?.schedule ?? [];
   const normalizedInterval = normalizeInstallmentInterval(installmentPlan?.interval);
   const looksDaily = isScheduleLikelyDaily(planRows.length ? planRows : rows);
-  const showConvert =
-    canConvertDaily &&
-    !!installmentPlan &&
-    rows.length > 0 &&
-    (normalizedInterval === 'daily' || looksDaily);
+  const isDaily = normalizedInterval === 'daily' || looksDaily;
+  const showConvert = canConvertDaily && !!installmentPlan && rows.length > 0 && isDaily;
+
+  // A daily plan repeats the same figure every day: 48 months is 1,461 rows and
+  // roughly twelve thousand cells, which is what made this page crawl. Roll them
+  // up per month by default and keep the day-by-day list one click away.
+  const [showEveryDay, setShowEveryDay] = useState(false);
+  // `isScheduleLikelyDaily` only asks whether any month holds more than one
+  // row, which a monthly plan with a catch-up payment also satisfies. Require
+  // a row count no monthly schedule reaches before rolling anything up.
+  const worthCollapsing = isDaily && rows.length > 2 * MAX_TENURE_MONTHS;
+  const collapseDaily = worthCollapsing && !showEveryDay;
+
+  const displayRows: DisplayScheduleRow[] = useMemo(() => {
+    if (!collapseDaily) return rows;
+    const monthly = aggregateDailyScheduleToMonthly(rows);
+    return monthly.map((row, index) => ({ ...row, sequence: index + 1, source: 'plan' as const }));
+  }, [collapseDaily, rows]);
 
   const tenureMonths = parseTenureToMonths(installmentPlan?.tenure ?? '12 Months');
   const downPayment = Number(installmentPlan?.downPayment ?? 0);
@@ -89,15 +106,41 @@ export function InstallmentScheduleTable({
 
   const tableRows: ScheduleTableRow[] = useMemo(
     () =>
-      rows.map((row, index) => ({
+      displayRows.map((row, index) => ({
         ...row,
         rowIndex: index,
         id: row.id ?? `row-${index}`,
       })),
-    [rows],
+    [displayRows],
   );
 
+  // Both share columns need the same result; computing it twice per row doubled
+  // the work on a schedule that is already the largest thing on the page.
+  const shareCache = useMemo(() => new Map<number, { customerShare: number; bloxShare: number }>(), [
+    price,
+    downPayment,
+    tenureMonths,
+    installmentPlan,
+    tableRows,
+  ]);
+
   const columns: Column<ScheduleTableRow>[] = useMemo(() => {
+    const sharesFor = (row: ScheduleTableRow) => {
+      const cached = shareCache.get(row.rowIndex);
+      if (cached) return cached;
+      const computed = rowOwnershipShares({
+        vehiclePrice: price,
+        downPayment,
+        tenureMonths,
+        paymentIndex: row.rowIndex,
+        amount: Number(row.amount),
+        calculationMethod: installmentPlan?.calculationMethod,
+        paymentStructure: installmentPlan?.paymentStructure,
+      });
+      shareCache.set(row.rowIndex, computed);
+      return computed;
+    };
+
     const base: Column<ScheduleTableRow>[] = [
       {
         id: 'sequence',
@@ -132,34 +175,12 @@ export function InstallmentScheduleTable({
       {
         id: 'customerShare',
         label: t('ops.workspace.col.customerShare'),
-        format: (_, row) => {
-          const { customerShare } = rowOwnershipShares({
-            vehiclePrice: price,
-            downPayment,
-            tenureMonths,
-            paymentIndex: row.rowIndex,
-            amount: Number(row.amount),
-            calculationMethod: installmentPlan?.calculationMethod,
-            paymentStructure: installmentPlan?.paymentStructure,
-          });
-          return formatQar(customerShare);
-        },
+        format: (_, row) => formatQar(sharesFor(row).customerShare),
       },
       {
         id: 'bloxShare',
         label: t('ops.workspace.col.bloxShare'),
-        format: (_, row) => {
-          const { bloxShare } = rowOwnershipShares({
-            vehiclePrice: price,
-            downPayment,
-            tenureMonths,
-            paymentIndex: row.rowIndex,
-            amount: Number(row.amount),
-            calculationMethod: installmentPlan?.calculationMethod,
-            paymentStructure: installmentPlan?.paymentStructure,
-          });
-          return formatQar(bloxShare);
-        },
+        format: (_, row) => formatQar(sharesFor(row).bloxShare),
       },
     ];
 
@@ -194,7 +215,7 @@ export function InstallmentScheduleTable({
     }
 
     return base;
-  }, [t, onMarkPaid, markPaidBlockedReason, price, downPayment, tenureMonths, installmentPlan]);
+  }, [t, onMarkPaid, markPaidBlockedReason, price, downPayment, tenureMonths, installmentPlan, shareCache]);
 
   if (rows.length === 0) {
     return (
@@ -207,13 +228,29 @@ export function InstallmentScheduleTable({
 
   return (
     <div className="blox-installment-schedule">
-      {((projected || !isActive) || (onMarkPaid && markPaidBlockedReason) || (showConvert && onConvertDaily)) && (
+      {((projected || !isActive) || worthCollapsing || (onMarkPaid && markPaidBlockedReason) || (showConvert && onConvertDaily)) && (
         <div className="blox-installment-schedule__notes">
           {(projected || !isActive) && <p className="blox-panel__hint">{t('ops.workspace.scheduleProjected')}</p>}
           {onMarkPaid && markPaidBlockedReason && (
             <p className="blox-panel__hint" role="note">
               {markPaidBlockedReason}
             </p>
+          )}
+          {worthCollapsing && (
+            <div className="blox-installment-schedule__daily-toggle">
+              <p className="blox-panel__hint">
+                {collapseDaily
+                  ? t('ops.workspace.dailyRolledUp', { days: rows.length, months: tableRows.length })
+                  : t('ops.workspace.dailyExpanded', { days: rows.length })}
+              </p>
+              <button
+                type="button"
+                className="blox-btn blox-btn--ghost blox-btn--sm"
+                onClick={() => setShowEveryDay((prev) => !prev)}
+              >
+                {collapseDaily ? t('ops.workspace.showEveryDay') : t('ops.workspace.showByMonth')}
+              </button>
+            </div>
           )}
           {showConvert && onConvertDaily && (
             <button type="button" className="blox-btn blox-btn--secondary blox-btn--sm" onClick={onConvertDaily}>

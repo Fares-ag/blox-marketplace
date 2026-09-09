@@ -97,9 +97,17 @@ export function assessCredit(input: CreditAssessmentInput, now = new Date()): Cr
   };
 }
 
-/** Which ops roles may sign off each authority level. */
+/**
+ * Which ops roles may sign off each authority level.
+ *
+ * Finance officers sit beside credit officers: this platform grants them
+ * credit-parity review decisions (approve, reject, resubmit, reopen) and the
+ * `finance ↔ credit parity` regression lock depends on it. The ladder above
+ * them is unchanged — larger tickets still escalate to the head of credit and
+ * then beyond the matrix.
+ */
 export const APPROVAL_AUTHORITY_ROLES: Record<ApprovalAuthority, ReadonlyArray<string>> = {
-  senior_manager: ['credit_officer', 'admin', 'super_admin'],
+  senior_manager: ['credit_officer', 'finance_officer', 'admin', 'super_admin'],
   head_of_credit: ['admin', 'super_admin'],
   above_matrix: ['super_admin'],
 };
@@ -111,6 +119,8 @@ export function roleMayApprove(role: string, authority: ApprovalAuthority): bool
 /** Highest DBR exception tier a role may approve without escalation (EXC001). */
 export const MAX_EXCEPTION_TIER_BY_ROLE: Record<string, number> = {
   credit_officer: 1,
+  // Credit parity: the same exception ceiling as a credit officer.
+  finance_officer: 1,
   admin: 2,
   super_admin: 3,
 };

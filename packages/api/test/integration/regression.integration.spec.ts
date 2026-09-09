@@ -104,14 +104,19 @@ describe('regression locks (integration)', () => {
       return ctx.prisma.user.findUniqueOrThrow({ where: { email } });
     }
 
-    const productAReview = await seedProduct(ctx.prisma, { companyId: companyA.id, offerId: offerA.id });
-    const productBReview = await seedProduct(ctx.prisma, { companyId: companyB.id, offerId: offerB.id });
-    const productAActivate = await seedProduct(ctx.prisma, { companyId: companyA.id, offerId: offerA.id });
-    const productBActivate = await seedProduct(ctx.prisma, { companyId: companyB.id, offerId: offerB.id });
-    const productATransition = await seedProduct(ctx.prisma, { companyId: companyA.id, offerId: offerA.id });
-    const productBTransition = await seedProduct(ctx.prisma, { companyId: companyB.id, offerId: offerB.id });
-    const productAContract = await seedProduct(ctx.prisma, { companyId: companyA.id, offerId: offerA.id });
-    const productBContract = await seedProduct(ctx.prisma, { companyId: companyB.id, offerId: offerB.id });
+    // QAR 60,000 finances 48,000 with the fixture's 20% down, inside the LOS FSD
+    // §1.5 senior-manager band a credit officer may approve. This lock is about
+    // company scoping, so the approval matrix must not be what refuses Company B.
+    const car = (companyId: string, offerId: string) =>
+      seedProduct(ctx.prisma, { companyId, offerId, price: 60_000 });
+    const productAReview = await car(companyA.id, offerA.id);
+    const productBReview = await car(companyB.id, offerB.id);
+    const productAActivate = await car(companyA.id, offerA.id);
+    const productBActivate = await car(companyB.id, offerB.id);
+    const productATransition = await car(companyA.id, offerA.id);
+    const productBTransition = await car(companyB.id, offerB.id);
+    const productAContract = await car(companyA.id, offerA.id);
+    const productBContract = await car(companyB.id, offerB.id);
 
     const appAReview = await seedUnderReviewApplication(ctx.prisma, {
       customer: await customer('lifecycle-a-review'),

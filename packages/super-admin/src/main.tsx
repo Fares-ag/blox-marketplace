@@ -9,6 +9,9 @@ import {
   MfaSetupPage,
   BloxShell,
   OpsAppFrame,
+  TakafulProvidersPage,
+  TakafulProviderEditPage,
+  DataRightsQueuePage,
   type BloxNavItem,
   useOpsLabels,
   mountPortalApp,
@@ -34,6 +37,8 @@ function App() {
       { to: '/users', label: t('ops.superAdmin.nav.users'), icon: 'users' },
       { to: '/companies', label: t('ops.superAdmin.nav.companies'), icon: 'company' },
       { to: '/finance-providers', label: t('adminOps.nav.financeProviders'), icon: 'finance' },
+      { to: '/takaful-providers', label: t('adminOps.nav.takafulProviders'), icon: 'insurance' },
+      { to: '/data-rights', label: t('adminOps.nav.dataRights'), icon: 'queue' },
       { to: '/activity-logs', label: t('ops.superAdmin.nav.activityLogs'), icon: 'logs' },
       { to: '/system', label: t('ops.superAdmin.nav.system'), icon: 'system' },
     ],
@@ -65,6 +70,12 @@ function App() {
                   <Route path="/finance-providers" element={<FinanceProvidersPage />} />
                   <Route path="/finance-providers/new" element={<FinanceProviderEditPage />} />
                   <Route path="/finance-providers/:id" element={<FinanceProviderEditPage />} />
+                  <Route path="/takaful-providers" element={<TakafulProvidersPage />} />
+                  <Route path="/takaful-providers/new" element={<TakafulProviderEditPage />} />
+                  <Route path="/takaful-providers/:id" element={<TakafulProviderEditPage />} />
+                  {/* `/data-rights/<id>` is the link in-app notifications send the privacy team. */}
+                  <Route path="/data-rights" element={<DataRightsQueuePage />} />
+                  <Route path="/data-rights/:id" element={<DataRightsQueuePage />} />
                   <Route path="/activity-logs" element={<ActivityLogsPage />} />
                   <Route path="/system" element={<SystemPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

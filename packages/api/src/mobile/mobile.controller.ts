@@ -1,10 +1,29 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { User, UserRole } from '@prisma/client';
-import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsNumber, IsObject, IsOptional, IsString, Matches, MinLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
+import { GUARANTOR_RELATIONSHIPS, type GuarantorRelationship } from '../applications/customer-snapshot';
 import { Response } from 'express';
 import { CurrentUser, Public, Roles } from '../auth/guards';
 import { PaymentsService } from '../payments/payments.service';
 import { MobileService } from './mobile.service';
+
+class MobileGuarantorDto {
+  @IsString() fullName!: string;
+  @Matches(QID_PATTERN, { message: QID_VALIDATION_MESSAGE }) qid!: string;
+  @IsString() phone!: string;
+  @IsIn(GUARANTOR_RELATIONSHIPS) relationship!: GuarantorRelationship;
+  @IsOptional() @IsNumber() monthlyIncome?: number;
+}
+
+class MobileAddressDto {
+  @IsOptional() @IsString() line1?: string;
+  @IsOptional() @IsString() area?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() zone?: string;
+  @IsOptional() @IsString() poBox?: string;
+}
 
 class MobileCreateApplicationDto {
   @IsString() vehicleId!: string;
@@ -21,6 +40,23 @@ class MobileCreateApplicationDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateOfBirth must be YYYY-MM-DD' })
   dateOfBirth?: string;
   @IsOptional() @IsString() residenceDuration?: string;
+  @IsOptional() @IsString() employmentDuration?: string;
+  @IsOptional() @IsString() employer?: string;
+  @IsOptional() @IsString() city?: string;
+  /**
+   * Existing monthly commitments. Without it the debt-burden ratio is computed
+   * as if the applicant had none, so a mobile application read better than the
+   * same one entered on the web.
+   */
+  @IsOptional() @IsNumber() monthlyLiabilities?: number;
+  /**
+   * A guarantor must be declared here (or in a later draft save) before the
+   * guarantor consent session can be opened — otherwise it answers
+   * `guarantor_not_declared`.
+   */
+  @IsOptional() @IsBoolean() hasGuarantor?: boolean;
+  @IsOptional() @ValidateNested() @Type(() => MobileGuarantorDto) guarantor?: MobileGuarantorDto;
+  @IsOptional() @ValidateNested() @Type(() => MobileAddressDto) address?: MobileAddressDto;
 }
 
 class DeviceTokenDto {

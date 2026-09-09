@@ -135,19 +135,28 @@ describe('validateEmployment / validateGuarantor', () => {
 });
 
 describe('plan helpers', () => {
-  it('clamps tenure to the residency cap and the down payment to the offer minimum', () => {
+  it('leaves an unusual but allowed plan alone and only clamps the hard band', () => {
+    // 60 months at 5% down is inside the accepted bands for an expatriate; it
+    // is flagged for review rather than rewritten under the customer.
     const expat = normalizePlan({ tenure: 60, downPct: 5 }, CTX, 'expat');
-    expect(expat.plan).toEqual({ tenure: 48, downPct: 20 });
-    expect(expat.adjusted).toBe(true);
+    expect(expat.plan).toEqual({ tenure: 60, downPct: 5 });
+    expect(expat.adjusted).toBe(false);
     const qatari = normalizePlan({ tenure: 60, downPct: 25 }, CTX, 'qatari');
     expect(qatari.plan).toEqual({ tenure: 60, downPct: 25 });
     expect(qatari.adjusted).toBe(false);
+    // Outside the band it is pulled back in.
+    const wild = normalizePlan({ tenure: 96, downPct: 150 }, CTX, 'qatari');
+    expect(wild.plan).toEqual({ tenure: 60, downPct: 90 });
+    expect(wild.adjusted).toBe(true);
   });
 
-  it('flags hard product-rule violations on the vehicle step', () => {
-    expect(validateStep('vehicle', filledForm(), { tenure: 60, downPct: 20 }, CTX, 'expat', NOW)).toEqual({
+  it('blocks the vehicle step only on a hard product-rule violation', () => {
+    // Over the hard band: refused.
+    expect(validateStep('vehicle', filledForm(), { tenure: 96, downPct: 20 }, CTX, 'expat', NOW)).toEqual({
       plan: 'applyFlow.error.ruleViolation',
     });
+    // Over the residency guideline: allowed through, flagged elsewhere.
+    expect(validateStep('vehicle', filledForm(), { tenure: 60, downPct: 20 }, CTX, 'expat', NOW)).toEqual({});
     expect(validateStep('vehicle', filledForm(), { tenure: 48, downPct: 20 }, CTX, 'expat', NOW)).toEqual({});
   });
 

@@ -34,10 +34,17 @@ import { TakafulService, type TakafulFile } from './takaful.service';
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_DATE_MESSAGE = 'dates must be YYYY-MM-DD';
 
-class UpdateTakafulDto {
-  @IsOptional() @IsString() @Length(1, 120) provider?: string;
-  @IsOptional() @IsString() @Length(1, 80) policy_number?: string;
-  @IsOptional() @IsIn(TAKAFUL_COVERAGE_TYPES) coverage_type?: TakafulCoverageType;
+/**
+ * Policy fields that are optional on both routes.
+ *
+ * The declare and update DTOs deliberately do NOT inherit from one another:
+ * class-validator inherits the parent's metadata, so an `@IsOptional()` on a
+ * parent property keeps applying to a child that re-declares it as required
+ * (and a `declare` re-declaration emits no decorator metadata at all). That
+ * combination let a declaration without a provider pass validation and crash
+ * the service on `provider.trim()`.
+ */
+class TakafulPolicyFieldsDto {
   @IsOptional() @IsNumber() @Min(0) coverage_amount?: number | null;
   @IsOptional() @IsNumber() @Min(0) premium_amount?: number | null;
   @IsOptional() @Matches(ISO_DATE_PATTERN, { message: ISO_DATE_MESSAGE }) effective_from?: string | null;
@@ -45,10 +52,16 @@ class UpdateTakafulDto {
   @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(80, { each: true }) riders?: string[];
 }
 
-class DeclareTakafulDto extends UpdateTakafulDto {
-  @IsString() @Length(1, 120) declare provider: string;
-  @IsString() @Length(1, 80) declare policy_number: string;
-  @IsIn(TAKAFUL_COVERAGE_TYPES) declare coverage_type: TakafulCoverageType;
+class UpdateTakafulDto extends TakafulPolicyFieldsDto {
+  @IsOptional() @IsString() @Length(1, 120) provider?: string;
+  @IsOptional() @IsString() @Length(1, 80) policy_number?: string;
+  @IsOptional() @IsIn(TAKAFUL_COVERAGE_TYPES) coverage_type?: TakafulCoverageType;
+}
+
+class DeclareTakafulDto extends TakafulPolicyFieldsDto {
+  @IsString() @Length(1, 120) provider!: string;
+  @IsString() @Length(1, 80) policy_number!: string;
+  @IsIn(TAKAFUL_COVERAGE_TYPES) coverage_type!: TakafulCoverageType;
   @IsBoolean() declaration_accepted!: boolean;
 }
 

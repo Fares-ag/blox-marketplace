@@ -343,19 +343,19 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 12px;
+    gap: 14px;
   }
 
   &__stage {
     display: grid;
-    justify-items: center;
-    gap: 4px;
+    gap: 6px;
   }
 
   &__head {
     width: 100%;
     display: flex;
     justify-content: space-between;
+    align-items: baseline;
     gap: 8px;
     font-size: 0.8125rem;
   }
@@ -368,13 +368,24 @@
   &__meta {
     font-family: var(--blox-font-mono);
     color: var(--blox-slate);
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  &__track {
+    width: 100%;
+    height: 28px;
+    border-radius: var(--blox-radius-sm, 8px);
+    background: var(--blox-surface-muted, #f4f6f8);
+    overflow: hidden;
   }
 
   &__bar {
     display: block;
-    height: 24px;
-    border-radius: 4px 4px 0 0;
-    box-shadow: inset 0 0 0 1px rgba(22, 83, 91, 0.08);
+    height: 100%;
+    min-width: 0;
+    border-radius: inherit;
+    transition: width 0.25s ease;
   }
 
   &__drop {
@@ -628,6 +639,7 @@
 .blox-form-hint { margin: 8px 0 0; font-size: 0.8125rem; color: var(--blox-slate); }
 .blox-installment-schedule__notes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
 .blox-installment-schedule__notes .blox-panel__hint { margin: 0; }
+.blox-installment-schedule__daily-toggle { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .blox-panel__subtitle { margin: 16px 0 8px; font-size: 0.875rem; font-weight: 600; color: var(--blox-deep-green); }
 
 // Phase 4 utilities (replace inline styles in portal pages)

@@ -173,7 +173,7 @@ export function DataRightsQueuePage() {
         format: (_, r) => r.handled_by_name ?? '—',
       },
     ],
-    [t, dataRightsRoute, searchParams], // eslint-disable-line react-hooks/exhaustive-deps
+    [t, dataRightsRoute, searchParams],
   );
 
   const detailTitle = selected

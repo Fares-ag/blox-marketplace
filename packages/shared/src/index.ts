@@ -154,6 +154,7 @@ export {
   SearchBar,
   FilterPanel,
   MultiStepForm,
+  clearMultiStepDraft,
   PageSkeleton,
   PortalBasePathProvider,
   usePortalBasePath,
@@ -277,6 +278,9 @@ export {
   financingCapFor,
   hasHardViolation,
   maxTenureFor,
+  recommendedMaxTenureFor,
+  tenureBounds,
+  downPaymentBounds,
   minDownPaymentPctFor,
   requiredApprovalAuthority,
   residenceMonthsFromOption,
@@ -310,14 +314,29 @@ export {
   type EligibilityResult,
 } from './lib/affordability';
 export {
+  originationFunnelChartStages,
+  type OriginationFunnelCounts,
+  type OriginationFunnelStageLabels,
+} from './lib/origination-funnel-ui';
+export {
   ISO_NUMERIC_COUNTRIES,
   QID_LENGTH,
   ageFromDateOfBirth,
   dateOfBirthMatchesQid,
   normalizeQid,
+  parseIsoDateParts,
   parseQid,
   type ParsedQid,
 } from './lib/qid';
+export {
+  QATAR_DIAL_CODE,
+  QATAR_PHONE_DIGITS,
+  formatQatarPhone,
+  isValidEmail,
+  isValidQatarPhone,
+  normalizePhoneInput,
+  qatarPhoneSubscriberDigits,
+} from './lib/contact';
 export {
   CONSENT_CATALOG,
   CONSENT_CATALOG_VERSION,

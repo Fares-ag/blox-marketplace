@@ -176,14 +176,39 @@ export function parseQid(raw: string | null | undefined, now: Date = new Date())
   };
 }
 
-/** True when the typed date of birth agrees with the birth year encoded in the QID. */
+/**
+ * `YYYY-MM-DD`, optionally carrying a time part so API timestamps parse too.
+ * Anchoring both ends is what makes the year exactly four digits: reading the
+ * first four characters of "20001-05-12" used to yield 2000 and match.
+ */
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/;
+
+/** Calendar-real ISO date, or null. Rejects "2001-02-30" and "1990-13-01". */
+export function parseIsoDateParts(value: string | null | undefined): { year: number; month: number; day: number } | null {
+  const m = ISO_DATE_RE.exec(String(value ?? '').trim());
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
+  return { year, month, day };
+}
+
+/**
+ * True when the typed date of birth agrees with the birth year encoded in the
+ * QID. `null` means "cannot tell" (no date, or no readable QID year); a date
+ * that is present but not a real ISO date is a mismatch, not an unknown, so a
+ * malformed year cannot slip through the gate unchallenged.
+ */
 export function dateOfBirthMatchesQid(dateOfBirth: string | null | undefined, qid: string | null | undefined): boolean | null {
   if (!dateOfBirth) return null;
   const parsed = parseQid(qid);
   if (!parsed.valid || parsed.birthYear == null) return null;
-  const year = Number(String(dateOfBirth).slice(0, 4));
-  if (!Number.isFinite(year)) return null;
-  return year === parsed.birthYear;
+  const date = parseIsoDateParts(dateOfBirth);
+  if (!date) return false;
+  return date.year === parsed.birthYear;
 }
 
 /** Age today, from an ISO date string. Null when the date is missing or invalid. */

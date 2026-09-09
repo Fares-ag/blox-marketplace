@@ -1,5 +1,9 @@
 # KYC compliance check against `blox_brd_qatar_ekyc.docx` — 2026-09-07
 
+> **Superseded in part.** Remediation shipped against the Phase 1 list (plus two Phase 2 items)
+> on the same date — see [KYC_BRD_REMEDIATION_2026-09-07.md](./KYC_BRD_REMEDIATION_2026-09-07.md).
+> This assessment is kept as the dated point-in-time record and is not edited.
+
 Mode: READ / REPORT. No code was changed. Scope is the standalone KYC platform (`blox-kyc-module`:
 `apps/api`, `apps/capture`, `apps/dashboard`, `apps/mobile`, `packages/shared`) plus the KYC
 touchpoints inside `blox-marketplace` (`packages/api/src/kyc`, application document rules,

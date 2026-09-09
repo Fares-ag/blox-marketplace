@@ -17,6 +17,7 @@ import {
   bloxTokens,
   exportToCSV,
   getAppLocale,
+  originationFunnelChartStages,
 } from '@drivemarket/shared';
 import type { FunnelPeriodPreset, OriginationFunnelDto, OriginationFunnelGroupBy, OriginationFunnelRow } from '../types';
 import {
@@ -91,12 +92,11 @@ export function OriginationFunnelSection({
   const rows = data?.rows ?? [];
 
   const stages = totals
-    ? [
-        { label: t('originationAnalytics.stages.draft'), value: totals.drafts },
-        { label: t('originationAnalytics.stages.submitted'), value: totals.submitted },
-        { label: t('originationAnalytics.stages.approved'), value: totals.approved },
-        { label: t('originationAnalytics.stages.activated'), value: totals.activated },
-      ]
+    ? originationFunnelChartStages(totals, {
+        submitted: t('originationAnalytics.stages.submitted'),
+        approved: t('originationAnalytics.stages.approved'),
+        activated: t('originationAnalytics.stages.activated'),
+      })
     : [];
 
   const groupLabel =

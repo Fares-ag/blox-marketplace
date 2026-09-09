@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { apiFetch } from '../lib/api';
 import { useAuthStore } from './auth-store';
 
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'focus'] as const;
@@ -10,6 +11,14 @@ const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scr
  * device so the user sees a countdown instead of a surprise 401, and signs out
  * cleanly when it runs out. "Stay signed in" pings `/api/me`, which refreshes
  * the server session. The absolute ceiling is enforced server-side only.
+ *
+ * The heartbeat matters as much as the countdown. The API measures idleness in
+ * requests, and filling in a long form makes none, so someone typing steadily
+ * for longer than the idle window used to be signed out mid-sentence and lose
+ * the page. While there is real interaction, and only then, this pings the API
+ * so the server sees the same activity the browser does. An unattended tab
+ * still times out: the ping needs interaction since the last one, and stops
+ * while the tab is hidden or the warning is on screen.
  */
 export function SessionTimeoutGuard({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -17,6 +26,8 @@ export function SessionTimeoutGuard({ children }: { children: ReactNode }) {
   const policy = user?.session_policy ?? null;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const lastActivity = useRef(Date.now());
+  const lastPing = useRef(Date.now());
+  const activeSincePing = useRef(false);
   const warningOpen = useRef(false);
   const signingOut = useRef(false);
 
@@ -33,17 +44,37 @@ export function SessionTimeoutGuard({ children }: { children: ReactNode }) {
     const warnMs = Math.max(5, policy.warning_sec) * 1000;
     lastActivity.current = Date.now();
 
+    // Refresh well inside the window: the server only rewrites the cookie once
+    // per `updateAge` (at most a minute), so a third of the window is frequent
+    // enough to keep it alive and rare enough to stay quiet.
+    const pingMs = Math.max(60_000, Math.floor(idleMs / 3));
+    lastPing.current = Date.now();
+    activeSincePing.current = false;
+
     const onActivity = () => {
-      if (!warningOpen.current) lastActivity.current = Date.now();
+      if (warningOpen.current) return;
+      lastActivity.current = Date.now();
+      activeSincePing.current = true;
     };
     ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
 
     const timer = window.setInterval(() => {
-      const remaining = idleMs - (Date.now() - lastActivity.current);
+      const now = Date.now();
+      const remaining = idleMs - (now - lastActivity.current);
       if (remaining <= 0) {
         void signOutForIdle();
         return;
       }
+
+      const tabVisible = typeof document === 'undefined' || document.visibilityState !== 'hidden';
+      if (!warningOpen.current && activeSincePing.current && tabVisible && now - lastPing.current >= pingMs) {
+        lastPing.current = now;
+        activeSincePing.current = false;
+        // A failure here needs no handling: the shared 401 handler already
+        // signs out, and the countdown above still expires the session.
+        void apiFetch('/api/me').catch(() => undefined);
+      }
+
       if (remaining <= warnMs) {
         warningOpen.current = true;
         setSecondsLeft(Math.ceil(remaining / 1000));
@@ -61,6 +92,8 @@ export function SessionTimeoutGuard({ children }: { children: ReactNode }) {
 
   function stay() {
     lastActivity.current = Date.now();
+    lastPing.current = Date.now();
+    activeSincePing.current = false;
     warningOpen.current = false;
     setSecondsLeft(null);
     void useAuthStore.getState().refreshProfile();

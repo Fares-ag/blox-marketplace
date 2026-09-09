@@ -7,13 +7,14 @@
  * the components decide how and when to render them.
  */
 import {
-  PRODUCT_RULES,
   allowedTenureOptions,
   assessCredit,
   buildPricingSnapshot,
   dateOfBirthMatchesQid,
   employerCategoryFromEmploymentType,
   minDownPaymentPctFor,
+  tenureBounds,
+  downPaymentBounds,
   normalizeQid,
   parseQid,
   validateFinancingRequest,
@@ -359,27 +360,27 @@ export function buildPlanPricing(plan: ApplyPlan, ctx: PlanContext): PricingSnap
   return buildPricingSnapshot({
     listPrice: ctx.price,
     annualRatePercent: ctx.annualRatePercent,
-    minDownPaymentPct: planMinDownPct(ctx),
+    // Price the contribution the customer actually chose; the recommended
+    // minimum only pre-fills the form.
+    minDownPaymentPct: downPaymentBounds().min,
     tenureMonths: plan.tenure,
     downPaymentPct: plan.downPct,
   });
 }
 
 /**
- * Snap a plan into what the listing and the applicant's residency allow:
- * closest offered tenure not above the residency cap, down payment inside
- * [min, 80]. `adjusted` tells the UI to explain the change.
+ * Keep a plan inside the bands the product actually accepts: any whole month
+ * between 3 and 60, and any down payment between 0% and 90%. Tenures outside
+ * the offer's presets and contributions under the recommended minimum are
+ * allowed here — they surface as review flags, not as blocks.
  */
-export function normalizePlan(plan: ApplyPlan, ctx: PlanContext, residency: ResidencyClass | null): { plan: ApplyPlan; adjusted: boolean } {
-  const options = planTenureOptions(ctx, residency);
-  const minDown = planMinDownPct(ctx);
-  const maxDown = PRODUCT_RULES.downPayment.maxPct;
-  let tenure = plan.tenure;
-  if (options.length && !options.includes(tenure)) {
-    const below = options.filter((m) => m <= tenure);
-    tenure = below.length ? below[below.length - 1] : options[0];
-  }
-  const downPct = Math.min(Math.max(Number.isFinite(plan.downPct) ? plan.downPct : minDown, minDown), maxDown);
+export function normalizePlan(plan: ApplyPlan, ctx: PlanContext, _residency?: ResidencyClass | null): { plan: ApplyPlan; adjusted: boolean } {
+  const tenureBand = tenureBounds();
+  const downBand = downPaymentBounds();
+  const requested = Number.isFinite(plan.tenure) ? Math.round(plan.tenure) : planMinDownPct(ctx);
+  const tenure = Math.min(Math.max(requested, tenureBand.min), tenureBand.max);
+  const requestedDown = Number.isFinite(plan.downPct) ? plan.downPct : planMinDownPct(ctx);
+  const downPct = Math.min(Math.max(requestedDown, downBand.min), downBand.max);
   const adjusted = tenure !== plan.tenure || downPct !== plan.downPct;
   return { plan: { tenure, downPct }, adjusted };
 }

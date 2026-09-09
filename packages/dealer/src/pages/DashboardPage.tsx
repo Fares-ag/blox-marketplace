@@ -19,6 +19,7 @@ import {
   OpsPrimaryButton,
   OpsSecondaryButton,
   doughnutChartOptions,
+  originationFunnelChartStages,
   apiFetch,
   bloxTokens,
   chartColorAt,
@@ -176,21 +177,36 @@ export function DashboardPage() {
         >
           <DashboardGrid>
             <FunnelChart
-              stages={[
-                { label: t('originationAnalytics.stages.draft'), value: totals?.drafts ?? 0 },
-                { label: t('originationAnalytics.stages.submitted'), value: totals?.submitted ?? 0 },
-                { label: t('originationAnalytics.stages.approved'), value: totals?.approved ?? 0 },
-                { label: t('originationAnalytics.stages.activated'), value: totals?.activated ?? 0 },
-              ]}
+              stages={
+                totals
+                  ? originationFunnelChartStages(totals, {
+                      submitted: t('originationAnalytics.stages.submitted'),
+                      approved: t('originationAnalytics.stages.approved'),
+                      activated: t('originationAnalytics.stages.activated'),
+                    })
+                  : []
+              }
             />
-            <div className="blox-stack">
-              <OpsStatCard label={t('originationAnalytics.conversion')} value={pct(totals?.approval_rate)} />
-              <OpsStatCard label={t('originationAnalytics.tat')} value={hours(totals?.median_approval_hours)} />
+            <div className="blox-grid-2">
               <OpsStatCard
-                label={t('originationAnalytics.tatUnder24h')}
-                value={pct(totals?.under_24h_rate)}
-                delta={totals ? `${totals.rejected} ${t('originationAnalytics.stages.rejected').toLowerCase()}` : undefined}
+                label={t('originationAnalytics.stages.submitted')}
+                value={String(totals?.submitted ?? '—')}
+                delta={totals ? t('dealerOps.dashboard.draftsOpen', { count: totals.drafts }) : undefined}
               />
+              <OpsStatCard
+                label={t('originationAnalytics.conversion')}
+                value={pct(totals?.approval_rate)}
+                delta={
+                  totals
+                    ? t('dealerOps.dashboard.approvedOfSubmitted', {
+                        approved: totals.approved,
+                        submitted: totals.submitted,
+                      })
+                    : undefined
+                }
+              />
+              <OpsStatCard label={t('originationAnalytics.tat')} value={hours(totals?.median_approval_hours)} />
+              <OpsStatCard label={t('originationAnalytics.tatUnder24h')} value={pct(totals?.under_24h_rate)} />
             </div>
           </DashboardGrid>
           <OpsDataTable

@@ -8,6 +8,7 @@ import {
 } from './support/app';
 import { authed, signIn, signUpFresh } from './support/auth';
 import { resetDatabase } from './support/db';
+import { acceptConsents } from './support/flows';
 import { transitionApplication } from '../../src/applications/guarded-transitions';
 import {
   assignCreditOfficer,
@@ -16,8 +17,8 @@ import {
   seedDraftApplication,
   seedOffer,
   seedProduct,
-  seedRequiredDocuments,
   seedUnderReviewApplication,
+  seedVerifiedEkycIdentity,
   setUserRole,
   seedActiveApplicationWithSchedule,
   assignFinanceOfficer,
@@ -96,7 +97,9 @@ describe('API integration suite', () => {
       expect(createRes.status).toBe(201);
       const appId = createRes.body.id as string;
 
-      for (const category of ['qid', 'salary', 'bank', 'other'] as const) {
+      // The QID on the snapshot is an expatriate one, so the checklist asks for a
+      // passport alongside the income documents.
+      for (const category of ['qid', 'passport', 'salary', 'bank', 'other'] as const) {
         const upload = await authed(customerAAgent)
           .post(`/api/v1/applications/${appId}/documents`)
           .field('category', category)
@@ -106,6 +109,13 @@ describe('API integration suite', () => {
           });
         expect(upload.status).toBe(201);
       }
+
+      // BRD Qatar e-KYC BR-3: the customer's own QID photo is kept on file but
+      // does not satisfy identity — the verified capture from the KYC platform does.
+      await seedVerifiedEkycIdentity(ctx.prisma, appId);
+
+      // Consents are the gate before documents.
+      expect((await acceptConsents(customerAAgent, { applicationId: appId })).body.complete).toBe(true);
 
       const submit = await authed(customerAAgent).post(`/api/v1/applications/${appId}/submit`);
       expect(submit.status).toBe(200);

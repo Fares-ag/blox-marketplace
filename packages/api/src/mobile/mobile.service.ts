@@ -158,6 +158,19 @@ export class MobileService {
       gender?: string;
       dateOfBirth?: string;
       residenceDuration?: string;
+      employmentDuration?: string;
+      employer?: string;
+      city?: string;
+      monthlyLiabilities?: number;
+      hasGuarantor?: boolean;
+      guarantor?: {
+        fullName: string;
+        qid: string;
+        phone: string;
+        relationship: string;
+        monthlyIncome?: number;
+      };
+      address?: { line1?: string; area?: string; city?: string; zone?: string; poBox?: string };
     },
   ) {
     const product = await this.prisma.product.findUnique({
@@ -204,11 +217,21 @@ export class MobileService {
         ...(dto.nationality ? { nationality: dto.nationality } : {}),
         ...(dto.dateOfBirth ? { dateOfBirth: dto.dateOfBirth } : {}),
         ...(residenceDuration ? { residenceDuration } : {}),
+        ...(dto.city ? { city: dto.city } : {}),
+        ...(dto.address ? { address: dto.address } : {}),
         employment: {
+          ...(dto.employer ? { company: dto.employer } : {}),
           ...(employmentType ? { employmentType } : {}),
+          ...(dto.employmentDuration ? { employmentDuration: dto.employmentDuration } : {}),
           ...(salary !== undefined ? { salary } : {}),
         },
         ...(salary !== undefined ? { income: salary, monthlyIncome: salary } : {}),
+        // Without liabilities the debt-burden ratio would read as if the
+        // applicant had none, so a mobile application scored better than the
+        // same one entered on the web.
+        ...(dto.monthlyLiabilities !== undefined ? { monthlyLiabilities: dto.monthlyLiabilities } : {}),
+        ...(dto.hasGuarantor !== undefined ? { hasGuarantor: dto.hasGuarantor } : {}),
+        ...(dto.guarantor ? { guarantor: dto.guarantor } : {}),
       },
       pricingSnapshot: {
         tenor: dto.calculator?.termMonths ?? 36,

@@ -64,7 +64,7 @@ export class AppConfigService {
   /** Lifetime of an assisted-session link (minutes); the customer must verify the OTP within it. */
   readonly assistSessionTtlMinutes: number;
   /**
-   * BRD Qatar e-KYC BR-3: identity must be established by the KYC platform
+   * BRD Qatar e-KYC BR-7/BR-8: identity must be established by the KYC platform
    * (OCR + liveness + face match), never by a customer's hand-uploaded QID
    * photo. Defaults to on whenever the KYC integrator is configured;
    * KYC_EKYC_REQUIRED=false keeps the legacy manual slot for environments

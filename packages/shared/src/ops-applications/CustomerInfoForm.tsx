@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
-import { dateOfBirthMatchesQid, parseQid } from '../lib/qid';
+import { isValidEmail, isValidQatarPhone } from '../lib/contact';
+import { dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from '../lib/qid';
 import { RESIDENCE_DURATION_OPTIONS } from '../lib/product-rules';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsFormSection } from '../ops-ui-v2';
-import { OpsField, OpsSelect } from '../ops-ui-v2/OpsField';
+import { OpsField, OpsNumberField, OpsSelect } from '../ops-ui-v2/OpsField';
 import { OpsStatusPill } from '../components/ops-ui';
 import {
   EMPLOYMENT_DURATION_OPTIONS,
@@ -58,6 +59,21 @@ export function CustomerInfoForm({
   const derivedNationality = parsedQid.valid ? parsedQid.nationality : null;
   const nationalityDerived = !!derivedNationality && value.nationality.trim() === derivedNationality.en;
   const dobMismatch = dateOfBirthMatchesQid(value.dateOfBirth, value.qid) === false;
+  const dobUnreal = !!value.dateOfBirth.trim() && !parseIsoDateParts(value.dateOfBirth);
+
+  // Contact details are checked as soon as the field is left, so a bad address
+  // is caught here rather than by the API on the last step of the wizard.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const markTouched = (field: string) => setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }));
+  const showError = (field: string, invalid: boolean) => (touched[field] && invalid ? true : false);
+
+  const emailError = showError('email', !!value.email.trim() && !isValidEmail(value.email))
+    ? t('dealerOps.validation.emailInvalid')
+    : undefined;
+  const phoneError = showError('phone', !!value.phone.trim() && !isValidQatarPhone(value.phone))
+    ? t('dealerOps.validation.phoneInvalid')
+    : undefined;
+  const genderError = showError('gender', !value.gender) ? t('dealerOps.validation.genderRequired') : undefined;
 
   function patch(partial: Partial<CustomerInfoFormValue>) {
     onChange({ ...value, ...partial });
@@ -340,8 +356,11 @@ export function CustomerInfoForm({
               />
               <OpsSelect
                 label={t('dealerOps.intake.gender')}
+                required
+                error={genderError}
                 value={value.gender}
                 onChange={(e) => patch({ gender: e.target.value as CustomerGender | '' })}
+                onBlur={() => markTouched('gender')}
               >
                 <option value="">{t('ops.common.dash')}</option>
                 {GENDER_OPTIONS.map((opt) => (
@@ -356,7 +375,13 @@ export function CustomerInfoForm({
                 required
                 value={value.dateOfBirth}
                 onChange={(e) => patch({ dateOfBirth: e.target.value })}
-                error={dobMismatch ? t('dealerOps.intake.dobMismatch') : undefined}
+                error={
+                  dobUnreal
+                    ? t('dealerOps.validation.dobInvalid')
+                    : dobMismatch
+                      ? t('dealerOps.intake.dobMismatch')
+                      : undefined
+                }
               />
               <OpsField
                 label={t('ops.credit.qid')}
@@ -421,15 +446,20 @@ export function CustomerInfoForm({
                 label={t('ops.col.email')}
                 required
                 type="email"
+                error={emailError}
                 value={value.email}
                 onChange={(e) => patch({ email: e.target.value })}
+                onBlur={() => markTouched('email')}
                 autoComplete="email"
               />
               <OpsField
                 label={t('ops.credit.phone')}
                 required
+                error={phoneError}
+                hint={t('dealerOps.intake.phoneHint')}
                 value={value.phone}
                 onChange={(e) => patch({ phone: e.target.value })}
+                onBlur={() => markTouched('phone')}
                 autoComplete="tel"
                 inputMode="tel"
                 mono
@@ -504,21 +534,19 @@ export function CustomerInfoForm({
                   </option>
                 ))}
               </OpsSelect>
-              <OpsField
+              <OpsNumberField
                 label={t('ops.credit.statedIncome')}
-                type="number"
                 required
-                min={1}
-                value={value.monthlyIncome || ''}
-                onChange={(e) => patch({ monthlyIncome: Number(e.target.value) })}
+                min={0}
+                value={value.monthlyIncome}
+                onValueChange={(monthlyIncome) => patch({ monthlyIncome })}
                 mono
               />
-              <OpsField
+              <OpsNumberField
                 label={t('dealerOps.intake.monthlyLiabilities')}
-                type="number"
                 min={0}
-                value={value.monthlyLiabilities || ''}
-                onChange={(e) => patch({ monthlyLiabilities: Math.max(0, Number(e.target.value) || 0) })}
+                value={value.monthlyLiabilities}
+                onValueChange={(monthlyLiabilities) => patch({ monthlyLiabilities })}
                 hint={t('dealerOps.intake.monthlyLiabilitiesHint')}
                 mono
               />

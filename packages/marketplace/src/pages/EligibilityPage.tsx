@@ -10,12 +10,12 @@ import {
   DocumentMeta,
   EMPLOYMENT_TYPE_OPTIONS,
   MoneyText,
-  PRODUCT_RULES,
   RESIDENCE_DURATION_OPTIONS,
   allowedTenureOptions,
   employerCategoryFromEmploymentType,
   formatQar,
   getAppLocale,
+  downPaymentBounds,
   minDownPaymentPctFor,
   preCheckEligibility,
   residenceMonthsFromOption,
@@ -94,6 +94,7 @@ export function EligibilityPage() {
   const residency = form.residency || null;
   const tenureOptions = useMemo(() => allowedTenureOptions(residency, null), [residency]);
   const minDown = minDownPaymentPctFor(form.condition, null);
+  const downBand = downPaymentBounds();
 
   useEffect(() => {
     setForm((prev) => {
@@ -133,18 +134,38 @@ export function EligibilityPage() {
   }, [checked, price, residency, form.dateOfBirth, income, liabilities, form.employmentType, form.residenceDuration, form.condition, form.category, modelYear, form.tenure, form.downPct, form.rate]);
 
   const priceError = touched.price && (!price || price <= 0) ? t('applyFlow.error.invalidAmount') : null;
-  const incomeError = touched.monthlyIncome && form.monthlyIncome.trim() && (income == null || income <= 0) ? t('applyFlow.error.invalidAmount') : null;
+  const incomeError =
+    touched.monthlyIncome && !form.monthlyIncome.trim()
+      ? t('applyFlow.error.required')
+      : touched.monthlyIncome && form.monthlyIncome.trim() && (income == null || income <= 0)
+        ? t('applyFlow.error.invalidAmount')
+        : null;
+  const residencyError = touched.residency && !form.residency ? t('applyFlow.error.required') : null;
+  const dobError = touched.dateOfBirth && !form.dateOfBirth ? t('applyFlow.error.required') : null;
+  const residenceDurationError =
+    touched.residenceDuration && form.residency === 'expat' && !form.residenceDuration ? t('applyFlow.error.required') : null;
 
   function update<K extends keyof EligForm>(key: K, value: EligForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setTouched((prev) => ({ ...prev, price: true, monthlyIncome: true }));
+    setTouched((prev) => ({
+      ...prev,
+      price: true,
+      monthlyIncome: true,
+      residency: true,
+      dateOfBirth: true,
+      residenceDuration: true,
+    }));
+    if (!form.residency) return;
+    if (!form.dateOfBirth) return;
+    if (form.residency === 'expat' && !form.residenceDuration) return;
     if (!price || price <= 0) {
       firstFieldRef.current?.focus();
       return;
     }
+    if (income == null || income <= 0) return;
     setChecked(true);
     requestAnimationFrame(() => {
       resultRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -202,17 +223,29 @@ export function EligibilityPage() {
               <ChipRadioGroup<ResidencyClass>
                 name="elig-residency"
                 legend={t('eligibilityCheck.form.residency')}
+                error={residencyError}
                 options={[
                   { value: 'qatari', label: t('eligibilityCheck.form.residencyQatari') },
                   { value: 'expat', label: t('eligibilityCheck.form.residencyExpat') },
                 ]}
                 value={form.residency}
                 onChange={(v) => update('residency', v)}
+                onBlur={() => setTouched((p) => ({ ...p, residency: true }))}
                 required
               />
               <div className="dm-grid dm-grid--2">
-                <Field id="elig-dob" label={t('eligibilityCheck.form.dateOfBirth')} hint={t('eligibilityCheck.form.dobHint')}>
-                  {(a11y) => <TextInput {...a11y} type="date" numeric value={form.dateOfBirth} max={new Date().toISOString().slice(0, 10)} onChange={(e) => update('dateOfBirth', e.target.value)} />}
+                <Field id="elig-dob" label={t('eligibilityCheck.form.dateOfBirth')} hint={t('eligibilityCheck.form.dobHint')} error={dobError}>
+                  {(a11y) => (
+                    <TextInput
+                      {...a11y}
+                      type="date"
+                      numeric
+                      value={form.dateOfBirth}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => update('dateOfBirth', e.target.value)}
+                      onBlur={() => setTouched((p) => ({ ...p, dateOfBirth: true }))}
+                    />
+                  )}
                 </Field>
                 <Field id="elig-employment-type" label={t('eligibilityCheck.form.employmentType')}>
                   {(a11y) => (
@@ -227,7 +260,12 @@ export function EligibilityPage() {
                 </Field>
               </div>
               {form.residency === 'expat' ? (
-                <Field id="elig-residence-duration" label={t('eligibilityCheck.form.residenceDuration')} hint={t('eligibilityCheck.form.residenceDurationHint')}>
+                <Field
+                  id="elig-residence-duration"
+                  label={t('eligibilityCheck.form.residenceDuration')}
+                  hint={t('eligibilityCheck.form.residenceDurationHint')}
+                  error={residenceDurationError}
+                >
                   {(a11y) => (
                     <SelectInput
                       {...a11y}
@@ -235,12 +273,13 @@ export function EligibilityPage() {
                       placeholder={t('apply.selectPlaceholder')}
                       options={RESIDENCE_DURATION_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
                       onChange={(e) => update('residenceDuration', e.target.value)}
+                      onBlur={() => setTouched((p) => ({ ...p, residenceDuration: true }))}
                     />
                   )}
                 </Field>
               ) : null}
               <div className="dm-grid dm-grid--2">
-                <Field id="elig-income" label={t('eligibilityCheck.form.monthlyIncome')} hint={t('eligibilityCheck.form.incomeHint')} error={incomeError}>
+                <Field id="elig-income" label={t('eligibilityCheck.form.monthlyIncome')} hint={t('eligibilityCheck.form.incomeHint')} error={incomeError} required>
                   {(a11y) => <TextInput {...a11y} numeric inputMode="decimal" value={form.monthlyIncome} onChange={(e) => update('monthlyIncome', e.target.value)} onBlur={() => setTouched((p) => ({ ...p, monthlyIncome: true }))} />}
                 </Field>
                 <Field id="elig-liabilities" label={t('eligibilityCheck.form.monthlyLiabilities')} hint={t('eligibilityCheck.form.liabilitiesHint')}>
@@ -304,8 +343,8 @@ export function EligibilityPage() {
                 id="elig-down"
                 label={t('eligibilityCheck.form.downPayment')}
                 hint={t('eligibilityCheck.form.downPaymentHint', { min: minDown, condition: conditionWord })}
-                min={minDown}
-                max={PRODUCT_RULES.downPayment.maxPct}
+                min={downBand.min}
+                max={downBand.max}
                 value={form.downPct}
                 onChange={(v) => update('downPct', v)}
                 valueText={`${form.downPct}%`}
@@ -341,7 +380,9 @@ export function EligibilityPage() {
               <section aria-labelledby="elig-checks-title" className="dm-elig__section">
                 <h3 id="elig-checks-title">{t('eligibilityCheck.results.checks')}</h3>
                 <ul className="dm-checks">
-                  {result.checks.map((check) => (
+                  {result.checks
+                    .filter((check) => check.code !== 'residency_duration' || form.residency === 'expat')
+                    .map((check) => (
                     <li key={check.code} className={`dm-checks__item is-${check.status}`}>
                       <div className="dm-checks__row">
                         <span className="dm-checks__label">{t(`eligibilityCheck.check.${check.code}`)}</span>

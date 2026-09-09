@@ -241,7 +241,7 @@ describe('credit assessment DTO', () => {
     });
     expect(approverFor(null, 'senior_manager')).toEqual({
       role_may_approve: false,
-      required_roles: ['credit_officer', 'admin', 'super_admin'],
+      required_roles: ['credit_officer', 'finance_officer', 'admin', 'super_admin'],
       max_tier_for_role: 0,
     });
     expect(approverFor('partner_viewer', 'senior_manager').role_may_approve).toBe(false);

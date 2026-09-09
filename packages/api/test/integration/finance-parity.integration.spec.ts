@@ -63,10 +63,16 @@ describe('finance ↔ credit parity', () => {
     return { agent, user, email };
   }
 
+  /**
+   * QAR 60,000 with the fixture's 20% down finances 48,000 — inside the LOS FSD
+   * §1.5 senior-manager band (cars up to 50,000), which is the level a credit or
+   * finance officer may sign off. Above 70,000 the matrix escalates to
+   * super-admin only, and these specs are about role parity, not escalation.
+   */
   async function world() {
     const company = await seedCompany(ctx.prisma, 'Parity Motors');
     const offer = await seedOffer(ctx.prisma, company.id);
-    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id, price: 60_000 });
     const customer = await customerUser('parity-customer');
     return { company, offer, product, customer };
   }

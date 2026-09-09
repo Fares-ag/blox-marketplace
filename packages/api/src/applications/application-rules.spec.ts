@@ -49,7 +49,7 @@ describe('evaluateProductRules', () => {
     expect(violations).toEqual([]);
   });
 
-  it('flags a down payment below the product minimum as hard', () => {
+  it('flags a down payment below the recommended contribution for review', () => {
     const violations = evaluateProductRules({
       product: newCar,
       offer,
@@ -57,10 +57,12 @@ describe('evaluateProductRules', () => {
       residency: 'qatari',
       now: NOW,
     });
-    expect(violations).toEqual([{ code: 'down_payment_below_min', severity: 'hard', params: { min: 20 } }]);
+    expect(violations).toEqual([
+      { code: 'down_payment_below_recommended', severity: 'soft', params: { min: 20, condition: 'new' } },
+    ]);
   });
 
-  it('caps expat tenure at 48 months and enforces the offer options', () => {
+  it('flags a long expat tenure and an off-list term for review instead of refusing them', () => {
     const violations = evaluateProductRules({
       product: newCar,
       offer,
@@ -68,7 +70,8 @@ describe('evaluateProductRules', () => {
       residency: 'expat',
       now: NOW,
     });
-    expect(violations.map((v) => v.code)).toEqual(['tenure_above_max']);
+    expect(violations.map((v) => v.code)).toEqual(['tenure_above_recommended']);
+    expect(violations.every((v) => v.severity === 'soft')).toBe(true);
 
     const notOffered = evaluateProductRules({
       product: newCar,
@@ -78,13 +81,16 @@ describe('evaluateProductRules', () => {
       now: NOW,
     });
     expect(notOffered.map((v) => v.code)).toEqual(['tenure_not_offered']);
+    expect(notOffered.every((v) => v.severity === 'soft')).toBe(true);
   });
 
   it('treats financing caps and corporate applicants as soft unless enforced', () => {
+    // Motorcycles are the only capped variant now: QAR 30,000 at 20% down
+    // finances 24,000, over the QAR 15,000 ceiling.
     const request = {
-      product: { price: 120_000, condition: 'new', modelYear: 2026 },
+      product: { price: 30_000, condition: 'new', modelYear: 2026, bodyType: 'motorcycle' },
       offer,
-      pricingSnapshot: { tenor: 36, down_payment_pct: 20, list_price: 120_000 },
+      pricingSnapshot: { tenor: 36, down_payment_pct: 20, list_price: 30_000 },
       applicantType: 'corporate' as const,
       residency: 'qatari' as const,
       now: NOW,

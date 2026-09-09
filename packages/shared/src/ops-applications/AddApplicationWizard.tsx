@@ -7,9 +7,9 @@ import { buildPricingSnapshot } from '../lib/pricing';
 import { assessAffordability } from '../lib/affordability';
 import {
   allowedTenureOptions,
+  downPaymentBounds,
   employerCategoryFromEmploymentType,
   minDownPaymentPctFor,
-  PRODUCT_RULES,
   type ProductRuleViolation,
 } from '../lib/product-rules';
 import { useAuthStore } from '../auth/auth-store';
@@ -20,7 +20,8 @@ import {
   Alert,
   MultiStepForm,
   OpsContentCard,
-  OpsField,
+  OpsNumberField,
+  clearMultiStepDraft,
   OpsFormGrid,
   OpsFormSection,
   OpsSelect,
@@ -207,21 +208,19 @@ function DealSetupFields({
             <option key={a.id} value={a.id}>{a.name ?? a.email}</option>
           ))}
         </OpsSelect>
-        <OpsField
+        <OpsNumberField
           label={t('ops.wizard.listPrice')}
-          type="number"
           required
           min={0}
-          value={data.listPrice || ''}
-          onChange={(e) => updateData({ listPrice: Number(e.target.value) })}
+          value={data.listPrice}
+          onValueChange={(listPrice) => updateData({ listPrice })}
         />
-        <OpsField
+        <OpsNumberField
           label={t('ops.wizard.sellingPrice')}
-          type="number"
           required
           min={0}
-          value={data.sellingPrice || ''}
-          onChange={(e) => updateData({ sellingPrice: Number(e.target.value) })}
+          value={data.sellingPrice}
+          onValueChange={(sellingPrice) => updateData({ sellingPrice })}
         />
         <label className="blox-checkbox-row blox-form-grid__full">
           <input
@@ -236,6 +235,16 @@ function DealSetupFields({
     </OpsFormSection>
   );
 }
+
+/**
+ * Where the in-progress application is parked between renders. Session-scoped,
+ * so a reload, a mis-click into another page, or a re-login lands back on the
+ * same step with the same answers instead of an empty form.
+ */
+const DRAFT_STORAGE_KEY = 'blox.ops.application-wizard.draft';
+
+/** Chosen files cannot be serialised, so they are re-picked after a restore. */
+const DRAFT_OMIT_KEYS = ['files'];
 
 export function AddApplicationWizard({
   audience,
@@ -529,14 +538,14 @@ export function AddApplicationWizard({
                 </option>
               ))}
             </OpsSelect>
-            <OpsField
+            <OpsNumberField
               label={t('ops.wizard.downPaymentPct')}
-              type="number"
-              min={ctx.minDown}
-              max={PRODUCT_RULES.downPayment.maxPct}
+              min={downPaymentBounds().min}
+              max={downPaymentBounds().max}
+              emptyValue={ctx.minDown}
               value={data.downPct}
-              onChange={(e) => updateData({ downPct: Number(e.target.value) })}
-              hint={t('applyFlow.rule.down_payment_below_min', { min: ctx.minDown })}
+              onValueChange={(downPct) => updateData({ downPct })}
+              hint={t('applyFlow.rule.down_payment_below_recommended', { min: ctx.minDown, condition: ctx.primaryVehicle?.condition ?? 'new' })}
             />
             <InstallmentPlanStep
               vehiclePrice={ctx.priceForPlan}
@@ -755,6 +764,9 @@ export function AddApplicationWizard({
         }
       }
 
+      // Only now is the work safely on the server; until this point the draft
+      // is the customer's only copy.
+      clearMultiStepDraft(DRAFT_STORAGE_KEY);
       navigate(`${detailBase}/${ids[0]}`);
     } catch (err) {
       const code = apiErrorCodeOf(err);
@@ -787,6 +799,8 @@ export function AddApplicationWizard({
           initialData={initialData}
           onSubmit={onSubmit}
           isSubmitting={busy}
+          storageKey={DRAFT_STORAGE_KEY}
+          storageOmitKeys={DRAFT_OMIT_KEYS}
         />
         {busy && <p className="blox-form-hint">{t('ops.common.saving')}</p>}
       </OpsContentCard>

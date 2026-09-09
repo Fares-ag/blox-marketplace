@@ -100,9 +100,6 @@ describe('takaful policies (integration)', () => {
     expectApiError(refused, 400, 'takaful_declaration_required');
     expect(await ctx.prisma.takafulPolicy.count({ where: { applicationId: application.id } })).toBe(0);
 
-    const missingProvider = await authed(customer.agent).post(base).send(declaration({ provider: undefined }));
-    expectApiError(missingProvider, 400, 'validation_failed');
-
     const res = await authed(customer.agent).post(base).send(declaration());
     expect(res.status).toBe(201);
     const policy = res.body as TakafulPolicyBody;
@@ -151,6 +148,14 @@ describe('takaful policies (integration)', () => {
     expect(detail.body.takaful_policies[0]).toEqual(
       expect.objectContaining({ id: policy.id, status: 'declared', has_document: false, days_to_expiry: 365 }),
     );
+  });
+  it('refuses a declaration that omits a mandatory field', async () => {
+    const { customer, application } = await signingStage('declare-missing');
+    const base = `/api/v1/applications/${application.id}/takaful`;
+
+    const missingProvider = await authed(customer.agent).post(base).send(declaration({ provider: undefined }));
+    expectApiError(missingProvider, 400, 'validation_failed');
+    expect(await ctx.prisma.takafulPolicy.count({ where: { applicationId: application.id } })).toBe(0);
   });
 
   it('validates dates and body shape', async () => {
@@ -386,14 +391,22 @@ describe('takaful policies (integration)', () => {
 
       const comprehensive = await ctx.agent.get('/api/v1/takaful/providers?vehicle_price=100000&coverage=comprehensive');
       expect(comprehensive.status).toBe(200);
-      const quotes = comprehensive.body as Array<{
+      type Quote = {
         provider: { code: string; name: string; comprehensive_rate_pct: number; riders: unknown[]; active: boolean };
         coverage_type: string;
         annual_contribution: number;
         monthly_equivalent: number;
-      }>;
-      expect(quotes.map((q) => q.provider.code)).toEqual(['qic', 'doha']);
-      const qic = quotes[0]!;
+      };
+      const quotes = comprehensive.body as Quote[];
+      const contributions = quotes.map((q) => q.annual_contribution);
+      const byCode = (rows: Quote[], code: string) => rows.find((q) => q.provider.code === code)!;
+
+      // Cheapest first — asserted as the ordering property so a rate change
+      // reorders the list without breaking the lock. The retired provider is out.
+      expect(quotes.map((q) => q.provider.code).sort()).toEqual(['doha', 'qic']);
+      expect(contributions).toEqual([...contributions].sort((a, b) => a - b));
+
+      const qic = byCode(quotes, 'qic');
       expect(qic.coverage_type).toBe('comprehensive');
       expect(qic.annual_contribution).toBe(3250);
       expect(qic.monthly_equivalent).toBeCloseTo(3250 / 12, 1);
@@ -403,13 +416,19 @@ describe('takaful policies (integration)', () => {
       expect(qic.provider.riders).toEqual([
         expect.objectContaining({ code: 'roadside', label: 'Roadside assistance', annual_amount: 150 }),
       ]);
-      expect(quotes[1]!.annual_contribution).toBe(3000);
+      // Doha's 3.0% undercuts QIC's 3.25%, so it leads the comparison.
+      expect(byCode(quotes, 'doha').annual_contribution).toBe(3000);
+      expect(quotes[0]!.provider.code).toBe('doha');
 
       // The minimum contribution floors cheap vehicles.
       const cheap = await ctx.agent.get('/api/v1/takaful/providers?vehicle_price=20000&coverage=comprehensive');
       expect(cheap.status).toBe(200);
-      expect(cheap.body[0].annual_contribution).toBe(1500);
-      expect(cheap.body[1].annual_contribution).toBe(1200);
+      const cheapQuotes = cheap.body as Quote[];
+      expect(cheapQuotes.map((q) => q.annual_contribution)).toEqual(
+        [...cheapQuotes.map((q) => q.annual_contribution)].sort((a, b) => a - b),
+      );
+      expect(byCode(cheapQuotes, 'qic').annual_contribution).toBe(1500);
+      expect(byCode(cheapQuotes, 'doha').annual_contribution).toBe(1200);
 
       const thirdParty = await ctx.agent.get('/api/v1/takaful/providers?vehicle_price=100000&coverage=third_party');
       expect(thirdParty.status).toBe(200);

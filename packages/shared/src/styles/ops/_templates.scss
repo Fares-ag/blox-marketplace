@@ -7,8 +7,12 @@
   z-index: 20;
   background: color-mix(in srgb, var(--blox-canvas) 92%, transparent);
   backdrop-filter: blur(8px);
-  margin: calc(-1 * var(--blox-space-xl)) calc(-1 * var(--blox-space-xl)) var(--blox-space-lg);
-  padding: var(--blox-space-xl);
+  // The horizontal bleed must match `.blox-shell-main`'s padding (--spacing-lg),
+  // not --blox-space-xl: bleeding wider than the container pushed the header
+  // past the viewport and gave every ops detail page a horizontal scrollbar.
+  // Vertical padding stays on the larger step so the header keeps its height.
+  margin: calc(-1 * var(--blox-space-xl)) calc(-1 * var(--spacing-lg)) var(--blox-space-lg);
+  padding: var(--blox-space-xl) var(--spacing-lg);
   border-bottom: 1px solid var(--blox-border);
 }
 

@@ -1,15 +1,16 @@
 import { useTranslation } from 'react-i18next';
 import {
   MoneyText,
-  PRODUCT_RULES,
   formatQar,
   getAppLocale,
-  maxTenureFor,
+  downPaymentBounds,
+  recommendedMaxTenureFor,
+  tenureBounds,
   type PricingSnapshot,
   type ProductRuleViolation,
   type ResidencyClass,
 } from '@drivemarket/shared';
-import { ChipRadioGroup, Notice, PercentSlider } from '../fields';
+import { ChipRadioGroup, Field, Notice, PercentSlider, TextInput } from '../fields';
 import { formatInteger } from '../format';
 import type { ApplyPlan, PlanContext } from '../apply-model';
 import type { PlanVehicle } from '../PlanSummaryRail';
@@ -45,6 +46,8 @@ export function VehiclePlanStep({
   const soft = violations.filter((v) => v.severity === 'soft');
   const conditionWord = ctx.condition === 'new' ? t('applyFlow.vehicle.conditionNew') : t('applyFlow.vehicle.conditionUsed');
   const financed = Math.max(ctx.price - pricing.down_payment, 0);
+  const tenureBand = tenureBounds();
+  const downBand = downPaymentBounds();
 
   function ruleMessage(v: ProductRuleViolation): string {
     const params: Record<string, string | number> = { ...v.params };
@@ -79,7 +82,7 @@ export function VehiclePlanStep({
         hint={
           <>
             {t('applyFlow.vehicle.tenureHint')}
-            {residency === 'expat' ? ` ${t('applyFlow.vehicle.tenureCapNote', { max: maxTenureFor('expat') })}` : ''}
+            {residency === 'expat' ? ` ${t('applyFlow.vehicle.tenureCapNote', { max: recommendedMaxTenureFor('expat') })}` : ''}
           </>
         }
         options={tenureOptions.map((m) => ({ value: String(m), label: t('applyFlow.vehicle.tenureMonths', { months: m }) }))}
@@ -88,12 +91,32 @@ export function VehiclePlanStep({
         required
       />
 
+      <Field
+        id="apply-tenure-custom"
+        label={t('applyFlow.vehicle.tenureCustom')}
+        hint={t('applyFlow.vehicle.tenureCustomHint', { min: tenureBand.min, max: tenureBand.max })}
+      >
+        {(a11y) => (
+          <TextInput
+            {...a11y}
+            type="number"
+            numeric
+            inputMode="numeric"
+            min={tenureBand.min}
+            max={tenureBand.max}
+            step={1}
+            value={String(plan.tenure)}
+            onChange={(e) => onPlanChange({ ...plan, tenure: Number(e.target.value) })}
+          />
+        )}
+      </Field>
+
       <PercentSlider
         id="apply-down-pct"
         label={t('applyFlow.vehicle.downPayment')}
         hint={t('applyFlow.vehicle.downPaymentHint', { min: minDownPct, condition: conditionWord })}
-        min={minDownPct}
-        max={PRODUCT_RULES.downPayment.maxPct}
+        min={downBand.min}
+        max={downBand.max}
         value={plan.downPct}
         onChange={(v) => onPlanChange({ ...plan, downPct: v })}
         valueText={`${plan.downPct}% · ${formatQar(pricing.down_payment, false, locale)}`}

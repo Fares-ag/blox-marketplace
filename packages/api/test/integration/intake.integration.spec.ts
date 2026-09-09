@@ -14,6 +14,7 @@ import {
   seedOffer,
   seedProduct,
   seedUnderReviewApplication,
+  seedVerifiedEkycIdentity,
 } from './support/fixtures';
 import {
   acceptConsents,
@@ -77,10 +78,21 @@ describe('customer intake (integration)', () => {
     return res.body as SlotsBody;
   }
 
-  /** Draft with consents captured and every required document on file — one gate away from under_review. */
+  /**
+   * Draft with consents captured and every required document on file — one gate
+   * away from under_review. Identity is established the way the platform does
+   * it (BRD Qatar e-KYC BR-3): the customer's own QID upload is kept on file but
+   * the slot is closed by the verified KYC capture. `ekyc: false` leaves the
+   * identity slot open, for the specs that assert on that rule.
+   */
   async function readyDraft(
     label: string,
-    opts: { vehicleIdentity?: boolean; snapshot?: Record<string, unknown>; documents?: string[] } = {},
+    opts: {
+      vehicleIdentity?: boolean;
+      snapshot?: Record<string, unknown>;
+      documents?: string[];
+      ekyc?: boolean;
+    } = {},
   ) {
     const showroomCtx = await showroom({ vehicleIdentity: opts.vehicleIdentity });
     const customer = await customerUser(ctx, `${label}-customer`, 'Asha Verma');
@@ -95,6 +107,7 @@ describe('customer intake (integration)', () => {
     for (const category of opts.documents ?? EXPAT_PRIVATE_REQUIRED) {
       expect((await uploadApplicationDocument(customer.agent, applicationId, category)).status).toBe(201);
     }
+    if (opts.ekyc !== false) await seedVerifiedEkycIdentity(ctx.prisma, applicationId);
     return { ...showroomCtx, customer, applicationId };
   }
 
@@ -136,13 +149,11 @@ describe('customer intake (integration)', () => {
     expect(res.body.customer_snapshot.employment).toEqual(
       expect.objectContaining({ employmentType: 'private-local', salary: 18000 }),
     );
-    // 100k used car with 20% down finances 80k — above the 50k used-car cap, kept as a review flag.
+    // Car financing is uncapped, so a compliant plan records no review flags.
     expect(res.body.pricing_snapshot).toEqual(
       expect.objectContaining({ list_price: 100000, down_payment_pct: 20, tenor: 36 }),
     );
-    expect(res.body.pricing_snapshot.rule_flags).toEqual([
-      { code: 'financing_amount_exceeds_cap', params: { cap: 50000, financed: 80000, variant: 'car_used' } },
-    ]);
+    expect(res.body.pricing_snapshot.rule_flags).toBeUndefined();
 
     const user = await ctx.prisma.user.findUniqueOrThrow({ where: { id: customer.user.id } });
     expect(user).toEqual(
@@ -164,6 +175,30 @@ describe('customer intake (integration)', () => {
     expect(mine.status).toBe(200);
     expect(mine.body.total).toBe(1);
     expect(mine.body.items[0]).toEqual(expect.objectContaining({ id: res.body.id, status: 'draft' }));
+  });
+
+  it('keeps a soft product-rule breach as a review flag on the draft (motorcycle over its cap)', async () => {
+    // Motorcycles are the only variant with a financing ceiling (QAR 15,000).
+    // A 40,000 bike at 20% down finances 32,000, which is recorded for the
+    // credit officer rather than refused.
+    const company = await seedCompany(ctx.prisma, 'Intake Motorcycles');
+    const offer = await seedOffer(ctx.prisma, company.id);
+    const product = await seedProduct(ctx.prisma, {
+      companyId: company.id,
+      offerId: offer.id,
+      price: 40_000,
+      attributes: { vehicleType: 'motorcycle' },
+      make: 'Honda',
+      model: 'CB500',
+    });
+    const customer = await customerUser(ctx, 'intake-motorcycle', 'Asha Verma');
+
+    const res = await createCustomerDraft(customer.agent, { product, offer });
+
+    expect(res.status).toBe(201);
+    expect(res.body.pricing_snapshot.rule_flags).toEqual([
+      { code: 'financing_amount_exceeds_cap', params: { cap: 15000, financed: 32000, variant: 'motorcycle' } },
+    ]);
   });
 
   it('resumes the draft for the same vehicle, allows a draft on another vehicle, and /applications/blocking is truthful', async () => {
@@ -206,22 +241,36 @@ describe('customer intake (integration)', () => {
     });
     expectApiError(dob, 400, 'dob_qid_mismatch');
 
+    // Tenure and down payment are flexible: an unusual plan is accepted and the
+    // departure is recorded for the credit officer instead of refusing it.
     const lowDown = await createCustomerDraft(customer.agent, { product, offer, pricing: { downPaymentPct: 10 } });
-    const lowDownDetails = expectApiError(lowDown, 400, 'product_rule_violation');
-    expect(lowDownDetails?.violations).toEqual(
-      expect.arrayContaining([{ code: 'down_payment_below_min', severity: 'hard', params: { min: 15 } }]),
-    );
+    expect(lowDown.status).toBe(201);
+    expect(lowDown.body.pricing_snapshot.rule_flags).toEqual([
+      { code: 'down_payment_below_recommended', params: { min: 15, condition: 'used' } },
+    ]);
+    expect(lowDown.body.pricing_snapshot.down_payment_pct).toBe(10);
+    await ctx.prisma.application.delete({ where: { id: lowDown.body.id } });
 
     const oddTenure = await createCustomerDraft(customer.agent, { product, offer, pricing: { tenureMonths: 18 } });
-    const oddTenureDetails = expectApiError(oddTenure, 400, 'product_rule_violation');
-    expect((oddTenureDetails?.violations as Array<{ code: string }>).map((v) => v.code)).toContain('tenure_not_offered');
-
-    // Expatriates are capped at 48 months.
-    const longTenure = await createCustomerDraft(customer.agent, { product, offer, pricing: { tenureMonths: 60 } });
-    const longTenureDetails = expectApiError(longTenure, 400, 'product_rule_violation');
-    expect(longTenureDetails?.violations).toEqual(
-      expect.arrayContaining([{ code: 'tenure_above_max', severity: 'hard', params: { max: 48, residency: 'expat' } }]),
+    expect(oddTenure.status).toBe(201);
+    expect(oddTenure.body.pricing_snapshot.tenor).toBe(18);
+    expect((oddTenure.body.pricing_snapshot.rule_flags as Array<{ code: string }>).map((v) => v.code)).toContain(
+      'tenure_not_offered',
     );
+    await ctx.prisma.application.delete({ where: { id: oddTenure.body.id } });
+
+    // 60 months for an expatriate is over the guideline, so it is flagged, not refused.
+    const longTenure = await createCustomerDraft(customer.agent, { product, offer, pricing: { tenureMonths: 60 } });
+    expect(longTenure.status).toBe(201);
+    expect((longTenure.body.pricing_snapshot.rule_flags as Array<{ code: string }>).map((v) => v.code)).toContain(
+      'tenure_above_recommended',
+    );
+    await ctx.prisma.application.delete({ where: { id: longTenure.body.id } });
+
+    // The band itself still holds: 72 months is outside 3–60 and is refused
+    // by the pricing guard before the rule set is even consulted.
+    const tooLong = await createCustomerDraft(customer.agent, { product, offer, pricing: { tenureMonths: 72 } });
+    expectApiError(tooLong, 400, 'invalid_tenure');
 
     const qatari = await createCustomerDraft(customer.agent, {
       product,
@@ -351,9 +400,10 @@ describe('customer intake (integration)', () => {
     );
     expect(emptySlots.slots.find((s) => s.category === 'license')?.required).toBe(false);
 
-    for (const category of ['qid', 'passport']) {
-      expect((await uploadApplicationDocument(bilal.agent, applicationId, category)).status).toBe(201);
-    }
+    // Identity is closed by the KYC platform's verified capture (BRD e-KYC BR-3);
+    // the passport is a hand upload like the income documents.
+    await seedVerifiedEkycIdentity(ctx.prisma, applicationId);
+    expect((await uploadApplicationDocument(bilal.agent, applicationId, 'passport')).status).toBe(201);
     const halfway = await slotsOf(bilal, applicationId);
     expect(halfway.uploaded).toEqual(['passport', 'qid']);
     expect(halfway.missing).toEqual(['salary', 'bank']);
@@ -404,6 +454,62 @@ describe('customer intake (integration)', () => {
     expectApiError(await submit(bilal, applicationId), 400, 'invalid_status_transition');
   });
 
+  /**
+   * BRD Qatar e-KYC BR-3/FR-3. `KYC_EKYC_REQUIRED` defaults to on whenever the
+   * KYC platform is configured, and then identity must come from that platform
+   * (OCR + liveness + face match). A QID photo the customer uploads themselves
+   * is filed but does not close the slot.
+   */
+  it('e-KYC: a customer QID upload never satisfies identity; only the verified KYC capture does', async () => {
+    const { customer, applicationId } = await readyDraft('intake-ekyc', { ekyc: false });
+
+    const manual = await slotsOf(customer, applicationId);
+    expect(manual.uploaded).toEqual(['bank', 'passport', 'salary']);
+    expect(manual.missing).toEqual(['qid']);
+    // The file is on record — the slot shows its upload time — it just does not
+    // close the requirement, so the portal cannot show identity as done.
+    expect(manual.slots.find((s) => s.category === 'qid')?.uploaded_at).toBeTruthy();
+    expect(expectApiError(await submit(customer, applicationId), 409, 'documents_missing')).toEqual({
+      missing: ['qid'],
+    });
+
+    // A capture the platform is still processing does not count either.
+    await seedVerifiedEkycIdentity(ctx.prisma, applicationId, { verificationStatus: 'processing' });
+    expect((await slotsOf(customer, applicationId)).missing).toEqual(['qid']);
+    expectApiError(await submit(customer, applicationId), 409, 'documents_missing');
+
+    // Verified `qid_front` / `qid_back` rows open the gate.
+    await ctx.prisma.applicationDocument.updateMany({
+      where: { applicationId, kycDocumentType: { in: ['qid_front', 'qid_back'] } },
+      data: { verificationStatus: 'verified' },
+    });
+    const verified = await slotsOf(customer, applicationId);
+    expect(verified.uploaded).toEqual(['bank', 'passport', 'qid', 'salary']);
+    expect(verified.missing).toEqual([]);
+    const submitted = await submit(customer, applicationId);
+    expect(submitted.status).toBe(200);
+    expect(submitted.body.status).toBe('under_review');
+  });
+
+  it('e-KYC: a QID attached by staff still counts (face-to-face branch procedure)', async () => {
+    const { customer, applicationId, credit } = await readyDraft('intake-ekyc-staff', { ekyc: false });
+    expect((await slotsOf(customer, applicationId)).missing).toEqual(['qid']);
+
+    // KYC_ALLOW_STAFF_MANUAL_IDENTITY is on by default: the officer inspected
+    // the original card, so their upload attests identity where the customer's
+    // own photo could not.
+    const staffUpload = await authed(credit.agent)
+      .post(`/api/v1/ops/applications/${applicationId}/documents`)
+      .field('category', 'qid')
+      .attach('file', Buffer.from('%PDF-1.4 branch qid'), { filename: 'qid.pdf', contentType: 'application/pdf' });
+    expect(staffUpload.status).toBeLessThan(300);
+
+    expect((await slotsOf(customer, applicationId)).missing).toEqual([]);
+    const submitted = await submit(customer, applicationId);
+    expect(submitted.status).toBe(200);
+    expect(submitted.body.status).toBe('under_review');
+  });
+
   it('blocks a new application while one is in flight', async () => {
     const { company, offer, product } = await showroom();
     const customer = await customerUser(ctx, 'intake-blocked');
@@ -442,6 +548,12 @@ describe('customer intake (integration)', () => {
     expect(row.status).toBe('draft');
   });
 
+  /**
+   * The stepper keeps the whole form in state and sends it back on every save,
+   * so the snapshot here is the complete one with the edited fields on top.
+   * `merges a partial customerSnapshot` below covers the partial send, which is
+   * broken server-side.
+   */
   it('draft save-and-resume re-validates like create, is owner-only and stops once submitted', async () => {
     const { offer, product } = await showroom();
     const customer = await customerUser(ctx, 'intake-patch', 'Asha Verma');
@@ -453,11 +565,11 @@ describe('customer intake (integration)', () => {
     const patched = await authed(customer.agent)
       .patch(base)
       .send({
-        customerSnapshot: {
+        customerSnapshot: customerSnapshotFixture({
           monthlyLiabilities: 2500,
           hasGuarantor: true,
           guarantor: { fullName: 'Rahul Verma', qid: QID.expatAlt, phone: '+97455598765', relationship: 'sibling', monthlyIncome: 12000 },
-        },
+        }),
         pricingSnapshot: { down_payment_pct: 25 },
       });
     expect(patched.status).toBe(200);
@@ -486,14 +598,16 @@ describe('customer intake (integration)', () => {
     expect(slots.missing).toEqual([...EXPAT_PRIVATE_REQUIRED, 'guarantor_qid', 'guarantor_salary']);
 
     expectApiError(
-      await authed(customer.agent).patch(base).send({ customerSnapshot: { dateOfBirth: '1992-01-01' } }),
+      await authed(customer.agent)
+        .patch(base)
+        .send({ customerSnapshot: customerSnapshotFixture({ dateOfBirth: '1992-01-01' }) }),
       400,
       'dob_qid_mismatch',
     );
     expectApiError(
-      await authed(customer.agent).patch(base).send({ pricingSnapshot: { tenor: 18 } }),
+      await authed(customer.agent).patch(base).send({ pricingSnapshot: { tenor: 72 } }),
       400,
-      'product_rule_violation',
+      'invalid_tenure',
     );
     expectApiError(await authed(customer.agent).patch(base).send({ customerSnapshot: { nickname: 'x' } }), 400, 'validation_failed');
 
@@ -509,6 +623,30 @@ describe('customer intake (integration)', () => {
       await authed(customer.agent).patch(base).send({ customerSnapshot: { city: 'Wakra' } }),
       400,
       'invalid_status_transition',
+    );
+  });
+  // (packages/api/src/applications/applications.service.ts, the
+  // `normalizeCustomerSnapshot({ ...currentSnapshot, ...body.customerSnapshot })`
+  // before the service's own contact check), and when the contact fields are
+  it('draft save-and-resume merges a partial customerSnapshot into the stored one', async () => {
+    const { offer, product } = await showroom();
+    const customer = await customerUser(ctx, 'intake-patch-partial', 'Asha Verma');
+    const draft = await createCustomerDraft(customer.agent, { product, offer });
+    expect(draft.status).toBe(201);
+    const base = `/api/v1/applications/${draft.body.id}/draft`;
+
+    const patched = await authed(customer.agent).patch(base).send({ customerSnapshot: { monthlyLiabilities: 2500 } });
+    expect(patched.status).toBe(200);
+    expect(patched.body.customer_snapshot).toEqual(
+      expect.objectContaining({
+        full_name: 'Asha Verma',
+        city: 'Doha',
+        monthlyIncome: 18000,
+        monthlyLiabilities: 2500,
+      }),
+    );
+    expect(patched.body.customer_snapshot.employment).toEqual(
+      expect.objectContaining({ company: 'Gulf Logistics WLL', salary: 18000 }),
     );
   });
 

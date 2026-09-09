@@ -1,5 +1,47 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button as CustomButton } from '../../core/Button/Button';
+
+/** Draft survives a reload, a wrong turn, or a session that has to be renewed. */
+function readDraft(storageKey: string | undefined): unknown {
+  if (!storageKey || typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(storageKey: string | undefined, data: unknown): void {
+  if (!storageKey || typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(storageKey, JSON.stringify(data));
+  } catch {
+    // A full or blocked store must not take the form down with it.
+  }
+}
+
+/**
+ * Drops the fields a draft must not carry across a reload. Chosen files are the
+ * case that matters: `JSON.stringify(File)` yields `{}`, and restoring that
+ * empty object in place of a file would fail the upload while still looking
+ * like a file was attached.
+ */
+function omitKeys(data: any, keys: string[] | undefined): any {
+  if (!keys?.length || !data || typeof data !== 'object') return data;
+  const out: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+  for (const key of keys) delete out[key];
+  return out;
+}
+
+export function clearMultiStepDraft(storageKey: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(storageKey);
+  } catch {
+    // Nothing to do; the draft simply outlives this submit.
+  }
+}
 
 export interface StepConfig<TData = any> {
   label: string;
@@ -24,6 +66,15 @@ interface MultiStepFormProps<TData = any> {
   onCancel?: () => void;
   isSubmitting?: boolean;
   labels?: { cancel?: string; previous?: string; next?: string; submit?: string };
+  /**
+   * When set, the entered data and the current step are mirrored into
+   * `sessionStorage` under this key, so leaving the page or signing back in
+   * does not throw the work away. Clear it after a successful submit with
+   * `clearMultiStepDraft`.
+   */
+  storageKey?: string;
+  /** Fields excluded from the stored draft, e.g. chosen `File` objects. */
+  storageOmitKeys?: string[];
 }
 
 /** Multi-step form with a native stepper — no MUI (Phase 2). Steps are 1-based in the rail because order carries meaning here. */
@@ -34,10 +85,50 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   onCancel,
   isSubmitting = false,
   labels,
+  storageKey,
+  storageOmitKeys,
 }) => {
-  const [activeStep, setActiveStep] = useState(0);
-  const [formData, setFormData] = useState<any>(initialData);
+  const restored = useRef<{ step?: number; data?: any } | null>(null);
+  if (restored.current === null) {
+    const saved = readDraft(storageKey) as { step?: number; data?: any } | null;
+    restored.current = saved && typeof saved === 'object' ? saved : {};
+  }
+
+  const [activeStep, setActiveStep] = useState(() => {
+    const step = restored.current?.step;
+    return typeof step === 'number' && step >= 0 && step < steps.length ? step : 0;
+  });
+  const [formData, setFormData] = useState<any>(() => {
+    const data = restored.current?.data;
+    return data && typeof data === 'object' ? { ...(initialData as any), ...data } : initialData;
+  });
   const [stepError, setStepError] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const firstRender = useRef(true);
+
+  const omitRef = useRef(storageOmitKeys);
+  omitRef.current = storageOmitKeys;
+
+  useEffect(() => {
+    writeDraft(storageKey, { step: activeStep, data: omitKeys(formData, omitRef.current) });
+  }, [storageKey, activeStep, formData]);
+
+  // Every step opens at its own top. Without this the next step inherits the
+  // scroll position of the last one and appears to open halfway down. The page
+  // may scroll on the window or inside the ops shell, so reset both.
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    for (let el = contentRef.current?.parentElement; el; el = el.parentElement) {
+      if (el.scrollTop > 0) el.scrollTop = 0;
+    }
+  }, [activeStep]);
 
   const CurrentStepComponent = steps[activeStep].component;
 
@@ -55,10 +146,10 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
     setStepError(null);
     setActiveStep((prev) => Math.max(0, prev - 1));
   };
-  const handleUpdateData = (stepData: any) => {
+  const handleUpdateData = useCallback((stepData: any) => {
     setStepError(null);
     setFormData((prev: any) => ({ ...(prev || {}), ...(stepData || {}) }));
-  };
+  }, []);
   const handleSubmit = async () => {
     if (isSubmitting) return;
     if (!validateCurrentStep()) return;
@@ -86,7 +177,7 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
         })}
       </ol>
 
-      <div className="blox-stepper-form__content">
+      <div className="blox-stepper-form__content" ref={contentRef}>
         <CurrentStepComponent
           data={formData}
           updateData={handleUpdateData}

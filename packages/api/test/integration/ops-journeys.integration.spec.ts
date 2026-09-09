@@ -92,7 +92,9 @@ describe('ops role journeys', () => {
   it('admin draft submit then credit approve-contract, reject/resubmit/reopen, and finance cannot activate', async () => {
     const company = await seedCompany(ctx.prisma, 'Admin Journey Co');
     const offer = await seedOffer(ctx.prisma, company.id);
-    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
+    // QAR 60,000 finances 48,000 at the fixture's 20% down — the LOS FSD §1.5
+    // senior-manager band a credit officer may approve out of review.
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id, price: 60_000 });
     const admin = await staffUser('journey-admin', 'admin');
     const customerEmail = `draft-cust-${Date.now()}@integration.test`;
 

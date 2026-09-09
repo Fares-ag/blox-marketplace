@@ -106,4 +106,51 @@ describe('affordability', () => {
     });
     expect(incomplete.outcome).toBe('incomplete');
   });
+
+  it('declines an unaffordable premium-car plan when all applicant data is present', () => {
+    const r = preCheckEligibility({
+      residency: 'qatari',
+      dateOfBirth: '1999-01-01',
+      monthlyIncome: 15_000,
+      monthlyLiabilities: 10_000,
+      employerCategory: 'government',
+      financing: {
+        applicantType: 'individual',
+        residency: 'qatari',
+        vehicle: { price: 365_000, condition: 'new', category: 'car', modelYear: 2026 },
+        tenureMonths: 12,
+        downPaymentPct: 20,
+      },
+      annualRatePercent: 12,
+      now: NOW,
+    });
+    expect(r.checks.find((c) => c.code === 'age_band')?.status).toBe('pass');
+    expect(r.checks.find((c) => c.code === 'income_floor')?.status).toBe('pass');
+    expect(r.checks.find((c) => c.code === 'residency_duration')?.status).toBe('pass');
+    // Car financing is uncapped, so the plan itself is allowed: what declines
+    // this applicant is affordability — a QAR 292,000 balance over 12 months.
+    expect(r.checks.find((c) => c.code === 'product_rules')?.status).toBe('pass');
+    expect(r.checks.find((c) => c.code === 'dbr')?.status).toBe('fail');
+    expect(r.outcome).toBe('not_eligible');
+    expect(r.installment).toBeGreaterThan(15_000);
+  });
+
+  it('reports incomplete when applicant data is missing even if other checks warn', () => {
+    const r = preCheckEligibility({
+      residency: null,
+      monthlyIncome: 0,
+      monthlyLiabilities: 0,
+      employerCategory: 'private_unlisted',
+      financing: {
+        applicantType: 'individual',
+        residency: null,
+        vehicle: { price: 40_000, condition: 'new', category: 'car', modelYear: 2026 },
+        tenureMonths: 36,
+        downPaymentPct: 20,
+      },
+      annualRatePercent: 12,
+      now: NOW,
+    });
+    expect(r.outcome).toBe('incomplete');
+  });
 });

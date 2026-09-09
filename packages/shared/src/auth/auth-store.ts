@@ -42,7 +42,36 @@ function mapUser(raw: Record<string, unknown>): DmUser {
   };
 }
 
+/**
+ * How long the rate limiter says to wait, in whole minutes (at least one).
+ * `express-rate-limit` sends `Retry-After` in seconds and `RateLimit-Reset`
+ * as seconds remaining; either is enough to give the user a real number.
+ */
+function retryAfterMinutes(res: Response): number | null {
+  for (const header of ['retry-after', 'ratelimit-reset']) {
+    const raw = res.headers.get(header);
+    if (!raw) continue;
+    const seconds = Number(raw.trim());
+    if (Number.isFinite(seconds) && seconds > 0) return Math.max(1, Math.ceil(seconds / 60));
+  }
+  return null;
+}
+
+/**
+ * A throttled sign-in must not read as a rejected password. The limiter answers
+ * with plain text, so parsing it as JSON yields nothing and the caller used to
+ * fall through to "Sign in failed" — which tells the user to re-check
+ * credentials that were never the problem.
+ */
+function rateLimitMessage(res: Response): string {
+  const minutes = retryAfterMinutes(res);
+  return minutes
+    ? `Too many attempts. Your credentials were not checked — wait ${minutes} minute${minutes === 1 ? '' : 's'} and try again.`
+    : 'Too many attempts. Your credentials were not checked — wait a few minutes and try again.';
+}
+
 async function readAuthError(res: Response): Promise<string> {
+  if (res.status === 429) return rateLimitMessage(res);
   const data = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
   if (data.code === 'ACCOUNT_LOCKED') return data.message ?? 'Account temporarily locked.';
   if (data.code === 'EMAIL_MISMATCH') {
@@ -54,7 +83,6 @@ async function readAuthError(res: Response): Promise<string> {
     }
     return data.message;
   }
-  if (res.status === 429) return 'Too many attempts. Wait a few minutes and try again.';
   return res.statusText || 'Request failed';
 }
 
@@ -92,6 +120,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
       if (!res.ok) {
         set({ loading: false });
+        // Throttling is not a credential failure, and the limiter's plain-text
+        // body never parsed as JSON, so this used to surface as "Sign in failed".
+        if (res.status === 429) return { error: rateLimitMessage(res) };
         if (data.code === 'ACCOUNT_LOCKED') {
           return { error: data.message ?? 'Account temporarily locked.' };
         }

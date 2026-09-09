@@ -73,6 +73,7 @@ import { assertNoHardViolations, evaluateProductRules, withRuleFlags } from './a
 import {
   normalizeCustomerSnapshot,
   readCustomerSnapshot,
+  stripUndefinedDeep,
   type CustomerSnapshotInput,
 } from './customer-snapshot';
 import { assertSubmitGates, identityHoldActive, VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE } from './submit-gates';
@@ -324,9 +325,14 @@ export class ApplicationsService {
     }
 
     const currentSnapshot = (app.customerSnapshot as Record<string, unknown>) ?? {};
+    // A partial save must not erase what the customer already entered.
+    // class-transformer defines every property declared on the DTO, so fields
+    // the client omitted arrive as `undefined`; spreading those straight over
+    // the stored snapshot blanked city, address, employment, date of birth and
+    // the rest on every step-by-step save.
     const normalized = normalizeCustomerSnapshot({
       ...currentSnapshot,
-      ...(body.customerSnapshot ?? {}),
+      ...stripUndefinedDeep(body.customerSnapshot ?? {}),
     });
 
     const currentPricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};

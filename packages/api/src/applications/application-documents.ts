@@ -50,7 +50,7 @@ export type ApplicationDocumentForValidation = {
 };
 
 /**
- * How the identity (QID) slot may be satisfied — BRD Qatar e-KYC BR-3/FR-3.
+ * How the identity (QID) slot may be satisfied — BRD Qatar e-KYC BR-7/BR-8 (compliance report §5.1).
  *
  * With `ekycRequired` a hand-uploaded QID photo from the customer no longer
  * satisfies the slot: identity must come from the KYC platform (OCR + liveness

@@ -339,3 +339,30 @@ export function normalizeCustomerSnapshot(
     profile,
   };
 }
+
+/**
+ * Deep copy without the keys whose value is `undefined`.
+ *
+ * Bodies validated by class-transformer are class instances on which every
+ * declared property exists, so a field the client left out still shows up as
+ * `undefined`. Spreading such an object over stored data would blank the
+ * stored values, which is never what a partial save means.
+ */
+export function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item)) as unknown as T;
+  }
+  if (!value || typeof value !== 'object') return value;
+  // Values that are objects but not records get passed through whole. Nested
+  // DTO instances must NOT be exempted here: class-transformer builds the
+  // address, employment and guarantor objects as class instances too, and they
+  // carry the same `undefined` placeholders as the root.
+  if (value instanceof Date || value instanceof RegExp || Buffer.isBuffer(value)) return value;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (item === undefined) continue;
+    out[key] = stripUndefinedDeep(item);
+  }
+  return out as T;
+}

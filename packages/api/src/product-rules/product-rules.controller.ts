@@ -22,14 +22,19 @@ export class ProductRulesController {
       version: '2026-09-07',
       currency: PRODUCT_RULES.currency,
       individuals_only: PRODUCT_RULES.individualsOnly,
+      // Tenure and down payment are flexible: `min`/`max` are the only hard
+      // edges, `options` are presets, and the `recommended_*` figures are what
+      // a plan is measured against for a review flag.
       tenure: {
         min_months: PRODUCT_RULES.tenure.minMonths,
-        options: PRODUCT_RULES.tenure.options,
         max_months: PRODUCT_RULES.tenure.maxMonths,
+        options: PRODUCT_RULES.tenure.options,
+        recommended_max_months: PRODUCT_RULES.tenure.recommendedMaxMonths,
       },
       down_payment: {
-        min_pct_by_condition: PRODUCT_RULES.downPayment.minPctByCondition,
+        min_pct: PRODUCT_RULES.downPayment.minPct,
         max_pct: PRODUCT_RULES.downPayment.maxPct,
+        recommended_min_pct_by_condition: PRODUCT_RULES.downPayment.recommendedMinPctByCondition,
       },
       premium_car_price_threshold: PRODUCT_RULES.premiumCarPriceThreshold,
       financing_cap: PRODUCT_RULES.financingCap,

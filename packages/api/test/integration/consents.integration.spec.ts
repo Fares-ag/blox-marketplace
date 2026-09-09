@@ -78,13 +78,13 @@ describe('consent centre (integration)', () => {
     const res = await authed(customer.agent).get('/api/v1/me/consents');
     expect(res.status).toBe(200);
     const status = res.body as ConsentStatusBody;
-    expect(status).toEqual({
-      catalog_version: CONSENT_CATALOG_VERSION,
-      required: [...CONSENT_CODES],
-      accepted: [],
-      missing: [...CONSENT_CODES],
-      complete: false,
-    });
+    expect(status.catalog_version).toBe(CONSENT_CATALOG_VERSION);
+    expect(status.required).toEqual([...CONSENT_CODES]);
+    expect(status.accepted).toEqual([]);
+    expect(status.missing).toEqual([...CONSENT_CODES]);
+    expect(status.complete).toBe(false);
+    // Withdrawal (PDPPL right to withdraw) reports an empty history, not an absent key.
+    expect(status.withdrawn).toEqual([]);
   });
 
   it('refuses unknown codes and superseded versions without writing a record', async () => {

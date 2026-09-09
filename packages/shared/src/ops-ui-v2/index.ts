@@ -7,6 +7,7 @@ export {
   SearchBar,
   FilterPanel,
   MultiStepForm,
+  clearMultiStepDraft,
   Table,
   Alert,
   Button,
@@ -40,7 +41,7 @@ export { OpsMetricRow, Sparkline, type OpsMetricItem } from './OpsMetricRow';
 export { OpsFormSection } from './OpsFormSection';
 export { UserCredentialsDialog } from './UserCredentialsDialog';
 export { SetPasswordDialog } from './SetPasswordDialog';
-export { OpsField, OpsSelect, OpsTextarea, OpsFormGrid, OpsContentCard } from './OpsField';
+export { OpsField, OpsNumberField, OpsSelect, OpsTextarea, OpsFormGrid, OpsContentCard } from './OpsField';
 export { OwnershipBar } from './OwnershipBar';
 export { OpsListPage } from './templates/OpsListPage';
 export { DashboardSection, DashboardGrid } from './DashboardSection';

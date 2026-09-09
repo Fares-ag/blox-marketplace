@@ -22,28 +22,54 @@ export const PRODUCT_RULES = {
   currency: 'QAR',
   /** LMS §2.5(2): the Diminishing Musharakah product is for individual customers only. */
   individualsOnly: true,
+  /**
+   * Tenure is deliberately flexible: any whole month between `minMonths` and
+   * `maxMonths` is accepted from anyone. `options` are only the presets the UI
+   * offers, and the residency figures below are guidelines that raise a review
+   * flag instead of refusing the plan.
+   */
   tenure: {
-    /** LMS §1: minimum tenure across all variants. */
+    /** LMS §1: shortest tenure the schedule generator supports. */
     minMonths: 3,
-    /** LOS FSD Stage 1 list of values, capped per nationality below. */
+    /** Hard ceiling, the same for every applicant. */
+    maxMonths: 60,
+    /** Presets the UI shows as chips; a customer may still type any month in the band. */
     options: [12, 24, 36, 48, 60] as const,
-    /** LOS FSD §1.4 and §9.2 (Max_Tenure_Expat = 48). */
-    maxMonths: { qatari: 60, expat: 48 } as Record<ResidencyClass, number>,
+    /** LOS FSD §1.4/§9.2 (Max_Tenure_Expat = 48) — a review flag, not a block. */
+    recommendedMaxMonths: { qatari: 60, expat: 48 } as Record<ResidencyClass, number>,
   },
+  /**
+   * Down payment is equally flexible: anything inside the hard band is accepted.
+   * The FSD contribution minimums are kept as guidelines so credit still sees a
+   * flag when a customer puts in less than the product expects.
+   */
   downPayment: {
+    /** Hard band. The ceiling stays below 100% because a fully paid vehicle needs no financing. */
+    minPct: 0,
+    maxPct: 90,
     /** LOS FSD §9.2 Min_Cust_Contribution_New = 20%; LMS §2.5 allows 15% for used. */
-    minPctByCondition: { new: 20, used: 15 } as Record<RuleVehicleCondition, number>,
-    maxPct: 80,
+    recommendedMinPctByCondition: { new: 20, used: 15 } as Record<RuleVehicleCondition, number>,
   },
   /** LOS FSD §1.4: "New Car — Premium" is a vehicle above QAR 90,000. */
   premiumCarPriceThreshold: 90_000,
-  /** Maximum financing amount per variant (LOS FSD §1.4/§1.5). */
+  /**
+   * Maximum financing amount per variant (LOS FSD §1.4/§1.5). `null` means the
+   * variant is uncapped.
+   *
+   * Car caps are lifted for now. The FSD's QAR 50,000 / 70,000 ceilings predate
+   * this catalogue and refused most of it: a 150,000 vehicle at 20% down
+   * finances 120,000, so the eligibility check answered "not eligible" for cars
+   * the showroom actually sells. The caps are removed together rather than only
+   * the premium one, because capping standard cars at 50,000 while leaving
+   * premium uncapped would refuse an 80,000 car and allow a 150,000 one.
+   * Put the numbers back here to restore the ceilings.
+   */
   financingCap: {
-    car_new_standard: 50_000,
-    car_new_premium: 70_000,
-    car_used: 50_000,
+    car_new_standard: null,
+    car_new_premium: null,
+    car_used: null,
     motorcycle: 15_000,
-  } as Record<ProductVariant, number>,
+  } as Record<ProductVariant, number | null>,
   /** LOS FSD §1.5 approval authority matrix. */
   approvalAuthority: {
     car: { seniorManager: 50_000, headOfCredit: 70_000 },
@@ -95,7 +121,9 @@ export type ProductRuleCode =
   | 'tenure_below_min'
   | 'tenure_above_max'
   | 'tenure_not_offered'
+  | 'tenure_above_recommended'
   | 'down_payment_below_min'
+  | 'down_payment_below_recommended'
   | 'down_payment_above_max'
   | 'financing_amount_exceeds_cap'
   | 'vehicle_age_at_tenure_end'
@@ -129,6 +157,12 @@ export type FinancingRequest = {
   enforceFinancingCaps?: boolean;
   /** Block corporate applicants outright (defaults to a review flag so the dealer corporate flow keeps working). */
   enforceIndividualsOnly?: boolean;
+  /**
+   * Turn the plan guidelines (residency tenure ceiling, contribution minimum,
+   * the offer's tenure list) back into hard blocks. Off by default: tenure and
+   * down payment are flexible and anything unusual is flagged for review.
+   */
+  enforcePlanGuidelines?: boolean;
   now?: Date;
 };
 
@@ -142,34 +176,58 @@ export function resolveProductVariant(vehicle: {
   return vehicle.price > PRODUCT_RULES.premiumCarPriceThreshold ? 'car_new_premium' : 'car_new_standard';
 }
 
-export function financingCapFor(variant: ProductVariant): number {
+/** Maximum financeable amount for a variant, or `null` when it is uncapped. */
+export function financingCapFor(variant: ProductVariant): number | null {
   return PRODUCT_RULES.financingCap[variant];
 }
 
-export function maxTenureFor(residency: ResidencyClass | null | undefined): number {
-  return residency ? PRODUCT_RULES.tenure.maxMonths[residency] : Math.max(...Object.values(PRODUCT_RULES.tenure.maxMonths));
+/** Hard tenure ceiling. The same for everyone; residency only sets a guideline. */
+export function maxTenureFor(_residency?: ResidencyClass | null): number {
+  return PRODUCT_RULES.tenure.maxMonths;
 }
 
-/** Tenure choices a customer may pick: product options ∩ offer options, capped by nationality. */
+/** The whole tenure band a customer may choose from. */
+export function tenureBounds(): { min: number; max: number } {
+  return { min: PRODUCT_RULES.tenure.minMonths, max: PRODUCT_RULES.tenure.maxMonths };
+}
+
+/** Guideline ceiling for a residency; exceeding it is flagged for review, never refused. */
+export function recommendedMaxTenureFor(residency: ResidencyClass | null | undefined): number | null {
+  return residency ? PRODUCT_RULES.tenure.recommendedMaxMonths[residency] : null;
+}
+
+/**
+ * Tenure presets to show as chips: the product's own presets plus anything the
+ * offer adds, inside the hard band. Offer options no longer restrict the
+ * choice — they only add to it — because any month in the band is acceptable.
+ */
 export function allowedTenureOptions(
-  residency: ResidencyClass | null | undefined,
+  _residency?: ResidencyClass | null,
   offerTenureOptions?: number[] | null,
 ): number[] {
-  const max = maxTenureFor(residency);
-  const base: number[] = offerTenureOptions?.length
-    ? [...offerTenureOptions]
-    : [...PRODUCT_RULES.tenure.options];
-  return base
-    .filter((m) => Number.isFinite(m) && m >= PRODUCT_RULES.tenure.minMonths && m <= max)
+  const { min, max } = tenureBounds();
+  const merged = new Set<number>([...PRODUCT_RULES.tenure.options, ...(offerTenureOptions ?? [])]);
+  return [...merged]
+    .filter((m) => Number.isFinite(m) && Number.isInteger(m) && m >= min && m <= max)
     .sort((a, b) => a - b);
 }
 
+/**
+ * Recommended starting down payment (the FSD contribution minimum, raised by the
+ * offer when it asks for more). Used to pre-fill the form — it is not a floor;
+ * `downPaymentBounds()` gives what is actually accepted.
+ */
 export function minDownPaymentPctFor(
   condition: RuleVehicleCondition,
   offerMinDownPaymentPct?: number | null,
 ): number {
-  const product = PRODUCT_RULES.downPayment.minPctByCondition[condition];
+  const product = PRODUCT_RULES.downPayment.recommendedMinPctByCondition[condition];
   return Math.max(product, Number(offerMinDownPaymentPct ?? 0));
+}
+
+/** The whole down-payment band a customer may choose from. */
+export function downPaymentBounds(): { min: number; max: number } {
+  return { min: PRODUCT_RULES.downPayment.minPct, max: PRODUCT_RULES.downPayment.maxPct };
 }
 
 export function vehicleAgeAtTenureEnd(modelYear: number, tenureMonths: number, now = new Date()): number {
@@ -191,31 +249,55 @@ export function validateFinancingRequest(req: FinancingRequest): ProductRuleViol
     return out;
   }
 
+  // Guidelines (residency tenure ceiling, contribution minimum, the offer's own
+  // tenure list) are review flags. `enforcePlanGuidelines` turns them back into
+  // blocks for a stricter product configuration.
+  const guidelineSeverity: ProductRuleViolation['severity'] = req.enforcePlanGuidelines ? 'hard' : 'soft';
+
   const tenure = Number(req.tenureMonths);
-  const maxTenure = maxTenureFor(req.residency);
-  if (tenure < PRODUCT_RULES.tenure.minMonths) {
-    out.push({ code: 'tenure_below_min', severity: 'hard', params: { min: PRODUCT_RULES.tenure.minMonths } });
+  const { min: minTenure, max: maxTenure } = tenureBounds();
+  if (tenure < minTenure) {
+    out.push({ code: 'tenure_below_min', severity: 'hard', params: { min: minTenure } });
   }
   if (tenure > maxTenure) {
     out.push({ code: 'tenure_above_max', severity: 'hard', params: { max: maxTenure, residency: req.residency ?? '' } });
   }
+  const recommendedTenure = recommendedMaxTenureFor(req.residency);
+  if (recommendedTenure != null && tenure > recommendedTenure && tenure <= maxTenure) {
+    out.push({
+      code: 'tenure_above_recommended',
+      severity: guidelineSeverity,
+      params: { max: recommendedTenure, residency: req.residency ?? '' },
+    });
+  }
   if (req.offerTenureOptions?.length && !req.offerTenureOptions.includes(tenure)) {
-    out.push({ code: 'tenure_not_offered', severity: 'hard', params: { options: req.offerTenureOptions.join(', ') } });
+    out.push({
+      code: 'tenure_not_offered',
+      severity: guidelineSeverity,
+      params: { options: req.offerTenureOptions.join(', ') },
+    });
   }
 
-  const minDown = minDownPaymentPctFor(req.vehicle.condition, req.offerMinDownPaymentPct);
+  const recommendedDown = minDownPaymentPctFor(req.vehicle.condition, req.offerMinDownPaymentPct);
+  const { min: minDown, max: maxDown } = downPaymentBounds();
   const downPct = Number(req.downPaymentPct);
-  if (downPct < minDown) {
+  if (!Number.isFinite(downPct) || downPct < minDown) {
     out.push({ code: 'down_payment_below_min', severity: 'hard', params: { min: minDown } });
+  } else if (downPct < recommendedDown) {
+    out.push({
+      code: 'down_payment_below_recommended',
+      severity: guidelineSeverity,
+      params: { min: recommendedDown, condition: req.vehicle.condition },
+    });
   }
-  if (downPct > PRODUCT_RULES.downPayment.maxPct) {
-    out.push({ code: 'down_payment_above_max', severity: 'hard', params: { max: PRODUCT_RULES.downPayment.maxPct } });
+  if (downPct > maxDown) {
+    out.push({ code: 'down_payment_above_max', severity: 'hard', params: { max: maxDown } });
   }
 
   const variant = resolveProductVariant(req.vehicle);
   const financed = Math.max(0, price - (price * Math.min(Math.max(downPct, 0), 100)) / 100);
   const cap = financingCapFor(variant);
-  if (financed > cap) {
+  if (cap != null && financed > cap) {
     out.push({
       code: 'financing_amount_exceeds_cap',
       severity: req.enforceFinancingCaps ? 'hard' : 'soft',

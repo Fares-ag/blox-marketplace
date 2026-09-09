@@ -20,7 +20,7 @@ import type {
 import { buildPricingSnapshot as buildCanonicalPricingSnapshot } from '@drivemarket/shared/pricing';
 import { CONSENT_CATALOG, CONSENT_CODES, type ConsentCodeValue } from '@drivemarket/shared/domain-rules';
 import type { PrismaService } from '../../../src/prisma/prisma.service';
-import { REQUIRED_APPLICATION_DOC_CATEGORIES } from '../../../src/applications/application-documents';
+import { missingDocumentsForApplication } from '../../../src/applications/application-documents';
 import { buildScheduleDrafts } from '../../../src/applications/payment-schedules';
 import { consentTextHash } from '../../../src/consents/consent-logic';
 
@@ -126,6 +126,8 @@ export async function seedProduct(
     model?: string;
     modelYear?: number;
     condition?: 'new' | 'used';
+    /** Free-form spec JSON; the product rules read it to spot a motorcycle. */
+    attributes?: Record<string, unknown>;
     /** VIN + chassis + engine number on the listing (default true — most listings are complete). */
     vehicleIdentity?: boolean;
   },
@@ -139,6 +141,7 @@ export async function seedProduct(
       model: opts.model ?? 'Camry',
       modelYear: opts.modelYear ?? 2024,
       condition: opts.condition ?? 'used',
+      ...(opts.attributes ? { attributes: opts.attributes } : {}),
       price: opts.price ?? 100_000,
       listingStatus: 'published',
       financeEligible: true,
@@ -469,20 +472,96 @@ export async function seedActiveApplicationWithFullSchedule(
   return { application, schedules };
 }
 
+/**
+ * Identity exactly as the KYC platform delivers it (BRD Qatar e-KYC BR-3/FR-3):
+ * the verified `qid_front` (+ `qid_back`) rows `KycBridgeService.syncDocuments`
+ * writes onto the application, stored under the `qid` category.
+ *
+ * With `KYC_EKYC_REQUIRED` on — the default whenever the KYC platform is
+ * configured — this, and not a QID photo the customer uploads by hand, is what
+ * satisfies the identity slot. Use it wherever a journey has to get past that
+ * slot as a customer.
+ */
+export async function seedVerifiedEkycIdentity(
+  prisma: PrismaService,
+  applicationId: string,
+  opts: {
+    /** Defaults to the application's customer, which is who the bridge attributes the sync to. */
+    uploadedById?: string;
+    /** Hosted capture sometimes stores only the front; `false` seeds `qid_front` alone. */
+    includeBack?: boolean;
+    /** `verified` (default) satisfies the slot; `processing` / `rejected` do not. */
+    verificationStatus?: 'verified' | 'processing' | 'rejected';
+    createdAt?: Date;
+  } = {},
+) {
+  const application = await prisma.application.findUniqueOrThrow({
+    where: { id: applicationId },
+    select: { customerUserId: true },
+  });
+  const uploadedById = opts.uploadedById ?? application.customerUserId;
+  const status = opts.verificationStatus ?? 'verified';
+  const types = opts.includeBack === false ? (['qid_front'] as const) : (['qid_front', 'qid_back'] as const);
+
+  const documents = [];
+  for (const kycDocumentType of types) {
+    documents.push(
+      await prisma.applicationDocument.create({
+        data: {
+          applicationId,
+          category: 'qid',
+          storagePath: `kyc://${applicationId}/${kycDocumentType}`,
+          mimeType: 'image/jpeg',
+          originalName: kycDocumentType === 'qid_front' ? 'QID Front' : 'QID Back',
+          uploadedById,
+          kycDocumentId: `kyc-doc-${randomUUID().slice(0, 8)}`,
+          kycDocumentType,
+          verificationStatus: status,
+          reviewStatus: status === 'rejected' ? 'fail' : 'pass',
+          ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
+        },
+      }),
+    );
+  }
+
+  await prisma.application.update({
+    where: { id: applicationId },
+    data: { kycStatus: status === 'verified' ? 'verified' : 'processing' },
+  });
+
+  return documents;
+}
+
+/**
+ * Every document slot the application's own profile requires (residency,
+ * employment type, guarantor — not just the legacy core three): identity from a
+ * verified e-KYC capture, everything else as a manual upload by `uploadedById`.
+ */
 export async function seedRequiredDocuments(
   prisma: PrismaService,
   applicationId: string,
   uploadedById: string,
 ) {
-  for (const category of REQUIRED_APPLICATION_DOC_CATEGORIES) {
+  const application = await prisma.application.findUniqueOrThrow({
+    where: { id: applicationId },
+    select: { customerSnapshot: true },
+  });
+  const required = missingDocumentsForApplication(application.customerSnapshot, []);
+
+  for (const category of required) {
+    if (category === 'qid') continue;
     await prisma.applicationDocument.create({
       data: {
         applicationId,
-        category,
+        category: category as DocumentCategory,
         storagePath: `${applicationId}/${category}/test.pdf`,
         uploadedById,
       },
     });
+  }
+
+  if (required.includes('qid')) {
+    await seedVerifiedEkycIdentity(prisma, applicationId);
   }
 }
 

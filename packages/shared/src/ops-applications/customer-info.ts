@@ -14,7 +14,8 @@ import {
   type DocumentSlotGroup,
   type DocumentSlotProfile,
 } from '../lib/document-slots';
-import { ageFromDateOfBirth, dateOfBirthMatchesQid, parseQid } from '../lib/qid';
+import { isValidEmail, isValidQatarPhone } from '../lib/contact';
+import { ageFromDateOfBirth, dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from '../lib/qid';
 import {
   PRODUCT_RULES,
   RESIDENCE_DURATION_OPTIONS,
@@ -441,8 +442,11 @@ export function buildCustomerSnapshot(value: CustomerInfoFormValue): Record<stri
 const VALIDATION_DEFAULTS = {
   nameRequired: 'First and last name are required.',
   emailRequired: 'Email is required.',
-  emailInvalid: 'Enter a valid email address.',
+  emailInvalid: 'Enter a valid email address, for example name@example.com.',
+  genderRequired: 'Gender is required.',
   phoneRequired: 'Phone is required.',
+  phoneInvalid: 'Enter an 8-digit Qatar phone number, for example 5551 2345.',
+  dobInvalid: 'Enter the date of birth as a real calendar date.',
   qidInvalid: 'Qatar ID must be 11 digits starting with 2 or 3.',
   dobRequired: 'Date of birth is required.',
   dobMismatch: 'The date of birth does not match the birth year on the Qatar ID.',
@@ -495,20 +499,25 @@ export function validateCustomerInfo(value: CustomerInfoFormValue, t: IntakeTran
     if (!addr?.city?.trim()) return message(t, 'corpCity');
     if (!addr?.country?.trim()) return message(t, 'corpCountry');
     if (!sig?.firstName?.trim() || !sig?.lastName?.trim()) return message(t, 'corpSignatoryName');
-    if (!sig?.email?.trim()) return message(t, 'corpSignatoryEmail');
-    if (!sig?.phone?.trim()) return message(t, 'corpSignatoryPhone');
+    if (!sig?.email?.trim() || !isValidEmail(sig.email)) return message(t, 'corpSignatoryEmail');
+    if (!sig?.phone?.trim() || !isValidQatarPhone(sig.phone)) return message(t, 'corpSignatoryPhone');
     if (!sig?.qid?.trim() || !/^\d{11}$/.test(sig.qid.trim())) return message(t, 'corpSignatoryQid');
     return null;
   }
 
   if (!value.firstName.trim() || !value.lastName.trim()) return message(t, 'nameRequired');
+  if (!value.gender) return message(t, 'genderRequired');
   if (!value.email.trim()) return message(t, 'emailRequired');
-  if (!value.email.includes('@')) return message(t, 'emailInvalid');
+  if (!isValidEmail(value.email)) return message(t, 'emailInvalid');
   if (!value.phone.trim()) return message(t, 'phoneRequired');
+  if (!isValidQatarPhone(value.phone)) return message(t, 'phoneInvalid');
 
   const qid = value.qid.trim();
   if (!/^\d{11}$/.test(qid) || !parseQid(qid).valid) return message(t, 'qidInvalid');
   if (!value.dateOfBirth.trim()) return message(t, 'dobRequired');
+  // Separated from the QID comparison so "20001-05-12" reads as a bad date
+  // rather than as a birth-year mismatch.
+  if (!parseIsoDateParts(value.dateOfBirth)) return message(t, 'dobInvalid');
   if (dateOfBirthMatchesQid(value.dateOfBirth, qid) === false) return message(t, 'dobMismatch');
   if (!value.nationality.trim()) return message(t, 'nationalityRequired');
   if (residencyForInfo({ residency: value.residency, qid }) === 'expat' && !value.residenceDuration) {

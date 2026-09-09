@@ -138,6 +138,35 @@ describe('validateCustomerInfo', () => {
     expect(validateCustomerInfo(individual({ dateOfBirth: '1985-04-12' }))).toMatch(/birth year/);
   });
 
+  it('rejects a date of birth whose year is not four digits', () => {
+    // "19901-04-12" used to read as 1990 and pass the QID cross-check.
+    expect(validateCustomerInfo(individual({ dateOfBirth: '19901-04-12' }))).toMatch(/calendar date/);
+    expect(validateCustomerInfo(individual({ dateOfBirth: '1990-02-31' }))).toMatch(/calendar date/);
+  });
+
+  it('requires gender', () => {
+    expect(validateCustomerInfo(individual({ gender: '' }))).toMatch(/Gender/);
+  });
+
+  it('rejects an email that only looks like one', () => {
+    // Intake accepted anything containing "@", so submit was the first thing
+    // that noticed — on the last step, after all the work was done.
+    expect(validateCustomerInfo(individual({ email: '@' }))).toMatch(/valid email/);
+    expect(validateCustomerInfo(individual({ email: 'aisha@example' }))).toMatch(/valid email/);
+    expect(validateCustomerInfo(individual({ email: '' }))).toMatch(/Email is required/);
+  });
+
+  it('requires a Qatar phone number rather than any digits at all', () => {
+    expect(validateCustomerInfo(individual({ phone: '1234' }))).toMatch(/Qatar phone/);
+    expect(validateCustomerInfo(individual({ phone: '555123456' }))).toMatch(/Qatar phone/);
+    expect(validateCustomerInfo(individual({ phone: '55512345' }))).toBeNull();
+  });
+
+  it('accepts zero monthly commitments, as the field hint promises', () => {
+    expect(validateCustomerInfo(individual({ monthlyLiabilities: 0 }))).toBeNull();
+    expect(validateCustomerInfo(individual({ monthlyLiabilities: -1 }))).toMatch(/negative/);
+  });
+
   it('requires residence duration for expatriates only', () => {
     const expat = individual({ qid: EXPAT_QID, dateOfBirth: '2001-05-05', nationality: 'India', residency: '' });
     expect(validateCustomerInfo(expat)).toMatch(/Time in Qatar/);
@@ -210,18 +239,32 @@ describe('wizardRuleViolations', () => {
     offerMinDownPaymentPct: 10,
   };
 
-  it('is clean for a compliant new-car plan (financing cap stays soft)', () => {
+  it('is clean for a compliant new-car plan: car financing is uncapped', () => {
     const violations = wizardRuleViolations({ ...base, vehicle: { ...base.vehicle } });
-    expect(violations.filter((v) => v.severity === 'hard')).toEqual([]);
-    expect(violations.map((v) => v.code)).toEqual(['financing_amount_exceeds_cap']);
+    expect(violations).toEqual([]);
   });
 
-  it('caps expatriate tenure at 48 months and enforces the product down-payment minimum', () => {
+  it('still flags a motorcycle over its cap, and keeps it soft', () => {
+    const violations = wizardRuleViolations({
+      ...base,
+      vehicle: { price: 40_000, condition: 'new', modelYear: 2025, category: 'motorcycle' },
+    });
+    expect(violations.map((v) => v.code)).toEqual(['financing_amount_exceeds_cap']);
+    expect(violations.every((v) => v.severity === 'soft')).toBe(true);
+  });
+
+  it('lets an expatriate take 60 months at 10% down, flagging both for review', () => {
     const expat = individual({ qid: EXPAT_QID, dateOfBirth: '2001-01-01', residency: '', residenceDuration: '1-3-years' });
     const violations = wizardRuleViolations({ ...base, info: expat, tenureMonths: 60, downPaymentPct: 10 });
-    const hard = violations.filter((v) => v.severity === 'hard').map((v) => v.code);
-    expect(hard).toContain('tenure_above_max');
-    expect(hard).toContain('down_payment_below_min');
+    expect(violations.filter((v) => v.severity === 'hard')).toEqual([]);
+    const soft = violations.filter((v) => v.severity === 'soft').map((v) => v.code);
+    expect(soft).toContain('tenure_above_recommended');
+    expect(soft).toContain('down_payment_below_recommended');
+  });
+
+  it('still refuses a tenure outside the hard band', () => {
+    const violations = wizardRuleViolations({ ...base, tenureMonths: 72 });
+    expect(violations.filter((v) => v.severity === 'hard').map((v) => v.code)).toContain('tenure_above_max');
   });
 
   it('flags corporate applicants softly so the dealer corporate flow keeps working', () => {

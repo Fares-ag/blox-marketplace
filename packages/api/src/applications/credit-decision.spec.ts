@@ -64,7 +64,8 @@ describe('evaluateApprovalAuthorization — approval authority', () => {
     ['credit_officer', WITHIN_CAP, true],
     ['admin', WITHIN_CAP, true],
     ['super_admin', WITHIN_CAP, true],
-    ['finance_officer', WITHIN_CAP, false],
+    // Credit parity: finance officers approve alongside credit officers.
+    ['finance_officer', WITHIN_CAP, true],
     ['credit_officer', HEAD_OF_CREDIT, false],
     ['admin', HEAD_OF_CREDIT, true],
     ['super_admin', HEAD_OF_CREDIT, true],

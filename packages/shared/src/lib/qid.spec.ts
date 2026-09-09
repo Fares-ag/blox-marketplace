@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dateOfBirthMatchesQid, parseQid } from './qid';
+import { dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from './qid';
 import { maskIban, maskPhone, maskQid } from './masking';
 import { documentSlotsFor, missingDocumentCategories } from './document-slots';
 import { missingConsents } from './consents';
@@ -32,6 +32,24 @@ describe('qid parsing', () => {
     expect(dateOfBirthMatchesQid('1990-02-10', '29063412345')).toBe(true);
     expect(dateOfBirthMatchesQid('1991-02-10', '29063412345')).toBe(false);
     expect(dateOfBirthMatchesQid(null, '29063412345')).toBeNull();
+  });
+
+  it('treats a date that is not a real ISO date as a mismatch, not as unknown', () => {
+    // Reading the first four characters of "20001-02-10" yielded 2000 and
+    // matched a QID encoding the year 2000, so a five-digit year sailed through.
+    expect(dateOfBirthMatchesQid('19901-02-10', '29063412345')).toBe(false);
+    expect(dateOfBirthMatchesQid('1990-02-30', '29063412345')).toBe(false);
+    expect(dateOfBirthMatchesQid('1990-13-01', '29063412345')).toBe(false);
+    expect(dateOfBirthMatchesQid('90-02-10', '29063412345')).toBe(false);
+    // A stored timestamp is still a real date and must keep matching.
+    expect(dateOfBirthMatchesQid('1990-02-10T00:00:00.000Z', '29063412345')).toBe(true);
+  });
+
+  it('parses only calendar-real ISO dates', () => {
+    expect(parseIsoDateParts('1990-02-10')).toEqual({ year: 1990, month: 2, day: 10 });
+    expect(parseIsoDateParts('20001-02-10')).toBeNull();
+    expect(parseIsoDateParts('2001-02-29')).toBeNull();
+    expect(parseIsoDateParts('2000-02-29')).toEqual({ year: 2000, month: 2, day: 29 });
   });
 });
 

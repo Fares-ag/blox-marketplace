@@ -13,6 +13,9 @@ import {
   OpsAppFrame,
   AddApplicationWizard,
   ApplicationWorkspace,
+  TakafulProvidersPage,
+  TakafulProviderEditPage,
+  DataRightsQueuePage,
   PageSkeleton,
   mountPortalApp,
   type BloxNavItem,
@@ -45,6 +48,12 @@ function AdminWorkspace() {
   return <ApplicationWorkspace id={id} audience="admin" backTo="/main/applications" />;
 }
 
+/** In-app notifications link the privacy team to `/data-rights/<id>`; this portal lives under `/main`. */
+function DataRightsNotificationRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/main/data-rights/${id}` : '/main/data-rights'} replace />;
+}
+
 function App() {
   const { t } = useTranslation();
   const counts = useNavCounts<{ applications_by_status?: Record<string, number>; schedules_overdue?: number }>('/api/ops/metrics');
@@ -54,16 +63,24 @@ function App() {
     const people = t('ops.shell.groupPeople');
     const catalog = t('ops.shell.groupCatalog');
     const platform = t('ops.shell.groupPlatform');
-    // Finance-provider writes are admin/super_admin only; group admins do not get the entry.
-    const providerNav: BloxNavItem[] =
-      role === 'group_admin'
-        ? []
-        : [{ to: '/main/finance-providers', label: t('adminOps.nav.financeProviders'), icon: 'finance', group: people }];
+    // Finance-provider writes, the takaful master and the data-rights queue are
+    // admin/super_admin only; group admins do not get those entries.
+    const fullAdmin = role !== 'group_admin';
+    const dataRightsNav: BloxNavItem[] = fullAdmin
+      ? [{ to: '/main/data-rights', label: t('adminOps.nav.dataRights'), icon: 'queue', group: operations }]
+      : [];
+    const providerNav: BloxNavItem[] = fullAdmin
+      ? [{ to: '/main/finance-providers', label: t('adminOps.nav.financeProviders'), icon: 'finance', group: people }]
+      : [];
+    const takafulNav: BloxNavItem[] = fullAdmin
+      ? [{ to: '/main/takaful-providers', label: t('adminOps.nav.takafulProviders'), icon: 'insurance', group: catalog }]
+      : [];
     return [
       { to: '/main/dashboard', label: t('ops.admin.nav.dashboard'), icon: 'home', group: operations },
       { to: '/main/applications', label: t('ops.admin.nav.applications'), icon: 'apps', group: operations, count: counts?.applications_by_status?.under_review },
       { to: '/main/bank-transfers', label: t('ops.admin.nav.bankTransfers'), icon: 'finance', group: operations },
       { to: '/main/ledgers', label: t('ops.admin.nav.ledgers'), icon: 'ledgers', group: operations, count: counts?.schedules_overdue },
+      ...dataRightsNav,
       { to: '/main/users', label: t('ops.admin.nav.users'), icon: 'users', group: people },
       { to: '/main/companies', label: t('ops.admin.nav.companies'), icon: 'company', group: people },
       ...providerNav,
@@ -71,6 +88,7 @@ function App() {
       { to: '/main/offers', label: t('ops.admin.nav.offers'), icon: 'offers', group: catalog },
       { to: '/main/promotions', label: t('ops.admin.nav.promotions'), icon: 'promotions', group: catalog },
       { to: '/main/insurance-rates', label: t('ops.admin.nav.insurance'), icon: 'insurance', group: catalog },
+      ...takafulNav,
       { to: '/main/packages', label: t('ops.admin.nav.packages'), icon: 'packages', group: catalog },
       { to: '/main/settings/settlement-discounts', label: t('ops.admin.nav.settings'), icon: 'settings', group: platform },
     ];
@@ -105,6 +123,13 @@ function App() {
                 <Route path="/main/finance-providers" element={<FinanceProvidersPage />} />
                 <Route path="/main/finance-providers/new" element={<FinanceProviderEditPage />} />
                 <Route path="/main/finance-providers/:id" element={<FinanceProviderEditPage />} />
+                <Route path="/main/takaful-providers" element={<TakafulProvidersPage />} />
+                <Route path="/main/takaful-providers/new" element={<TakafulProviderEditPage />} />
+                <Route path="/main/takaful-providers/:id" element={<TakafulProviderEditPage />} />
+                <Route path="/main/data-rights" element={<DataRightsQueuePage />} />
+                <Route path="/main/data-rights/:id" element={<DataRightsQueuePage />} />
+                <Route path="/data-rights" element={<DataRightsNotificationRedirect />} />
+                <Route path="/data-rights/:id" element={<DataRightsNotificationRedirect />} />
                 <Route path="/main/vehicles" element={<ProductsPage />} />
                 <Route path="/main/vehicles/add" element={<ProductEditPage />} />
                 <Route path="/main/vehicles/:id" element={<ProductEditPage />} />

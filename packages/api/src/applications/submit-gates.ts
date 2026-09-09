@@ -73,7 +73,7 @@ export type SubmitGateInput = {
    * application. Only consulted when the snapshot declares a guarantor.
    */
   guarantorConsentCompleted?: boolean;
-  /** e-KYC policy for the identity slot (BRD BR-3): omitted ⇒ manual QID uploads still count. */
+  /** e-KYC policy for the identity slot (BRD BR-7/BR-8): omitted ⇒ manual QID uploads still count. */
   identityPolicy?: IdentityPolicy;
   now?: Date;
 };

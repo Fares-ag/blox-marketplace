@@ -83,10 +83,16 @@ export type PricingSnapshot = {
   financed_total: number;
 };
 
+/**
+ * Keep a chosen down payment inside a band. `maxPct` defaults to the product
+ * rules' ceiling (90%); pass the floor you actually want enforced — the apply
+ * flow passes 0 so a customer's smaller contribution is priced as entered
+ * rather than being silently raised to the recommended minimum.
+ */
 export function clampDownPaymentPct(
   downPct: number,
   minDownPaymentPct: number,
-  maxPct = 80,
+  maxPct = 90,
 ): number {
   const min = Number(minDownPaymentPct);
   const safe = Number.isFinite(downPct) ? downPct : min;

@@ -119,7 +119,7 @@ describe('partner DTO', () => {
     expect(assessment?.rule_flags).toEqual([{ code: 'financing_cap', severity: 'soft', params: { cap: 50000 } }]);
     expect(assessment?.approver).toEqual({
       role_may_approve: false,
-      required_roles: ['credit_officer', 'admin', 'super_admin'],
+      required_roles: ['credit_officer', 'finance_officer', 'admin', 'super_admin'],
       max_tier_for_role: 0,
     });
     expect(approverFor('admin', 'head_of_credit')).toEqual({

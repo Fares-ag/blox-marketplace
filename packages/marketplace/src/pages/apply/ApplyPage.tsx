@@ -215,16 +215,21 @@ export function ApplyPage() {
   const derived = useMemo(() => deriveIdentity(form, locale), [form, locale]);
   const residency = derived.residency;
 
-  // Snap the plan to what the offer and the (now known) residency allow.
+  // Keep the plan inside the accepted bands, and start the down payment at the
+  // recommended contribution when the customer did not bring one in the link.
   useEffect(() => {
     if (!ctx) return;
+    if (!planReady && !params.get('downPct') && plan.downPct === 0) {
+      setPlan((prev) => ({ ...prev, downPct: planMinDownPct(ctx) }));
+      return;
+    }
     const { plan: next, adjusted } = normalizePlan(plan, ctx, residency);
     if (adjusted) {
       setPlan(next);
       if (planReady && next.tenure !== plan.tenure) setAdjustedTenure(next.tenure);
     }
     if (!planReady) setPlanReady(true);
-  }, [ctx, residency, plan, planReady]);
+  }, [ctx, residency, plan, planReady, params]);
 
   useEffect(() => {
     if (!product?.id) return;

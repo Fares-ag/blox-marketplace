@@ -166,7 +166,7 @@ export function preCheckEligibility(input: EligibilityInput): EligibilityResult 
           })
         : 0;
 
-  const violations = validateFinancingRequest({ ...input.financing, now });
+  const violations = validateFinancingRequest({ ...input.financing, enforceFinancingCaps: true, now });
   const hard = violations.filter((v) => v.severity === 'hard');
   checks.push({
     code: 'product_rules',
@@ -266,10 +266,10 @@ export function preCheckEligibility(input: EligibilityInput): EligibilityResult 
   const statuses = checks.map((c) => c.status);
   const outcome: EligibilityOutcome = statuses.includes('fail')
     ? 'not_eligible'
-    : statuses.includes('warn')
-      ? 'needs_review'
-      : statuses.includes('unknown')
-        ? 'incomplete'
+    : statuses.includes('unknown')
+      ? 'incomplete'
+      : statuses.includes('warn')
+        ? 'needs_review'
         : 'likely_eligible';
 
   const maxFinancingWithinCap = affordability

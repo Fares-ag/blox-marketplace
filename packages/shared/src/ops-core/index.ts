@@ -13,7 +13,7 @@ export { EmptyState } from './shared/EmptyState/EmptyState';
 export { ErrorBoundary } from './shared/ErrorBoundary/ErrorBoundary';
 export { ExportButton } from './shared/ExportButton/ExportButton';
 export { FilterPanel, type FilterConfig } from './shared/FilterPanel/FilterPanel';
-export { MultiStepForm, type StepConfig, type StepProps } from './shared/MultiStepForm/MultiStepForm';
+export { MultiStepForm, clearMultiStepDraft, type StepConfig, type StepProps } from './shared/MultiStepForm/MultiStepForm';
 export { PDFViewer } from './shared/PDFViewer/PDFViewer';
 export { SearchBar } from './shared/SearchBar/SearchBar';
 export { Skeleton, TableSkeleton, CardSkeleton } from './shared/Skeleton/Skeleton';

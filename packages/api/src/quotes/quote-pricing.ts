@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   MAX_TENURE_MONTHS,
   MIN_TENURE_MONTHS,
@@ -25,11 +26,15 @@ export function parseTenureOptions(raw: unknown): number[] {
   return parsed.length > 0 ? parsed : [12, 24, 36, 48, 60];
 }
 
-/** Validates tenure is within platform range (1–60 months). */
+/**
+ * Tenure must sit inside the product band (3–60 months). A plain `Error` here
+ * reached the exception filter as a 500, so a customer asking for an
+ * out-of-band term got a server error instead of a validation message.
+ */
 export function assertTenureAllowed(tenureMonths: number, _tenureOptions?: unknown): void {
   void _tenureOptions;
   if (!isTenureInRange(tenureMonths)) {
-    throw new Error('invalid_tenure');
+    throw new BadRequestException('invalid_tenure');
   }
 }
 
