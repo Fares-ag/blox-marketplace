@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start:dev": "nest start --watch",
-    "build": "prisma generate && npm run build:installment-plan -w @drivemarket/shared && npm run build:tenure -w @drivemarket/shared && npm run build:domain-rules -w @drivemarket/shared && nest build",
+    "build": "prisma generate && npm run build:installment-plan -w @drivemarket/shared && npm run build:tenure -w @drivemarket/shared && npm run build:domain-rules -w @drivemarket/shared && npm run build:application-status-map -w @drivemarket/shared && npm run build:units -w @drivemarket/shared && npm run build:ownership -w @drivemarket/shared && nest build",
     "start": "node dist/api/src/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
@@ -18,6 +18,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "ensure:seed-users": "node scripts/ensure-seed-users.mjs",
     "db:backfill-installment-plan": "tsx scripts/backfill-installment-plan.ts",
+    "db:backfill-ownership-register": "tsx scripts/backfill-ownership-register.ts",
+    "db:reconcile-ownership-register": "tsx scripts/reconcile-ownership-register.ts",
+    "db:enable-musharakah-rollout": "tsx scripts/enable-musharakah-rollout.ts",
     "qid:backfill": "tsx scripts/backfill-qid-encryption.ts",
     "qid:drop-plaintext": "tsx scripts/drop-qid-plaintext.ts",
     "bootstrap:qauto": "tsx scripts/bootstrap-qauto.ts",

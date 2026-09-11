@@ -3,7 +3,18 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../lib/api';
 import { useAuthStore } from './auth-store';
 
-const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'focus'] as const;
+const ACTIVITY_EVENTS = [
+  'mousemove',
+  'mousedown',
+  'keydown',
+  'touchstart',
+  'scroll',
+  'focus',
+  'input',
+  'change',
+  'click',
+  'pointerdown',
+] as const;
 
 /**
  * Client half of the session policy (LOS FSD §11.2). The API expires an idle
@@ -54,7 +65,15 @@ export function SessionTimeoutGuard({ children }: { children: ReactNode }) {
     const onActivity = () => {
       if (warningOpen.current) return;
       lastActivity.current = Date.now();
+      const firstActivity = !activeSincePing.current;
       activeSincePing.current = true;
+      if (
+        firstActivity &&
+        (typeof document === 'undefined' || document.visibilityState !== 'hidden')
+      ) {
+        lastPing.current = Date.now();
+        void apiFetch('/api/me').catch(() => undefined);
+      }
     };
     ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
 

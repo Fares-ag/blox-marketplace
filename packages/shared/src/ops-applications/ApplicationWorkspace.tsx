@@ -6,7 +6,7 @@ import { applicationOpsPillVariant } from '../config/status-styles';
 import { useAuthStore } from '../auth/auth-store';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { Alert, ConfirmDialog, OpsDetailPage, PageSkeleton } from '../ops-ui-v2';
-import { calculateOwnershipTimeline } from '../lib/ownership';
+import { calculateOwnershipTimeline, overlayRegisterOnTimeline } from '../lib/ownership';
 import { resolveDisplaySchedule } from '../lib/resolve-display-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
 import type { ConsentStatusDto, CreditAssessmentDto } from '../types/customer-platform';
@@ -28,11 +28,12 @@ import { ScheduleTab } from './workspace/ScheduleTab';
 import { LogsTab } from './workspace/LogsTab';
 import { CommentsTab } from './workspace/CommentsTab';
 import { DocsTab } from './workspace/DocsTab';
+import { RegisterTab } from './workspace/RegisterTab';
 import { EditPanel } from './workspace/EditPanel';
 import { DecisionPanel } from './workspace/DecisionPanel';
 import type { ConfirmRequest, WorkspacePanelProps, WorkspacePlatformProps } from './workspace/types';
 
-const TABS = ['overview', 'transactions', 'schedule', 'logs', 'comments', 'docs'] as const;
+const TABS = ['overview', 'transactions', 'schedule', 'logs', 'comments', 'docs', 'register'] as const;
 type Tab = (typeof TABS)[number];
 
 type ReasonRequest = { kind: 'unmask'; field: OpsUnmaskField } | { kind: 'clearHold' };
@@ -80,6 +81,16 @@ export function ApplicationWorkspace({
   const consents = useQuery({
     queryKey: ['ops-app-consents', id],
     queryFn: () => apiFetch<ConsentStatusDto>(`/api/ops/applications/${id}/consents`),
+    enabled: !!id && !!data,
+    retry: false,
+  });
+
+  const registerQuery = useQuery({
+    queryKey: ['ops-app-register', id],
+    queryFn: () =>
+      apiFetch<{ register: { customer_units: number; total_units: number } | null }>(
+        `/api/applications/${id}/ownership-register`,
+      ),
     enabled: !!id && !!data,
     retry: false,
   });
@@ -160,7 +171,15 @@ export function ApplicationWorkspace({
           paid_amount: 0,
           status: String(row.status),
         }));
-  const ownership = calculateOwnershipTimeline(pricing, ownershipSchedules);
+  const ownership = overlayRegisterOnTimeline(
+    calculateOwnershipTimeline(pricing, ownershipSchedules),
+    registerQuery.data?.register
+      ? {
+          customerUnits: registerQuery.data.register.customer_units,
+          totalUnits: registerQuery.data.register.total_units,
+        }
+      : null,
+  );
   const customerPct = ownership.currentOwnership;
   const bloxPct = Math.max(0, 100 - customerPct);
 
@@ -338,6 +357,7 @@ export function ApplicationWorkspace({
           <CommentsTab data={data} actions={actions} mutations={mutations} comment={comment} onCommentChange={setComment} />
         )}
         {tab === 'docs' && <DocsTab {...panelProps} />}
+        {tab === 'register' && <RegisterTab applicationId={id} />}
 
         {tab !== 'overview' && !partnerProcessed && (
           <div className="blox-decision-footer">

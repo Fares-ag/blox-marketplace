@@ -1,6 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button as CustomButton } from '../../core/Button/Button';
 
+/** Chosen files cannot be serialised; keep them in memory for the tab session. */
+const fileHold = new Map<string, Partial<Record<string, File>>>();
+
+function stashFiles(storageKey: string | undefined, files: unknown) {
+  if (!storageKey || !files || typeof files !== 'object') return;
+  const prev = fileHold.get(storageKey) ?? {};
+  fileHold.set(storageKey, { ...prev, ...(files as Partial<Record<string, File>>) });
+}
+
+function heldFiles(storageKey: string | undefined): Partial<Record<string, File>> {
+  if (!storageKey) return {};
+  return fileHold.get(storageKey) ?? {};
+}
+
 /** Draft survives a reload, a wrong turn, or a session that has to be renewed. */
 function readDraft(storageKey: string | undefined): unknown {
   if (!storageKey || typeof window === 'undefined') return null;
@@ -35,6 +49,7 @@ function omitKeys(data: any, keys: string[] | undefined): any {
 }
 
 export function clearMultiStepDraft(storageKey: string): void {
+  fileHold.delete(storageKey);
   if (typeof window === 'undefined') return;
   try {
     window.sessionStorage.removeItem(storageKey);
@@ -100,7 +115,9 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   });
   const [formData, setFormData] = useState<any>(() => {
     const data = restored.current?.data;
-    return data && typeof data === 'object' ? { ...(initialData as any), ...data } : initialData;
+    const merged = data && typeof data === 'object' ? { ...(initialData as any), ...data } : initialData;
+    const files = heldFiles(storageKey);
+    return Object.keys(files).length ? { ...(merged as any), files: { ...((merged as any).files ?? {}), ...files } } : merged;
   });
   const [stepError, setStepError] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +127,7 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   omitRef.current = storageOmitKeys;
 
   useEffect(() => {
+    if (formData?.files) stashFiles(storageKey, formData.files);
     writeDraft(storageKey, { step: activeStep, data: omitKeys(formData, omitRef.current) });
   }, [storageKey, activeStep, formData]);
 
@@ -148,8 +166,15 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   };
   const handleUpdateData = useCallback((stepData: any) => {
     setStepError(null);
-    setFormData((prev: any) => ({ ...(prev || {}), ...(stepData || {}) }));
-  }, []);
+    setFormData((prev: any) => {
+      const next = { ...(prev || {}), ...(stepData || {}) };
+      if (stepData?.files && prev?.files) {
+        next.files = { ...prev.files, ...stepData.files };
+      }
+      if (next.files) stashFiles(storageKey, next.files);
+      return next;
+    });
+  }, [storageKey]);
   const handleSubmit = async () => {
     if (isSubmitting) return;
     if (!validateCurrentStep()) return;

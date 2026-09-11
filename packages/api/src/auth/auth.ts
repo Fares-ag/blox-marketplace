@@ -19,7 +19,7 @@ import {
   recordFailedPrivilegedLogin,
   resetLoginLockout,
 } from './login-lockout';
-import { isMfaRequiredRole } from './privileged-roles';
+import { isLockoutRequiredRole, isMfaRequiredRole } from './privileged-roles';
 import { emitProductEvent } from '../analytics/emit-product-event';
 import { resolveSessionPolicy } from './session-policy';
 
@@ -151,7 +151,7 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
         if (!email) return;
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !isMfaRequiredRole(user.role)) return;
+        if (!user || !isLockoutRequiredRole(user.role)) return;
         if (!isAccountLocked(user)) return;
 
         throw APIError.from('FORBIDDEN', {
@@ -194,6 +194,16 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
               data: { emailVerified: true },
             });
           }
+          if (email) {
+            await prisma.application.updateMany({
+              where: {
+                customerUserId: null,
+                customerEmail: email,
+                leadSource: 'walk_in_pending',
+              },
+              data: { customerUserId: user.id },
+            });
+          }
           emitProductEvent('signup_completed', { role: user.role, source: 'email' });
           return;
         }
@@ -203,7 +213,7 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
         if (!email) return;
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !isMfaRequiredRole(user.role)) return;
+        if (!user || !isLockoutRequiredRole(user.role)) return;
 
         if (ctx.context.newSession?.user?.id === user.id) {
           await resetLoginLockout(prisma, user.id);

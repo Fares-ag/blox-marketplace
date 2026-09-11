@@ -43,6 +43,7 @@ export function WizardReviewStep({
   isAdmin,
   ruleViolations = [],
   onSubmitOnCreateChange,
+  pendingCustomerAccount = false,
 }: {
   data: WizardReviewData;
   selectedVehicles: VehicleCardOption[];
@@ -53,6 +54,8 @@ export function WizardReviewStep({
   /** Product-rule findings for the plan; soft ones are listed for the reviewer. */
   ruleViolations?: ProductRuleViolation[];
   onSubmitOnCreateChange?: (value: boolean) => void;
+  /** When true, the customer email is not yet registered — application waits for self-sign-up. */
+  pendingCustomerAccount?: boolean;
 }) {
   const { t } = useOpsLabels();
   const agents = useQuery({
@@ -78,6 +81,9 @@ export function WizardReviewStep({
 
       {isCorporateMulti && (
         <p className="blox-wizard-review__note">{t('ops.wizard.multiApplicationNote', { count: selectedVehicles.length })}</p>
+      )}
+      {pendingCustomerAccount && (
+        <p className="blox-wizard-review__note">{t('ops.wizard.pendingCustomerAccount')}</p>
       )}
 
       <CustomerInfoOverview snapshot={buildCustomerSnapshot(data.customerInfo)} />

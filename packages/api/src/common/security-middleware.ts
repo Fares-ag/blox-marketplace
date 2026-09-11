@@ -94,10 +94,18 @@ export async function applySecurityMiddleware(
   const redisUrl =
     rateLimitStore === 'memory' ? undefined : config.get<string>('REDIS_URL')?.trim();
 
+  const rateLimitHandler: RequestHandler = (_req, res) => {
+    res.status(429).json({
+      message: 'Too many requests. Try again later.',
+      code: 'RATE_LIMITED',
+    });
+  };
+
   const base = {
     windowMs,
     standardHeaders: true,
     legacyHeaders: false,
+    handler: rateLimitHandler,
   };
 
   if (redisUrl) {

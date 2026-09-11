@@ -49,6 +49,8 @@ export class OpsController {
     ApplicationStatus.down_payment_required,
     ApplicationStatus.down_payment_submitted,
     ApplicationStatus.pending_finance_activation,
+    ApplicationStatus.lpo_issued,
+    ApplicationStatus.acquisition_pending,
     ApplicationStatus.active,
     ApplicationStatus.partner_processing,
   ];
@@ -258,7 +260,7 @@ export class OpsController {
       orderBy: { _count: { customerUserId: 'desc' } },
       take: 10,
     });
-    const customerIds = rows.map((r) => r.customerUserId);
+    const customerIds = rows.map((r) => r.customerUserId).filter((id): id is string => id != null);
     const customers = customerIds.length
       ? await this.prisma.user.findMany({
           where: { id: { in: customerIds } },
@@ -272,6 +274,7 @@ export class OpsController {
     });
     const valueByCustomer = new Map<string, number>();
     for (const app of apps) {
+      if (!app.customerUserId) continue;
       const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
       valueByCustomer.set(
         app.customerUserId,
@@ -279,13 +282,15 @@ export class OpsController {
       );
     }
     return {
-      top_customers: rows.map((r) => ({
-        customer_id: r.customerUserId,
-        name: byId[r.customerUserId]?.name ?? null,
-        email: byId[r.customerUserId]?.email ?? null,
-        applications: r._count._all,
-        lifetime_value: Math.round(valueByCustomer.get(r.customerUserId) ?? 0),
-      })),
+      top_customers: rows
+        .filter((r) => r.customerUserId != null)
+        .map((r) => ({
+          customer_id: r.customerUserId!,
+          name: byId[r.customerUserId!]?.name ?? null,
+          email: byId[r.customerUserId!]?.email ?? null,
+          applications: r._count._all,
+          lifetime_value: Math.round(valueByCustomer.get(r.customerUserId!) ?? 0),
+        })),
     };
   }
 

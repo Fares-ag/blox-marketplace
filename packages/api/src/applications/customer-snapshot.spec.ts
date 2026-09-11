@@ -139,6 +139,33 @@ describe('normalizeCustomerSnapshot', () => {
     expect(out.snapshot.employmentDetails).toEqual({ employer: 'X' });
     expect(out.snapshot.applicantType).toBe('individual');
   });
+
+  it('normalises and validates corporate registration and signatory fields', () => {
+    const out = normalizeCustomerSnapshot({
+      applicantType: 'corporate',
+      full_name: 'Doha Motors WLL',
+      phone: '+97455512345',
+      qid: QATARI_QID,
+      corporate: {
+        crNumber: 'CR-12 345',
+        authorizedSignatory: { phone: '+974 5551 2345', qid: QATARI_QID },
+      },
+    });
+    expect(out.snapshot.corporate).toMatchObject({
+      crNumber: '12345',
+      authorizedSignatory: { qid: QATARI_QID, nationality: 'Qatar', phone: '+974 5551 2345' },
+    });
+
+    expect(() =>
+      normalizeCustomerSnapshot({
+        applicantType: 'corporate',
+        full_name: 'Doha Motors WLL',
+        phone: '+97455512345',
+        qid: QATARI_QID,
+        corporate: { crNumber: 'abc', authorizedSignatory: { phone: '+97455512345', qid: QATARI_QID } },
+      }),
+    ).toThrow('validation_failed');
+  });
 });
 
 describe('snapshot readers', () => {

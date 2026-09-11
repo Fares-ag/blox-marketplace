@@ -276,6 +276,13 @@ export function ApplyPage() {
     setResumeDecided(true);
   }
 
+  useEffect(() => {
+    if (!resumeCandidate || resumeDecided) return;
+    resumeDraft();
+    // Auto-resume the only draft for this vehicle so uploaded documents come back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeCandidate, resumeDecided]);
+
   function startOver() {
     // The API keeps one draft per vehicle, so a fresh start reuses the record
     // and simply overwrites it on the next save.
@@ -336,9 +343,13 @@ export function ApplyPage() {
   const docsQuery = useQuery({
     queryKey: ['app-docs', draftId],
     queryFn: () => loadUploadedDocuments(draftId!),
-    enabled: !!draftId && stepIndex(step) >= stepIndex('documents'),
+    enabled: !!draftId,
   });
-  const slots = useMemo(() => documentSlotsFor(documentProfile(form, residency)), [form, residency]);
+  const localSlots = useMemo(() => documentSlotsFor(documentProfile(form, residency)), [form, residency]);
+  const slots = useMemo(
+    () => (docsQuery.data?.slots?.length ? docsQuery.data.slots : localSlots),
+    [docsQuery.data?.slots, localSlots],
+  );
   const uploadedSet = useMemo(() => new Set(docsQuery.data?.uploaded ?? []), [docsQuery.data]);
   const uploadedAt = useMemo(() => docsQuery.data?.uploadedAt ?? {}, [docsQuery.data]);
   const staleSet = useMemo(
@@ -353,15 +364,37 @@ export function ApplyPage() {
   );
   const docsReady = missingRequired.length === 0 && staleRequired.length === 0;
 
+  useEffect(() => {
+    if (docsReady) setBanner(null);
+  }, [docsReady]);
+
+  useEffect(() => {
+    if (step === 'documents') {
+      setUploads((u) => {
+        const next: Record<string, UploadState> = {};
+        for (const [key, state] of Object.entries(u)) {
+          if (state.status === 'error') continue;
+          next[key] = state;
+        }
+        return next;
+      });
+    }
+  }, [step]);
+
   async function onUpload(slot: DocumentSlot, file: File) {
-    if (!draftId) return;
-    setUploads((u) => ({ ...u, [slot.category]: { status: 'uploading' } }));
+    let id = draftId;
+    if (!id) {
+      id = await persistDraft();
+      if (!id) return;
+    }
+    setUploads((u) => ({ ...u, [slot.category]: { status: 'uploading', error: undefined } }));
+    setBanner(null);
     try {
-      await uploadApplicationDocument(draftId, slot.category, file);
+      await uploadApplicationDocument(id, slot.category, file);
       setUploads((u) => ({ ...u, [slot.category]: { status: 'idle' } }));
-      trackProductEvent('document_uploaded', { application_id: draftId, category: slot.category, source: 'stepper' });
+      trackProductEvent('document_uploaded', { application_id: id, category: slot.category, source: 'stepper' });
       await docsQuery.refetch();
-      void qc.invalidateQueries({ queryKey: ['app', draftId] });
+      void qc.invalidateQueries({ queryKey: ['app', id] });
     } catch (error) {
       setUploads((u) => ({
         ...u,
@@ -612,7 +645,9 @@ export function ApplyPage() {
       return;
     }
     const needsPersist =
-      (currentIndex >= stepIndex('identity') && currentIndex <= stepIndex('guarantor')) || (step === 'vehicle' && !!draftId);
+      (currentIndex >= stepIndex('identity') && currentIndex <= stepIndex('guarantor')) ||
+      step === 'documents' ||
+      (step === 'vehicle' && !!draftId);
     if (needsPersist) {
       setBusy(true);
       const id = await persistDraft();
@@ -873,6 +908,7 @@ export function ApplyPage() {
                   requiredDone={requiredSlots.length - missingRequired.length}
                   requiredTotal={requiredSlots.length}
                   staleRequired={staleRequired.length}
+                  ekycRequired={docsQuery.data?.ekycRequired}
                 />
               ) : null}
               {step === 'consents' ? (

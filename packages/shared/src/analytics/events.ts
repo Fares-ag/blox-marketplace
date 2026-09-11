@@ -9,6 +9,11 @@ export const PRODUCT_ANALYTICS_EVENTS = [
   'rejection',
   'payment_started',
   'payment_completed',
+  'offer_accepted',
+  'lpo_issued',
+  'unit_offer_paid',
+  'pre_disbursal_complete',
+  'maturity_reached',
 ] as const;
 
 export type ProductAnalyticsEvent = (typeof PRODUCT_ANALYTICS_EVENTS)[number];

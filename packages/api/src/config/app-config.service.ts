@@ -73,6 +73,18 @@ export class AppConfigService {
   readonly kycEkycRequired: boolean;
   /** Face-to-face branch procedure: staff may still attach the QID they inspected in person. */
   readonly kycAllowStaffManualIdentity: boolean;
+  /** Dual-write the ownership register; legacy ownership.ts remains the read path until backfill. */
+  readonly musharakahRegisterEnabled: boolean;
+  /** Period unit-offer loop vs legacy schedule pay. */
+  readonly unitOffersEnabled: boolean;
+  /** Gate activate() on LPO settlement + acquisition evidence. */
+  readonly lpoGateEnabled: boolean;
+  /** Block activate() until the pre-disbursal checklist is complete. */
+  readonly preDisbursalGateEnabled: boolean;
+  /** KYC webhook events may drive application status (still kycStatus-only when off). */
+  readonly kycWebhookDrivesStatus: boolean;
+  /** Optional post-activate hook to provision a vehicle-care agreement. Never blocks LPO/activate. */
+  readonly vehicleCareWebhookUrl: string | null;
 
   constructor(config: ConfigService) {
     this.nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
@@ -97,6 +109,12 @@ export class AppConfigService {
     const kycConfigured = !!config.get<string>('KYC_API_KEY')?.trim();
     this.kycEkycRequired = parseBool(config.get<string>('KYC_EKYC_REQUIRED'), kycConfigured);
     this.kycAllowStaffManualIdentity = parseBool(config.get<string>('KYC_ALLOW_STAFF_MANUAL_IDENTITY'), true);
+    this.musharakahRegisterEnabled = parseBool(config.get<string>('MUSHARAKAH_REGISTER_ENABLED'), false);
+    this.unitOffersEnabled = parseBool(config.get<string>('UNIT_OFFERS_ENABLED'), false);
+    this.lpoGateEnabled = parseBool(config.get<string>('LPO_GATE_ENABLED'), false);
+    this.preDisbursalGateEnabled = parseBool(config.get<string>('PRE_DISBURSAL_GATE_ENABLED'), false);
+    this.kycWebhookDrivesStatus = parseBool(config.get<string>('KYC_WEBHOOK_DRIVES_STATUS'), false);
+    this.vehicleCareWebhookUrl = config.get<string>('VEHICLE_CARE_WEBHOOK_URL')?.trim() || null;
     if (kycConfigured && !this.kycEkycRequired) {
       this.logger.warn('KYC_EKYC_REQUIRED=false: customers may satisfy the identity slot with a manual QID upload');
     }

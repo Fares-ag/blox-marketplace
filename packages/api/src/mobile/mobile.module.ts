@@ -3,11 +3,12 @@ import { ApplicationsModule } from '../applications/applications.module';
 import { CreditsModule } from '../credits/credits.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { ProductsModule } from '../products/products.module';
+import { MusharakahModule } from '../musharakah/musharakah.module';
 import { MobileController } from './mobile.controller';
 import { MobileService } from './mobile.service';
 
 @Module({
-  imports: [ApplicationsModule, ProductsModule, CreditsModule, PaymentsModule],
+  imports: [ApplicationsModule, ProductsModule, CreditsModule, PaymentsModule, MusharakahModule],
   controllers: [MobileController],
   providers: [MobileService],
 })

@@ -85,7 +85,12 @@ enum ApplicationStatus {
   down_payment_submitted
   pending_finance_activation
   partner_processing
+  lpo_issued
+  acquisition_pending
   active
+  hardship
+  repossession_in_progress
+  total_loss
   completed
   rejected
   submission_cancelled
@@ -116,6 +121,12 @@ enum DocumentCategory {
   guarantor_bank
   vehicle_quotation
   takaful_policy
+  delivery_note
+  registration_card
+  vin_evidence
+  lpo
+  mandate_proof
+  maturity_certificate
 }
 
 enum Gender {
@@ -206,6 +217,10 @@ enum PaymentEventType {
   reversal
   /// Installment settled from the customer Blox-credits wallet (ledger reference = credit transaction id).
   blox_credits
+  unit_purchase
+  settlement
+  total_loss_proceeds
+  repossession_proceeds
 }
 
 enum EmailOutboxStatus {
@@ -377,6 +392,8 @@ model Company {
   address             String?
   allowDirectActivate         Boolean       @default(false)
   separationOfDutiesEnabled   Boolean       @default(true)
+  /// Per-company unit-offer loop (Phase 4). Global UNIT_OFFERS_ENABLED must also be on.
+  unitOffersEnabled           Boolean       @default(false) @map("unit_offers_enabled")
   createdAt                   DateTime      @default(now())
   updatedAt                   DateTime      @updatedAt
 
@@ -567,8 +584,8 @@ model ProductImage {
 
 model Application {
   id                 String            @id @default(cuid())
-  customerUserId     String
-  customer           User              @relation("CustomerApplications", fields: [customerUserId], references: [id])
+  customerUserId     String?
+  customer           User?             @relation("CustomerApplications", fields: [customerUserId], references: [id])
   customerEmail      String
   customerSnapshot   Json
   productId          String
@@ -624,6 +641,14 @@ model Application {
   /// Server-side credit assessment captured at submission (shared credit-assessment module).
   creditAssessment        Json?     @map("credit_assessment")
   approvalAuthority       String?   @map("approval_authority")
+  lastKycWebhookEventId   String?   @map("last_kyc_webhook_event_id")
+  lastKycWebhookAt        DateTime? @map("last_kyc_webhook_at")
+  repaymentMandateAt      DateTime? @map("repayment_mandate_at")
+  repaymentMandateRef     String?   @map("repayment_mandate_ref")
+  repaymentMandateStatus  MandateStatus? @map("repayment_mandate_status")
+  preDisbursalCompletedAt DateTime? @map("pre_disbursal_completed_at")
+  defaultClassification   DefaultClassification? @map("default_classification")
+  unitOfferDisclosureAckAt DateTime? @map("unit_offer_disclosure_ack_at")
 
   documents         ApplicationDocument[]
   paymentSchedules  PaymentSchedule[]
@@ -637,6 +662,14 @@ model Application {
   takafulPolicies   TakafulPolicy[]
   assistedSessions  AssistedSession[]
   guarantorSessions GuarantorConsentSession[]
+  ownershipRegister OwnershipRegister?
+  unitOffers        UnitOffer[]
+  lpoRecords        LpoRecord[]
+  collectionsCases  CollectionsCase[]
+  hardshipPlans     HardshipPlan[]
+  repossessionCases RepossessionCase[]
+  totalLossClaims   TotalLossClaim[]
+  rentPoolEntries   RentPoolLedgerEntry[]
 
   @@index([customerUserId, status])
   @@index([companyId, status])
@@ -733,6 +766,8 @@ model TakafulPolicy {
   createdBy             User          @relation("TakafulCreator", fields: [createdByUserId], references: [id])
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  totalLossClaims TotalLossClaim[]
 
   @@index([applicationId, status])
   @@index([expiresAt])
@@ -1312,4 +1347,267 @@ model DataRightsRequest {
   @@index([status, createdAt])
   @@index([userId])
   @@map("data_rights_requests")
+}
+
+enum MandateStatus {
+  pending
+  registered
+  failed
+  cancelled
+}
+
+enum DefaultClassification {
+  performing
+  watch
+  npl
+}
+
+enum OwnershipRegisterEventType {
+  open
+  initial_contribution
+  unit_purchase
+  settlement
+  repossession_sale
+  total_loss
+  adjustment
+}
+
+enum RentPoolEntryType {
+  accrual
+  collected
+  forgiven
+}
+
+enum UnitOfferStatus {
+  pending
+  offered
+  accepted
+  paid
+  expired
+  cancelled
+}
+
+enum LpoStatus {
+  issued
+  settled
+  cancelled
+}
+
+enum CollectionsCaseStatus {
+  open
+  hardship
+  resolved
+  escalated
+  closed
+}
+
+enum HardshipPlanStatus {
+  proposed
+  approved
+  active
+  completed
+  failed
+  rejected
+}
+
+enum RepossessionStatus {
+  initiated
+  recovered
+  sold
+  closed
+  cancelled
+}
+
+enum TotalLossClaimStatus {
+  filed
+  approved
+  allocated
+  closed
+  rejected
+}
+
+/// Append-only diminishing musharakah ownership register (1:1 with Application).
+model OwnershipRegister {
+  id               String   @id @default(cuid())
+  applicationId    String   @unique @map("application_id")
+  application      Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  totalUnits       Int      @default(100) @map("total_units")
+  customerUnits    Int      @default(0) @map("customer_units")
+  bloxUnits        Int      @default(100) @map("blox_units")
+  vehiclePrice     Decimal  @map("vehicle_price") @db.Decimal(12, 2)
+  unitNominalValue Decimal  @map("unit_nominal_value") @db.Decimal(12, 2)
+  openedAt         DateTime @default(now()) @map("opened_at")
+  maturedAt        DateTime? @map("matured_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  entries OwnershipRegisterEntry[]
+
+  @@map("ownership_registers")
+}
+
+/// Immutable ownership ledger rows. Updates and deletes are blocked by a DB trigger.
+model OwnershipRegisterEntry {
+  id                 String                     @id @default(cuid())
+  registerId         String                     @map("register_id")
+  register           OwnershipRegister          @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  eventType          OwnershipRegisterEventType @map("event_type")
+  unitsDelta         Int                        @map("units_delta")
+  customerUnitsAfter Int                        @map("customer_units_after")
+  bloxUnitsAfter     Int                        @map("blox_units_after")
+  paymentEventId     String?                    @map("payment_event_id")
+  actorUserId        String?                    @map("actor_user_id")
+  metadata           Json?
+  createdAt          DateTime                   @default(now()) @map("created_at")
+
+  @@index([registerId, createdAt])
+  @@map("ownership_register_entries")
+}
+
+/// Separate rent (profit) pool for Sharia audit — never mixed with unit purchase.
+model RentPoolLedgerEntry {
+  id            String            @id @default(cuid())
+  applicationId String            @map("application_id")
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          RentPoolEntryType
+  amount        Decimal           @db.Decimal(12, 2)
+  period        Int?
+  paymentEventId String?          @map("payment_event_id")
+  actorUserId   String?           @map("actor_user_id")
+  metadata      Json?
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  @@index([applicationId, createdAt])
+  @@map("rent_pool_ledger_entries")
+}
+
+model UnitOffer {
+  id              String          @id @default(cuid())
+  applicationId   String          @map("application_id")
+  application     Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  period          Int
+  unitsOffered    Int             @map("units_offered")
+  unitPrice       Decimal         @map("unit_price") @db.Decimal(12, 2)
+  rentAmount      Decimal         @map("rent_amount") @db.Decimal(12, 2)
+  totalAmount     Decimal         @map("total_amount") @db.Decimal(12, 2)
+  status          UnitOfferStatus @default(pending)
+  offeredAt       DateTime?       @map("offered_at")
+  acceptedAt      DateTime?       @map("accepted_at")
+  paidAt          DateTime?       @map("paid_at")
+  expiresAt       DateTime?       @map("expires_at")
+  disclosureAckAt DateTime?       @map("disclosure_ack_at")
+  scheduleId      String?         @map("schedule_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@unique([applicationId, period])
+  @@index([status, offeredAt])
+  @@map("unit_offers")
+}
+
+model LpoRecord {
+  id              String    @id @default(cuid())
+  applicationId   String    @map("application_id")
+  application     Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  dealerCompanyId String    @map("dealer_company_id")
+  status          LpoStatus @default(issued)
+  amount          Decimal   @db.Decimal(12, 2)
+  reference       String?
+  issuedByUserId  String    @map("issued_by_user_id")
+  issuedAt        DateTime  @default(now()) @map("issued_at")
+  settledAt       DateTime? @map("settled_at")
+  settledByUserId String?   @map("settled_by_user_id")
+  settlementRef   String?   @map("settlement_ref")
+  cancelledAt     DateTime? @map("cancelled_at")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([applicationId, status])
+  @@index([dealerCompanyId, status])
+  @@map("lpo_records")
+}
+
+model CollectionsCase {
+  id            String                 @id @default(cuid())
+  applicationId String                 @map("application_id")
+  application   Application            @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  status        CollectionsCaseStatus  @default(open)
+  reason        String?
+  openedByUserId String?               @map("opened_by_user_id")
+  openedAt      DateTime               @default(now()) @map("opened_at")
+  closedAt      DateTime?              @map("closed_at")
+  metadata      Json?
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+
+  hardshipPlans HardshipPlan[]
+
+  @@index([applicationId, status])
+  @@index([status, openedAt])
+  @@map("collections_cases")
+}
+
+model HardshipPlan {
+  id                 String             @id @default(cuid())
+  applicationId      String             @map("application_id")
+  application        Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  collectionsCaseId  String?            @map("collections_case_id")
+  collectionsCase    CollectionsCase?   @relation(fields: [collectionsCaseId], references: [id], onDelete: SetNull)
+  status             HardshipPlanStatus @default(proposed)
+  proposedByUserId   String             @map("proposed_by_user_id")
+  approvedByUserId   String?            @map("approved_by_user_id")
+  installmentsDeferred Int              @default(0) @map("installments_deferred")
+  overrideDeferQuota Boolean            @default(false) @map("override_defer_quota")
+  notes              String?
+  proposedAt         DateTime           @default(now()) @map("proposed_at")
+  decidedAt          DateTime?          @map("decided_at")
+  completedAt        DateTime?          @map("completed_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  @@index([applicationId, status])
+  @@map("hardship_plans")
+}
+
+model RepossessionCase {
+  id              String              @id @default(cuid())
+  applicationId   String              @map("application_id")
+  application     Application         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  status          RepossessionStatus  @default(initiated)
+  initiatedByUserId String            @map("initiated_by_user_id")
+  recoveredAt     DateTime?           @map("recovered_at")
+  soldAt          DateTime?           @map("sold_at")
+  saleProceeds    Decimal?            @map("sale_proceeds") @db.Decimal(12, 2)
+  customerShare   Decimal?            @map("customer_share") @db.Decimal(12, 2)
+  bloxShare       Decimal?            @map("blox_share") @db.Decimal(12, 2)
+  closedAt        DateTime?           @map("closed_at")
+  notes           String?
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  @@index([applicationId, status])
+  @@map("repossession_cases")
+}
+
+model TotalLossClaim {
+  id              String               @id @default(cuid())
+  applicationId   String               @map("application_id")
+  application     Application          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  takafulPolicyId String?              @map("takaful_policy_id")
+  takafulPolicy   TakafulPolicy?       @relation(fields: [takafulPolicyId], references: [id], onDelete: SetNull)
+  status          TotalLossClaimStatus @default(filed)
+  proceeds        Decimal?             @db.Decimal(12, 2)
+  customerShare   Decimal?             @map("customer_share") @db.Decimal(12, 2)
+  bloxShare       Decimal?             @map("blox_share") @db.Decimal(12, 2)
+  filedByUserId   String               @map("filed_by_user_id")
+  filedAt         DateTime             @default(now()) @map("filed_at")
+  allocatedAt     DateTime?            @map("allocated_at")
+  closedAt        DateTime?            @map("closed_at")
+  notes           String?
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  @@index([applicationId, status])
+  @@map("total_loss_claims")
 }

@@ -10,11 +10,12 @@
  */
 import {
   documentSlotsFor,
+  identityPresentSet,
   type DocumentSlot,
   type DocumentSlotGroup,
   type DocumentSlotProfile,
 } from '../lib/document-slots';
-import { isValidEmail, isValidQatarPhone } from '../lib/contact';
+import { isValidCrNumber, isValidEmail, isValidQatarPhone } from '../lib/contact';
 import { ageFromDateOfBirth, dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from '../lib/qid';
 import {
   PRODUCT_RULES,
@@ -101,6 +102,8 @@ export type CustomerInfoFormValue = {
   hasGuarantor: boolean;
   guarantor: CustomerGuarantor;
   corporate: CorporateApplicantInfo;
+  /** Set when an existing customer was picked from search — suppresses the pending-account notice. */
+  existingCustomerLinked?: boolean;
 };
 
 export const EMPLOYMENT_TYPE_OPTIONS = [
@@ -119,8 +122,7 @@ export const EMPLOYMENT_DURATION_OPTIONS = [
 export const GENDER_OPTIONS = [
   { value: 'male', labelKey: 'dealerOps.intake.genderMale' },
   { value: 'female', labelKey: 'dealerOps.intake.genderFemale' },
-  { value: 'prefer_not_to_say', labelKey: 'dealerOps.intake.genderPreferNot' },
-] as const satisfies ReadonlyArray<{ value: CustomerGender; labelKey: string }>;
+] as const satisfies ReadonlyArray<{ value: Exclude<CustomerGender, 'prefer_not_to_say'>; labelKey: string }>;
 
 export const GUARANTOR_RELATIONSHIP_OPTIONS = [
   { value: 'spouse', labelKey: 'dealerOps.intake.relationship.spouse' },
@@ -466,13 +468,15 @@ const VALIDATION_DEFAULTS = {
   guarantorRelationshipRequired: 'Guarantor relationship is required.',
   corpLegalName: 'Company legal name is required.',
   corpCr: 'Commercial registration number is required.',
+  corpCrInvalid: 'Commercial registration number must be 5–20 digits.',
   corpStreet: 'Registered street address is required.',
   corpCity: 'Registered city is required.',
   corpCountry: 'Registered country is required.',
   corpSignatoryName: 'Authorized signatory name is required.',
   corpSignatoryEmail: 'Authorized signatory email is required.',
   corpSignatoryPhone: 'Authorized signatory phone is required.',
-  corpSignatoryQid: 'Authorized signatory QID must be 11 digits.',
+  corpSignatoryQid: 'Authorized signatory QID must be 11 valid digits.',
+  corpSignatoryNationality: 'Authorized signatory nationality is required.',
   documentsMissing: 'Please upload all required documents ({{labels}}).',
   rulesBlocking: 'The plan breaks a product rule. Fix the highlighted items before continuing.',
 } as const;
@@ -495,13 +499,15 @@ export function validateCustomerInfo(value: CustomerInfoFormValue, t: IntakeTran
     const addr = corp.registeredAddress;
     if (!corp.legalName?.trim()) return message(t, 'corpLegalName');
     if (!corp.crNumber?.trim()) return message(t, 'corpCr');
+    if (!isValidCrNumber(corp.crNumber)) return message(t, 'corpCrInvalid');
     if (!addr?.street?.trim()) return message(t, 'corpStreet');
     if (!addr?.city?.trim()) return message(t, 'corpCity');
     if (!addr?.country?.trim()) return message(t, 'corpCountry');
     if (!sig?.firstName?.trim() || !sig?.lastName?.trim()) return message(t, 'corpSignatoryName');
     if (!sig?.email?.trim() || !isValidEmail(sig.email)) return message(t, 'corpSignatoryEmail');
     if (!sig?.phone?.trim() || !isValidQatarPhone(sig.phone)) return message(t, 'corpSignatoryPhone');
-    if (!sig?.qid?.trim() || !/^\d{11}$/.test(sig.qid.trim())) return message(t, 'corpSignatoryQid');
+    if (!sig?.qid?.trim() || !parseQid(sig.qid).valid) return message(t, 'corpSignatoryQid');
+    if (!sig?.nationality?.trim()) return message(t, 'corpSignatoryNationality');
     return null;
   }
 
@@ -605,8 +611,7 @@ export function groupDocumentSlots(slots: WizardDocumentSlot[]): Array<{ group: 
 
 /** `qid` is satisfied by a document filed as the generic `id` category too. */
 export function slotSatisfiedBy(category: string, uploaded: Iterable<string>): boolean {
-  const present = new Set(uploaded);
-  if (category === 'qid') return present.has('qid') || present.has('id');
+  const present = identityPresentSet(uploaded);
   return present.has(category);
 }
 

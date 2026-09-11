@@ -18,6 +18,7 @@ import { MarketplaceNav } from '../components/MarketplaceNav';
 import { ListingCard } from '../components/ListingCard';
 import { OwnershipProgress } from '../components/OwnershipProgress';
 import { OwnershipHero, OWNERSHIP_HERO_STATUSES } from '../components/OwnershipHero';
+import { UnitOffersPanel } from '../components/UnitOffersPanel';
 import { useCompareStore } from '../lib/compare-store';
 import {
   customerApplicationVehicleLabel,
@@ -199,6 +200,9 @@ export function CustomerDashboardPage() {
             app={heroApp}
             loading={apps.isLoading || (!!ownershipApp && ownershipDetail.isLoading)}
           />
+          {heroApp && OWNERSHIP_HERO_STATUSES.has(heroApp.status) && (
+            <UnitOffersPanel applicationId={heroApp.id} />
+          )}
         </div>
       </div>
 

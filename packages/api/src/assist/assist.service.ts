@@ -145,6 +145,7 @@ export class AssistService {
     if (!app) throw new NotFoundException('application_not_found');
     this.assertStaffScope(user, app);
     if (CLOSED_APPLICATION_STATUSES.includes(app.status)) throw new ConflictException('application_closed');
+    if (!app.customerUserId) throw new BadRequestException('customer_account_required');
 
     const phone = normalizePhone(input.phone);
     if (!phone) throw new BadRequestException('phone_invalid');

@@ -8,7 +8,7 @@ import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsStatusPill } from '../components/ops-ui';
 import { OpsListPage, OpsTab, OpsTabs, OpsToolbar, SearchBar, Table, type Column } from '../ops-ui-v2';
 import type { PaginatedResponse } from '../types/domain';
-import { CREDIT_PIPELINE_STATUSES } from './constants';
+import { CREDIT_PIPELINE_STATUSES, CREDIT_HARDSHIP_QUEUE_STATUSES } from './constants';
 import type { OpsQueueItem } from './types';
 
 function queueAge(iso?: string | null) {
@@ -26,14 +26,25 @@ function queueAgeHours(iso?: string | null) {
   return Number.isFinite(ms) && ms >= 0 ? ms / 3_600_000 : 0;
 }
 
-export function CreditQueue({ detailBase: detailBaseProp }: { detailBase?: string }) {
+export function CreditQueue({
+  detailBase: detailBaseProp,
+  initialTab = 'pipeline',
+}: {
+  detailBase?: string;
+  initialTab?: 'pipeline' | 'rejected' | 'hardship';
+}) {
   const portalBase = usePortalBasePath();
   const detailBase = detailBaseProp ?? withPortalBase('/applications', portalBase);
   const { t, applicationStatus } = useOpsLabels();
   const [page, setPage] = useState(0);
   const [q, setQ] = useState('');
-  const [tab, setTab] = useState<'pipeline' | 'rejected'>('pipeline');
-  const statusIn = tab === 'rejected' ? 'rejected' : CREDIT_PIPELINE_STATUSES.join(',');
+  const [tab, setTab] = useState<'pipeline' | 'rejected' | 'hardship'>(initialTab);
+  const statusIn =
+    tab === 'rejected'
+      ? 'rejected'
+      : tab === 'hardship'
+        ? CREDIT_HARDSHIP_QUEUE_STATUSES.join(',')
+        : CREDIT_PIPELINE_STATUSES.join(',');
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['credit-queue', page, q, tab],
@@ -175,6 +186,7 @@ export function CreditQueue({ detailBase: detailBaseProp }: { detailBase?: strin
             >
               <OpsTab value="pipeline" label={t('ops.credit.tabPipeline')} />
               <OpsTab value="rejected" label={t('ops.credit.tabRejected')} />
+              <OpsTab value="hardship" label={t('ops.credit.nav.hardship')} />
             </OpsTabs>
           }
         />

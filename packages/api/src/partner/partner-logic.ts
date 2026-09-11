@@ -245,7 +245,7 @@ export type PartnerApplicationRow = {
   company: { name: string };
   branch: { name: string } | null;
   product: { make: string; model: string; modelYear: number; price: unknown };
-  customer: { name: string | null };
+  customer: { name: string | null } | null;
   documents: Array<{ id: string; category: DocumentCategory; originalName: string | null; createdAt: Date }>;
 };
 
@@ -263,7 +263,7 @@ export function toPartnerApplicationDto(row: PartnerApplicationRow, role = 'part
       model_year: row.product.modelYear,
       price: numberOrNull(row.product.price),
     },
-    customer: customerFromSnapshot(row.customerSnapshot, row.customer.name),
+    customer: customerFromSnapshot(row.customerSnapshot, row.customer?.name ?? null),
     financing: financingFromPricing(row.pricingSnapshot),
     credit_assessment: creditAssessmentForRole(row.creditAssessment, role),
     consents_completed_at: row.consentsCompletedAt?.toISOString() ?? null,

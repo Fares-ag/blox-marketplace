@@ -19,6 +19,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { JobHealthService } from './job-health.service';
+import { MusharakahService } from '../musharakah/musharakah.service';
 import {
   DOCUMENT_REMINDER_THRESHOLDS,
   reminderKindFor,
@@ -51,6 +52,8 @@ const CRM_SYNC_STATUSES: ApplicationStatus[] = [
   ApplicationStatus.down_payment_required,
   ApplicationStatus.down_payment_submitted,
   ApplicationStatus.pending_finance_activation,
+  ApplicationStatus.lpo_issued,
+  ApplicationStatus.acquisition_pending,
   ApplicationStatus.active,
 ];
 
@@ -95,6 +98,7 @@ export class JobsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly appConfig: AppConfigService,
     private readonly router: NotificationRouterService,
+    private readonly musharakah: MusharakahService,
   ) {}
 
   onModuleInit(): void {
@@ -116,6 +120,7 @@ export class JobsService implements OnModuleInit {
     this.registerCron('job-health-check', cronEveryNMinutes(5), async () => {
       this.runHealthCheck();
     });
+    this.registerCron('unit-offers', cronEveryNMinutes(60), () => this.runUnitOffers());
 
     this.health.registerJob('overdue-sweep', DAY_MS);
     this.health.registerJob('payment-reminders', DAY_MS);
@@ -124,6 +129,7 @@ export class JobsService implements OnModuleInit {
     this.health.registerJob('takaful-expiry-reminders', DAY_MS);
     this.health.registerJob('zoho-retry', zohoMinutes * 60 * 1000);
     this.health.registerJob('email-outbox', outboxMinutes * 60 * 1000);
+    this.health.registerJob('unit-offers', 60 * 60 * 1000);
   }
 
   private registerCron(name: string, expression: string, handler: () => Promise<unknown>): void {
@@ -207,6 +213,11 @@ export class JobsService implements OnModuleInit {
           continue;
         }
         throw err;
+      }
+
+      if (!schedule.application.customerUserId) {
+        skipped += 1;
+        continue;
       }
 
       const vehicle = `${schedule.application.product.make} ${schedule.application.product.model} ${schedule.application.product.modelYear}`;
@@ -447,6 +458,8 @@ export class JobsService implements OnModuleInit {
 
         const kind = reminderKindFor(days, TAKAFUL_REMINDER_THRESHOLDS);
         if (
+          !app.customerUserId ||
+          !app.customer ||
           !shouldSendReminder(kind, policy.lastReminderKind, TAKAFUL_REMINDER_THRESHOLDS) ||
           !app.customer.isActive ||
           !reminderEnabled(app.customer.notificationPreferences, 'takaful')
@@ -470,7 +483,7 @@ export class JobsService implements OnModuleInit {
           email: (locale) => ({
             ...renderTakafulRenewalEmail(
               {
-                name: app.customer.name,
+                name: app.customer!.name,
                 vehicleLabel: vehicle,
                 provider: policy.provider || null,
                 expiresAt,
@@ -527,6 +540,14 @@ export class JobsService implements OnModuleInit {
     );
     this.health.recordSuccess('email-outbox');
     return result;
+  }
+
+  async runUnitOffers() {
+    const issued = await this.musharakah.issueOpenUnitOffers();
+    const expired = await this.musharakah.expireOverdueOffersAndOpenCollections();
+    this.logger.log(`Unit offers — issued=${issued.issued} expired=${expired.expired}`);
+    this.health.recordSuccess('unit-offers');
+    return { ...issued, ...expired };
   }
 
   runHealthCheck(): void {

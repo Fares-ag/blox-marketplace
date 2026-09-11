@@ -13,3 +13,4 @@ export * from './masking';
 export * from './settlement';
 export * from './credit-assessment';
 export * from './terminology';
+export * from './contact';

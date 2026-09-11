@@ -18,7 +18,7 @@ import {
   useNavCounts,
 } from '@drivemarket/shared';
 import '@drivemarket/shared/styles/global.scss';
-import { CompanyPage, DashboardPage, InventoryEditor, InventoryList, QuotesPage } from './pages';
+import { CompanyPage, DashboardPage, InventoryEditor, InventoryList, QuotesPage, LpoInboxPage } from './pages';
 
 function DealerWorkspace() {
   const { id } = useParams();
@@ -37,6 +37,7 @@ function App() {
       { to: '/applications', label: t('ops.dealer.nav.applications'), icon: 'apps', group: work, count: counts?.open_applications },
       { to: '/applications/new', label: t('ops.dealer.nav.newApplication'), icon: 'apps', group: work },
       { to: '/quotes', label: t('ops.dealer.nav.quotes'), icon: 'quotes', group: work, count: counts?.quotes_active },
+      { to: '/lpo', label: t('ops.dealer.nav.lpo'), icon: 'offers', group: work },
       { to: '/inventory', label: t('ops.dealer.nav.inventory'), icon: 'inventory', group: company },
       { to: '/company', label: t('ops.dealer.nav.company'), icon: 'company', group: company },
     ];
@@ -67,6 +68,7 @@ function App() {
                 <Route path="/inventory/new" element={<InventoryEditor />} />
                 <Route path="/inventory/:id" element={<InventoryEditor />} />
                 <Route path="/quotes" element={<QuotesPage />} />
+                <Route path="/lpo" element={<LpoInboxPage />} />
                 <Route path="/company" element={<CompanyPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

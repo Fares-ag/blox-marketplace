@@ -2,6 +2,7 @@ import type { ApplicationStatus, Prisma } from '@prisma/client';
 import { maskCustomerSnapshot, maskPhone } from '@drivemarket/shared/domain-rules';
 import { toPublicOfferDto } from '../common/offer-response.dto';
 import { ruleFlagsOf } from './application-rules';
+import { customerPhaseFor } from '@drivemarket/shared/application-status-map';
 
 type DecimalLike = Prisma.Decimal | number | string | null | undefined;
 
@@ -218,7 +219,7 @@ export function toTakafulPolicyDto(policy: TakafulPolicyRow, now: Date = new Dat
 
 type ApplicationCore = {
   id: string;
-  customerUserId: string;
+  customerUserId: string | null;
   customerEmail: string;
   customerSnapshot: unknown;
   productId: string;
@@ -259,6 +260,11 @@ type ApplicationRelations = {
   financePartner?: { id?: string; name?: string | null; code?: string | null; crmAdapter?: string | null } | null;
   branch?: { id?: string; name?: string | null; code?: string | null } | null;
   takafulPolicies?: TakafulPolicyRow[] | null;
+  ownershipRegister?: {
+    totalUnits: number;
+    customerUnits: number;
+    bloxUnits: number;
+  } | null;
 };
 
 function hasProductFields(
@@ -329,6 +335,7 @@ function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudien
     pricing_snapshot: app.pricingSnapshot,
     ...(app.installmentPlan != null ? { installment_plan: app.installmentPlan } : {}),
     status: app.status,
+    customer_phase: customerPhaseFor(app.status),
     contract_generated: app.contractGenerated,
     resubmission_comment: app.resubmissionComment ?? null,
     submitted_at: app.submittedAt ?? null,
@@ -381,6 +388,26 @@ function applicationRelations(app: ApplicationRelations, audience: ApplicationAu
     financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
     finance_partner_name: app.financePartner?.name ?? null,
     branch_name: app.branch?.name ?? null,
+    ...(app.ownershipRegister
+      ? {
+          ownership_register: {
+            total_units: app.ownershipRegister.totalUnits,
+            customer_units: app.ownershipRegister.customerUnits,
+            blox_units: app.ownershipRegister.bloxUnits,
+          },
+          customer_ownership_pct:
+            app.ownershipRegister.totalUnits > 0
+              ? Math.min(
+                  100,
+                  Math.round(
+                    ((app.ownershipRegister.customerUnits / app.ownershipRegister.totalUnits) * 100 +
+                      Number.EPSILON) *
+                      100,
+                  ) / 100,
+                )
+              : 0,
+        }
+      : {}),
   };
 }
 
@@ -454,6 +481,7 @@ export function toApplicationListItemDto(app: {
   return {
     id: app.id,
     status: app.status,
+    customer_phase: customerPhaseFor(app.status),
     created_at: app.createdAt,
     submitted_at: app.submittedAt ?? null,
     activated_at: app.activatedAt ?? null,
@@ -570,6 +598,7 @@ export function toDealerApplicationListItemDto(app: {
   id: string;
   status: ApplicationStatus;
   createdAt: Date;
+  customerEmail?: string;
   customerSnapshot?: unknown;
   pricingSnapshot?: unknown;
   financePartnerId?: string | null;
@@ -609,7 +638,18 @@ export function toDealerApplicationListItemDto(app: {
             phone: app.customer.phone ?? null,
           },
         }
-      : {}),
+      : app.customerEmail
+        ? {
+            customer: {
+              name:
+                typeof (app.customerSnapshot as { full_name?: unknown } | undefined)?.full_name === 'string'
+                  ? ((app.customerSnapshot as { full_name: string }).full_name ?? null)
+                  : null,
+              email: app.customerEmail,
+              phone: null,
+            },
+          }
+        : {}),
     ...(app.agent
       ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
       : { agent: null }),

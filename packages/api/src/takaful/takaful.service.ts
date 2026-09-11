@@ -30,7 +30,7 @@ export type DeclareTakafulInput = TakafulPolicyInput & {
 
 export type TakafulFile = { buffer: Buffer; contentType: string; filename: string };
 
-type ApplicationRef = { id: string; customerUserId: string; companyId: string; status: ApplicationStatus };
+type ApplicationRef = { id: string; customerUserId: string | null; companyId: string; status: ApplicationStatus };
 
 /** Policies the customer can no longer edit: verified cover and closed records. */
 const LOCKED_STATUSES: TakafulStatus[] = [TakafulStatus.active, TakafulStatus.closed];
@@ -236,12 +236,14 @@ export class TakafulService {
       toValue: TakafulStatus.active,
       metadata: { application_id: app.id },
     });
-    await this.activity.notify(
-      app.customerUserId,
-      'Takaful policy verified',
-      `Your takaful policy${policy.policyNumber ? ` ${policy.policyNumber}` : ''} has been verified and is now active.`,
-      `/app/applications/${app.id}`,
-    );
+    if (app.customerUserId) {
+      await this.activity.notify(
+        app.customerUserId,
+        'Takaful policy verified',
+        `Your takaful policy${policy.policyNumber ? ` ${policy.policyNumber}` : ''} has been verified and is now active.`,
+        `/app/applications/${app.id}`,
+      );
+    }
     return toTakafulPolicyDto(updated);
   }
 

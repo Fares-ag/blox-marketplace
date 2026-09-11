@@ -18,6 +18,8 @@ const TIMELINE_STEPS: ApplicationStatus[] = [
   'down_payment_required',
   'down_payment_submitted',
   'pending_finance_activation',
+  'lpo_issued',
+  'acquisition_pending',
   'active',
   'completed',
 ];

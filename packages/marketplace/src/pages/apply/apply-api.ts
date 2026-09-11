@@ -3,7 +3,7 @@
  * Everything goes through `apiFetch` so `/api/v1` normalisation, cookies and
  * the 401 handler behave exactly like the rest of the marketplace.
  */
-import { ApiError, apiFetch, type DocumentSlot, type PricingSnapshot, type ProductRuleViolation } from '@drivemarket/shared';
+import { ApiError, apiFetch, identityPresentSet, type DocumentSlot, type PricingSnapshot, type ProductRuleViolation } from '@drivemarket/shared';
 
 export type ApplicationDraftDto = {
   id: string;
@@ -17,7 +17,7 @@ export type ApplicationDraftDto = {
   consents_completed_at?: string | null;
   identity_hold_reason?: string | null;
   identity_hold_cleared_at?: string | null;
-  documents?: Array<{ id: string; category: string; original_name?: string | null; created_at?: string }>;
+  documents?: Array<{ id: string; category: string; original_name?: string | null; created_at?: string; kyc_document_type?: string | null }>;
   product?: { slug?: string; make?: string; model?: string; model_year?: number };
 };
 
@@ -36,6 +36,7 @@ export type DocumentSlotsDto = {
   stale?: string[];
   /** Newest upload per category, ISO timestamps (wave 2). */
   uploaded_at?: Record<string, string>;
+  ekyc_required?: boolean;
 };
 
 export type CreateDraftBody = {
@@ -109,20 +110,25 @@ export type UploadedDocumentsState = {
   stale: string[];
   /** Newest upload per category, ISO timestamps. */
   uploadedAt: Record<string, string>;
+  slots?: DocumentSlot[];
+  ekycRequired?: boolean;
 };
 
 /** Uploaded categories, file names and freshness, tolerant of the slots endpoint being unavailable. */
 export async function loadUploadedDocuments(id: string): Promise<UploadedDocumentsState> {
   const [slots, detail] = await Promise.allSettled([fetchDocumentSlots(id), fetchDraftDetail(id)]);
   const docs = detail.status === 'fulfilled' ? detail.value.documents ?? [] : [];
-  const uploaded = new Set<string>(slots.status === 'fulfilled' ? slots.value.uploaded : docs.map((d) => d.category));
-  if (uploaded.has('id')) uploaded.add('qid');
+  const uploaded = identityPresentSet(slots.status === 'fulfilled' ? slots.value.uploaded : docs.map((d) => d.kyc_document_type || d.category));
   const names: Record<string, string> = {};
   const uploadedAt: Record<string, string> = {};
   for (const doc of docs) {
-    if (doc.original_name) names[doc.category] = doc.original_name;
-    if (doc.created_at && (!uploadedAt[doc.category] || doc.created_at > uploadedAt[doc.category])) {
-      uploadedAt[doc.category] = doc.created_at;
+    const keys = [doc.category];
+    if (doc.kyc_document_type) keys.push(doc.kyc_document_type);
+    for (const key of keys) {
+      if (doc.original_name) names[key] = doc.original_name;
+      if (doc.created_at && (!uploadedAt[key] || doc.created_at > uploadedAt[key])) {
+        uploadedAt[key] = doc.created_at;
+      }
     }
   }
   if (slots.status === 'fulfilled' && slots.value.uploaded_at) {
@@ -132,7 +138,14 @@ export async function loadUploadedDocuments(id: string): Promise<UploadedDocumen
   }
   if (uploadedAt.id && !uploadedAt.qid) uploadedAt.qid = uploadedAt.id;
   const stale = slots.status === 'fulfilled' && Array.isArray(slots.value.stale) ? slots.value.stale.filter((c): c is string => typeof c === 'string') : [];
-  return { uploaded: [...uploaded], names, stale, uploadedAt };
+  return {
+    uploaded: [...uploaded],
+    names,
+    stale,
+    uploadedAt,
+    slots: slots.status === 'fulfilled' ? slots.value.slots : undefined,
+    ekycRequired: slots.status === 'fulfilled' ? !!slots.value.ekyc_required : false,
+  };
 }
 
 export type ApplyErrorCode =

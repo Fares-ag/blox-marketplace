@@ -27,7 +27,7 @@ type Props = WorkspacePanelProps & {
   customerPct: number;
   bloxPct: number;
   showOwnership: boolean;
-  onOpenTab: (tab: 'docs' | 'logs' | 'schedule') => void;
+  onOpenTab: (tab: 'docs' | 'logs' | 'schedule' | 'register') => void;
   canSeeLogs: boolean;
 };
 

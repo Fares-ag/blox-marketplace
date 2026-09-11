@@ -44,6 +44,8 @@ const REJECTABLE: ApplicationStatus[] = [
   'down_payment_required',
   'down_payment_submitted',
   'pending_finance_activation',
+  'lpo_issued',
+  'acquisition_pending',
 ];
 
 const RESUBMITTABLE: ApplicationStatus[] = [
@@ -58,6 +60,7 @@ export const ACTIVATE_FROM_STATUSES: ApplicationStatus[] = [
   'contract_under_review',
   'down_payment_submitted',
   'pending_finance_activation',
+  'acquisition_pending',
 ];
 
 /** Admin-only override before approval (vercel "Activate (Admin)" / "Activate draft"). */
@@ -83,6 +86,12 @@ export function visibleWorkspaceActions(status: ApplicationStatus, role?: UserRo
     requireDownPayment: decide && status === 'contract_under_review',
     recoverDownPayment: decide && status === 'pending_finance_activation',
     recordDownPayment: decide && (status === 'down_payment_required' || status === 'down_payment_submitted'),
+    issueLpo: finance && status === 'pending_finance_activation',
+    confirmLpoSettlement: finance && status === 'lpo_issued',
+    openHardship: decide && status === 'active',
+    resolveHardship: decide && status === 'hardship',
+    startRepossession: decide && status === 'hardship',
+    fileTotalLoss: decide && status === 'active',
     reopen: decide && (status === 'rejected' || (admin && status === 'submission_cancelled')),
     cancel:
       (decide && (status === 'under_review' || status === 'resubmission_required')) ||

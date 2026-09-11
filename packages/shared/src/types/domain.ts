@@ -132,7 +132,12 @@ export type ApplicationStatus =
   | 'down_payment_submitted'
   | 'pending_finance_activation'
   | 'partner_processing'
+  | 'lpo_issued'
+  | 'acquisition_pending'
   | 'active'
+  | 'hardship'
+  | 'repossession_in_progress'
+  | 'total_loss'
   | 'completed'
   | 'rejected'
   | 'submission_cancelled';

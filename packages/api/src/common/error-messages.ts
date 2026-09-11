@@ -30,6 +30,11 @@ const HUMAN_MESSAGES: Record<string, string> = {
   down_payment_incomplete: 'The recorded down payment does not meet the requirement.',
   down_payment_required_before_activation:
     'Collect the down payment before approving the contract for activation.',
+  lpo_gate_requires_acquisition_pending:
+    'Activation requires a settled purchase order and acquisition evidence.',
+  acquisition_gate_failed: 'Acquisition evidence is incomplete.',
+  pre_disbursal_incomplete: 'Complete the pre-disbursal checklist before activation.',
+  disclosure_required: 'Read and acknowledge the unit-offer disclosure before accepting.',
   gateway_verification_required: 'Payment completion requires gateway verification.',
   file_too_large: 'The uploaded file exceeds the size limit.',
   mfa_required: 'Multi-factor authentication is required.',

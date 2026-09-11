@@ -14,6 +14,7 @@ import {
 import { ProductsService } from '../products/products.service';
 import { CustomerPaymentsService } from '../payments/customer-payments.service';
 import { CreditsService } from '../credits/credits.service';
+import { MusharakahService } from '../musharakah/musharakah.service';
 
 type Calculator = {
   termMonths?: number;
@@ -34,6 +35,7 @@ export class MobileService {
     private readonly products: ProductsService,
     private readonly customerPayments: CustomerPaymentsService,
     private readonly credits: CreditsService,
+    private readonly musharakah: MusharakahService,
   ) {}
 
   async listVehicles(query: Record<string, string | string[] | undefined>) {
@@ -292,26 +294,13 @@ export class MobileService {
   }
 
   async preDisbursal(user: User, applicationId: string) {
-    const app = await this.prisma.application.findUnique({
-      where: { id: applicationId },
-      include: { documents: true },
-    });
+    const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
     if (!app || app.customerUserId !== user.id) throw new NotFoundException();
-    const qidVerified = app.documents.some(
-      (d) => d.category === 'qid' && d.verificationStatus === 'verified',
-    );
-    return {
-      application_id: applicationId,
-      status: app.status,
-      kyc_status: app.kycStatus,
-      qid_verified: qidVerified,
-      contract_generated: app.contractGenerated,
-      signed_contract: Boolean(app.signedContractPath),
-    };
+    return this.musharakah.buildPreDisbursal(applicationId);
   }
 
   async completePreDisbursal(user: User, applicationId: string) {
-    return this.preDisbursal(user, applicationId);
+    return this.musharakah.completePreDisbursal(user, applicationId);
   }
 
   async paymentsHub(user: User) {

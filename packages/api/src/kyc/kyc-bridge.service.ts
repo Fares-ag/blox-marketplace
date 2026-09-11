@@ -11,6 +11,7 @@ import { DocumentCategory, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { IDENTITY_SLOTS, KycPlatformClient, type KycDocument } from './kyc-platform.client';
 import { buildKycVerificationSummary } from './kyc-verification-summary';
+import { MusharakahService } from '../musharakah/musharakah.service';
 
 const SLOT_CATEGORY: Record<string, DocumentCategory> = {
   qid_front: DocumentCategory.qid,
@@ -39,6 +40,7 @@ export class KycBridgeService {
     private readonly prisma: PrismaService,
     private readonly kyc: KycPlatformClient,
     private readonly config: ConfigService,
+    private readonly musharakah: MusharakahService,
   ) {}
 
   verifyWebhookSignature(rawBody: string, signatureHeader: string | undefined): boolean {
@@ -126,6 +128,8 @@ export class KycBridgeService {
   async handleWebhook(rawBody: string, signature: string | undefined, payload: {
     type?: string;
     case_id?: string;
+    event_id?: string;
+    id?: string;
   }) {
     if (!this.verifyWebhookSignature(rawBody, signature)) {
       throw new UnauthorizedException('invalid_signature');
@@ -140,7 +144,13 @@ export class KycBridgeService {
     const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
     if (!app) return { ok: true, skipped: 'application_not_found' };
 
+    if (!app.customerUserId) return { ok: true, skipped: 'customer_not_linked' };
     await this.syncDocuments(applicationId, app.customerUserId, kase.documents, kase.status);
+    await this.musharakah.applyKycWebhookStatus(
+      applicationId,
+      payload.type,
+      payload.event_id ?? payload.id,
+    );
     return { ok: true };
   }
 
@@ -207,7 +217,7 @@ export class KycBridgeService {
   async syncDocumentsForApplication(applicationId: string) {
     if (!this.kyc.configured()) return;
     const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
-    if (!app?.kycCaseId) return;
+    if (!app?.kycCaseId || !app.customerUserId) return;
     const kase = await this.kyc.getCaseDetail(app.kycCaseId);
     await this.syncDocuments(applicationId, app.customerUserId, kase.documents, kase.status);
   }

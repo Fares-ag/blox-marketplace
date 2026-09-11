@@ -622,6 +622,7 @@ export function AddApplicationWizard({
                             toast.error(rejection);
                             return;
                           }
+                          setError(null);
                           updateData({ files: { ...data.files, [slot.category]: picked } });
                         }}
                       />

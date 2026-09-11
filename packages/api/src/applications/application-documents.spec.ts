@@ -43,6 +43,17 @@ describe('application-documents', () => {
     ).toBe(true);
   });
 
+  it('accepts manual qid_front and qid_back uploads', () => {
+    expect(
+      hasAllRequiredDocuments([
+        { category: 'qid', kycDocumentType: 'qid_front' },
+        { category: 'qid', kycDocumentType: 'qid_back' },
+        { category: 'salary' },
+        { category: 'bank' },
+      ]),
+    ).toBe(true);
+  });
+
   it('accepts Didit-style single-sided QID when back slot is absent', () => {
     expect(
       hasAllRequiredDocuments([
@@ -130,10 +141,11 @@ describe('document freshness', () => {
     );
     expect(dto.stale).toEqual(['salary']);
     expect(dto.missing).toEqual(['passport', 'bank']);
-    expect(dto.uploaded).toEqual(['qid', 'salary']);
+    expect(dto.uploaded).toEqual(['qid', 'qid_back', 'qid_front', 'salary']);
     const byCategory = new Map(dto.slots.map((slot) => [slot.category, slot]));
     expect(byCategory.get('salary')?.uploaded_at).toBe(ago(45).toISOString());
-    expect(byCategory.get('qid')?.uploaded_at).toBe(ago(3).toISOString());
+    expect(byCategory.get('qid_front')?.uploaded_at).toBe(ago(3).toISOString());
+    expect(byCategory.get('qid_back')?.uploaded_at).toBe(ago(3).toISOString());
     expect(byCategory.get('bank')?.uploaded_at).toBeNull();
     expect(byCategory.get('salary')?.maxAgeDays).toBe(30);
   });

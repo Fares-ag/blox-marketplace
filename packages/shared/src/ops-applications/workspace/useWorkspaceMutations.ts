@@ -233,13 +233,42 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     onError: fail,
   });
 
+  const issueLpo = useMutation({
+    mutationFn: () => apiFetch(`/api/ops/applications/${id}/lpo`, { method: 'POST', body: '{}' }),
+    onSuccess: invalidate,
+    onError: fail,
+  });
+  const settleLpo = useMutation({
+    mutationFn: () => apiFetch(`/api/ops/applications/${id}/lpo/settle`, { method: 'POST', body: '{}' }),
+    onSuccess: invalidate,
+    onError: fail,
+  });
+  const openHardship = useMutation({
+    mutationFn: () => apiFetch(`/api/ops/applications/${id}/hardship`, { method: 'POST', body: '{}' }),
+    onSuccess: invalidate,
+    onError: fail,
+  });
+  const decideHardship = useMutation({
+    mutationFn: (decision: 'approve' | 'fail' | 'resolve') =>
+      apiFetch(`/api/ops/applications/${id}/hardship/decide`, {
+        method: 'POST',
+        body: JSON.stringify({ decision }),
+      }),
+    onSuccess: invalidate,
+    onError: fail,
+  });
+
   const busy =
     transition.isPending ||
     approve.isPending ||
     activate.isPending ||
     submit.isPending ||
     patchEdit.isPending ||
-    uploadSignedContract.isPending;
+    uploadSignedContract.isPending ||
+    issueLpo.isPending ||
+    settleLpo.isPending ||
+    openHardship.isPending ||
+    decideHardship.isPending;
 
   return {
     invalidate,
@@ -262,6 +291,10 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     unmask,
     tagLender,
     verifyTakaful,
+    issueLpo,
+    settleLpo,
+    openHardship,
+    decideHardship,
     busy,
   };
 }

@@ -249,11 +249,22 @@ describe('finance ↔ credit parity', () => {
     expect(financeList.status).toBe(200);
     expect(financeList.body.total).toBe(1);
 
+    // Active book is live financings only — check before settlement completes the app.
+    const bookWhileActive = await authed(finance.agent).get('/api/v1/ops/finance/book');
+    expect(bookWhileActive.status).toBe(200);
+    expect(bookWhileActive.body.items[0].application_id).toBe(app.id);
+
     const approve = await authed(finance.agent)
       .post(`/api/v1/ops/settlements/${request.body.id}/approve`)
       .send({});
     expect(approve.status).toBe(200);
     expect(approve.body.status).toBe('approved');
+
+    const bookAfterComplete = await authed(finance.agent).get('/api/v1/ops/finance/book');
+    expect(bookAfterComplete.status).toBe(200);
+    expect(bookAfterComplete.body.items.some((row: { application_id: string }) => row.application_id === app.id)).toBe(
+      false,
+    );
 
     // Credits: finance adjusts, credit is refused.
     const creditAdjust = await authed(credit.agent)
@@ -270,10 +281,6 @@ describe('finance ↔ credit parity', () => {
     const list = await authed(finance.agent).get('/api/v1/ops/credits');
     expect(list.status).toBe(200);
     expect(list.body.items.some((r: { user_id: string }) => r.user_id === customer.user.id)).toBe(true);
-
-    const book = await authed(finance.agent).get('/api/v1/ops/finance/book');
-    expect(book.status).toBe(200);
-    expect(book.body.items[0].application_id).toBe(app.id);
   });
 
   it('admin can activate straight from under_review once the down payment is recorded', async () => {

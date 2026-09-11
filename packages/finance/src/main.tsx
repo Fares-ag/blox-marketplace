@@ -12,6 +12,7 @@ import {
   ApplicationsList,
   ApplicationWorkspace,
   FinanceQueue,
+  LpoInboxPage,
   type BloxNavItem,
   useAuthStore,
   useOpsLabels,
@@ -73,6 +74,7 @@ function App() {
       { to: '/book', label: t('ops.finance.nav.book'), icon: 'ledgers', group: work },
       { to: '/payments', label: t('ops.finance.nav.payments'), icon: 'finance', group: work, count: finance?.pending_bank_transfers },
       { to: '/settlements', label: t('ops.finance.nav.settlements'), icon: 'offers', group: work },
+      { to: '/lpo', label: t('ops.finance.nav.lpo'), icon: 'offers', group: work },
       { to: '/credits', label: t('ops.finance.nav.credits'), icon: 'packages', group: reference },
       { to: '/exports', label: t('ops.finance.nav.exports'), icon: 'logs', group: reference },
       { to: '/applications', label: t('ops.finance.nav.applications'), icon: 'apps', group: reference },
@@ -112,6 +114,7 @@ function App() {
                     <Route path="/book" element={<FinanceBookPage />} />
                     <Route path="/payments" element={<FinancePaymentsPage />} />
                     <Route path="/settlements" element={<FinanceSettlementsPage />} />
+                    <Route path="/lpo" element={<LpoInboxPage detailBase="/applications" titleKey="ops.finance.nav.lpo" />} />
                     <Route path="/credits" element={<FinanceCreditsPage />} />
                     <Route path="/exports" element={<FinanceExportsPage />} />
                     <Route path="/applications" element={<ApplicationsPage />} />

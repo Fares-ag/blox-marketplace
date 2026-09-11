@@ -11,9 +11,10 @@ import { ApplicationsStaffService } from './applications-staff.service';
 import { ApplicationIntakeService } from './application-intake.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { QuotesModule } from '../quotes/quotes.module';
+import { MusharakahModule } from '../musharakah/musharakah.module';
 
 @Module({
-  imports: [CommonModule, ComplianceModule, KycModule, StorageModule, QuotesModule, ZohoModule, PaymentsModule],
+  imports: [CommonModule, ComplianceModule, KycModule, StorageModule, QuotesModule, ZohoModule, PaymentsModule, MusharakahModule],
   controllers: [ApplicationsController],
   providers: [
     ApplicationsService,

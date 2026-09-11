@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -22,6 +21,7 @@ import { ActivityService } from '../common/activity.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ApplicationDocCategory } from './application-documents';
+import { resolveStoredDocumentCategory } from './application-documents';
 import { buildApplicationPricingSnapshot } from './application-pricing';
 import { buildPlanFromPricingSnapshot, planForVehicle, resolveDownPaymentPercent } from '@drivemarket/shared/installment-plan';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
@@ -113,7 +113,7 @@ export class ApplicationsStaffService {
     // QID, DOB cross-checked (400 dob_qid_mismatch), guarantor/employment tidied.
     const normalized = normalizeCustomerSnapshot({ ...snap, email, phone, qid, full_name });
 
-    const customer = await this.findOrCreateWalkInCustomer(actor, {
+    const walkIn = await this.resolveWalkInCustomer(actor, {
       email,
       name: full_name,
       phone,
@@ -149,7 +149,7 @@ export class ApplicationsStaffService {
 
     const qidHash = this.intake.qidHash(normalized.snapshot.qid);
     const identity = await this.intake.evaluateIdentity({
-      userId: customer.id,
+      userId: walkIn.userId,
       qid: normalized.snapshot.qid,
       name: normalized.snapshot.full_name,
       birthYear: normalized.birthYear,
@@ -243,14 +243,14 @@ export class ApplicationsStaffService {
       const app = await this.prisma.$transaction(async (tx) => {
         const created = await tx.application.create({
           data: {
-            customerUserId: customer.id,
-            customerEmail: customer.email,
+            customerUserId: walkIn.userId,
+            customerEmail: walkIn.email,
             customerSnapshot: asJson(customerSnapshot),
             productId: product.id,
             companyId: product.companyId,
             offerId: offer.id,
             financePartnerId: lenderId,
-            leadSource: 'walk_in',
+            leadSource: walkIn.userId ? 'walk_in' : 'walk_in_pending',
             pricingSnapshot: asJson(pricingWithFlags),
             installmentPlan: asJson(installmentPlan as unknown as Record<string, unknown>),
             status: initialStatus,
@@ -462,11 +462,12 @@ export class ApplicationsStaffService {
     }
 
     storage.assertKycFile(file);
-    const key = await storage.uploadKyc(file, id, category);
+    const stored = resolveStoredDocumentCategory(category);
+    const key = await storage.uploadKyc(file, id, stored.category);
     const doc = await this.prisma.applicationDocument.create({
       data: {
         applicationId: id,
-        category: category as DocumentCategory,
+        category: stored.category as DocumentCategory,
         storagePath: key,
         mimeType: file.mimetype,
         // Stored so the partner CRM can attach the file under the name the
@@ -474,6 +475,7 @@ export class ApplicationsStaffService {
         // the generated storage key and arrives as an opaque uuid.
         originalName: file.originalname,
         uploadedById: actor.id,
+        kycDocumentType: stored.kycDocumentType ?? null,
       },
     });
 
@@ -494,10 +496,14 @@ export class ApplicationsStaffService {
     };
   }
 
-  private async findOrCreateWalkInCustomer(
-    actor: User,
+  /**
+   * Links to an existing customer account when the email is registered; otherwise
+   * stores the application without creating an account (linked on self-sign-up).
+   */
+  private async resolveWalkInCustomer(
+    _actor: User,
     input: { email: string; name: string; phone: string; qid: string; normalized: NormalizedCustomerSnapshot },
-  ) {
+  ): Promise<{ userId: string | null; email: string }> {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {
       if (existing.role !== UserRole.customer) {
@@ -507,50 +513,9 @@ export class ApplicationsStaffService {
         where: { id: existing.id },
         data: this.intake.userProfileData(existing, input.normalized),
       });
-      return this.prisma.user.findUniqueOrThrow({ where: { id: existing.id } });
+      return { userId: existing.id, email: input.email };
     }
 
-    const password = `Tmp!${randomBytes(18).toString('base64url')}`;
-    try {
-      await this.auth.api.signUpEmail({
-        body: { email: input.email, password, name: input.name },
-      });
-    } catch {
-      const raced = await this.prisma.user.findUnique({ where: { email: input.email } });
-      if (raced) return raced;
-      throw new BadRequestException('walk_in_create_failed');
-    }
-
-    const created = await this.prisma.user.findUnique({ where: { email: input.email } });
-    if (!created) throw new BadRequestException('walk_in_create_failed');
-
-    await this.prisma.user.update({
-      where: { id: created.id },
-      data: {
-        role: UserRole.customer,
-        emailVerified: false,
-        ...this.intake.userProfileData(
-          { name: input.name, phone: input.phone, qid: input.qid },
-          input.normalized,
-        ),
-      },
-    });
-
-    const dealerName =
-      actor.role === UserRole.dealer_agent && actor.companyId
-        ? ((await this.prisma.company.findUnique({ where: { id: actor.companyId } }))?.name ?? actor.name)
-        : actor.name;
-
-    const resetUrl = this.appConfig.marketplacePath('/auth/forgot-password');
-    try {
-      await this.auth.api.requestPasswordReset({
-        body: { email: input.email, redirectTo: this.appConfig.marketplacePath('/auth/reset-password') },
-      });
-    } catch {
-      /* invite email below is the customer-facing path */
-    }
-    await this.mail.sendWalkInInviteEmail(input.email, resetUrl, dealerName);
-
-    return this.prisma.user.findUniqueOrThrow({ where: { id: created.id } });
+    return { userId: null, email: input.email };
   }
 }

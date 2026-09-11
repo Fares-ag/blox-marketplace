@@ -50,7 +50,9 @@ describe('KYC webhook handling (integration)', () => {
       ],
     } satisfies KycCaseDetail);
 
-    ctx = await createIntegrationApp({ KYC_WEBHOOK_SECRET: WEBHOOK_SECRET }, [
+    ctx = await createIntegrationApp(
+      { KYC_WEBHOOK_SECRET: WEBHOOK_SECRET, KYC_WEBHOOK_DRIVES_STATUS: 'true' },
+      [
       {
         token: KycPlatformClient,
         useValue: { getCaseDetail } satisfies Partial<KycPlatformClient>,
@@ -60,6 +62,7 @@ describe('KYC webhook handling (integration)', () => {
 
   afterAll(async () => {
     await destroyIntegrationApp(ctx);
+    delete process.env.KYC_WEBHOOK_DRIVES_STATUS;
   });
 
   beforeEach(async () => {
@@ -160,5 +163,66 @@ describe('KYC webhook handling (integration)', () => {
 
     const updated = await ctx.prisma.application.findUniqueOrThrow({ where: { id: app.id } });
     expect(updated.kycStatus).toBe('verified');
+    expect(updated.status).toBe('draft');
+  });
+
+  it('moves under_review to resubmission_required on kyc.rejected when the flag is on', async () => {
+    const company = await seedCompany(ctx.prisma, 'KYC Reject Co');
+    const offer = await seedOffer(ctx.prisma, company.id);
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
+    const customer = await ctx.prisma.user.create({
+      data: {
+        email: 'kyc-rejected@drivemarket.local',
+        name: 'KYC Rejected',
+        role: 'customer',
+        emailVerified: true,
+        isActive: true,
+      },
+    });
+    const app = await ctx.prisma.application.create({
+      data: {
+        customerUserId: customer.id,
+        customerEmail: customer.email,
+        customerSnapshot: { full_name: customer.name, phone: '+97450000000', qid: '28012345678' },
+        companyId: company.id,
+        productId: product.id,
+        offerId: offer.id,
+        pricingSnapshot: buildPricingSnapshot(Number(product.price)),
+        status: 'under_review',
+        kycCaseId: 'kyc-case-rejected',
+        kycStatus: 'pending',
+      },
+    });
+
+    getCaseDetail.mockResolvedValue({
+      id: 'kyc-case-rejected',
+      status: 'REJECTED',
+      external_ref: app.id,
+      required_documents: ['qid_front'],
+      documents: [],
+    });
+
+    const payload = { type: 'kyc.rejected', case_id: 'kyc-case-rejected', event_id: 'evt-kyc-reject-1' };
+    const { header, rawBody } = signWebhook(JSON.stringify(payload));
+    const guest = createAgent(ctx);
+    const res = await guest
+      .post('/api/v1/webhooks/kyc')
+      .set('x-kyc-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(JSON.parse(rawBody));
+
+    expect(res.status).toBe(201);
+    const updated = await ctx.prisma.application.findUniqueOrThrow({ where: { id: app.id } });
+    expect(updated.status).toBe('resubmission_required');
+    expect(updated.lastKycWebhookEventId).toBe('evt-kyc-reject-1');
+
+    const replay = await guest
+      .post('/api/v1/webhooks/kyc')
+      .set('x-kyc-signature', header)
+      .set('Content-Type', 'application/json')
+      .send(JSON.parse(rawBody));
+    expect(replay.status).toBe(201);
+    const afterReplay = await ctx.prisma.application.findUniqueOrThrow({ where: { id: app.id } });
+    expect(afterReplay.status).toBe('resubmission_required');
   });
 });

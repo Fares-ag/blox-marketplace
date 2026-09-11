@@ -22,6 +22,7 @@ type Props = {
   requiredDone: number;
   requiredTotal: number;
   staleRequired: number;
+  ekycRequired?: boolean;
 };
 
 const GROUP_ORDER: DocumentSlotGroup[] = ['identity', 'income', 'business', 'guarantor', 'supporting'];
@@ -48,6 +49,7 @@ export function DocumentsStep({
   requiredDone,
   requiredTotal,
   staleRequired,
+  ekycRequired,
 }: Props) {
   const { t } = useTranslation();
   const missing = requiredTotal - requiredDone;
@@ -67,6 +69,7 @@ export function DocumentsStep({
       </div>
 
       {disabled ? <Notice tone="warn">{t('applyFlow.docs.needDraft')}</Notice> : null}
+      {ekycRequired ? <Notice tone="info">{t('applyFlow.docs.ekycRequired')}</Notice> : null}
       {staleRequired > 0 ? <Notice tone="warn">{t('applyFlow.docs.staleCount', { count: staleRequired })}</Notice> : null}
 
       {GROUP_ORDER.map((group) => {

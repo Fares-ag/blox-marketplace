@@ -31,6 +31,7 @@ import {
 } from './application-pricing';
 import {
   documentSlotsForApplication,
+  resolveStoredDocumentCategory,
   type ApplicationDocCategory,
 } from './application-documents';
 import {
@@ -614,6 +615,7 @@ export class ApplicationsService {
         paymentSchedules: { orderBy: { sequence: 'asc' } },
         paymentTransactions: { orderBy: { createdAt: 'desc' }, take: 50 },
         complianceChecks: { orderBy: { createdAt: 'desc' }, take: 5 },
+        ownershipRegister: { select: { totalUnits: true, customerUnits: true, bloxUnits: true } },
       },
     });
     if (!app) throw new NotFoundException();
@@ -793,7 +795,7 @@ export class ApplicationsService {
           financePartner: { select: { id: true, name: true, code: true, crmAdapter: true } },
           branch: { select: { id: true, name: true } },
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
       }),
@@ -1200,11 +1202,12 @@ export class ApplicationsService {
     }
 
     this.storage.assertKycFile(file);
-    const key = await this.storage.uploadKyc(file, id, category);
+    const stored = resolveStoredDocumentCategory(category);
+    const key = await this.storage.uploadKyc(file, id, stored.category);
     const doc = await this.prisma.applicationDocument.create({
       data: {
         applicationId: id,
-        category: category as DocumentCategory,
+        category: stored.category as DocumentCategory,
         storagePath: key,
         mimeType: file.mimetype,
         // Stored so the partner CRM can attach the file under the name the
@@ -1212,6 +1215,7 @@ export class ApplicationsService {
         // the generated storage key and arrives as an opaque uuid.
         originalName: file.originalname,
         uploadedById: user.id,
+        kycDocumentType: stored.kycDocumentType ?? null,
       },
     });
 
@@ -1466,7 +1470,7 @@ export class ApplicationsService {
 
   private audienceForUser(
     user: User,
-    app: { customerUserId: string; companyId: string },
+    app: { customerUserId: string | null; companyId: string },
   ): ApplicationAudience {
     const ops: UserRole[] = [
       UserRole.credit_officer,

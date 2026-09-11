@@ -260,6 +260,7 @@ export function buildContractLines(input: ContractPdfInput): ContractLine[] {
   line('');
   line('3. Financing summary (locked at approval)', { bold: true });
   line(`Down payment (${input.downPaymentPct.toFixed(2)}%): ${qar(input.downPayment)}`);
+  line(`Initial co-ownership: 100 nominal units. The customer's initial contribution buys units at the cash price; Blox holds the remainder.`);
   line(`Amount financed (co-owner share purchased over the term): ${qar(amountFinanced)}`);
   line(`Annual profit rate: ${input.annualRate.toFixed(2)}%`);
   line(`Tenure: ${input.tenor} months`);

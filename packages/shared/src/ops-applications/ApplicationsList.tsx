@@ -301,6 +301,7 @@ export function ApplicationsList({
         rowsPerPage={DEFAULT_PAGE_SIZE}
         totalRows={total}
         onPageChange={setPage}
+        defaultSort={{ id: 'created_at', dir: 'desc' }}
         emptyMessage={t('ops.common.noResults')}
       />
     </OpsListPage>

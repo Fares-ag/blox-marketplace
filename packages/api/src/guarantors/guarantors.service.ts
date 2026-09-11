@@ -17,6 +17,7 @@ import type {
   GuarantorSessionPublicDto,
 } from '../../../shared/src/types/customer-platform';
 import { assertCompanyScopeForRead } from '../applications/company-scope';
+import { readCustomerSnapshot } from '../applications/customer-snapshot';
 import {
   assistProofMatches,
   evaluateOtpAttempt,
@@ -59,11 +60,19 @@ const sessionInclude = {
       status: true,
       product: { select: { make: true, model: true, modelYear: true } },
       company: { select: { name: true } },
+      customerSnapshot: true,
       customer: { select: { id: true, name: true, preferredLanguage: true } },
     },
   },
   createdBy: { select: { id: true, name: true, role: true } },
 } satisfies Prisma.GuarantorConsentSessionInclude;
+
+function applicantDisplayName(app: {
+  customer: { name: string | null } | null;
+  customerSnapshot: Prisma.JsonValue;
+}): string | null {
+  return app.customer?.name ?? readCustomerSnapshot(app.customerSnapshot).full_name ?? null;
+}
 
 type SessionWithRelations = Prisma.GuarantorConsentSessionGetPayload<{ include: typeof sessionInclude }>;
 
@@ -77,11 +86,11 @@ const CLOSED_APPLICATION_STATUSES: ApplicationStatus[] = [
 type ApplicationRef = {
   id: string;
   companyId: string;
-  customerUserId: string;
+  customerUserId: string | null;
   status: ApplicationStatus;
   customerSnapshot: Prisma.JsonValue;
   company: { name: string };
-  customer: { name: string | null };
+  customer: { name: string | null; preferredLanguage?: string | null } | null;
 };
 
 export type GuarantorConsentsInput = { acceptances: GuarantorAcceptanceInput[]; locale: string };
@@ -389,17 +398,19 @@ export class GuarantorsService {
     });
 
     const applicantId = session.application.customerUserId;
-    await this.activity.notify(
-      applicantId,
-      'Guarantor consent received',
-      `${session.fullName} accepted the guarantor consents for your application. You can continue to submit it.`,
-      `/app/applications/${session.applicationId}`,
-    );
+    if (applicantId) {
+      await this.activity.notify(
+        applicantId,
+        'Guarantor consent received',
+        `${session.fullName} accepted the guarantor consents for your application. You can continue to submit it.`,
+        `/app/applications/${session.applicationId}`,
+      );
+    }
     if (session.createdByUserId && session.createdByUserId !== applicantId) {
       await this.activity.notify(
         session.createdByUserId,
         'Guarantor consent received',
-        `${session.fullName} finished the guarantor consent step for ${session.application.customer.name ?? 'the applicant'}.`,
+        `${session.fullName} finished the guarantor consent step for ${applicantDisplayName(session.application) ?? 'the applicant'}.`,
         `/applications/${session.applicationId}`,
       );
     }
@@ -536,7 +547,11 @@ export class GuarantorsService {
     link: string,
     kind: GuarantorSmsKind,
   ): Promise<void> {
-    const body = guarantorSmsBody(kind, { applicantName: session.application.customer.name, link, code });
+    const body = guarantorSmsBody(kind, {
+      applicantName: applicantDisplayName(session.application),
+      link,
+      code,
+    });
     try {
       await this.sms.send({ to: session.phone, body, kind: SMS_KIND[kind] });
     } catch (err) {
@@ -551,10 +566,10 @@ export class GuarantorsService {
     return toGuarantorSessionPublicDto({
       session,
       status,
-      applicantName: session.application.customer.name,
+      applicantName: applicantDisplayName(session.application),
       dealerName: session.application.company.name ?? null,
       vehicle: product ? { make: product.make, model: product.model, modelYear: product.modelYear ?? null } : null,
-      locale: session.application.customer.preferredLanguage,
+      locale: session.application.customer?.preferredLanguage ?? 'en',
     });
   }
 }

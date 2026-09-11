@@ -118,7 +118,7 @@ describe('buildCustomerSnapshot / customerInfoFromSnapshot', () => {
         legalName: 'Doha Motors WLL',
         crNumber: '12345',
         registeredAddress: { street: 'C Ring Rd', city: 'Doha', country: 'Qatar', postalCode: '', state: '' },
-        authorizedSignatory: { firstName: 'Ali', lastName: 'Saleh', email: 'ali@dohamotors.qa', phone: '+97444400000', qid: QATARI_QID },
+        authorizedSignatory: { firstName: 'Ali', lastName: 'Saleh', email: 'ali@dohamotors.qa', phone: '+97444400000', qid: QATARI_QID, nationality: 'Qatar' },
       },
     };
     const snapshot = buildCustomerSnapshot(corporate);
@@ -146,6 +146,46 @@ describe('validateCustomerInfo', () => {
 
   it('requires gender', () => {
     expect(validateCustomerInfo(individual({ gender: '' }))).toMatch(/Gender/);
+  });
+
+  it('requires digits-only CR, Qatar phone, valid QID and nationality for corporate applicants', () => {
+    const corporate = (): CustomerInfoFormValue => ({
+      ...emptyCustomerInfo(),
+      applicantType: 'corporate',
+      corporate: {
+        legalName: 'Doha Motors WLL',
+        crNumber: '12345',
+        registeredAddress: { street: 'C Ring Rd', city: 'Doha', country: 'Qatar' },
+        authorizedSignatory: {
+          firstName: 'Ali',
+          lastName: 'Saleh',
+          email: 'ali@dohamotors.qa',
+          phone: '+97455512345',
+          qid: QATARI_QID,
+          nationality: 'Qatar',
+        },
+      },
+    });
+    expect(validateCustomerInfo(corporate())).toBeNull();
+    expect(validateCustomerInfo({ ...corporate(), corporate: { ...corporate().corporate, crNumber: '12' } })).toMatch(/5–20 digits/);
+    expect(
+      validateCustomerInfo({
+        ...corporate(),
+        corporate: { ...corporate().corporate, authorizedSignatory: { ...corporate().corporate.authorizedSignatory, phone: 'abc' } },
+      }),
+    ).toMatch(/signatory phone/i);
+    expect(
+      validateCustomerInfo({
+        ...corporate(),
+        corporate: { ...corporate().corporate, authorizedSignatory: { ...corporate().corporate.authorizedSignatory, qid: '12ab' } },
+      }),
+    ).toMatch(/11 valid digits/);
+    expect(
+      validateCustomerInfo({
+        ...corporate(),
+        corporate: { ...corporate().corporate, authorizedSignatory: { ...corporate().corporate.authorizedSignatory, nationality: '' } },
+      }),
+    ).toMatch(/nationality/);
   });
 
   it('rejects an email that only looks like one', () => {
@@ -199,7 +239,7 @@ describe('document slots in the wizard', () => {
   it('derives required documents from residency, employment type and guarantor', () => {
     const qatari = wizardDocumentSlots(individual());
     expect(qatari.find((s) => s.category === 'passport')?.required).toBe(false);
-    expect(qatari.filter((s) => s.required).map((s) => s.category)).toEqual(['qid', 'salary', 'bank']);
+    expect(qatari.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'qid_back', 'salary', 'bank']);
 
     const expatSelfEmployedWithGuarantor = wizardDocumentSlots(
       individual({
@@ -210,7 +250,7 @@ describe('document slots in the wizard', () => {
       }),
     );
     const required = expatSelfEmployedWithGuarantor.filter((s) => s.required).map((s) => s.category);
-    expect(required).toEqual(['qid', 'passport', 'cr', 'trade_license', 'business_bank', 'bank', 'guarantor_qid', 'guarantor_salary']);
+    expect(required).toEqual(['qid_front', 'qid_back', 'passport', 'cr', 'trade_license', 'business_bank', 'bank', 'guarantor_qid', 'guarantor_salary']);
     expect(expatSelfEmployedWithGuarantor.some((s) => s.category === 'vehicle_quotation')).toBe(true);
   });
 

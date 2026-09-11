@@ -37,7 +37,6 @@ const GENDER_OPTIONS: Array<{ value: '' | GenderDto; labelKey: string }> = [
   { value: '', labelKey: 'customerProfile.contact.genderUnset' },
   { value: 'male', labelKey: 'customerProfile.contact.genderMale' },
   { value: 'female', labelKey: 'customerProfile.contact.genderFemale' },
-  { value: 'prefer_not_to_say', labelKey: 'customerProfile.contact.genderPreferNot' },
 ];
 
 type ProfileForm = {

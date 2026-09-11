@@ -303,6 +303,21 @@ const KEY_KINDS: OwnershipMilestoneKind[] = [
   'full_owner',
 ];
 
+export function overlayRegisterOnTimeline(
+  timeline: OwnershipTimeline,
+  register?: { customerUnits: number; totalUnits: number } | null,
+): OwnershipTimeline {
+  if (!register || register.totalUnits <= 0) return timeline;
+  const currentOwnership = Math.min(100, roundMoney((register.customerUnits / register.totalUnits) * 100));
+  const currentOwnershipAmount = roundMoney((currentOwnership / 100) * timeline.vehiclePrice);
+  return {
+    ...timeline,
+    currentOwnership,
+    currentOwnershipAmount,
+    progressPercentage: currentOwnership,
+  };
+}
+
 export function filterKeyMilestones(milestones: OwnershipMilestone[]): OwnershipMilestone[] {
   const seen = new Set<OwnershipMilestoneKind>();
   const result: OwnershipMilestone[] = [];

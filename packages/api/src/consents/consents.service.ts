@@ -245,6 +245,7 @@ export class ConsentsService {
     });
     if (!app) throw new NotFoundException('application_not_found');
     await assertApplicationCanView(this.prisma, user, app);
+    if (!app.customerUserId) return buildConsentStatus([]);
     return buildConsentStatus(await this.loadRecords(app.customerUserId));
   }
 

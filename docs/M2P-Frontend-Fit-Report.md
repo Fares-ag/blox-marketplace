@@ -1,3 +1,5 @@
+**Status (2026-09-11):** Blox-native Diminishing Musharakah servicing (ownership register, LPO, unit offers, hardship, settlement completion) is built **in-house** in `blox-marketplace`, behind flags that default off. The M2P “do not build LPO/LMS” note below is **superseded** for Model A origination. See `docs/COMPLIANCE_SOT.md` and drivemarket journeys J12–J18.
+
 # BLOX × M2P — Frontend Fit Report
 
 **Document 5 of 5 — Planning pack addendum**  
@@ -101,7 +103,7 @@ Doc 04 specifies Next.js 15 App Router. The repos are **Vite + React Router** (s
 | WebP on document upload | **Remove** | FSD: PDF/JPG/PNG only |
 | App bank-transfer “pending” with no POST | **Remove or ops-only** | Cheque/cash are LMS back-office |
 | QPay in legal text | **Remove or implement** | Spec payment rail is SkipCash |
-| Collect UI, BRE UI, LPO engine, Case Manager | **Do not build** | M2P |
+| Collect UI, BRE UI, LPO engine, Case Manager | **Build in-house (flagged)** | Superseded 2026-09: marketplace owns LPO, unit offers, collections/hardship. Do not dual-run an M2P Collect path on the same contract. |
 
 ---
 

@@ -54,6 +54,8 @@ import {
 } from './credit-assessment';
 import { assertApprovalAuthorized, type ApprovalDecisionOutcome } from './credit-decision';
 import { customerNotificationBody } from './customer-notifications';
+import { MusharakahService } from '../musharakah/musharakah.service';
+import { AppConfigService } from '../config/app-config.service';
 
 const OPS_ROLES: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
 
@@ -110,6 +112,8 @@ export class ApplicationsLifecycleService {
     private readonly storage: StorageService,
     private readonly compliance: ComplianceService,
     private readonly config: ConfigService,
+    private readonly musharakah: MusharakahService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   private assertOps(user: User) {
@@ -262,18 +266,22 @@ export class ApplicationsLifecycleService {
 
     const contractPdfPath = await this.storage.storeContractPdf(app.id, pdf);
 
-    const updated = await this.prisma.application.update({
-      where: { id },
-      data: {
-        status: 'contract_signing_required',
-        contractGenerated: true,
-        contractData: asJson({
-          ...contractData,
-          generatedContentSha256: contentSha256,
-        }),
-        contractPdfPath,
-        ...credit.columns,
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await this.musharakah.maybeOpenRegister(tx, id, pricing, user.id);
+      return tx.application.update({
+        where: { id },
+        data: {
+          status: 'contract_signing_required',
+          contractGenerated: true,
+          contractData: asJson({
+            ...contractData,
+            generatedContentSha256: contentSha256,
+            musharakahUnits: 100,
+          }),
+          contractPdfPath,
+          ...credit.columns,
+        },
+      });
     });
 
     await this.activity.log({
@@ -285,12 +293,14 @@ export class ApplicationsLifecycleService {
       toValue: 'contract_signing_required',
     });
     await this.logCreditDecision(user, id, credit, opts?.overrideReason);
-    await this.activity.notify(
-      app.customerUserId,
-      'Contract ready to sign',
-      'Download your financing contract, sign it, and upload the signed PDF.',
-      `/app/applications/${id}`,
-    );
+    if (app.customerUserId) {
+      await this.activity.notify(
+        app.customerUserId,
+        'Contract ready to sign',
+        'Download your financing contract, sign it, and upload the signed PDF.',
+        `/app/applications/${id}`,
+      );
+    }
 
     this.analytics.track('approval', {
       application_id: id,
@@ -394,12 +404,14 @@ export class ApplicationsLifecycleService {
       toValue: 'contracts_submitted',
       metadata: { uploadedBy: 'ops', onBehalfOfCustomer: app.customerUserId },
     });
-    await this.activity.notify(
-      app.customerUserId,
-      'Signed contract received',
-      'Your signed contract was filed by our team and is now under review.',
-      `/app/applications/${id}`,
-    );
+    if (app.customerUserId) {
+      await this.activity.notify(
+        app.customerUserId,
+        'Signed contract received',
+        'Your signed contract was filed by our team and is now under review.',
+        `/app/applications/${id}`,
+      );
+    }
 
     return toOpsApplicationDto(updated);
   }
@@ -535,12 +547,14 @@ export class ApplicationsLifecycleService {
               : reopensListing
                 ? 'Application reopened'
                 : 'Application update';
-    await this.activity.notify(
-      app.customerUserId,
-      notifyTitle,
-      customerNotificationBody(toStatus, reason),
-      `/app/applications/${id}`,
-    );
+    if (app.customerUserId) {
+      await this.activity.notify(
+        app.customerUserId,
+        notifyTitle,
+        customerNotificationBody(toStatus, reason),
+        `/app/applications/${id}`,
+      );
+    }
 
     if (toStatus === 'rejected') {
       this.analytics.track('rejection', {
@@ -589,7 +603,7 @@ export class ApplicationsLifecycleService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.paymentEvent.create({
+      const event = await tx.paymentEvent.create({
         data: {
           applicationId: id,
           type: PaymentEventType.down_payment,
@@ -603,6 +617,18 @@ export class ApplicationsLifecycleService {
           }),
         },
       });
+
+      const appRow = await tx.application.findUniqueOrThrow({
+        where: { id },
+        select: { pricingSnapshot: true },
+      });
+      await this.musharakah.maybeOpenRegister(
+        tx,
+        id,
+        (appRow.pricingSnapshot ?? {}) as Record<string, unknown>,
+        user.id,
+        event.id,
+      );
 
       await transitionApplication(tx, id, ApplicationStatus.down_payment_required, {
         status: ApplicationStatus.down_payment_submitted,
@@ -624,12 +650,14 @@ export class ApplicationsLifecycleService {
         reference: body.reference ?? null,
       },
     });
-    await this.activity.notify(
-      app.customerUserId,
-      'Down payment recorded',
-      'Your down payment receipt was recorded and is pending confirmation.',
-      `/app/applications/${id}`,
-    );
+    if (app.customerUserId) {
+      await this.activity.notify(
+        app.customerUserId,
+        'Down payment recorded',
+        'Your down payment receipt was recorded and is pending confirmation.',
+        `/app/applications/${id}`,
+      );
+    }
 
     return toOpsApplicationDto(updated);
   }
@@ -643,7 +671,7 @@ export class ApplicationsLifecycleService {
     const app = await this.prisma.application.findUnique({
       where: { id },
       include: {
-        company: { select: { allowDirectActivate: true } },
+        company: { select: { allowDirectActivate: true, unitOffersEnabled: true } },
         product: { select: { attributes: true, bodyType: true } },
       },
     });
@@ -703,6 +731,12 @@ export class ApplicationsLifecycleService {
     const recordedDown = await sumDownPaymentRecorded(this.prisma, id);
     assertDownPaymentSatisfied(requiredDown, recordedDown);
 
+    if (!opts?.direct && !adminOverride) {
+      await this.musharakah.assertActivationGates(id, expectedFromStatus);
+    } else if (this.appConfig.preDisbursalGateEnabled && !opts?.direct) {
+      await this.musharakah.assertActivationGates(id, expectedFromStatus);
+    }
+
     const scheduleDrafts = buildScheduleDrafts(pricing, new Date(), installmentPlan);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -739,6 +773,9 @@ export class ApplicationsLifecycleService {
         data: { listingStatus: ListingStatus.sold },
       });
 
+      await this.musharakah.maybeOpenRegister(tx, id, pricing, user.id);
+      await this.musharakah.maybeCreateFirstUnitOffer(tx, id, app.company.unitOffersEnabled);
+
       return tx.application.findUniqueOrThrow({ where: { id } });
     });
 
@@ -752,12 +789,15 @@ export class ApplicationsLifecycleService {
       metadata: opts?.direct ? { direct: true } : adminOverride ? { admin_override: true } : undefined,
     });
     if (credit) await this.logCreditDecision(user, id, credit, opts?.overrideReason);
-    await this.activity.notify(
-      app.customerUserId,
-      'Financing activated',
-      'Your payment schedule is now available in your application.',
-      `/app/applications/${id}`,
-    );
+    if (app.customerUserId) {
+      await this.activity.notify(
+        app.customerUserId,
+        'Financing activated',
+        'Your payment schedule is now available in your application.',
+        `/app/applications/${id}`,
+      );
+    }
+    void this.musharakah.notifyVehicleCareOnActivate(id);
 
     return toOpsApplicationDto(updated);
   }

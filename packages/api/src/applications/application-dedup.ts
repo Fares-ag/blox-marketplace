@@ -79,7 +79,7 @@ export function summarizeBlocking(existing: DedupCandidate[], productId?: string
 export const IDENTITY_HOLD_REASON = 'qid_identity_mismatch' as const;
 
 export type IdentityCandidate = {
-  userId: string;
+  userId: string | null;
   name?: string | null;
   birthYear?: number | null;
   source?: 'user' | 'application';
@@ -107,13 +107,18 @@ export function decideIdentityHold(subject: IdentityCandidate, matches: Identity
   const subjectName = normalizePersonName(subject.name);
   const conflicts: IdentityConflict[] = [];
   for (const match of matches) {
-    if (match.userId === subject.userId) continue;
+    if (subject.userId != null && match.userId === subject.userId) continue;
     const otherName = normalizePersonName(match.name);
     const nameMismatch = !!subjectName && !!otherName && subjectName !== otherName;
     const birthYearMismatch =
       subject.birthYear != null && match.birthYear != null && subject.birthYear !== match.birthYear;
     if (nameMismatch || birthYearMismatch) {
-      conflicts.push({ userId: match.userId, source: match.source ?? 'user', nameMismatch, birthYearMismatch });
+      conflicts.push({
+        userId: match.userId ?? 'unknown',
+        source: match.source ?? 'user',
+        nameMismatch,
+        birthYearMismatch,
+      });
     }
   }
   return conflicts.length > 0 ? { reason: IDENTITY_HOLD_REASON, conflicts } : null;

@@ -15,15 +15,23 @@ export const BLOCKING_APPLICATION_STATUSES: ApplicationStatus[] = [
   'down_payment_submitted',
   'pending_finance_activation',
   'partner_processing',
+  'lpo_issued',
+  'acquisition_pending',
   'active',
+  'hardship',
+  'repossession_in_progress',
+  'total_loss',
 ];
 
 export async function assertApplicationCanView(
   prisma: PrismaService,
   user: User,
-  app: { customerUserId: string; companyId: string },
+  app: { customerUserId: string | null; companyId: string },
 ): Promise<void> {
-  if (user.role === UserRole.customer && app.customerUserId === user.id) return;
+  if (user.role === UserRole.customer) {
+    if (app.customerUserId === user.id) return;
+    throw new ForbiddenException('forbidden_role');
+  }
   if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return;
   const ops: UserRole[] = [
     UserRole.credit_officer,

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { PRODUCT_RULES, QID_LENGTH, RESIDENCE_DURATION_OPTIONS, normalizeQid } from '@drivemarket/shared';
+import { PRODUCT_RULES, QID_LENGTH, RESIDENCE_DURATION_OPTIONS, normalizePhoneTyping, normalizeQid } from '@drivemarket/shared';
 import { ChipRadioGroup, Field, Notice, Pill, SelectInput, TextInput } from '../fields';
 import { GENDER_OPTIONS, type ApplyForm, type DerivedIdentity, type FieldErrors, type GenderValue } from '../apply-model';
 
@@ -42,6 +42,9 @@ export function IdentityStep({ form, derived, errors, onChange, onBlur, prefille
         options={GENDER_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
         value={form.gender}
         onChange={(v) => onChange({ gender: v })}
+        onBlur={() => onBlur('gender')}
+        error={err('gender')}
+        required
         size="sm"
       />
 
@@ -137,7 +140,7 @@ export function IdentityStep({ form, derived, errors, onChange, onBlur, prefille
       <div className="dm-grid dm-grid--2">
         <Field id="apply-phone" label={t('applyFlow.identity.phone')} hint={t('applyFlow.identity.phoneHint')} error={err('phone')} required>
           {(a11y) => (
-            <TextInput {...a11y} type="tel" numeric inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => onChange({ phone: e.target.value })} onBlur={() => onBlur('phone')} />
+            <TextInput {...a11y} type="tel" numeric inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => onChange({ phone: normalizePhoneTyping(e.target.value) })} onBlur={() => onBlur('phone')} />
           )}
         </Field>
         <Field id="apply-email" label={t('applyFlow.identity.email')} hint={t('applyFlow.identity.emailHint')} error={err('email')} optionalLabel={t('eligibilityCheck.form.optional')}>

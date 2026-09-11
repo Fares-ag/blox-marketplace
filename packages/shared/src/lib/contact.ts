@@ -36,6 +36,16 @@ export function normalizePhoneInput(value: string | null | undefined): string {
 }
 
 /**
+ * Keep a typed phone as digits plus a leading `+` when the user starts with
+ * the country code. Letters and other punctuation never reach the field.
+ */
+export function normalizePhoneTyping(value: string | null | undefined): string {
+  const raw = String(value ?? '');
+  const plus = raw.trimStart().startsWith('+') ? '+' : '';
+  return plus + raw.replace(/\D/g, '');
+}
+
+/**
  * True for a Qatar subscriber number, with or without the country code.
  * Rejects the free-form digit strings the old "is it non-empty" check allowed.
  */
@@ -54,4 +64,17 @@ export function formatQatarPhone(value: string | null | undefined): string | nul
   const digits = qatarPhoneSubscriberDigits(value);
   if (!digits) return null;
   return `+${QATAR_DIAL_CODE} ${digits.slice(0, 4)} ${digits.slice(4)}`;
+}
+
+/** Qatar commercial registration numbers are digits only. */
+export const CR_NUMBER_MIN_DIGITS = 5;
+export const CR_NUMBER_MAX_DIGITS = 20;
+
+export function normalizeCrNumber(raw: string | null | undefined): string {
+  return String(raw ?? '').replace(/\D/g, '').slice(0, CR_NUMBER_MAX_DIGITS);
+}
+
+export function isValidCrNumber(value: string | null | undefined): boolean {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  return digits.length >= CR_NUMBER_MIN_DIGITS && digits.length <= CR_NUMBER_MAX_DIGITS;
 }

@@ -22,6 +22,8 @@ import {
 
   CreditQueue,
 
+  HardshipQueuePage,
+
   ApplicationWorkspace,
 
   mountPortalApp,
@@ -62,6 +64,7 @@ function App() {
     () => [
       { to: '/', label: t('ops.credit.nav.dashboard'), icon: 'home' },
       { to: '/queue', label: t('ops.credit.nav.queue'), icon: 'queue', count: counts?.in_review },
+      { to: '/hardship', label: t('ops.credit.nav.hardship'), icon: 'offers' },
       { to: '/zoho-failures', label: t('ops.credit.nav.zohoFailures'), icon: 'logs', count: counts?.zoho_failures },
     ],
     [t, counts],
@@ -101,6 +104,8 @@ function App() {
                 <Route path="/" element={<DashboardPage />} />
 
                 <Route path="/queue" element={<CreditQueue detailBase="/applications" />} />
+
+                <Route path="/hardship" element={<HardshipQueuePage detailBase="/applications" />} />
 
                 <Route path="/applications" element={<Navigate to="/queue" replace />} />
 

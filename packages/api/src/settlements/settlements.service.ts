@@ -16,6 +16,7 @@ import {
   toSettlementQuoteDto,
   type SettlementQuoteDto,
 } from './settlement-quote';
+import { MusharakahService } from '../musharakah/musharakah.service';
 
 /** Settlements are a finance/admin money op (blox-vercel FINANCE_PORTAL.md); credit is read-only elsewhere. */
 export const SETTLEMENT_DECISION_ROLES: UserRole[] = [
@@ -80,7 +81,7 @@ function toDto(row: SettlementWithApp) {
     application_status: row.application.status,
     status: row.status,
     customer_email: row.customerEmail,
-    customer_name: row.application.customer.name,
+    customer_name: row.application.customer?.name ?? row.customerEmail,
     vehicle: `${row.application.product.make} ${row.application.product.model} ${row.application.product.modelYear ?? ''}`.trim(),
     company_name: row.application.company.name,
     settlement_amount: Number(row.settlementAmount),
@@ -101,6 +102,7 @@ export class SettlementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
+    private readonly musharakah: MusharakahService,
   ) {}
 
   private assertDecisionRole(user: User) {
@@ -228,15 +230,30 @@ export class SettlementsService {
       throw new BadRequestException('validation_failed');
     }
 
-    const updated = await this.prisma.applicationSettlement.update({
-      where: { id },
-      data: {
-        status: decision,
-        decidedAt: new Date(),
-        decidedByUserId: user.id,
-        decisionReason: reason?.trim() || null,
-      },
-      include: APP_INCLUDE,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const settled = await tx.applicationSettlement.update({
+        where: { id },
+        data: {
+          status: decision,
+          decidedAt: new Date(),
+          decidedByUserId: user.id,
+          decisionReason: reason?.trim() || null,
+        },
+        include: APP_INCLUDE,
+      });
+      if (decision === 'approved') {
+        if (row.application.status !== ApplicationStatus.active) {
+          throw new BadRequestException('settlement_requires_active_financing');
+        }
+        await this.musharakah.completeSettlementLedger(tx, {
+          applicationId: row.applicationId,
+          amount: row.settlementAmount,
+          actorUserId: user.id,
+          settlementId: id,
+          forgivenRent: row.forgivenRent,
+        });
+      }
+      return settled;
     });
 
     await this.activity.log({
@@ -254,6 +271,10 @@ export class SettlementsService {
       reason,
       `/app/applications/${row.applicationId}`,
     );
-    return toDto(updated);
+    const fresh = await this.prisma.applicationSettlement.findUniqueOrThrow({
+      where: { id },
+      include: APP_INCLUDE,
+    });
+    return toDto(fresh);
   }
 }

@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { findForbiddenTerms } from '@drivemarket/shared/domain-rules';
 import {
   escapeHtml,
   finalizeText,
@@ -160,5 +163,12 @@ describe('localizedText', () => {
   it('returns both languages with the Arabic made RTL-safe', () => {
     const value = localizedText((t) => t.paymentTitle('due_soon'));
     expect(value).toEqual({ en: 'Installment due soon', ar: `${RLM}قسط مستحق قريبًا` });
+  });
+});
+
+describe('Shariah terminology', () => {
+  it('keeps English notification templates free of forbidden terms', () => {
+    const src = readFileSync(fileURLToPath(new URL('./notification-texts.ts', import.meta.url)), 'utf8');
+    expect(findForbiddenTerms(src)).toEqual([]);
   });
 });

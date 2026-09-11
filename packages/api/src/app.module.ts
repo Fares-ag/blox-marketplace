@@ -36,6 +36,7 @@ import { GuarantorsModule } from './guarantors/guarantors.module';
 import { PartnerModule } from './partner/partner.module';
 import { PushModule } from './push/push.module';
 import { HealthController } from './health.controller';
+import { MusharakahModule } from './musharakah/musharakah.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { HealthController } from './health.controller';
     ProductsModule,
     ApplicationsModule,
     PaymentsModule,
+    MusharakahModule,
     OpsModule,
     QuotesModule,
     FinancePartnersModule,

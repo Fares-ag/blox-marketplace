@@ -151,6 +151,21 @@ export class PaymentsController {
     });
   }
 
+  @Roles(UserRole.customer)
+  @Post('applications/:applicationId/skipcash/down-payment')
+  createSkipCashDownPayment(
+    @CurrentUser() user: User,
+    @Param('applicationId') applicationId: string,
+    @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
+  ) {
+    return this.idempotency.run({
+      userId: user.id,
+      scope: IDEMPOTENCY_SCOPES.skipCashCreate(applicationId, 'down-payment'),
+      idempotencyKey,
+      handler: () => this.payments.createSkipCashDownPayment(user, applicationId),
+    });
+  }
+
   @Public()
   @Post('payments/skipcash/complete')
   completeSkipCash(@Body() dto: SkipCashCompleteDto) {

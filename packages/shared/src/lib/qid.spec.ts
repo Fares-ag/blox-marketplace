@@ -70,7 +70,7 @@ describe('document slots', () => {
 
     const self = documentSlotsFor({ residency: 'qatari', employmentType: 'self-employed' });
     expect(self.some((s) => s.category === 'salary')).toBe(false);
-    expect(self.filter((s) => s.required).map((s) => s.category)).toEqual(['qid', 'cr', 'trade_license', 'business_bank', 'bank']);
+    expect(self.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'qid_back', 'cr', 'trade_license', 'business_bank', 'bank']);
   });
 
   it('adds guarantor slots and accepts a generic id for the qid slot', () => {

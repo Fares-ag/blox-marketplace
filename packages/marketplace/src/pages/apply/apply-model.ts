@@ -15,6 +15,7 @@ import {
   minDownPaymentPctFor,
   tenureBounds,
   downPaymentBounds,
+  isValidQatarPhone,
   normalizeQid,
   parseQid,
   validateFinancingRequest,
@@ -36,13 +37,12 @@ export function stepIndex(step: ApplyStep): number {
   return APPLY_STEPS.indexOf(step);
 }
 
-export type GenderValue = '' | 'male' | 'female' | 'prefer_not_to_say';
+export type GenderValue = '' | 'male' | 'female';
 export type GuarantorRelationship = '' | 'spouse' | 'parent' | 'sibling' | 'other';
 
 export const GENDER_OPTIONS: ReadonlyArray<{ value: Exclude<GenderValue, ''>; labelKey: string }> = [
   { value: 'male', labelKey: 'applyFlow.identity.genderMale' },
   { value: 'female', labelKey: 'applyFlow.identity.genderFemale' },
-  { value: 'prefer_not_to_say', labelKey: 'applyFlow.identity.genderPreferNot' },
 ];
 
 export const GUARANTOR_RELATIONSHIP_OPTIONS: ReadonlyArray<{ value: Exclude<GuarantorRelationship, ''>; labelKey: string }> = [
@@ -166,7 +166,7 @@ export function formFromSnapshot(raw: Record<string, unknown> | null | undefined
   form.firstName = str(raw.firstName) || parts[0] || '';
   form.lastName = str(raw.lastName) || parts.slice(1).join(' ');
   const gender = str(raw.gender);
-  form.gender = gender === 'male' || gender === 'female' || gender === 'prefer_not_to_say' ? gender : '';
+  form.gender = gender === 'male' || gender === 'female' ? gender : '';
   form.dateOfBirth = str(raw.dateOfBirth).slice(0, 10);
   form.qid = normalizeQid(str(raw.qid));
   // The free-text nationality only exists for QIDs whose country code we cannot
@@ -253,10 +253,7 @@ export function deriveIdentity(form: ApplyForm, locale: 'en' | 'ar', now: Date =
 }
 
 export function isValidPhone(value: string): boolean {
-  const compact = value.replace(/[\s\-().]/g, '');
-  if (!/^\+?\d+$/.test(compact)) return false;
-  const digits = compact.replace(/^\+/, '');
-  return digits.length >= 8 && digits.length <= 15;
+  return isValidQatarPhone(value);
 }
 
 export function isValidEmail(value: string): boolean {
@@ -278,6 +275,7 @@ export function validateIdentity(form: ApplyForm, now: Date = new Date()): Field
   const errors: FieldErrors = {};
   if (!form.firstName.trim()) errors.firstName = 'applyFlow.error.required';
   if (!form.lastName.trim()) errors.lastName = 'applyFlow.error.required';
+  if (!form.gender) errors.gender = 'applyFlow.error.required';
 
   const parsed = parseQid(normalizeQid(form.qid), now);
   if (!form.qid.trim()) errors.qid = 'applyFlow.error.required';

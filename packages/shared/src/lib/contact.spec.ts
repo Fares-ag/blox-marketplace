@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatQatarPhone, isValidEmail, isValidQatarPhone, qatarPhoneSubscriberDigits } from './contact';
+import { formatQatarPhone, isValidCrNumber, isValidEmail, isValidQatarPhone, normalizeCrNumber, normalizePhoneTyping, qatarPhoneSubscriberDigits } from './contact';
 
 describe('isValidEmail', () => {
   // The wizard used to accept anything containing an "@", so the single
@@ -23,6 +23,24 @@ describe('isValidEmail', () => {
   it('treats null and undefined as invalid rather than throwing', () => {
     expect(isValidEmail(null)).toBe(false);
     expect(isValidEmail(undefined)).toBe(false);
+  });
+});
+
+describe('normalizePhoneTyping', () => {
+  it('keeps a leading plus and digits, and drops letters and separators', () => {
+    expect(normalizePhoneTyping('+974 5551 2345')).toBe('+97455512345');
+    expect(normalizePhoneTyping('5551-2345')).toBe('55512345');
+    expect(normalizePhoneTyping('abc555def')).toBe('555');
+    expect(normalizePhoneTyping('++974abc')).toBe('+974');
+  });
+});
+
+describe('isValidCrNumber', () => {
+  it('accepts 5–20 digits and strips letters while typing', () => {
+    expect(normalizeCrNumber('CR-12 345')).toBe('12345');
+    expect(isValidCrNumber('12345')).toBe(true);
+    expect(isValidCrNumber('1234')).toBe(false);
+    expect(isValidCrNumber('abc')).toBe(false);
   });
 });
 

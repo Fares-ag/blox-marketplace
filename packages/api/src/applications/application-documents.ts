@@ -1,5 +1,6 @@
 import {
   documentSlotsFor,
+  identityPresentSet,
   missingDocumentCategories,
   type DocumentSlot,
   type DocumentSlotProfile,
@@ -12,6 +13,8 @@ import { employmentTypeOf, hasGuarantorOf, readCustomerSnapshot, residencyOf } f
  */
 export const APPLICATION_DOC_CATEGORIES = [
   'qid',
+  'qid_front',
+  'qid_back',
   'id',
   'passport',
   'license',
@@ -34,6 +37,12 @@ export const APPLICATION_DOC_CATEGORIES = [
   'guarantor_bank',
   'vehicle_quotation',
   'takaful_policy',
+  'delivery_note',
+  'registration_card',
+  'vin_evidence',
+  'lpo',
+  'mandate_proof',
+  'maturity_certificate',
 ] as const;
 export const REQUIRED_APPLICATION_DOC_CATEGORIES = ['qid', 'salary', 'bank'] as const;
 export type RequiredDocCategory = (typeof REQUIRED_APPLICATION_DOC_CATEGORIES)[number];
@@ -67,14 +76,33 @@ function isVerifiedKycSlot(doc: ApplicationDocumentForValidation, type: string):
   return doc.kycDocumentType === type && doc.verificationStatus === 'verified';
 }
 
-function isManualIdentityUpload(doc: ApplicationDocumentForValidation): boolean {
-  return (doc.category === 'qid' || doc.category === 'id') && !doc.kycDocumentType;
-}
-
 function manualIdentityAccepted(doc: ApplicationDocumentForValidation, policy: IdentityPolicy): boolean {
   if (!policy.ekycRequired) return true;
   if (policy.allowStaffManualIdentity === false) return false;
   return !!doc.uploadedByRole && doc.uploadedByRole !== 'customer';
+}
+
+function isManualIdentityUpload(doc: ApplicationDocumentForValidation): boolean {
+  return (
+    ((doc.category === 'qid' || doc.category === 'id') && !doc.kycDocumentType) ||
+    doc.kycDocumentType === 'qid_front' ||
+    doc.kycDocumentType === 'qid_back'
+  );
+}
+
+function hasManualQidSide(documents: ApplicationDocumentForValidation[], side: 'qid_front' | 'qid_back'): boolean {
+  return documents.some((d) => d.kycDocumentType === side || d.category === side);
+}
+
+/** Map the apply-flow front/back slots onto the stored `qid` category. */
+export function resolveStoredDocumentCategory(category: string): {
+  category: Exclude<ApplicationDocCategory, 'qid_front' | 'qid_back'>;
+  kycDocumentType?: 'qid_front' | 'qid_back';
+} {
+  if (category === 'qid_front' || category === 'qid_back') {
+    return { category: 'qid', kycDocumentType: category };
+  }
+  return { category: category as Exclude<ApplicationDocCategory, 'qid_front' | 'qid_back'> };
 }
 
 /** QID requirement satisfied by manual uploads (subject to the identity policy) or synced KYC identity slots. */
@@ -82,14 +110,23 @@ export function hasQidRequirement(
   documents: ApplicationDocumentForValidation[],
   policy: IdentityPolicy = {},
 ): boolean {
-  if (documents.some((d) => isManualIdentityUpload(d) && manualIdentityAccepted(d, policy))) return true;
+  if (documents.some((d) => isManualIdentityUpload(d) && !d.kycDocumentType && manualIdentityAccepted(d, policy))) {
+    return true;
+  }
+  const frontAccepted = documents.some(
+    (d) =>
+      (isVerifiedKycSlot(d, 'qid_front') || (hasManualQidSide([d], 'qid_front') && manualIdentityAccepted(d, policy))),
+  );
+  const backAccepted = documents.some(
+    (d) =>
+      (isVerifiedKycSlot(d, 'qid_back') || (hasManualQidSide([d], 'qid_back') && manualIdentityAccepted(d, policy))),
+  );
+  if (frontAccepted && backAccepted) return true;
 
   const hasFront = documents.some((d) => isVerifiedKycSlot(d, 'qid_front'));
-  const hasBack = documents.some((d) => isVerifiedKycSlot(d, 'qid_back'));
-  if (hasFront && hasBack) return true;
-
+  const hasBackRow = documents.some((d) => d.kycDocumentType === 'qid_back');
   // Didit / hosted capture often stores only qid_front on the application.
-  if (hasFront && !documents.some((d) => d.kycDocumentType === 'qid_back')) return true;
+  if (hasFront && !hasBackRow) return true;
 
   return false;
 }
@@ -149,13 +186,22 @@ export function uploadedDocumentCategories(
   documents: ApplicationDocumentForValidation[],
   policy: IdentityPolicy = {},
 ): string[] {
-  const present = new Set(documents.map((d) => d.category));
-  // A manual QID that the policy rejects must not read as "uploaded", or the
-  // customer portal would show the slot as done while submit refuses it.
-  present.delete('qid');
-  present.delete('id');
+  const present = new Set<string>();
+  for (const doc of documents) {
+    if (doc.category === 'qid' || doc.category === 'id' || doc.category === 'qid_front' || doc.category === 'qid_back') {
+      continue;
+    }
+    present.add(doc.category);
+  }
+  for (const doc of documents) {
+    const side = doc.kycDocumentType === 'qid_front' || doc.kycDocumentType === 'qid_back' ? doc.kycDocumentType : null;
+    if (side && (isVerifiedKycSlot(doc, side) || manualIdentityAccepted(doc, policy))) present.add(side);
+    if ((doc.category === 'qid' || doc.category === 'id') && !doc.kycDocumentType && manualIdentityAccepted(doc, policy)) {
+      present.add('qid');
+    }
+  }
   if (hasQidRequirement(documents, policy)) present.add('qid');
-  return [...present].sort();
+  return [...identityPresentSet(present)].sort();
 }
 
 export function missingDocumentsForApplication(
@@ -205,7 +251,15 @@ export function newestUploadByCategory(documents: ApplicationDocumentForValidati
     const time = uploadTimeOf(doc);
     if (time == null) continue;
     note(doc.category, time);
-    if (doc.category === 'id') note('qid', time);
+    if (doc.category === 'id' || (doc.category === 'qid' && !doc.kycDocumentType)) {
+      note('qid', time);
+      note('qid_front', time);
+      note('qid_back', time);
+    }
+    if (doc.kycDocumentType === 'qid_front' || doc.kycDocumentType === 'qid_back') {
+      note(doc.kycDocumentType, time);
+      note('qid', time);
+    }
   }
   return newest;
 }
@@ -247,6 +301,7 @@ export type ApplicationDocumentSlotsDto = {
   missing: string[];
   /** Time-sensitive slots whose newest upload is older than allowed (re-upload before submit). */
   stale: string[];
+  ekyc_required?: boolean;
 };
 
 export function documentSlotsForApplication(
@@ -265,5 +320,6 @@ export function documentSlotsForApplication(
     uploaded: uploadedDocumentCategories(documents, policy),
     missing: missingDocumentsForApplication(snapshotRaw, documents, policy),
     stale: slots.filter((slot) => isSlotStale(slot, newest.get(slot.category), now)).map((slot) => slot.category),
+    ekyc_required: !!policy.ekycRequired,
   };
 }

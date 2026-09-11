@@ -41,6 +41,24 @@
       "import": "./src/lib/domain-rules-server.ts",
       "require": "./dist/lib/domain-rules.cjs",
       "default": "./src/lib/domain-rules-server.ts"
+    },
+    "./units": {
+      "types": "./src/lib/units.ts",
+      "import": "./src/lib/units.ts",
+      "require": "./dist/lib/units.cjs",
+      "default": "./src/lib/units.ts"
+    },
+    "./application-status-map": {
+      "types": "./src/lib/application-status-map.ts",
+      "import": "./src/lib/application-status-map.ts",
+      "require": "./dist/lib/application-status-map.cjs",
+      "default": "./src/lib/application-status-map.ts"
+    },
+    "./ownership": {
+      "types": "./src/lib/ownership.ts",
+      "import": "./src/lib/ownership.ts",
+      "require": "./dist/lib/ownership.cjs",
+      "default": "./src/lib/ownership.ts"
     }
   },
   "scripts": {
@@ -50,7 +68,10 @@
     "test": "vitest run",
     "lint": "eslint .",
     "build:tenure": "npx --yes esbuild@0.25.0 src/lib/tenure.ts --bundle --platform=node --format=cjs --outfile=dist/lib/tenure.cjs",
-    "build:domain-rules": "npx --yes esbuild@0.25.0 src/lib/domain-rules-server.ts --bundle --platform=node --format=cjs --outfile=dist/lib/domain-rules.cjs"
+    "build:domain-rules": "npx --yes esbuild@0.25.0 src/lib/domain-rules-server.ts --bundle --platform=node --format=cjs --outfile=dist/lib/domain-rules.cjs",
+    "build:application-status-map": "npx --yes esbuild@0.25.0 src/lib/application-status-map.ts --bundle --platform=node --format=cjs --outfile=dist/lib/application-status-map.cjs",
+    "build:units": "npx --yes esbuild@0.25.0 src/lib/units.ts --bundle --platform=node --format=cjs --outfile=dist/lib/units.cjs",
+    "build:ownership": "npx --yes esbuild@0.25.0 src/lib/ownership.ts --bundle --platform=node --format=cjs --outfile=dist/lib/ownership.cjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

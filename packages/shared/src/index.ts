@@ -87,6 +87,7 @@ export {
 } from './lib/product-labels';
 export {
   calculateOwnershipTimeline,
+  overlayRegisterOnTimeline,
   filterKeyMilestones,
   type OwnershipMilestone,
   type OwnershipMilestoneKind,
@@ -94,6 +95,27 @@ export {
   type OwnershipTimeline,
   type PaymentLedgerEventInput,
 } from './lib/ownership';
+export {
+  customerPhaseFor,
+  canonicalStatusFromLegacy,
+  APPLICATION_STATUSES,
+  BLOCKING_APPLICATION_STATUSES as SHARED_BLOCKING_APPLICATION_STATUSES,
+  TERMINAL_APPLICATION_STATUSES,
+  PARTNER_PROCESSING_EXIT_STATUSES,
+  CUSTOMER_PHASES,
+  type CustomerPhase,
+} from './lib/application-status-map';
+export {
+  DEFAULT_TOTAL_UNITS,
+  unitsFromDownPayment,
+  isMature,
+  applyUnitPurchase,
+  proRataAllocation,
+  splitRentAndUnits,
+  ownershipPctFromUnits,
+  type UnitSplit,
+  type ProRataAllocation,
+} from './lib/units';
 export type {
   UserRole,
   OfficerScope,
@@ -237,6 +259,7 @@ export {
   FINANCE_ACTIVATION_QUEUE_STATUSES,
   FINANCE_REVIEW_QUEUE_STATUSES,
   FINANCE_ACTIVE_BOOK_STATUSES,
+  CREDIT_HARDSHIP_QUEUE_STATUSES,
   isFullAdminRole,
   canCreditDecide,
   canFinanceAct,
@@ -246,6 +269,8 @@ export {
   ApplicationsList,
   CreditQueue,
   FinanceQueue,
+  LpoInboxPage,
+  HardshipQueuePage,
   ApplicationWorkspace,
   AddApplicationWizard,
   PendingBankTransfers,
@@ -331,10 +356,15 @@ export {
 export {
   QATAR_DIAL_CODE,
   QATAR_PHONE_DIGITS,
+  CR_NUMBER_MIN_DIGITS,
+  CR_NUMBER_MAX_DIGITS,
   formatQatarPhone,
+  isValidCrNumber,
   isValidEmail,
   isValidQatarPhone,
+  normalizeCrNumber,
   normalizePhoneInput,
+  normalizePhoneTyping,
   qatarPhoneSubscriberDigits,
 } from './lib/contact';
 export {
@@ -355,6 +385,7 @@ export {
   DOCUMENT_UPLOAD_MAX_BYTES,
   documentSlotsFor,
   documentUploadRejection,
+  identityPresentSet,
   isSelfEmployed,
   missingDocumentCategories,
   requiredDocumentCategoriesFor,

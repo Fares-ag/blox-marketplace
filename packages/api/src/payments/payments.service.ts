@@ -38,6 +38,8 @@ import { computeScheduleAmountsFromEvents } from './payment-ledger';
 import { toPaymentScheduleDto, toPaymentTransactionDto } from './payment-response.dto';
 import { assertNotSettleAll } from './settle-all-guard';
 import { mapSkipCashPaid, SkipCashClient } from './skipcash.client';
+import { MusharakahService } from '../musharakah/musharakah.service';
+import { requiredDownPaymentAmount, sumDownPaymentRecorded } from '../applications/down-payment';
 
 const BLOX_CREDIT_QAR_VALUE = 250;
 
@@ -113,6 +115,7 @@ export class PaymentsService {
     private readonly analytics: AnalyticsService,
     private readonly config: ConfigService,
     private readonly appConfig: AppConfigService,
+    private readonly musharakah: MusharakahService,
   ) {}
 
   private isSkipCashSandbox(): boolean {
@@ -492,7 +495,7 @@ export class PaymentsService {
         throw new BadRequestException('schedule_already_settled');
       }
 
-      return applyPaymentInTransaction(tx, user, locked, application, body);
+      return applyPaymentInTransaction(tx, user, locked, application, body, this.musharakah);
     });
 
     await this.activity.log({
@@ -519,12 +522,14 @@ export class PaymentsService {
         toValue: 'completed',
         metadata: { trigger: 'final_installment_paid' },
       });
-      await this.activity.notify(
-        result.customerUserId,
-        'Congratulations — you own your vehicle!',
-        'Your final installment is recorded. Your financing is complete.',
-        `/app/applications/${result.applicationId}`,
-      );
+      if (result.customerUserId) {
+        await this.activity.notify(
+          result.customerUserId,
+          'Congratulations — you own your vehicle!',
+          'Your final installment is recorded. Your financing is complete.',
+          `/app/applications/${result.applicationId}`,
+        );
+      }
     }
 
     this.analytics.track('payment_completed', {
@@ -906,6 +911,111 @@ export class PaymentsService {
     }
   }
 
+  /** Customer SkipCash checkout for the initial musharakah contribution. */
+  async createSkipCashDownPayment(user: User, applicationId: string) {
+    if (user.role !== UserRole.customer) throw new ForbiddenException('forbidden_role');
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      include: { company: { select: { canPay: true } } },
+    });
+    if (!app || app.customerUserId !== user.id) throw new NotFoundException();
+    if (app.status !== ApplicationStatus.down_payment_required) {
+      throw new BadRequestException('invalid_status_transition');
+    }
+    if (!app.company.canPay) throw new BadRequestException('payments_not_enabled');
+
+    const pricing = (app.pricingSnapshot ?? {}) as Record<string, unknown>;
+    const required = requiredDownPaymentAmount(pricing);
+    const recorded = await sumDownPaymentRecorded(this.prisma, applicationId);
+    const remaining = required.sub(recorded);
+    if (remaining.lte(0)) throw new BadRequestException('down_payment_already_recorded');
+
+    const windowMs = this.skipCashOpenWindowMs();
+    const windowBucket = Math.floor(Date.now() / windowMs);
+    const idempotencyKey = `skipcash-dp:${applicationId}:${windowBucket}`;
+
+    try {
+      const txn = await this.prisma.paymentTransaction.create({
+        data: {
+          gateway: 'skipcash',
+          idempotencyKey,
+          amount: remaining,
+          applicationId,
+          status: 'pending',
+          rawPayloadRef: JSON.stringify({ type: 'down_payment', applicationId }),
+        },
+      });
+      this.analytics.track('payment_started', {
+        application_id: applicationId,
+        amount: remaining.toNumber(),
+        gateway: 'skipcash',
+        kind: 'down_payment',
+      });
+      return this.serializeSkipCashPayment(txn, applicationId);
+    } catch (err) {
+      if (!isUniqueConstraintError(err)) throw err;
+      const txn = await this.prisma.paymentTransaction.findUnique({ where: { idempotencyKey } });
+      if (txn) return this.serializeSkipCashPayment(txn, applicationId);
+      throw err;
+    }
+  }
+
+  async completeSkipCashDownPayment(idempotencyKey: string, gatewayPaymentId?: string) {
+    const txn = await this.prisma.paymentTransaction.findFirst({ where: { idempotencyKey } });
+    if (!txn) throw new NotFoundException();
+    if (txn.status === 'completed') {
+      return { transaction: toPaymentTransactionDto(txn), already_completed: true };
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const completed = await tx.paymentTransaction.updateMany({
+        where: { id: txn.id, status: 'pending' },
+        data: { status: 'completed', gatewayPaymentId: gatewayPaymentId ?? txn.id },
+      });
+      assertRowsUpdated(completed.count, 'stale_transition');
+
+      const app = await tx.application.findUniqueOrThrow({
+        where: { id: txn.applicationId },
+        select: { id: true, status: true, pricingSnapshot: true, customerUserId: true },
+      });
+      if (app.status !== ApplicationStatus.down_payment_required) {
+        throw new BadRequestException('invalid_status_transition');
+      }
+
+      const event = await tx.paymentEvent.create({
+        data: {
+          applicationId: txn.applicationId,
+          transactionId: txn.id,
+          type: PaymentEventType.down_payment,
+          amount: txn.amount,
+          actorUserId: SYSTEM_ACTOR_USER_ID,
+          metadata: { method: 'skipcash', reference: gatewayPaymentId ?? txn.id },
+        },
+      });
+      await this.musharakah.maybeOpenRegister(
+        tx,
+        txn.applicationId,
+        (app.pricingSnapshot ?? {}) as Record<string, unknown>,
+        SYSTEM_ACTOR_USER_ID,
+        event.id,
+      );
+      await transitionApplication(tx, txn.applicationId, ApplicationStatus.down_payment_required, {
+        status: ApplicationStatus.down_payment_submitted,
+      });
+      return app;
+    });
+
+    if (updated.customerUserId) {
+      await this.activity.notify(
+        updated.customerUserId,
+        'Initial contribution received',
+        'Your contribution was recorded and is pending confirmation.',
+        `/app/applications/${txn.applicationId}`,
+      );
+    }
+    return { ok: true, application_id: txn.applicationId };
+  }
+
   /** Mobile installment checkout — resolves schedule, creates txn, opens SkipCash when configured. */
   async initiateMobileInstallmentPayment(user: User, input: MobileSkipCashInitiateInput) {
     // The app's "settle all" checkout (`scheduleId: 'settlement'`,
@@ -1085,6 +1195,8 @@ export class PaymentsService {
       }
       if (txn.scheduleId) {
         await this.sandboxCompleteSkipCashPayment(txn.idempotencyKey, resolvedGatewayId);
+      } else if (txn.rawPayloadRef?.includes('"type":"down_payment"')) {
+        await this.completeSkipCashDownPayment(txn.idempotencyKey, resolvedGatewayId);
       } else {
         await this.completeCreditTopUpPayment(txn.idempotencyKey, resolvedGatewayId);
       }
@@ -1095,6 +1207,8 @@ export class PaymentsService {
     if (this.isSkipCashSandbox()) {
       if (txn.scheduleId) {
         await this.sandboxCompleteSkipCashPayment(txn.idempotencyKey, resolvedGatewayId);
+      } else if (txn.rawPayloadRef?.includes('"type":"down_payment"')) {
+        await this.completeSkipCashDownPayment(txn.idempotencyKey, resolvedGatewayId);
       } else {
         await this.completeCreditTopUpPayment(txn.idempotencyKey, resolvedGatewayId);
       }
@@ -1251,7 +1365,7 @@ export class PaymentsService {
         amount: txn.amount,
         method: 'skipcash',
         reference: gatewayPaymentId ?? txn.id,
-      });
+      }, this.musharakah);
     });
 
     await this.activity.log({
@@ -1279,12 +1393,14 @@ export class PaymentsService {
         toValue: 'completed',
         metadata: { trigger: 'final_installment_paid', skipcash: true },
       });
-      await this.activity.notify(
-        result.customerUserId,
-        'Congratulations — you own your vehicle!',
-        'Your final installment is recorded. Your financing is complete.',
-        `/app/applications/${result.applicationId}`,
-      );
+      if (result.customerUserId) {
+        await this.activity.notify(
+          result.customerUserId,
+          'Congratulations — you own your vehicle!',
+          'Your final installment is recorded. Your financing is complete.',
+          `/app/applications/${result.applicationId}`,
+        );
+      }
     }
 
     this.analytics.track('payment_completed', {
@@ -1329,7 +1445,7 @@ type LockedScheduleRow = {
 type LockedApplicationRow = {
   id: string;
   status: ApplicationStatus;
-  customerUserId: string;
+  customerUserId: string | null;
   companyId: string;
   pricingSnapshot: Prisma.JsonValue;
 };
@@ -1437,6 +1553,7 @@ async function applyPaymentInTransaction(
   locked: LockedScheduleRow,
   application: LockedApplicationRow,
   body: { amount?: number | Prisma.Decimal; method?: string; reference?: string },
+  musharakah?: MusharakahService,
 ) {
   if (application.status !== 'active') {
     throw new BadRequestException('application_not_active');
@@ -1479,7 +1596,7 @@ async function applyPaymentInTransaction(
       )
     : payAmount.toNumber();
 
-  await tx.paymentEvent.create({
+  const event = await tx.paymentEvent.create({
     data: {
       applicationId: locked.applicationId,
       scheduleId: locked.id,
@@ -1494,6 +1611,26 @@ async function applyPaymentInTransaction(
       },
     },
   });
+
+  const rentDue = Math.max(0, locked.amount.toNumber() - scheduledPrincipal);
+  let registerMatured = false;
+  if (musharakah) {
+    const result = await musharakah.applyInstallmentToRegister(tx, {
+      applicationId: locked.applicationId,
+      paymentAmount: payAmount.toNumber(),
+      rentDue,
+      paymentEventId: event.id,
+      actorUserId: user.id,
+      period: locked.sequence,
+    });
+    registerMatured = result.matured;
+    const offer = await tx.unitOffer.findUnique({
+      where: { applicationId_period: { applicationId: locked.applicationId, period: locked.sequence } },
+    });
+    if (offer && offer.status !== 'paid') {
+      await musharakah.markUnitOfferPaid(tx, offer.id, event.id);
+    }
+  }
 
   const ledger = await computeScheduleAmountsFromEvents(tx, locked.id, locked.amount);
   const fullyPaid = ledger.remainingAmount.lte(0);
@@ -1520,13 +1657,19 @@ async function applyPaymentInTransaction(
         status: { in: [ScheduleStatus.pending, ScheduleStatus.overdue] },
       },
     });
-    if (unsettled === 0) {
+    if (unsettled === 0 || registerMatured) {
       await transitionApplication(tx, locked.applicationId, ApplicationStatus.active, {
         status: ApplicationStatus.completed,
         completedAt: new Date(),
       });
       applicationCompleted = true;
     }
+  } else if (registerMatured) {
+    await transitionApplication(tx, locked.applicationId, ApplicationStatus.active, {
+      status: ApplicationStatus.completed,
+      completedAt: new Date(),
+    });
+    applicationCompleted = true;
   }
 
   return {

@@ -2,6 +2,9 @@ import { BadRequestException } from '@nestjs/common';
 import {
   RESIDENCE_DURATION_OPTIONS,
   dateOfBirthMatchesQid,
+  isValidCrNumber,
+  isValidQatarPhone,
+  normalizeCrNumber,
   normalizeQid,
   parseQid,
   residencyFromNationality,
@@ -216,6 +219,28 @@ function normalizeGuarantor(value: unknown): CustomerGuarantor | undefined {
   return out;
 }
 
+function assertCorporateSnapshot(corporate: Record<string, unknown>, requireContact: boolean): Record<string, unknown> {
+  const crDigits = normalizeCrNumber(str(corporate.crNumber));
+  const signatory = isRecord(corporate.authorizedSignatory) ? { ...corporate.authorizedSignatory } : {};
+  const qidDigits = normalizeQid(str(signatory.qid));
+  const parsedQid = parseQid(qidDigits);
+  const phone = str(signatory.phone);
+  const nationality = parsedQid.valid && parsedQid.nationality ? parsedQid.nationality.en : str(signatory.nationality);
+
+  if (requireContact) {
+    if (!isValidCrNumber(crDigits)) throw new BadRequestException('validation_failed');
+    if (!phone || !isValidQatarPhone(phone)) throw new BadRequestException('validation_failed');
+    if (!parsedQid.valid) throw new BadRequestException('validation_failed');
+    if (!nationality) throw new BadRequestException('validation_failed');
+  }
+
+  if (crDigits) corporate.crNumber = crDigits;
+  if (qidDigits && parsedQid.valid) signatory.qid = qidDigits;
+  if (nationality) signatory.nationality = nationality;
+  corporate.authorizedSignatory = signatory;
+  return corporate;
+}
+
 /**
  * Validates and normalises an intake snapshot.
  *
@@ -270,6 +295,14 @@ export function normalizeCustomerSnapshot(
     ? String(source.residenceDuration)
     : undefined;
   const applicantType: ApplicantType = source.applicantType === 'corporate' ? 'corporate' : 'individual';
+  if (applicantType === 'corporate') {
+    if (opts.requireContact !== false && !isRecord(source.corporate)) {
+      throw new BadRequestException('validation_failed');
+    }
+    if (isRecord(source.corporate)) {
+      source.corporate = assertCorporateSnapshot(source.corporate, opts.requireContact !== false);
+    }
+  }
 
   const guarantor = normalizeGuarantor(source.guarantor);
   const hasGuarantor = hasGuarantorOf({

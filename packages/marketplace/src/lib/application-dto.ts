@@ -102,6 +102,8 @@ export type CustomerApplication = {
   };
   documents?: CustomerApplicationDocument[];
   paymentSchedules?: CustomerApplicationSchedule[];
+  customerPhase?: string | null;
+  customerOwnershipPct?: number | null;
 };
 
 function asIso(value: unknown): string {
@@ -196,6 +198,8 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
     financingSource: financingSource === 'partner' ? 'partner' : financingSource === 'blox' ? 'blox' : null,
     dealerName: company && typeof company.name === 'string' ? company.name : null,
     branchName: pick<string | null>(raw, 'branchName', 'branch_name') ?? null,
+    customerPhase: pick<string | null>(raw, 'customerPhase', 'customer_phase') ?? null,
+    customerOwnershipPct: asNumberOrNull(pick(raw, 'customerOwnershipPct', 'customer_ownership_pct')),
     ruleFlags: normalizeRuleFlags(raw, pricingSnapshot),
     customerSnapshot: pick<Record<string, unknown> | null>(raw, 'customerSnapshot', 'customer_snapshot') ?? null,
     takafulPolicies: takaful?.map(normalizeTakafulPolicy),

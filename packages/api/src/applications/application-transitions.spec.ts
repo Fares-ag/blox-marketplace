@@ -41,6 +41,7 @@ describe('application-transitions', () => {
   it('never exposes → active as a generic transition (activation is a dedicated endpoint)', () => {
     for (const actor of ACTORS) {
       for (const from of ALL) {
+        if (from === 'hardship') continue; // plan success returns to active via hardship decide()
         expect(allowedTargets(from, actor)).not.toContain('active');
       }
     }
@@ -131,7 +132,29 @@ describe('application-transitions', () => {
       'contract_under_review',
       'down_payment_submitted',
       'pending_finance_activation',
+      'acquisition_pending',
     ]);
     expect(ADMIN_ACTIVATE_FROM_STATUSES).toEqual(['draft', 'under_review']);
+  });
+
+  it('gives partner_processing an explicit admin exit (no dead-end)', () => {
+    expect(() =>
+      assertOpsTransitionAllowed('partner_processing', 'under_review', UserRole.admin),
+    ).not.toThrow();
+    expect(() =>
+      assertOpsTransitionAllowed('partner_processing', 'rejected', UserRole.admin),
+    ).not.toThrow();
+    expect(() =>
+      assertOpsTransitionAllowed('partner_processing', 'under_review', UserRole.credit_officer),
+    ).toThrow('invalid_status_transition');
+  });
+
+  it('supports the LPO and servicing edges', () => {
+    expect(findTransitionRule('pending_finance_activation', 'lpo_issued')).toBeDefined();
+    expect(findTransitionRule('lpo_issued', 'acquisition_pending')).toBeDefined();
+    expect(findTransitionRule('active', 'hardship')).toBeDefined();
+    expect(findTransitionRule('hardship', 'repossession_in_progress')).toBeDefined();
+    expect(findTransitionRule('active', 'total_loss')).toBeDefined();
+    expect(findTransitionRule('total_loss', 'completed')).toBeDefined();
   });
 });

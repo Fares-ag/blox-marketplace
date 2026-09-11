@@ -312,9 +312,15 @@ describe('early settlement (integration)', () => {
     expect(afterDecision.body.summary.pending).toBe(0);
     expect(afterDecision.body.items[0].status).toBe('approved');
 
-    // A decided request no longer blocks a fresh one.
-    const again = await authed(customer.agent).post(`/api/v1/applications/${applicationId}/settlement-request`);
-    expect(again.status).toBe(201);
+    const completed = await ctx.prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
+    expect(completed.status).toBe('completed');
+
+    // Ownership transfer is done; a second request is refused.
+    expectApiError(
+      await authed(customer.agent).post(`/api/v1/applications/${applicationId}/settlement-request`),
+      400,
+      'settlement_requires_active_financing',
+    );
   });
 
   it('mobile payments hub carries the live quote instead of a "pay the remainder" total', async () => {

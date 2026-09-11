@@ -3,6 +3,7 @@ import { CommonModule } from '../common/common.module';
 import { ZohoModule } from '../integrations/zoho/zoho.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { QuotesModule } from '../quotes/quotes.module';
+import { MusharakahModule } from '../musharakah/musharakah.module';
 import { JobHealthService } from './job-health.service';
 import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
@@ -13,6 +14,7 @@ import { JobsService } from './jobs.service';
     PaymentsModule,
     QuotesModule,
     ZohoModule,
+    MusharakahModule,
   ],
   controllers: [JobsController],
   providers: [JobsService, JobHealthService],

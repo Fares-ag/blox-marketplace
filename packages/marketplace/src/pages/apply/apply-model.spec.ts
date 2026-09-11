@@ -80,6 +80,12 @@ describe('validateIdentity', () => {
     expect(validateIdentity(filledForm(), NOW)).toEqual({});
   });
 
+  it('requires gender', () => {
+    expect(validateIdentity(filledForm({ gender: '' }), NOW)).toMatchObject({
+      gender: 'applyFlow.error.required',
+    });
+  });
+
   it('requires residence duration for expats only', () => {
     expect(validateIdentity(filledForm({ residenceDuration: '' }), NOW)).toMatchObject({
       residenceDuration: 'applyFlow.error.required',

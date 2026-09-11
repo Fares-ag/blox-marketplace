@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { QID_LENGTH, normalizeQid } from '@drivemarket/shared';
+import { QID_LENGTH, normalizePhoneTyping, normalizeQid } from '@drivemarket/shared';
 import { ChipRadioGroup, Field, Notice, SelectInput, TextInput } from '../fields';
 import { GUARANTOR_RELATIONSHIP_OPTIONS, type ApplyForm, type FieldErrors, type GuarantorForm } from '../apply-model';
 
@@ -55,7 +55,7 @@ export function GuarantorStep({ form, errors, onChange, onGuarantorChange, onBlu
               )}
             </Field>
             <Field id="apply-g-phone" label={t('applyFlow.guarantor.phone')} error={err('guarantor.phone')} required>
-              {(a11y) => <TextInput {...a11y} type="tel" numeric inputMode="tel" autoComplete="off" value={g.phone} onChange={(e) => onGuarantorChange({ phone: e.target.value })} onBlur={() => onBlur('guarantor.phone')} />}
+              {(a11y) => <TextInput {...a11y} type="tel" numeric inputMode="tel" autoComplete="off" value={g.phone} onChange={(e) => onGuarantorChange({ phone: normalizePhoneTyping(e.target.value) })} onBlur={() => onBlur('guarantor.phone')} />}
             </Field>
           </div>
           <div className="dm-grid dm-grid--2">

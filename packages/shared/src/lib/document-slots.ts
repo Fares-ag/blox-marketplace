@@ -10,6 +10,8 @@ import type { ResidencyClass } from './product-rules';
 
 export const DOCUMENT_SLOT_CATEGORIES = [
   'qid',
+  'qid_front',
+  'qid_back',
   'passport',
   'salary',
   'bank',
@@ -63,7 +65,8 @@ export function documentSlotsFor(profile: DocumentSlotProfile): DocumentSlot[] {
   const expat = profile.residency === 'expat';
   const slots: DocumentSlot[] = [];
 
-  slots.push({ category: 'qid', required: true, group: 'identity', labelKey: 'applyFlow.docs.qid' });
+  slots.push({ category: 'qid_front', required: true, group: 'identity', labelKey: 'applyFlow.docs.qidFront' });
+  slots.push({ category: 'qid_back', required: true, group: 'identity', labelKey: 'applyFlow.docs.qidBack' });
   slots.push({ category: 'passport', required: expat, group: 'identity', labelKey: 'applyFlow.docs.passport' });
   slots.push({ category: 'license', required: false, group: 'identity', labelKey: 'applyFlow.docs.license' });
   slots.push({ category: 'residence_proof', required: false, group: 'identity', labelKey: 'applyFlow.docs.residenceProof' });
@@ -130,14 +133,25 @@ export function requiredDocumentCategoriesFor(profile: DocumentSlotProfile): Doc
     .map((s) => s.category);
 }
 
-/** Categories still missing given the uploaded categories (`qid` is also satisfied by `id`). */
+/** Categories still missing given the uploaded categories (`qid`/`id` cover both QID sides). */
 export function missingDocumentCategories(
   profile: DocumentSlotProfile,
   uploadedCategories: Iterable<string>,
 ): DocumentSlotCategory[] {
-  const present = new Set(uploadedCategories);
-  if (present.has('id')) present.add('qid');
+  const present = identityPresentSet(uploadedCategories);
   return requiredDocumentCategoriesFor(profile).filter((c) => !present.has(c));
+}
+
+/** A single QID file (or the legacy `id` category) satisfies both front and back slots. */
+export function identityPresentSet(uploadedCategories: Iterable<string>): Set<string> {
+  const present = new Set(uploadedCategories);
+  if (present.has('id') || present.has('qid')) {
+    present.add('qid');
+    present.add('qid_front');
+    present.add('qid_back');
+  }
+  if (present.has('qid_front') && present.has('qid_back')) present.add('qid');
+  return present;
 }
 
 /** Upload constraints shared by every upload surface (LOS FSD Stage 1 "Document Controls"). */

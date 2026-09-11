@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   MoneyText,
@@ -8,6 +8,7 @@ import {
   applicationMarketplacePillVariant,
   calculateOwnershipTimeline,
   calculatePlanOwnership,
+  overlayRegisterOnTimeline,
   formatQar,
   getAppLocale,
   resolveDisplaySchedule,
@@ -101,9 +102,15 @@ function scheduleInputs(app: CustomerApplication): Array<OwnershipScheduleInput 
   });
 }
 
-function buildModel(app: CustomerApplication): HeroModel {
+function buildModel(
+  app: CustomerApplication,
+  register?: { customerUnits: number; totalUnits: number } | null,
+): HeroModel {
   const schedules = scheduleInputs(app);
-  const timeline = calculateOwnershipTimeline(app.pricingSnapshot, schedules);
+  const timeline = overlayRegisterOnTimeline(
+    calculateOwnershipTimeline(app.pricingSnapshot, schedules),
+    register,
+  );
   const vehiclePrice = timeline.vehiclePrice;
   const done = app.status === 'completed' || timeline.currentOwnership >= 100;
   const customerPct = done ? 100 : round1(timeline.currentOwnership);
@@ -223,7 +230,30 @@ export function OwnershipHero({ app, loading = false }: Props) {
   const locale = getAppLocale();
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
 
-  const model = useMemo(() => (app ? buildModel(app) : null), [app]);
+  const registerQuery = useQuery({
+    queryKey: ['ownership-register', app?.id],
+    queryFn: () =>
+      apiFetch<{ register: { customer_units: number; total_units: number } | null }>(
+        `/api/applications/${app!.id}/ownership-register`,
+      ),
+    enabled: !!app?.id && OWNERSHIP_HERO_STATUSES.has(app.status),
+    retry: false,
+  });
+  const model = useMemo(
+    () =>
+      app
+        ? buildModel(
+            app,
+            registerQuery.data?.register
+              ? {
+                  customerUnits: registerQuery.data.register.customer_units,
+                  totalUnits: registerQuery.data.register.total_units,
+                }
+              : null,
+          )
+        : null,
+    [app, registerQuery.data],
+  );
   const pctFormatter = useMemo(
     () => new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 }),
     [locale],

@@ -299,6 +299,85 @@ Admin override may archive with reason (audit required).
 
 ---
 
+## J12 — Pre-disbursal checklist + mandate (musharakah)
+
+### Steps
+
+1. After down payment, customer opens pre-disbursal. API returns server checklist (KYC, signed contract, DP, mandate, takaful).
+2. Customer registers repayment mandate (`POST /applications/:id/repayment/mandate`).
+3. When every item is true, `POST .../pre-disbursal/complete` stamps `preDisbursalCompletedAt`.
+4. With `PRE_DISBURSAL_GATE_ENABLED`, activate is refused until the stamp exists.
+
+### Failure branches
+
+| Case | Behaviour |
+|------|-----------|
+| Mandate missing | `mandate_registered` incomplete |
+| Takaful below vehicle value | `takaful_coverage` incomplete |
+| Local app fixture | Only used when customer-next API is off |
+
+---
+
+## J13 — SkipCash customer down payment
+
+### Steps
+
+1. Status `down_payment_required`.
+2. Customer `POST /applications/:id/skipcash/down-payment` (or mobile equivalent).
+3. SkipCash webhook / verify completes; ledger `down_payment` event; register `initial_contribution` when flag on.
+4. Ops confirm → `pending_finance_activation`.
+
+---
+
+## J14 — LPO issue, dealer settlement, acquisition gate
+
+### Steps
+
+1. Finance issues LPO (`pending_finance_activation → lpo_issued`). Dealer sees inbox `/lpo`.
+2. Finance settles LPO (`lpo_issued → acquisition_pending`).
+3. Delivery note, registration card, VIN evidence + vehicle identity required.
+4. With `LPO_GATE_ENABLED`, `activate()` only from `acquisition_pending`.
+
+Optional: `VEHICLE_CARE_WEBHOOK_URL` fires after activate; failure does not roll back financing.
+
+---
+
+## J15 — Unit offer loop + rent/unit split
+
+Behind `UNIT_OFFERS_ENABLED` (and company flag):
+
+1. Hourly job offers the next period.
+2. Customer acknowledges Sharia disclosure, then accepts.
+3. Payment splits rent vs unit purchase; register entry in the same transaction.
+4. Unpaid offers age into collections.
+
+Legacy schedule pay remains the path when the flag is off.
+
+---
+
+## J16 — Hardship / repossession
+
+1. Credit opens a hardship plan from `active` (dual-control; may `overrideDeferQuota`).
+2. Success → `active`. Failure → `repossession_in_progress`.
+3. Finance closes repossession with sale proceeds; register allocation; `completed`.
+
+---
+
+## J17 — Early settlement + maturity
+
+1. Customer quotes settlement.
+2. Finance `decide(approve)`: payment event + remaining units → 0 + waive future rent + `active → completed`.
+3. Schedule-paid path: when `bloxUnits === 0`, same completion.
+
+---
+
+## J18 — Total loss
+
+1. Credit/finance files `TotalLossClaim` against takaful proceeds.
+2. `active|hardship → total_loss → completed` with pro-rata unit allocation.
+
+---
+
 ## Guest vs authenticated surface summary
 
 ```mermaid

@@ -98,6 +98,20 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
     primary.push({ key: 'recordDp', label: t('ops.finance.recordDownPayment'), onClick: () => mutations.downPay.mutate() });
   if (actions.recordDownPayment && data.status === 'down_payment_submitted')
     primary.push({ key: 'confirmDp', label: t('ops.finance.confirmDownPayment'), onClick: () => runTransition('pending_finance_activation') });
+  if (actions.issueLpo)
+    primary.push({ key: 'issueLpo', label: t('ops.finance.nav.lpo'), onClick: () => mutations.issueLpo.mutate() });
+  if (actions.confirmLpoSettlement)
+    primary.push({ key: 'settleLpo', label: t('ops.finance.nav.lpo'), onClick: () => mutations.settleLpo.mutate() });
+  if (actions.openHardship)
+    secondary.push({ key: 'hardship', label: t('ops.credit.nav.hardship'), onClick: () => mutations.openHardship.mutate() });
+  if (actions.resolveHardship)
+    primary.push({ key: 'resolveHardship', label: t('ops.credit.reopen'), onClick: () => mutations.decideHardship.mutate('resolve') });
+  if (actions.startRepossession)
+    destructive.push({
+      key: 'repo',
+      label: t('ops.status.repossession_in_progress'),
+      onClick: () => mutations.decideHardship.mutate('fail'),
+    });
   if (actions.reopen) primary.push({ key: 'reopen', label: t('ops.credit.reopen'), onClick: () => runTransition('under_review') });
 
   if (actions.requestResubmission) secondary.push({ key: 'resubmission', label: t('ops.credit.requestResubmission'), onClick: () => runTransition('resubmission_required') });

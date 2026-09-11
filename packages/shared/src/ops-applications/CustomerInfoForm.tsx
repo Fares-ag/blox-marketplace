@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
-import { isValidEmail, isValidQatarPhone } from '../lib/contact';
-import { dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from '../lib/qid';
+import { isValidEmail, isValidQatarPhone, normalizeCrNumber, normalizePhoneTyping } from '../lib/contact';
+import { dateOfBirthMatchesQid, normalizeQid, parseIsoDateParts, parseQid } from '../lib/qid';
 import { RESIDENCE_DURATION_OPTIONS } from '../lib/product-rules';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsFormSection } from '../ops-ui-v2';
@@ -74,6 +74,20 @@ export function CustomerInfoForm({
     ? t('dealerOps.validation.phoneInvalid')
     : undefined;
   const genderError = showError('gender', !value.gender) ? t('dealerOps.validation.genderRequired') : undefined;
+  const parsedSignatoryQid = useMemo(
+    () => parseQid(value.corporate.authorizedSignatory?.qid ?? ''),
+    [value.corporate.authorizedSignatory?.qid],
+  );
+  const signatoryPhoneError = showError(
+    'signatoryPhone',
+    !!value.corporate.authorizedSignatory?.phone?.trim() && !isValidQatarPhone(value.corporate.authorizedSignatory.phone),
+  )
+    ? t('dealerOps.validation.phoneInvalid')
+    : undefined;
+  const signatoryQidError =
+    (value.corporate.authorizedSignatory?.qid ?? '').length === QID_LENGTH && !parsedSignatoryQid.valid
+      ? t('dealerOps.validation.qidInvalid')
+      : undefined;
 
   function patch(partial: Partial<CustomerInfoFormValue>) {
     onChange({ ...value, ...partial });
@@ -106,6 +120,7 @@ export function CustomerInfoForm({
       phone: hit.phone ?? fromSnapshot.phone,
       qid,
       residency: residencyForInfo({ residency: fromSnapshot.residency, qid }) ?? '',
+      existingCustomerLinked: true,
     });
   }
 
@@ -175,7 +190,9 @@ export function CustomerInfoForm({
                 label={t('ops.wizard.corporateCr')}
                 required
                 value={value.corporate.crNumber ?? ''}
-                onChange={(e) => patch({ corporate: { ...value.corporate, crNumber: e.target.value } })}
+                onChange={(e) => patch({ corporate: { ...value.corporate, crNumber: normalizeCrNumber(e.target.value) } })}
+                inputMode="numeric"
+                mono
               />
               <OpsField
                 label={t('ops.customer.tradeName')}
@@ -285,34 +302,54 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.credit.phone')}
                 required
+                error={signatoryPhoneError}
+                hint={t('dealerOps.intake.phoneHint')}
                 value={value.corporate.authorizedSignatory?.phone ?? ''}
                 onChange={(e) =>
                   patch({
                     corporate: {
                       ...value.corporate,
-                      authorizedSignatory: { ...value.corporate.authorizedSignatory, phone: e.target.value },
+                      authorizedSignatory: {
+                        ...value.corporate.authorizedSignatory,
+                        phone: normalizePhoneTyping(e.target.value),
+                      },
                     },
                   })
                 }
+                onBlur={() => markTouched('signatoryPhone')}
+                inputMode="tel"
+                mono
               />
               <OpsField
                 label={t('ops.credit.qid')}
                 required
                 value={value.corporate.authorizedSignatory?.qid ?? ''}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const qid = normalizeQid(e.target.value).slice(0, QID_LENGTH);
+                  const parsed = parseQid(qid);
                   patch({
                     corporate: {
                       ...value.corporate,
-                      authorizedSignatory: { ...value.corporate.authorizedSignatory, qid: e.target.value },
+                      authorizedSignatory: {
+                        ...value.corporate.authorizedSignatory,
+                        qid,
+                        nationality: parsed.valid && parsed.nationality
+                          ? parsed.nationality.en
+                          : value.corporate.authorizedSignatory?.nationality,
+                      },
                     },
-                  })
-                }
+                  });
+                }}
+                inputMode="numeric"
                 pattern="\d{11}"
-                maxLength={11}
+                maxLength={QID_LENGTH}
+                error={signatoryQidError}
+                hint={t('dealerOps.intake.qidHint')}
                 mono
               />
               <OpsField
                 label={t('ops.customer.nationality')}
+                required
                 value={value.corporate.authorizedSignatory?.nationality ?? ''}
                 onChange={(e) =>
                   patch({
@@ -458,7 +495,7 @@ export function CustomerInfoForm({
                 error={phoneError}
                 hint={t('dealerOps.intake.phoneHint')}
                 value={value.phone}
-                onChange={(e) => patch({ phone: e.target.value })}
+                onChange={(e) => patch({ phone: normalizePhoneTyping(e.target.value) })}
                 onBlur={() => markTouched('phone')}
                 autoComplete="tel"
                 inputMode="tel"

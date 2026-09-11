@@ -79,6 +79,29 @@ const RULES: TransitionRule[] = [
   { from: 'pending_finance_activation', to: 'under_review', actors: DECISION },
   { from: 'pending_finance_activation', to: 'submission_cancelled', actors: ['admin'], reasonRequired: true },
 
+  // Partner path: frozen until an explicit exit (admin webhook/job) uses these edges.
+  { from: 'partner_processing', to: 'under_review', actors: ['admin'] },
+  { from: 'partner_processing', to: 'rejected', actors: ['admin'], reasonRequired: true },
+
+  // LPO + acquisition (Blox-native path). Activation itself remains `activate()`.
+  { from: 'pending_finance_activation', to: 'lpo_issued', actors: DECISION },
+  { from: 'lpo_issued', to: 'acquisition_pending', actors: DECISION },
+  { from: 'lpo_issued', to: 'pending_finance_activation', actors: DECISION, reasonRequired: true },
+  { from: 'lpo_issued', to: 'rejected', actors: DECISION, reasonRequired: true },
+  { from: 'acquisition_pending', to: 'lpo_issued', actors: DECISION, reasonRequired: true },
+  { from: 'acquisition_pending', to: 'rejected', actors: DECISION, reasonRequired: true },
+
+  // Servicing exits
+  { from: 'active', to: 'hardship', actors: DECISION },
+  { from: 'hardship', to: 'active', actors: DECISION },
+  { from: 'hardship', to: 'repossession_in_progress', actors: DECISION },
+  { from: 'hardship', to: 'completed', actors: ['admin'] },
+  { from: 'repossession_in_progress', to: 'completed', actors: ['admin'] },
+  { from: 'repossession_in_progress', to: 'hardship', actors: DECISION, reasonRequired: true },
+  { from: 'active', to: 'total_loss', actors: DECISION },
+  { from: 'hardship', to: 'total_loss', actors: DECISION },
+  { from: 'total_loss', to: 'completed', actors: ['admin'] },
+
   // terminal / reopen
   { from: 'active', to: 'completed', actors: ['admin'] },
   { from: 'active', to: 'submission_cancelled', actors: ['admin'], reasonRequired: true },
@@ -92,6 +115,7 @@ export const ACTIVATE_FROM_STATUSES: ApplicationStatus[] = [
   'contract_under_review',
   'down_payment_submitted',
   'pending_finance_activation',
+  'acquisition_pending',
 ];
 
 /** Admin / super_admin override: activate before any approval (vercel "Activate (Admin)" / "Activate draft"). */
@@ -103,6 +127,8 @@ export const FINANCE_ACTIVATION_QUEUE_STATUSES: ApplicationStatus[] = [
   'contracts_submitted',
   'contract_under_review',
   'down_payment_submitted',
+  'lpo_issued',
+  'acquisition_pending',
 ];
 
 /** Every ops edge for a given actor — handy for tests and for UI ⊆ API assertions. */
@@ -120,6 +146,8 @@ export const CREDIT_PIPELINE_STATUSES: ApplicationStatus[] = [
   'down_payment_required',
   'down_payment_submitted',
   'pending_finance_activation',
+  'lpo_issued',
+  'acquisition_pending',
 ];
 
 export const CREDIT_QUEUE_STATUSES: ApplicationStatus[] = [

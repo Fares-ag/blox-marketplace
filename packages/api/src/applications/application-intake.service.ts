@@ -47,7 +47,7 @@ export class ApplicationIntakeService {
    * created before the blind index existed are matched on the plaintext QID.
    */
   async evaluateIdentity(input: {
-    userId: string;
+    userId: string | null;
     qid: string | null | undefined;
     name: string | null | undefined;
     birthYear: number | null | undefined;
@@ -59,15 +59,18 @@ export class ApplicationIntakeService {
     const [users, applications] = await Promise.all([
       this.prisma.user.findMany({
         where: {
-          id: { not: input.userId },
+          ...(input.userId ? { id: { not: input.userId } } : {}),
           OR: [{ qidHash }, ...(digits ? [{ qid: digits }] : [])],
         },
         select: { id: true, name: true, firstName: true, lastName: true, dateOfBirth: true },
         take: 25,
       }),
       this.prisma.application.findMany({
-        where: { qidHash, customerUserId: { not: input.userId } },
-        select: { customerUserId: true, customerSnapshot: true },
+        where: {
+          qidHash,
+          ...(input.userId ? { customerUserId: { not: input.userId } } : {}),
+        },
+        select: { id: true, customerUserId: true, customerSnapshot: true },
         orderBy: { createdAt: 'desc' },
         take: 25,
       }),
@@ -83,7 +86,7 @@ export class ApplicationIntakeService {
       ...applications.map((a) => {
         const snapshot = readCustomerSnapshot(a.customerSnapshot);
         return {
-          userId: a.customerUserId,
+          userId: a.customerUserId ?? a.id,
           name: snapshot.full_name,
           birthYear: birthYearOf(snapshot),
           source: 'application' as const,

@@ -6,7 +6,7 @@ import {
   paymentInputFromPricingSnapshot,
   sumInstallmentAmounts,
 } from './pricing';
-import { calculateOwnershipTimeline } from './ownership';
+import { calculateOwnershipTimeline, overlayRegisterOnTimeline } from './ownership';
 
 describe('ownership from principal ledger', () => {
   const snapshot = buildPricingSnapshot({
@@ -93,5 +93,15 @@ describe('ownership from principal ledger', () => {
     expect(milestone.customerShare).toBeCloseTo(principals[0], 2);
     expect(milestone.bloxShare).toBeCloseTo(snapshot.monthly - principals[0], 2);
     expect(milestone.customerShare + milestone.bloxShare).toBeCloseTo(snapshot.monthly, 2);
+  });
+
+  it('overlays register units onto the computed timeline when dual-read is on', () => {
+    const schedules = [
+      { sequence: 1, dueDate: '2026-01-01', amount: snapshot.monthly, status: 'pending' },
+    ];
+    const timeline = calculateOwnershipTimeline(snapshot, schedules);
+    const overlaid = overlayRegisterOnTimeline(timeline, { customerUnits: 40, totalUnits: 100 });
+    expect(overlaid.currentOwnership).toBe(40);
+    expect(overlaid.progressPercentage).toBe(40);
   });
 });

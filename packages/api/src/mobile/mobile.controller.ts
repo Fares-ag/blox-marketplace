@@ -106,6 +106,10 @@ class SkipCashVerifyDto {
   @IsOptional() @IsString() idempotencyKey?: string;
 }
 
+class SkipCashDownPaymentDto {
+  @IsString() applicationId!: string;
+}
+
 @Controller('mobile')
 export class MobileController {
   constructor(
@@ -191,6 +195,12 @@ export class MobileController {
   @Post('payments/skipcash/credit-topup')
   creditTopUp(@CurrentUser() user: User, @Body() dto: SkipCashCreditTopUpDto) {
     return this.payments.createCreditTopUpPayment(user, dto);
+  }
+
+  @Roles(UserRole.customer)
+  @Post('payments/skipcash/down-payment')
+  downPayment(@CurrentUser() user: User, @Body() dto: SkipCashDownPaymentDto) {
+    return this.payments.createSkipCashDownPayment(user, dto.applicationId);
   }
 
   @Roles(UserRole.customer)

@@ -30,6 +30,15 @@
       ],
       "@drivemarket/shared/domain-rules": [
         "../shared/src/lib/domain-rules-server.ts"
+      ],
+      "@drivemarket/shared/units": [
+        "../shared/src/lib/units.ts"
+      ],
+      "@drivemarket/shared/application-status-map": [
+        "../shared/src/lib/application-status-map.ts"
+      ],
+      "@drivemarket/shared/ownership": [
+        "../shared/src/lib/ownership.ts"
       ]
     }
   },
