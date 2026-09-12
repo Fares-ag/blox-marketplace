@@ -12,6 +12,28 @@ function normalizeZipPath(entry: string): string {
   return entry.replace(/\\/g, '/');
 }
 
+/**
+ * Some template files were previously written with backslash zip entry names
+ * (e.g. `word\media\blox-logo-nav.png`). OOXML requires forward slashes, and
+ * Word/LibreOffice silently drop entries at backslash paths — which is why the
+ * embedded logo and headers never rendered. Rebuild the archive with clean
+ * forward-slash keys. No-op when the archive is already valid.
+ */
+export function repairZipPaths(docx: Buffer): Buffer {
+  const zip = new PizZip(docx);
+  const keys = zipEntryKeys(zip);
+  if (!keys.some((key) => key.includes('\\'))) {
+    return docx;
+  }
+  const out = new PizZip();
+  for (const key of keys) {
+    const entry = zip.files[key];
+    if (!entry || entry.dir) continue;
+    out.file(normalizeZipPath(key), entry.asUint8Array(), { binary: true });
+  }
+  return out.generate({ type: 'nodebuffer' }) as Buffer;
+}
+
 function zipEntryKeys(zip: PizZip): string[] {
   return Object.keys(zip.files);
 }

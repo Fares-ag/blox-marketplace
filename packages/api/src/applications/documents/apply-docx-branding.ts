@@ -58,7 +58,9 @@ function readZipText(zip: PizZip, suffix: string): string | null {
 }
 
 function writeZipText(zip: PizZip, suffix: string, content: string): void {
-  const key = findZipEntry(zip, suffix) ?? suffix.replace(/\//g, '\\');
+  // OOXML zip entries MUST use forward slashes; a backslash key produces an
+  // entry Word/LibreOffice cannot resolve (e.g. an unreferenced logo/header).
+  const key = findZipEntry(zip, suffix) ?? suffix;
   zip.file(key, content);
 }
 
@@ -139,7 +141,7 @@ function headerRelsPath(headerPath: string): string {
 
 function ensureHeaderImageRel(zip: PizZip, headerPath: string, relId = 'rIdLogo'): void {
   const relPath = headerRelsPath(headerPath);
-  const relKey = findZipEntry(zip, relPath) ?? relPath.replace(/\//g, '\\');
+  const relKey = findZipEntry(zip, relPath) ?? relPath;
   const relXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/blox-logo-nav.png"/>
@@ -174,7 +176,7 @@ function injectLogoIntoHeaderXml(headerXml: string, relId = 'rIdLogo'): string {
 }
 
 function injectLogo(zip: PizZip, logo: Buffer): void {
-  const mediaKey = findZipEntry(zip, LOGO_MEDIA) ?? LOGO_MEDIA.replace(/\//g, '\\');
+  const mediaKey = findZipEntry(zip, LOGO_MEDIA) ?? LOGO_MEDIA;
   zip.file(mediaKey, logo);
   ensurePngContentType(zip);
 
@@ -194,7 +196,7 @@ function copyZipEntry(sourceZip: PizZip, targetZip: PizZip, suffix: string): voi
   if (!sourceKey) return;
   const content = sourceZip.file(sourceKey);
   if (!content) return;
-  const targetKey = findZipEntry(targetZip, suffix) ?? suffix.replace(/\//g, '\\');
+  const targetKey = findZipEntry(targetZip, suffix) ?? suffix;
   targetZip.file(targetKey, content.asText());
 }
 

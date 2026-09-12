@@ -18,7 +18,6 @@ import { buildCamFallbackPdf } from './cam-fallback-pdf';
 import { contractPdfInputFromContext } from './contract-pdf-input';
 import {
   fillAndValidateTemplate,
-  nestDottedFields,
   readTemplate,
   expandScheduleRows,
 } from './docx-template';
@@ -64,8 +63,6 @@ const DECISION_ROLES: UserRole[] = [
   UserRole.admin,
   UserRole.super_admin,
 ];
-
-const AGREEMENT_TYPES = new Set(['ijarah_agreement', 'musharakah_agreement']);
 
 function hashFields(applicationId: string, documentType: string, fields: Record<string, string>): string {
   const keys = Object.keys(fields).sort();
@@ -126,25 +123,22 @@ export class ContractDocumentsService {
     ctx: ContractFieldContext,
   ) {
     const fields = fieldsForDocument(documentType, ctx);
+    const contentSha256 = hashFields(applicationId, documentType, fields);
     let pdf: Buffer;
-    let contentSha256: string;
 
-    if (AGREEMENT_TYPES.has(documentType)) {
-      const built = await buildContractPdf(contractPdfInputFromContext(ctx));
-      pdf = built.buffer;
-      contentSha256 = built.contentSha256;
-    } else {
-      contentSha256 = hashFields(applicationId, documentType, fields);
-      try {
-        pdf = await this.generateFromDocxTemplate(documentType, audience, templateFile, ctx, fields);
-      } catch (error) {
-        this.logger.warn(
-          `Template generation failed for ${documentType}, using structured PDF fallback: ${error instanceof Error ? error.message : error}`,
-        );
-        pdf = await this.generateStructuredFallback(documentType, ctx);
-      }
-      pdf = await embedPdfFingerprint(pdf, contentSha256, applicationId);
+    // Primary path for every document is the real DOCX template filled with the
+    // deal data and branded, then converted to PDF via LibreOffice. Only if that
+    // pipeline fails (e.g. LibreOffice unavailable) do we drop to a programmatic
+    // fallback so approval never blocks on document generation.
+    try {
+      pdf = await this.generateFromDocxTemplate(documentType, audience, templateFile, ctx, fields);
+    } catch (error) {
+      this.logger.warn(
+        `Template generation failed for ${documentType}, using programmatic PDF fallback: ${error instanceof Error ? error.message : error}`,
+      );
+      pdf = await this.generateFallback(documentType, ctx);
     }
+    pdf = await embedPdfFingerprint(pdf, contentSha256, applicationId);
 
     const generatedPath = await this.storage.storeContractDocument(applicationId, documentType, pdf);
 
@@ -174,11 +168,11 @@ export class ContractDocumentsService {
     }
     const snapName = fields['Customer.FullNameEN'] ?? '';
     const required = [snapName, fields['Deal.Ref'] ?? ctx.applicationId].filter(Boolean);
-    const filled = fillAndValidateTemplate(docx, nestDottedFields(fields), required);
+    const filled = fillAndValidateTemplate(docx, fields, required);
     return docxToPdf(filled);
   }
 
-  private async generateStructuredFallback(
+  private async generateFallback(
     documentType: Parameters<typeof fieldsForDocument>[0],
     ctx: ContractFieldContext,
   ): Promise<Buffer> {
@@ -188,7 +182,9 @@ export class ContractDocumentsService {
     if (documentType === 'credit_appraisal_memorandum') {
       return buildCamFallbackPdf(ctx);
     }
-    throw new Error(`no_structured_fallback:${documentType}`);
+    // ijarah_agreement / musharakah_agreement
+    const built = await buildContractPdf(contractPdfInputFromContext(ctx));
+    return built.buffer;
   }
 
   async listForUser(user: User, applicationId: string) {

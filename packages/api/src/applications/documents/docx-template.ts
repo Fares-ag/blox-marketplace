@@ -4,7 +4,7 @@ import path from 'node:path';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { applyBranding } from './apply-docx-branding';
-import { assertDocxFilled, normalizeDocxMergeTags } from './docx-normalize';
+import { assertDocxFilled, normalizeDocxMergeTags, repairZipPaths } from './docx-normalize';
 import type { ContractDocumentAudience } from './template-catalog';
 
 export type TemplateData = Record<string, unknown>;
@@ -56,7 +56,7 @@ export function readTemplate(
   if (!fs.existsSync(full)) {
     throw new Error(`contract_template_missing:${templateFile}`);
   }
-  let buffer = fs.readFileSync(full);
+  let buffer = repairZipPaths(fs.readFileSync(full));
   if (options?.branded !== false) {
     buffer = applyBranding(buffer, { templateFile, audience: options?.audience });
   }
@@ -88,13 +88,24 @@ export function expandScheduleRows(docx: Buffer, periodCount: number): Buffer {
   return normalizeDocxMergeTags(zip.generate({ type: 'nodebuffer' }) as Buffer);
 }
 
-export function fillTemplate(docx: Buffer, data: TemplateData): Buffer {
+/**
+ * Fill `{{Field.Name}}` placeholders. The templates use dotted names such as
+ * `{{Deal.Ref}}`; docxtemplater's default parser treats the `.` as nested
+ * property access and fails to resolve our flat field map (every field renders
+ * blank). A flat-key parser looks the whole dotted name up directly, which is
+ * what actually populates the documents.
+ */
+export function fillTemplate(docx: Buffer, data: Record<string, string>): Buffer {
   const normalized = normalizeDocxMergeTags(docx);
   const zip = new PizZip(normalized);
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
     delimiters: { start: '{{', end: '}}' },
+    parser: (tag: string) => ({
+      get: (scope: Record<string, unknown> | null | undefined) =>
+        scope == null ? undefined : scope[tag],
+    }),
     nullGetter: () => '',
   });
   doc.render(data);
@@ -103,7 +114,7 @@ export function fillTemplate(docx: Buffer, data: TemplateData): Buffer {
 
 export function fillAndValidateTemplate(
   docx: Buffer,
-  data: TemplateData,
+  data: Record<string, string>,
   requiredSnippets: string[],
 ): Buffer {
   const filled = fillTemplate(docx, data);

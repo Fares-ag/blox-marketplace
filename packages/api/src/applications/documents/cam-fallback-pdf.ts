@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import { resolveBrandAssetsDir } from './apply-docx-branding';
 import { camFields, commonDealFields, type ContractFieldContext } from './field-maps';
 import { readCustomerSnapshot } from '../customer-snapshot';
