@@ -102,6 +102,13 @@ describe('ApplicationsLifecycleService.activate down-payment guard', () => {
       {} as StorageService,
       { assertPassedForApproval: vi.fn().mockResolvedValue(undefined) } as unknown as ComplianceService,
       config,
+      {
+        maybeOpenRegister: vi.fn(),
+        assertActivationGates: vi.fn(),
+        maybeCreateFirstUnitOffer: vi.fn(),
+        notifyVehicleCareOnActivate: vi.fn(),
+      } as never,
+      { preDisbursalGateEnabled: false } as never,
     );
   }
 
@@ -212,8 +219,9 @@ describe('ApplicationsLifecycleService.activate down-payment guard', () => {
     });
   });
 
-  it('refuses direct activation above the approval matrix before looking at the down payment', async () => {
-    // baseApp finances QAR 80,000 on a car → outside the matrix: super admin only.
+  it('lets credit officers direct-activate above the approval matrix before the down-payment guard', async () => {
+    // baseApp finances QAR 80,000 on a car → above the matrix; credit may sign off.
+    const creditUser = { id: 'cr-1', role: UserRole.credit_officer, companyId: 'co-1', creditScope: 'all' } as never;
     const directApp = {
       ...baseApp,
       status: ApplicationStatus.under_review,
@@ -230,10 +238,10 @@ describe('ApplicationsLifecycleService.activate down-payment guard', () => {
     });
     const service = buildService(prisma);
 
-    await expect(service.activate(opsUser, 'app-1', { direct: true })).rejects.toMatchObject({
-      response: { message: 'approval_authority_required', authority: 'above_matrix', required_roles: ['super_admin'] },
+    await expect(service.activate(creditUser, 'app-1', { direct: true })).rejects.toMatchObject({
+      message: 'down_payment_incomplete',
     });
-    expect(paymentEventFindMany).not.toHaveBeenCalled();
+    expect(paymentEventFindMany).toHaveBeenCalled();
   });
 });
 
@@ -254,6 +262,13 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
       {} as StorageService,
       { assertPassedForApproval: vi.fn().mockResolvedValue(undefined) } as unknown as ComplianceService,
       config,
+      {
+        maybeOpenRegister: vi.fn(),
+        assertActivationGates: vi.fn(),
+        maybeCreateFirstUnitOffer: vi.fn(),
+        notifyVehicleCareOnActivate: vi.fn(),
+      } as never,
+      { preDisbursalGateEnabled: false } as never,
     );
   }
 
@@ -285,10 +300,10 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
       },
       $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
-          paymentEvent: { create: paymentEventCreate },
+          paymentEvent: { create: paymentEventCreate.mockResolvedValue({ id: 'evt-1' }) },
           application: {
             updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-            findUniqueOrThrow: applicationFindUniqueOrThrow,
+            findUniqueOrThrow: applicationFindUniqueOrThrow.mockResolvedValueOnce({ pricingSnapshot: {} }).mockResolvedValue(submitted),
           },
         }),
       ),

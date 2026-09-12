@@ -20,6 +20,7 @@ export type OpsPillSemanticVariant =
   | 'success'
   | 'warning'
   | 'danger'
+  | 'cancelled'
   | 'ink'
   | 'outline';
 
@@ -38,6 +39,18 @@ export type OpsPillLegacyVariant =
 
 export type OpsPillVariant = OpsPillSemanticVariant | OpsPillLegacyVariant;
 
+/** Dashboard / list metric card accents — aligned with status pill semantics. */
+export type OpsCardTone = 'neutral' | 'info' | 'progress' | 'success' | 'warning' | 'danger' | 'cancelled' | 'brand';
+
+/** Map an application status to a dashboard card tone. */
+export function applicationCardTone(status: string): OpsCardTone {
+  const variant = applicationOpsPillVariant(status);
+  if (variant === 'info' || variant === 'progress' || variant === 'success' || variant === 'warning' || variant === 'danger' || variant === 'cancelled') {
+    return variant;
+  }
+  return 'neutral';
+}
+
 export type MarketplacePillVariant = 'approved' | 'pending' | 'rejected' | 'action';
 
 export const applicationStatusStyles: Record<
@@ -53,16 +66,16 @@ export const applicationStatusStyles: Record<
   down_payment_required: { bg: 'var(--blox-status-warning-bg)', color: 'var(--blox-status-warning-ink)' },
   down_payment_submitted: { bg: 'var(--blox-status-success-bg)', color: 'var(--blox-status-success-ink)' },
   pending_finance_activation: { bg: 'var(--blox-status-info-bg)', color: 'var(--blox-status-info-ink)' },
-  partner_processing: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
+  partner_processing: { bg: 'var(--blox-status-info-bg)', color: 'var(--blox-status-info-ink)' },
   lpo_issued: { bg: 'var(--blox-status-progress-bg)', color: 'var(--blox-status-progress-ink)' },
   acquisition_pending: { bg: 'var(--blox-status-info-bg)', color: 'var(--blox-status-info-ink)' },
   active: { bg: 'var(--blox-status-success-bg)', color: 'var(--blox-status-success-ink)' },
   hardship: { bg: 'var(--blox-status-warning-bg)', color: 'var(--blox-status-warning-ink)' },
   repossession_in_progress: { bg: 'var(--blox-status-danger-bg)', color: 'var(--blox-status-danger-ink)' },
   total_loss: { bg: 'var(--blox-status-danger-bg)', color: 'var(--blox-status-danger-ink)' },
-  completed: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
+  completed: { bg: 'var(--blox-status-success-bg)', color: 'var(--blox-status-success-ink)' },
   rejected: { bg: 'var(--blox-status-danger-bg)', color: 'var(--blox-status-danger-ink)' },
-  submission_cancelled: { bg: 'var(--blox-status-neutral-bg)', color: 'var(--blox-status-neutral-ink)' },
+  submission_cancelled: { bg: '#F3F0F4', color: '#6B4E71' },
 };
 
 export const listingStatusStyles: Record<ListingStatus, { bg: string; color: string }> = {
@@ -145,16 +158,16 @@ const APPLICATION_PILL_VARIANTS: Record<ApplicationStatus, OpsPillSemanticVarian
   down_payment_required: 'warning',
   down_payment_submitted: 'success',
   pending_finance_activation: 'info',
-  partner_processing: 'outline',
+  partner_processing: 'info',
   lpo_issued: 'progress',
   acquisition_pending: 'info',
   active: 'success',
   hardship: 'warning',
   repossession_in_progress: 'danger',
   total_loss: 'danger',
-  completed: 'neutral',
+  completed: 'success',
   rejected: 'danger',
-  submission_cancelled: 'neutral',
+  submission_cancelled: 'cancelled',
 };
 
 /** Ops portal pill variant for financing application statuses (Phase 1 §06 mapping). */
@@ -196,6 +209,36 @@ export function scheduleOpsPillVariant(status: string): OpsPillVariant {
       return 'outline';
     default:
       return 'info'; // pending, due, active, unpaid
+  }
+}
+
+export type DealerQuoteStatus = 'active' | 'used' | 'expired' | 'revoked';
+
+const QUOTE_STATUS_LABELS: Record<DealerQuoteStatus, string> = {
+  active: 'Active',
+  used: 'Used',
+  expired: 'Expired',
+  revoked: 'Revoked',
+};
+
+export function quoteStatusLabel(status: string | undefined | null): string {
+  if (!status) return '—';
+  return QUOTE_STATUS_LABELS[status as DealerQuoteStatus] ?? status.replace(/_/g, ' ');
+}
+
+/** Ops portal pill variant for dealer price-link quotes. */
+export function quoteOpsPillVariant(status: string): OpsPillVariant {
+  switch (status) {
+    case 'active':
+      return 'success';
+    case 'used':
+      return 'info';
+    case 'expired':
+      return 'neutral';
+    case 'revoked':
+      return 'danger';
+    default:
+      return 'neutral';
   }
 }
 

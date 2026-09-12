@@ -45,6 +45,7 @@ export { OpsField, OpsNumberField, OpsSelect, OpsTextarea, OpsFormGrid, OpsConte
 export { OwnershipBar } from './OwnershipBar';
 export { OpsListPage } from './templates/OpsListPage';
 export { DashboardSection, DashboardGrid } from './DashboardSection';
+export { DashboardPipelineSection, type PipelineStat } from './DashboardPipelineSection';
 export { OpsDashboardPage } from './templates/OpsDashboardPage';
 export { OpsDetailPage, OpsDetailGrid } from './templates/OpsDetailPage';
 export { OpsFormPage } from './templates/OpsFormPage';
@@ -59,5 +60,6 @@ export {
   VerticalBarChart,
   FunnelChart,
   LineChart,
+  StatusDonutChart,
 } from './charts';
-export type { VerticalBar, FunnelStage, LineChartSeries } from './charts';
+export type { VerticalBar, FunnelStage, LineChartSeries, StatusDonutSegment } from './charts';

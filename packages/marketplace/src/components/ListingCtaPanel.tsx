@@ -22,6 +22,7 @@ type Props = {
   contactPhone?: string | null;
   listingTitle?: string;
   monthlyEstimate?: number | null;
+  eligibilityHref?: string | null;
   onApply: () => void;
   children?: ReactNode;
 };
@@ -35,6 +36,7 @@ export function ListingCtaPanel({
   contactPhone,
   listingTitle,
   monthlyEstimate,
+  eligibilityHref,
   onApply,
   children,
 }: Props) {
@@ -69,9 +71,16 @@ export function ListingCtaPanel({
 
       <div className="dm-cta-panel__actions">
         {financeEligible ? (
-          <button type="button" className="dm-cta-panel__primary" onClick={onApply}>
-            {t('detail.apply')}
-          </button>
+          <>
+            <button type="button" className="dm-cta-panel__primary" onClick={onApply}>
+              {t('detail.apply')}
+            </button>
+            {eligibilityHref ? (
+              <Link to={eligibilityHref} className="dm-cta-panel__secondary">
+                {t('detail.checkEligibility')}
+              </Link>
+            ) : null}
+          </>
         ) : (
           <p className="dm-cta-panel__warn">{t('detail.notFinanceEligible')}</p>
         )}

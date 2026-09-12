@@ -337,7 +337,7 @@ export function SecuritySettingsPanel({ className }: SecuritySettingsPanelProps)
       <OpsPageHeader title="Security" />
       <p style={{ margin: '0 0 12px', color: 'var(--blox-slate)', fontSize: '0.92rem' }}>
         Two-factor authentication:{' '}
-        <strong>{user.two_factor_enabled ? 'Enabled' : user.mfa_required ? 'Required — not set up' : 'Not required'}</strong>
+        <strong>{user.two_factor_enabled ? 'Enabled' : user.mfa_required ? 'Required, not set up' : 'Not required'}</strong>
       </p>
       <OpsSecondaryButton type="button" disabled={busy} onClick={() => setConfirmOpen(true)}>
         {busy ? 'Revoking…' : 'Sign out everywhere'}

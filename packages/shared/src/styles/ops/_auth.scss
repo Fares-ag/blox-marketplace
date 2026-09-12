@@ -20,7 +20,7 @@
     color: #fff;
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    justify-content: center;
     min-height: 100%;
     background: linear-gradient(160deg, var(--blox-deep-green-dark) 0%, var(--blox-deep-green) 70%);
   }
@@ -54,56 +54,69 @@
   .blox-auth-brand__content {
     position: relative;
     z-index: 1;
-    padding: clamp(28px, 5vw, 56px);
-    max-width: 34rem;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1.25rem, 2.5vw, 2rem);
+    padding: clamp(48px, 8vw, 88px) clamp(40px, 6vw, 72px);
+    max-width: 36rem;
     animation: dm-auth-rise 520ms var(--blox-ease-standard) both;
   }
 
   .dm-auth-brand__portal,
   .blox-auth-brand__portal {
-    margin: 0 0 16px;
+    margin: 0;
     color: var(--blox-emerald);
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     font-size: 0.6875rem;
   }
 
+  .dm-auth-brand__logo,
+  .blox-auth-brand__logo {
+    display: block;
+    width: auto;
+    height: 52px;
+  }
+
   .dm-auth-brand__tag,
   .blox-auth-brand__tag {
-    margin: 0 0 28px;
-    color: #fff;
-    font-size: clamp(1.25rem, 2vw, 1.5rem);
+    margin: 0;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: clamp(1.35rem, 2.4vw, 1.75rem);
     font-weight: 600;
-    line-height: 1.25;
-    max-width: 16ch;
+    line-height: 1.45;
+    letter-spacing: -0.02em;
+    max-width: 22ch;
     text-wrap: balance;
   }
 
   .dm-auth-brand__points,
   .blox-auth-brand__points {
     margin: 0;
-    padding: 0;
+    padding: clamp(1rem, 2vw, 1.5rem) 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
     list-style: none;
     display: grid;
-    gap: 8px;
+    gap: clamp(0.75rem, 1.5vw, 1rem);
 
     li {
       position: relative;
-      padding-inline-start: 18px;
-      color: rgba(255, 255, 255, 0.82);
-      font-size: 0.8125rem;
-      line-height: 1.4;
+      padding-inline-start: 22px;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 0.875rem;
+      line-height: 1.55;
 
       &::before {
         content: '';
         position: absolute;
         inset-inline-start: 0;
-        top: 0.5em;
-        width: 6px;
-        height: 6px;
+        top: 0.62em;
+        width: 7px;
+        height: 7px;
         border-radius: 50%;
         background: var(--blox-emerald);
+        box-shadow: 0 0 0 3px rgba(0, 207, 162, 0.18);
       }
     }
   }
@@ -126,6 +139,7 @@
     gap: 16px;
     animation: dm-auth-rise 560ms 80ms var(--blox-ease-standard) both;
     background: var(--blox-surface);
+    border: 1px solid var(--blox-border);
     border-radius: var(--blox-radius-card, 16px);
     padding: 28px 32px;
     box-shadow: var(--blox-shadow-rest);

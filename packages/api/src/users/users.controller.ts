@@ -545,6 +545,13 @@ export class UsersController {
     const target = await this.loadManagedUser(actor, id);
     if (target.id === actor.id) throw new BadRequestException('cannot_modify_own_access');
 
+    const linkedApplications = await this.prisma.application.count({
+      where: { OR: [{ customerUserId: id }, { agentUserId: id }] },
+    });
+    if (linkedApplications > 0 || target.role === UserRole.customer) {
+      throw new BadRequestException('user_has_dependencies');
+    }
+
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.creditOfficerCompany.deleteMany({ where: { userId: id } });

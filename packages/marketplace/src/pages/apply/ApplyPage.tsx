@@ -136,6 +136,8 @@ export function ApplyPage() {
   const [params] = useSearchParams();
   const productSlug = params.get('product') || '';
   const quoteToken = params.get('quote') || undefined;
+  // Negotiated price forwarded from the quote redeem page (or direct URL with ?price=).
+  const quotedPrice = params.get('price') ? Number(params.get('price')) : null;
   const navigate = useNavigate();
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -156,15 +158,17 @@ export function ApplyPage() {
   const ctx = useMemo<PlanContext | null>(() => {
     if (!product || !offer) return null;
     const options = Array.isArray(offer.tenure_options) ? offer.tenure_options.map(Number).filter((n) => Number.isFinite(n) && n > 0) : [];
+    // Use the dealer-negotiated price when this apply session originated from a quote link.
+    const price = (quotedPrice && Number.isFinite(quotedPrice) && quotedPrice > 0) ? quotedPrice : Number(product.price);
     return {
-      price: Number(product.price),
+      price,
       condition: product.condition === 'used' ? 'used' : 'new',
       modelYear: product.model_year ?? null,
       annualRatePercent: Number(offer.annual_rent_rate),
       offerTenureOptions: options,
       offerMinDownPct: Number(offer.min_down_payment_pct ?? 0),
     };
-  }, [product, offer]);
+  }, [product, offer, quotedPrice]);
 
   const vehicle = useMemo<PlanVehicle | null>(() => {
     if (!product) return null;

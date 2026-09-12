@@ -259,9 +259,27 @@ export class StorageService implements OnModuleInit {
     return key;
   }
 
+  async storeContractDocument(applicationId: string, documentType: string, buffer: Buffer): Promise<string> {
+    const bucket = this.config.get('S3_BUCKET_CONTRACTS') ?? 'contracts';
+    const key = `${applicationId}/generated/${documentType}.pdf`;
+    await this.put(bucket, key, buffer, 'application/pdf');
+    return key;
+  }
+
   async uploadSignedContract(file: Express.Multer.File, applicationId: string): Promise<string> {
     const bucket = this.config.get('S3_BUCKET_CONTRACTS') ?? 'contracts';
     const key = `${applicationId}/signed/${randomUUID()}.pdf`;
+    await this.put(bucket, key, file.buffer, file.mimetype);
+    return key;
+  }
+
+  async uploadSignedContractDocument(
+    file: Express.Multer.File,
+    applicationId: string,
+    documentType: string,
+  ): Promise<string> {
+    const bucket = this.config.get('S3_BUCKET_CONTRACTS') ?? 'contracts';
+    const key = `${applicationId}/signed/${documentType}-${randomUUID()}.pdf`;
     await this.put(bucket, key, file.buffer, file.mimetype);
     return key;
   }

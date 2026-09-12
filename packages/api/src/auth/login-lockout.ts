@@ -26,10 +26,10 @@ export function lockoutExpiresAt(
 
 export function lockoutMessage(lockedUntil: Date | null | undefined, now = new Date()): string {
   if (!lockedUntil || lockedUntil <= now) {
-    return 'Too many failed sign-in attempts. Try again later.';
+    return 'Too many sign-in attempts. Try again later.';
   }
   const minutes = Math.max(1, Math.ceil((lockedUntil.getTime() - now.getTime()) / 60_000));
-  return `Too many failed sign-in attempts. Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+  return `Too many sign-in attempts. Wait ${minutes} minute${minutes === 1 ? '' : 's'} and try again.`;
 }
 
 export async function resetLoginLockout(prisma: PrismaService, userId: string): Promise<void> {

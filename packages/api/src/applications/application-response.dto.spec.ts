@@ -152,6 +152,7 @@ describe('application-response.dto', () => {
       finance_partner_id: 'fp-1',
       finance_partner_name: null,
       crm_adapter: null,
+      financing_type: 'diminishing_musharakah',
     });
     expect(dto).not.toHaveProperty('profitRate');
   });

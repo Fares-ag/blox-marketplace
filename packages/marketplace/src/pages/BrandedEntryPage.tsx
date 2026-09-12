@@ -22,6 +22,7 @@ import {
 } from '@drivemarket/shared';
 import { MarketplaceNav } from '../components/MarketplaceNav';
 import { BrandBadge, useBrand } from '../components/BrandProvider';
+import { buildListingEligibilityHref } from '../lib/eligibility-href';
 import { Notice } from './apply/fields';
 
 export function BrandedEntryPage() {
@@ -165,7 +166,13 @@ function BrandedListing({ product, signedIn, locale }: { product: ProductCard; s
   const imageUrl = resolveListingImageUrl(product.primary_image);
   const applyPath = `/app/applications/new?product=${encodeURIComponent(product.slug)}`;
   const applyHref = signedIn ? applyPath : `/auth/login?returnUrl=${encodeURIComponent(applyPath)}`;
-  const eligibilityHref = `/eligibility?price=${product.price}&condition=${product.condition}&year=${product.model_year}&product=${encodeURIComponent(product.slug)}`;
+  const eligibilityHref = buildListingEligibilityHref({
+    slug: product.slug,
+    price: product.price,
+    condition: product.condition,
+    model_year: product.model_year,
+    title,
+  });
 
   return (
     <li className="dm-brand-card">

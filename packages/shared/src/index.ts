@@ -1,7 +1,7 @@
 export { brandTokens, brandMeta, cssVarNames } from './config/brand-tokens';
 export { bloxTokens, bloxMeta, bloxSpacing, bloxRadius, bloxElevation, bloxMotion } from './config/blox-tokens';
-export { chartPalette, chartColors, chartColorAt } from './config/chart-palette';
-export { applicationStatusStyles, listingStatusStyles, applicationStatusLabel, listingStatusLabel, applicationOpsPillVariant, applicationMarketplacePillVariant, listingOpsPillVariant, scheduleOpsPillVariant, transactionOpsPillVariant, companyOpsPillVariant, type OpsPillVariant, type OpsPillSemanticVariant, type MarketplacePillVariant } from './config/status-styles';
+export { chartPalette, chartColors, chartColorAt, listingChartColors, listingChartColor, applicationChartColor } from './config/chart-palette';
+export { applicationStatusStyles, listingStatusStyles, applicationStatusLabel, listingStatusLabel, quoteStatusLabel, applicationOpsPillVariant, applicationMarketplacePillVariant, applicationCardTone, listingOpsPillVariant, quoteOpsPillVariant, scheduleOpsPillVariant, transactionOpsPillVariant, companyOpsPillVariant, type OpsPillVariant, type OpsPillSemanticVariant, type OpsCardTone, type MarketplacePillVariant, type DealerQuoteStatus } from './config/status-styles';
 export {
   applicationDocumentLabel,
   isPreviewableImageDocument,
@@ -14,6 +14,14 @@ export { useNavCounts } from './lib/use-nav-counts';
 export { mountPortalApp, AuthBootstrap } from './lib/app-bootstrap';
 export { initAppSentry } from './lib/sentry';
 export { formatQar, formatPercent } from './lib/format';
+export {
+  sumStatuses,
+  totalStatuses,
+  OPEN_APPLICATION_STATUSES,
+  CONTRACT_STAGE_STATUSES,
+  ACTIVE_FINANCING_STATUSES,
+  IN_REVIEW_METRIC_STATUSES,
+} from './lib/dashboard-metrics';
 export {
   buildInstallmentAmounts,
   buildPricingSnapshot,
@@ -193,6 +201,7 @@ export {
   OpsDashboardPage,
   DashboardSection,
   DashboardGrid,
+  DashboardPipelineSection,
   OpsDetailPage,
   OpsDetailGrid,
   OpsFormPage,
@@ -207,8 +216,9 @@ export {
   VerticalBarChart,
   FunnelChart,
   LineChart,
+  StatusDonutChart,
 } from './ops-ui-v2';
-export type { FilterConfig, FilterOption, StepConfig, StepProps, VerticalBar, FunnelStage, LineChartSeries, OpsMetricItem } from './ops-ui-v2';
+export type { FilterConfig, FilterOption, StepConfig, StepProps, VerticalBar, FunnelStage, LineChartSeries, StatusDonutSegment, OpsMetricItem } from './ops-ui-v2';
 export {
   Button as OpsCoreButton,
   Input as OpsCoreInput,
@@ -386,6 +396,8 @@ export {
   documentSlotsFor,
   documentUploadRejection,
   identityPresentSet,
+  documentMatchesSlot,
+  documentsForSlot,
   isSelfEmployed,
   missingDocumentCategories,
   requiredDocumentCategoriesFor,

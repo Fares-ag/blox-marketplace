@@ -5,10 +5,10 @@ export const bloxTokens = {
   /** Aliased to emerald in ops UI — marketplace uses distinct lime elsewhere */
   lime: '#00CFA2',
   slate: '#708090',
-  canvas: '#F0F5F5',
+  canvas: '#F4F7F7',
   surface: '#FFFFFF',
-  ink: '#16535B',
-  border: '#D8E2E2',
+  ink: '#12383D',
+  border: '#D5E0E0',
   deepGreenDark: '#0F3F45',
   emeraldSoft: '#E6FBF5',
   danger: '#B42318',

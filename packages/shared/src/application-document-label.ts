@@ -35,9 +35,13 @@ export function applicationDocumentLabel(
   doc: ApplicationDocumentLike,
   categoryLabel?: (category: string) => string,
 ): string {
-  const original = doc.original_name ?? doc.originalName;
-  if (original?.trim()) return original.trim();
   const kycType = doc.kyc_document_type ?? doc.kycDocumentType;
   if (kycType && KYC_SLOT_LABELS[kycType]) return KYC_SLOT_LABELS[kycType];
-  return categoryLabel ? categoryLabel(doc.category) : doc.category;
+  if (categoryLabel) {
+    const fromCategory = categoryLabel(doc.category);
+    if (fromCategory?.trim()) return fromCategory;
+  }
+  const original = doc.original_name ?? doc.originalName;
+  if (original?.trim()) return original.trim();
+  return doc.category;
 }

@@ -1,6 +1,6 @@
 import { IDEMPOTENCY_KEY_HEADER, parseApiErrorBody } from './api-errors';
 
-const LOCAL_API_FALLBACK = 'http://localhost:3010';
+const LOCAL_API_FALLBACK = 'http://localhost:3011';
 
 function resolveApiBase(): string {
   const configured = import.meta.env.VITE_API_URL?.replace(/\/$/, '');

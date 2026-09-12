@@ -370,10 +370,11 @@ export function AddApplicationWizard({
     {
       label: t('ops.wizard.step.customer'),
       validate: (data) => validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo(), t),
-      component: ({ data, updateData }: StepProps<WizardData>) => (
+      component: ({ data, updateData, submitted }: StepProps<WizardData>) => (
         <CustomerInfoForm
           value={data.customerInfo ?? emptyCustomerInfo()}
           onChange={(customerInfo) => updateData({ customerInfo })}
+          submitted={submitted}
         />
       ),
     },

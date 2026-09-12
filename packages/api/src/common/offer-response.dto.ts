@@ -18,6 +18,7 @@ export function toPublicOfferDto(offer: {
   financePartnerId?: string | null;
   isDefault?: boolean;
   financePartner?: { name?: string | null; crmAdapter?: string | null } | null;
+  financingType?: string | null;
 }) {
   return {
     id: offer.id,
@@ -28,6 +29,7 @@ export function toPublicOfferDto(offer: {
     finance_partner_id: offer.financePartnerId ?? null,
     finance_partner_name: offer.financePartner?.name ?? null,
     crm_adapter: offer.financePartner?.crmAdapter ?? null,
+    financing_type: offer.financingType ?? 'diminishing_musharakah',
     ...(offer.isDefault !== undefined ? { is_default: offer.isDefault } : {}),
   };
 }

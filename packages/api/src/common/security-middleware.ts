@@ -87,7 +87,7 @@ export async function applySecurityMiddleware(
     }),
   );
 
-  if (process.env.NODE_ENV === 'test') return;
+  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') return;
 
   const { windowMs, globalMax, authMax, publicMax } = readLimitConfig(config);
   const rateLimitStore = config.get<string>('RATE_LIMIT_STORE')?.trim().toLowerCase();

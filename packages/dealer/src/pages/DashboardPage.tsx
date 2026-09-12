@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Doughnut } from 'react-chartjs-2';
 import {
   DashboardGrid,
+  DashboardPipelineSection,
   DashboardSection,
   FunnelChart,
   OpsDashboardPage,
@@ -18,11 +18,15 @@ import {
   OpsGhostButton,
   OpsPrimaryButton,
   OpsSecondaryButton,
-  doughnutChartOptions,
+  StatusDonutChart,
   originationFunnelChartStages,
+  ACTIVE_FINANCING_STATUSES,
   apiFetch,
   bloxTokens,
-  chartColorAt,
+  listingChartColor,
+  CONTRACT_STAGE_STATUSES,
+  sumStatuses,
+  totalStatuses,
   useOpsLabels,
   type OriginationFunnelDto,
   type OriginationFunnelRow,
@@ -79,8 +83,16 @@ export function DashboardPage() {
 
   const inv = data?.inventory ?? { draft: 0, published: 0, reserved: 0, sold: 0 };
   const appStatus = data?.applications_by_status ?? {};
-  const appLabels = Object.keys(appStatus);
-  const appValues = Object.values(appStatus);
+  const appSegments = Object.entries(appStatus).map(([status, value]) => ({
+    status,
+    label: applicationStatus(status),
+    value,
+  }));
+  const totalListings = inv.draft + inv.published + inv.reserved + inv.sold;
+  const totalApplications = totalStatuses(appStatus);
+  const activeFinancings = sumStatuses(appStatus, ACTIVE_FINANCING_STATUSES);
+  const contractsStage = sumStatuses(appStatus, CONTRACT_STAGE_STATUSES);
+  const dash = (value: number | undefined) => String(value ?? '—');
 
   return (
     <OpsDashboardPage
@@ -97,18 +109,54 @@ export function DashboardPage() {
         </div>
       }
       metrics={[
-        { label: t('ops.listingStatus.published'), value: String(inv.published) },
-        { label: t('ops.dashboard.openApplications'), value: String(data?.open_applications ?? '—') },
-        { label: t('ops.dashboard.activeQuotes'), value: String(data?.quotes_active ?? '—') },
+        {
+          label: t('ops.dashboard.totalListings'),
+          value: dash(totalListings),
+          delta: `${inv.published} ${t('ops.listingStatus.published').toLowerCase()}`,
+          tone: 'brand',
+        },
+        { label: t('ops.dashboard.openApplications'), value: dash(data?.open_applications), tone: 'info' },
+        { label: t('ops.dashboard.totalApplications'), value: dash(totalApplications), tone: 'neutral' },
+        { label: t('ops.dashboard.activeFinancings'), value: dash(activeFinancings), tone: 'success' },
+        { label: t('ops.dashboard.activeQuotes'), value: dash(data?.quotes_active), tone: 'info' },
+        { label: t('ops.dashboard.expiredQuotes'), value: dash(data?.quotes_expired), tone: 'warning' },
         {
           label: t('ops.dashboard.submissionsMonth'),
-          value: String(data?.submissions_this_month ?? '—'),
-          delta: `${inv.draft} draft listings`,
+          value: dash(data?.submissions_this_month),
+          delta: `${inv.draft} ${t('ops.listingStatus.draft').toLowerCase()}`,
           deltaTone: 'neutral',
           trend: data?.submissions_by_week?.map((w: { count: number }) => w.count),
+          tone: 'progress',
         },
+        { label: t('ops.dashboard.resubmissions'), value: dash(appStatus.resubmission_required), tone: 'warning' },
       ]}
     >
+      <DashboardPipelineSection
+        title={t('ops.dashboard.pipelineSnapshot')}
+        subtitle={t('ops.dashboard.applicationsByStatus')}
+        stats={[
+          { label: applicationStatus('under_review'), value: dash(appStatus.under_review), status: 'under_review' },
+          {
+            label: applicationStatus('resubmission_required'),
+            value: dash(appStatus.resubmission_required),
+            status: 'resubmission_required',
+          },
+          { label: t('ops.dashboard.contractsStage'), value: dash(contractsStage), tone: 'progress' },
+          {
+            label: applicationStatus('partner_processing'),
+            value: dash(appStatus.partner_processing),
+            status: 'partner_processing',
+          },
+          { label: applicationStatus('active'), value: dash(appStatus.active), status: 'active' },
+          { label: applicationStatus('completed'), value: dash(appStatus.completed), status: 'completed' },
+          { label: applicationStatus('rejected'), value: dash(appStatus.rejected), status: 'rejected' },
+          {
+            label: applicationStatus('submission_cancelled'),
+            value: dash(appStatus.submission_cancelled),
+            status: 'submission_cancelled',
+          },
+        ]}
+      />
       {company.data?.logo_url ? (
         <div className="blox-dashboard-brand">
           <img
@@ -118,38 +166,24 @@ export function DashboardPage() {
           />
         </div>
       ) : null}
-      <DashboardGrid>
+      <DashboardGrid className="blox-dashboard-grid--duo">
         <ChartPanel title={t('ops.dealer.inventoryByStatus')}>
           <VerticalBarChart
             bars={[
-              { label: t('ops.listingStatus.draft'), value: inv.draft, color: chartColorAt(0) },
-              { label: t('ops.listingStatus.published'), value: inv.published, color: chartColorAt(1) },
-              { label: t('ops.listingStatus.reserved'), value: inv.reserved, color: chartColorAt(2) },
-              { label: t('ops.listingStatus.sold'), value: inv.sold, color: chartColorAt(3) },
+              { label: t('ops.listingStatus.draft'), value: inv.draft, color: listingChartColor('draft') },
+              { label: t('ops.listingStatus.published'), value: inv.published, color: listingChartColor('published') },
+              { label: t('ops.listingStatus.reserved'), value: inv.reserved, color: listingChartColor('reserved') },
+              { label: t('ops.listingStatus.sold'), value: inv.sold, color: listingChartColor('sold') },
             ]}
           />
         </ChartPanel>
 
         <ChartPanel title={t('ops.dashboard.applicationsByStatus')}>
-          {appLabels.length === 0 ? (
-            <p className="blox-muted">{t('ops.admin.noAppsYet')}</p>
-          ) : (
-            <div className="blox-chart-donut">
-              <Doughnut
-                data={{
-                  labels: appLabels.map((s) => applicationStatus(s)),
-                  datasets: [
-                    {
-                      data: appValues,
-                      backgroundColor: appLabels.map((_, i) => chartColorAt(i)),
-                      borderWidth: 0,
-                    },
-                  ],
-                }}
-                options={doughnutChartOptions}
-              />
-            </div>
-          )}
+          <StatusDonutChart
+            segments={appSegments}
+            emptyLabel={t('ops.admin.noAppsYet')}
+            totalLabel={t('ops.dashboard.totalApplications')}
+          />
         </ChartPanel>
       </DashboardGrid>
 
@@ -175,7 +209,7 @@ export function DashboardPage() {
           emptyTitle={t('originationAnalytics.empty')}
           emptyMessage={t('dealerOps.dashboard.emptyBody')}
         >
-          <DashboardGrid>
+          <DashboardGrid className="blox-dashboard-grid--split">
             <FunnelChart
               stages={
                 totals
@@ -187,11 +221,12 @@ export function DashboardPage() {
                   : []
               }
             />
-            <div className="blox-grid-2">
+            <div className="blox-stat-grid">
               <OpsStatCard
                 label={t('originationAnalytics.stages.submitted')}
                 value={String(totals?.submitted ?? '—')}
                 delta={totals ? t('dealerOps.dashboard.draftsOpen', { count: totals.drafts }) : undefined}
+                tone="brand"
               />
               <OpsStatCard
                 label={t('originationAnalytics.conversion')}
@@ -204,9 +239,10 @@ export function DashboardPage() {
                       })
                     : undefined
                 }
+                tone="progress"
               />
-              <OpsStatCard label={t('originationAnalytics.tat')} value={hours(totals?.median_approval_hours)} />
-              <OpsStatCard label={t('originationAnalytics.tatUnder24h')} value={pct(totals?.under_24h_rate)} />
+              <OpsStatCard label={t('originationAnalytics.tat')} value={hours(totals?.median_approval_hours)} tone="info" />
+              <OpsStatCard label={t('originationAnalytics.tatUnder24h')} value={pct(totals?.under_24h_rate)} tone="success" />
             </div>
           </DashboardGrid>
           <OpsDataTable

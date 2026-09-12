@@ -108,8 +108,8 @@ export function assessCredit(input: CreditAssessmentInput, now = new Date()): Cr
  */
 export const APPROVAL_AUTHORITY_ROLES: Record<ApprovalAuthority, ReadonlyArray<string>> = {
   senior_manager: ['credit_officer', 'finance_officer', 'admin', 'super_admin'],
-  head_of_credit: ['admin', 'super_admin'],
-  above_matrix: ['super_admin'],
+  head_of_credit: ['credit_officer', 'admin', 'super_admin'],
+  above_matrix: ['credit_officer', 'admin', 'super_admin'],
 };
 
 export function roleMayApprove(role: string, authority: ApprovalAuthority): boolean {
@@ -118,7 +118,7 @@ export function roleMayApprove(role: string, authority: ApprovalAuthority): bool
 
 /** Highest DBR exception tier a role may approve without escalation (EXC001). */
 export const MAX_EXCEPTION_TIER_BY_ROLE: Record<string, number> = {
-  credit_officer: 1,
+  credit_officer: 3,
   // Credit parity: the same exception ceiling as a credit officer.
   finance_officer: 1,
   admin: 2,
@@ -127,6 +127,11 @@ export const MAX_EXCEPTION_TIER_BY_ROLE: Record<string, number> = {
 
 export function roleMayApproveTier(role: string, tier: number): boolean {
   return (MAX_EXCEPTION_TIER_BY_ROLE[role] ?? 0) >= tier;
+}
+
+/** Credit officers and super admins may approve above the DBR hard cap with a logged override reason. */
+export function roleMayOverrideHardCap(role: string): boolean {
+  return role === 'credit_officer' || role === 'super_admin';
 }
 
 export const HARD_CAP_PERCENT = Math.round(PRODUCT_RULES.dbr.hardCap * 100);

@@ -549,7 +549,7 @@ export function validateCustomerInfo(value: CustomerInfoFormValue, t: IntakeTran
     const g = value.guarantor;
     if (!g.fullName.trim()) return message(t, 'guarantorNameRequired');
     if (!/^\d{11}$/.test(g.qid.trim()) || !parseQid(g.qid.trim()).valid) return message(t, 'guarantorQidInvalid');
-    if (!g.phone.trim()) return message(t, 'guarantorPhoneRequired');
+    if (!g.phone.trim() || !isValidQatarPhone(g.phone)) return message(t, 'guarantorPhoneRequired');
     if (!g.relationship) return message(t, 'guarantorRelationshipRequired');
   }
   return null;

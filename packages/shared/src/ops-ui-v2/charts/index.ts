@@ -4,3 +4,4 @@ export { HorizontalBarChart, SegmentedBarChart } from './HorizontalBarChart';
 export { VerticalBarChart, type VerticalBar } from './VerticalBarChart';
 export { FunnelChart, type FunnelStage } from './FunnelChart';
 export { LineChart, type LineChartSeries } from './LineChart';
+export { StatusDonutChart, type StatusDonutSegment } from './StatusDonutChart';

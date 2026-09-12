@@ -88,13 +88,14 @@ export function resolveCookieDomain(config: ConfigService): string | undefined {
  * Postgres — it does NOT affect authorization in this API, because
  * `SessionAuthGuard` always reloads the `User` row from the database.
  *
- * Default: 60 (1 minute). This bounds how long a revoked session (revoke-all,
- * password reset, wrong-portal bounce) keeps answering from the cache cookie.
- * Raise it to trade slower revocation for fewer DB reads; 0 disables the cache.
+ * Default: 0 (disabled). A cached cookie used to skip Better Auth's idle
+ * refresh, so an active user could still be signed out after `expiresIn`.
+ * Set SESSION_COOKIE_CACHE_MAX_AGE_SEC to trade fewer DB reads for slower
+ * revocation; keep it well below SESSION_IDLE_TIMEOUT_SEC.
  */
 export function resolveSessionCookieCacheMaxAge(config: ConfigService): number {
   const raw = config.get<string>('SESSION_COOKIE_CACHE_MAX_AGE_SEC')?.trim();
-  if (!raw) return 60;
+  if (!raw) return 0;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new Error('SESSION_COOKIE_CACHE_MAX_AGE_SEC must be a non-negative number.');

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { OpsPillVariant } from '../config/status-styles';
+import type { OpsCardTone, OpsPillVariant } from '../config/status-styles';
 import { Button, Table, type ButtonProps, type Column } from '../ops-core';
 
 export type { OpsPillVariant };
@@ -32,16 +32,19 @@ export function OpsStatCard({
   value,
   delta,
   variant = 'default',
+  tone = 'neutral',
 }: {
   label: string;
   value: string;
   delta?: string;
   variant?: 'default' | 'hero' | 'dark';
+  tone?: OpsCardTone;
 }) {
   const variantClass =
     variant === 'hero' ? ' blox-stat-card--hero' : variant === 'dark' ? ' blox-stat-card--dark' : '';
+  const toneClass = variant === 'dark' ? '' : ` blox-stat-card--${tone}`;
   return (
-    <article className={`blox-stat-card${variantClass}`}>
+    <article className={`blox-stat-card${variantClass}${toneClass}`}>
       <p className="blox-stat-card__label">{label}</p>
       <p className="blox-stat-card__value blox-money">{value}</p>
       {delta && <p className="blox-stat-card__delta">{delta}</p>}

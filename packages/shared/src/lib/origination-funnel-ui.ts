@@ -1,3 +1,4 @@
+import { bloxTokens } from '../config/blox-tokens';
 import type { FunnelStage } from '../ops-ui-v2/charts/FunnelChart';
 
 /** Counts used to render the origination funnel chart (submitted is the 100% baseline). */
@@ -26,8 +27,23 @@ export function originationFunnelChartStages(
   const pct = (value: number) => Math.round((value / baseline) * 1000) / 10;
 
   return [
-    { label: labels.submitted, value: submitted, percentage: submitted > 0 ? 100 : 0 },
-    { label: labels.approved, value: totals.approved, percentage: pct(totals.approved) },
-    { label: labels.activated, value: totals.activated, percentage: pct(totals.activated) },
+    {
+      label: labels.submitted,
+      value: submitted,
+      percentage: submitted > 0 ? 100 : 0,
+      color: bloxTokens.emerald,
+    },
+    {
+      label: labels.approved,
+      value: totals.approved,
+      percentage: pct(totals.approved),
+      color: bloxTokens.deepGreen,
+    },
+    {
+      label: labels.activated,
+      value: totals.activated,
+      percentage: pct(totals.activated),
+      color: '#0B7A63',
+    },
   ];
 }

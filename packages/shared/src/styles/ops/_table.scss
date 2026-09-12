@@ -4,12 +4,12 @@
 .blox-filter-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  padding: 12px 14px;
-  background: var(--blox-surface);
-  border: 1px solid var(--blox-border);
-  border-radius: var(--blox-radius-control, 8px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 
   input,
   select,
@@ -68,30 +68,32 @@
   overflow-x: auto;
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: var(--blox-radius-card, 12px);
+  border-radius: var(--blox-radius-card, 16px);
+  box-shadow: var(--blox-shadow-rest);
 }
 
 .blox-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.8125rem;
+  font-size: var(--blox-type-body, 0.875rem);
 
   th,
   td {
-    padding: 0 12px;
+    padding: 0 14px;
     text-align: start;
     vertical-align: middle;
+    border-inline: 0;
   }
 
   td {
-    height: 44px;
+    height: 48px;
     border-bottom: 1px solid var(--blox-border);
     color: var(--blox-ink);
   }
 
   &--compact td {
-    height: 36px;
+    height: 40px;
   }
 
   thead th {
@@ -99,18 +101,19 @@
     top: 0;
     z-index: 1;
     height: 40px;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--blox-deep-green);
+    font-size: var(--blox-type-meta, 0.75rem);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--blox-slate);
     background: var(--blox-surface, #fff);
     white-space: nowrap;
-    border-bottom: 2px solid var(--blox-border, #D8E2E2);
-    padding: 10px 12px;
+    border-bottom: 1px solid var(--blox-border);
+    padding: 10px 14px;
 
     &.is-sorted {
-      color: var(--blox-emerald);
+      color: var(--blox-deep-green);
+      font-weight: 600;
     }
   }
 
@@ -128,7 +131,17 @@
   }
 
   tbody tr:hover {
-    background: #f5faf9;
+    background: var(--blox-surface-muted, #eef3f3);
+  }
+
+  tbody tr:hover .blox-table__actions .blox-btn,
+  tbody tr:focus-within .blox-table__actions .blox-btn {
+    opacity: 1;
+  }
+
+  td.blox-table__actions .blox-btn {
+    opacity: 0.55;
+    transition: opacity var(--blox-motion-fast) var(--blox-ease-standard);
   }
 
   tbody tr.is-selected td {
@@ -191,11 +204,20 @@
     }
   }
 
-  &__id {
+  &__id,
+  &__meta {
     display: block;
     font-family: var(--blox-font-mono);
-    font-size: 0.75rem;
+    font-size: var(--blox-type-meta, 0.75rem);
     color: var(--blox-slate);
+    font-weight: 400;
+  }
+
+  &__primary {
+    display: block;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+    line-height: 1.3;
   }
 
   a {

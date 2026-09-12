@@ -5,6 +5,8 @@ import {
   companyStatusLabel,
   listingOpsPillVariant,
   listingStatusLabel,
+  quoteOpsPillVariant,
+  quoteStatusLabel,
   scheduleOpsPillVariant,
 } from '../config/status-styles';
 
@@ -15,7 +17,7 @@ export function StatusBadge({
   label,
 }: {
   status?: string | null;
-  type?: 'application' | 'schedule' | 'listing' | 'company';
+  type?: 'application' | 'schedule' | 'listing' | 'company' | 'quote';
   label?: string;
 }) {
   const safeStatus = status ?? '';
@@ -25,18 +27,22 @@ export function StatusBadge({
       ? applicationStatusLabel(safeStatus)
       : type === 'listing'
         ? listingStatusLabel(safeStatus)
-        : type === 'company'
-          ? companyStatusLabel(safeStatus)
-          : safeStatus.replace(/_/g, ' ') || '—');
+        : type === 'quote'
+          ? quoteStatusLabel(safeStatus)
+          : type === 'company'
+            ? companyStatusLabel(safeStatus)
+            : safeStatus.replace(/_/g, ' ') || '—');
 
   const variant =
     type === 'application'
       ? applicationOpsPillVariant(safeStatus)
       : type === 'listing'
         ? listingOpsPillVariant(safeStatus)
-        : type === 'company'
-          ? companyOpsPillVariant(safeStatus)
-          : scheduleOpsPillVariant(safeStatus);
+        : type === 'quote'
+          ? quoteOpsPillVariant(safeStatus)
+          : type === 'company'
+            ? companyOpsPillVariant(safeStatus)
+            : scheduleOpsPillVariant(safeStatus);
 
   return <span className={`blox-pill blox-pill--${variant}`}>{resolvedLabel}</span>;
 }

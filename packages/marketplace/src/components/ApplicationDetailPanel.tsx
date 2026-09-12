@@ -332,6 +332,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     void qc.invalidateQueries({ queryKey: ['my-apps'] });
     void qc.invalidateQueries({ queryKey: ['blocking-app'] });
     void qc.invalidateQueries({ queryKey: ['apps-blocking'] });
+    void qc.invalidateQueries({ queryKey: ['app', app.id, 'contract-documents'] });
   };
 
   const submitForReview = useMutation({
@@ -456,6 +457,27 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     }
   }
 
+  const contractDocsQuery = useQuery({
+    queryKey: ['app', app.id, 'contract-documents'],
+    queryFn: () =>
+      apiFetch<{
+        items: Array<{
+          id: string;
+          document_type: string;
+          audience: string;
+          label: string;
+          status: string;
+          generated: boolean;
+          signed: boolean;
+        }>;
+        signed_count: number;
+        required_count: number;
+      }>(`/api/applications/${app.id}/contract-documents`),
+    enabled: canDownloadContract,
+    retry: false,
+  });
+  const contractDocs = contractDocsQuery.data?.items ?? [];
+
   async function uploadSignedContract(file: File) {
     setContractError(null);
     const body = new FormData();
@@ -471,6 +493,30 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         throw new Error(t('application.contractUploadFailed'));
       }
       invalidate();
+      void contractDocsQuery.refetch();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('application.contractUploadFailed');
+      setContractError(message);
+      throw err;
+    }
+  }
+
+  async function uploadSignedContractDocument(docId: string, file: File) {
+    setContractError(null);
+    const body = new FormData();
+    body.append('file', file);
+    try {
+      const res = await fetch(apiUrl(`/api/applications/${app.id}/contract-documents/${docId}/sign`), {
+        method: 'POST',
+        credentials: 'include',
+        body,
+      });
+      if (!res.ok) {
+        setContractError(t('application.contractUploadFailed'));
+        throw new Error(t('application.contractUploadFailed'));
+      }
+      invalidate();
+      void contractDocsQuery.refetch();
     } catch (err) {
       const message = err instanceof Error ? err.message : t('application.contractUploadFailed');
       setContractError(message);
@@ -713,20 +759,61 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         <section className="dm-app-detail__section">
           <h3>{t('application.contractTitle')}</h3>
           <p className="dm-app-detail__hint">{t('application.contractHint')}</p>
-          <a
-            className="dm-app-detail__link-btn"
-            href={apiFileUrl(`/applications/${app.id}/contract/file`)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t('application.downloadContract')}
-          </a>
-          {canSignContract && (
-            <DocumentUploadCard
-              title={t('application.uploadSignedContract')}
-              accept="application/pdf"
-              onUpload={uploadSignedContract}
-            />
+          {contractDocs.length > 0 && (
+            <p className="dm-app-detail__hint">
+              {t('application.contractProgress', {
+                signed: contractDocsQuery.data?.signed_count ?? 0,
+                required: contractDocsQuery.data?.required_count ?? contractDocs.length,
+              })}
+            </p>
+          )}
+          {contractDocs.length > 0 ? (
+            <ul className="dm-app-detail__doc-list">
+              {contractDocs.map((doc) => {
+                const signed = doc.signed || doc.status === 'signed_submitted' || doc.status === 'verified';
+                return (
+                  <li key={doc.id}>
+                    <strong>{doc.label}</strong>
+                    <span className="dm-app-detail__hint">
+                      {signed ? t('application.contractDocSigned') : t('application.contractDocPending')}
+                    </span>
+                    <a
+                      className="dm-app-detail__link-btn"
+                      href={apiFileUrl(`/applications/${app.id}/contract-documents/${doc.id}/download`)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t('application.downloadContractDocument')}
+                    </a>
+                    {canSignContract && !signed && (
+                      <DocumentUploadCard
+                        title={t('application.uploadSignedDocument')}
+                        accept="application/pdf"
+                        onUpload={(file) => uploadSignedContractDocument(doc.id, file)}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <>
+              <a
+                className="dm-app-detail__link-btn"
+                href={apiFileUrl(`/applications/${app.id}/contract/file`)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t('application.downloadContract')}
+              </a>
+              {canSignContract && (
+                <DocumentUploadCard
+                  title={t('application.uploadSignedContract')}
+                  accept="application/pdf"
+                  onUpload={uploadSignedContract}
+                />
+              )}
+            </>
           )}
           {contractError && <p className="dm-app-detail__error">{contractError}</p>}
         </section>

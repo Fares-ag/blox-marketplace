@@ -56,7 +56,7 @@ export const Select: React.FC<SelectProps> = ({
             color: 'var(--field-lable-color)',
             fontSize: '14px',
             fontWeight: 500,
-            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             transform: 'translate(14px, 14px) scale(1)',
             '&.MuiInputLabel-shrink': {
               transform: 'translate(14px, -9px) scale(0.85)',
@@ -129,7 +129,7 @@ export const Select: React.FC<SelectProps> = ({
             fontSize: '14px',
             lineHeight: '1.5',
             color: 'var(--primary-text)',
-            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontWeight: 400,
           },
           '& .MuiSelect-icon': {
@@ -156,7 +156,7 @@ export const Select: React.FC<SelectProps> = ({
             marginTop: '6px',
             marginLeft: '0',
             color: error ? 'var(--blox-black)' : 'var(--secondary-text)',
-            fontFamily: "'IBM Plex Sans', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontWeight: 400,
           }}
         >

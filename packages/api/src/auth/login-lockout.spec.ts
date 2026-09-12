@@ -22,7 +22,7 @@ describe('login lockout helpers', () => {
   });
 
   it('formats a human-readable lockout message', () => {
-    expect(lockoutMessage(new Date('2026-08-20T10:05:00.000Z'), now)).toMatch(/about 5 minutes/);
+    expect(lockoutMessage(new Date('2026-08-20T10:05:00.000Z'), now)).toMatch(/Wait 5 minutes/);
     expect(lockoutMessage(null, now)).toMatch(/Try again later/);
   });
 });

@@ -107,6 +107,7 @@ type ChipRadioGroupProps<T extends string> = {
   onBlur?: () => void;
   size?: 'sm' | 'md';
   required?: boolean;
+  disabled?: boolean;
   className?: string;
 };
 
@@ -122,6 +123,7 @@ export function ChipRadioGroup<T extends string>({
   onBlur,
   size = 'md',
   required,
+  disabled = false,
   className,
 }: ChipRadioGroupProps<T>) {
   const base = useId();
@@ -141,14 +143,14 @@ export function ChipRadioGroup<T extends string>({
           const id = `${base}-${o.value}`;
           const checked = value === o.value;
           return (
-            <label key={o.value} htmlFor={id} className={`dm-chip${checked ? ' is-checked' : ''}${o.disabled ? ' is-disabled' : ''}`}>
+            <label key={o.value} htmlFor={id} className={`dm-chip${checked ? ' is-checked' : ''}${o.disabled || disabled ? ' is-disabled' : ''}`}>
               <input
                 type="radio"
                 id={id}
                 name={name}
                 value={o.value}
                 checked={checked}
-                disabled={o.disabled}
+                disabled={o.disabled || disabled}
                 onChange={() => onChange(o.value)}
                 onBlur={onBlur}
               />

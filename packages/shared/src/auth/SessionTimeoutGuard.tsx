@@ -55,25 +55,17 @@ export function SessionTimeoutGuard({ children }: { children: ReactNode }) {
     const warnMs = Math.max(5, policy.warning_sec) * 1000;
     lastActivity.current = Date.now();
 
-    // Refresh well inside the window: the server only rewrites the cookie once
-    // per `updateAge` (at most a minute), so a third of the window is frequent
-    // enough to keep it alive and rare enough to stay quiet.
-    const pingMs = Math.max(60_000, Math.floor(idleMs / 3));
+    // Refresh well inside the idle window so the server sees the same activity
+    // the browser does. Cookie-cache or a long gap between pings used to let
+    // the API expire the session while the user was still typing.
+    const pingMs = Math.min(60_000, Math.max(20_000, Math.floor(idleMs / 6)));
     lastPing.current = Date.now();
     activeSincePing.current = false;
 
     const onActivity = () => {
       if (warningOpen.current) return;
       lastActivity.current = Date.now();
-      const firstActivity = !activeSincePing.current;
       activeSincePing.current = true;
-      if (
-        firstActivity &&
-        (typeof document === 'undefined' || document.visibilityState !== 'hidden')
-      ) {
-        lastPing.current = Date.now();
-        void apiFetch('/api/me').catch(() => undefined);
-      }
     };
     ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
 

@@ -36,7 +36,9 @@ import {
 } from './components/FacetPanel';
 import { ImageGallery, VehicleSpecGrid } from './components/VehicleDetailParts';
 import { ListingCtaPanel, MobileStickyApplyBar } from './components/ListingCtaPanel';
+import { buildListingEligibilityHref } from './lib/eligibility-href';
 import { MarketplaceNav } from './components/MarketplaceNav';
+import { CustomerPortalLayout } from './components/CustomerPortalLayout';
 import { ComparePage } from './pages/ComparePage';
 import { HelpPage } from './pages/HelpPage';
 import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
@@ -290,6 +292,17 @@ function VehicleDetailPage() {
     price: formatQar(product.price, false, locale),
     dealer: company?.name ?? '',
   });
+  const listingTitle = `${product.make} ${product.model}${product.trim ? ` ${product.trim}` : ''} ${product.model_year}`.trim();
+  const eligibilityHref = buildListingEligibilityHref({
+    slug: product.slug,
+    price: product.price,
+    condition: product.condition,
+    model_year: product.model_year,
+    title: listingTitle,
+    tenure,
+    downPct,
+    rate: offer?.annual_rent_rate ?? undefined,
+  });
 
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
@@ -337,8 +350,9 @@ function VehicleDetailPage() {
           companyCode={company?.code}
           companyName={company?.name}
           contactPhone={company?.contact_phone}
-          listingTitle={`${product.make} ${product.model}${product.trim ? ` ${product.trim}` : ''} ${product.model_year}`}
+          listingTitle={listingTitle}
           monthlyEstimate={offer ? monthly : null}
+          eligibilityHref={product.finance_eligible ? eligibilityHref : null}
           onApply={() =>
             navigate(
               `/app/applications/new?product=${slug}&tenure=${tenure}&downPct=${downPct}`,
@@ -516,12 +530,12 @@ function ApplicationsListPage() {
   const apps = data?.items ?? [];
 
   return (
-    <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
-      <div style={{ background: 'var(--dm-graphite-900)', height: 72 }}>
-        <MarketplaceNav />
-      </div>
-      <div style={{ padding: 32, maxWidth: 800, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: 'var(--dm-font-display)' }}>{t('application.title')}</h1>
+    <CustomerPortalLayout
+      metaTitle={t('application.title')}
+      eyebrow={t('nav.account')}
+      title={t('application.title')}
+      contentMax="narrow"
+    >
         {isLoading && <p>{t('vehicles.loading')}</p>}
         {!isLoading && !apps.length && (
           <p style={{ color: 'var(--dm-slate-600)' }}>
@@ -557,7 +571,6 @@ function ApplicationsListPage() {
             </li>
           ))}
         </ul>
-      </div>
       <style>{`
         .dm-app-list__item {
           display: flex;
@@ -584,7 +597,7 @@ function ApplicationsListPage() {
         .dm-status-pill--pending { background: var(--dm-steel-soft); color: var(--dm-ink); }
         .dm-status-pill--rejected { background: var(--dm-danger-soft); color: var(--dm-danger); }
       `}</style>
-    </div>
+    </CustomerPortalLayout>
   );
 }
 
@@ -613,6 +626,24 @@ function QuoteRedeemPage() {
   });
 
   if (isLoading) return <p>{t('vehicles.loading')}</p>;
+
+  // Not logged in — send to sign-in and come back here after.
+  if (!error && data?.gate === 'requiresAuth') {
+    const returnUrl = encodeURIComponent(`/quotes/${token}`);
+    return (
+      <div className="dm-home">
+        <MarketplaceNav />
+        <div style={{ padding: 32, maxWidth: 640, margin: '0 auto' }}>
+          <h1>{t('quote.signInTitle', { defaultValue: 'Sign in to view your quote' })}</h1>
+          <p>{t('quote.signInBody', { defaultValue: 'This quote was sent to your email address. Please sign in to continue.' })}</p>
+          <Link className="dm-btn-cta" to={`/auth/login?returnUrl=${returnUrl}`} style={{ display: 'inline-block', marginTop: 16 }}>
+            {t('quote.signIn', { defaultValue: 'Sign in' })}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (error || !data || data.gate !== 'active') {
     return (
       <div className="dm-home">
@@ -627,6 +658,7 @@ function QuoteRedeemPage() {
   }
 
   const product = data.product!;
+  const applyHref = `/app/applications/new?product=${product.slug}&quote=${token}${data.negotiated_price != null ? `&price=${data.negotiated_price}` : ''}`;
   return (
     <div className="dm-home">
       <MarketplaceNav />
@@ -642,7 +674,7 @@ function QuoteRedeemPage() {
         )}
         <Link
           className="dm-btn-cta"
-          to={`/app/applications/new?product=${product.slug}&quote=${token}`}
+          to={applyHref}
           style={{ display: 'inline-block', marginTop: 16 }}
         >
           {t('quote.continueApply')}
@@ -683,18 +715,10 @@ function ApplicationDetailPage() {
   }, [searchParams, id, qc]);
 
   return (
-    <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
-      <div style={{ background: 'var(--dm-graphite-900)', height: 72 }}>
-        <MarketplaceNav />
-      </div>
-      <div style={{ padding: 32, maxWidth: 800, margin: '0 auto' }}>
-        <p style={{ margin: '0 0 16px' }}>
-          <Link to="/app/applications">← {t('application.title')}</Link>
-        </p>
+    <CustomerPortalLayout metaTitle={t('application.title')} contentMax="narrow">
         {isLoading && <p>{t('vehicles.loading')}</p>}
         {data && <ApplicationDetailPanel app={data} />}
-      </div>
-    </div>
+    </CustomerPortalLayout>
   );
 }
 

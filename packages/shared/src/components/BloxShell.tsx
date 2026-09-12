@@ -128,7 +128,9 @@ function useNotifications(enabled: boolean, open: boolean) {
     queryKey: ['shell-notifications-unread'],
     queryFn: () => apiFetch<{ count: number }>('/api/notifications/unread-count'),
     enabled,
+    staleTime: 60_000,
     refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
   });
   const list = useQuery({
     queryKey: ['shell-notifications'],
@@ -280,6 +282,7 @@ export function BloxShell({ title, nav, children, homePaths = ['/'], breadcrumb,
                 return (
                   <ListItem key={item.to} disablePadding>
                     <ListItemButton
+                      disableRipple
                       className={`menu-item blox-side__item${active ? ' active' : ''}${sideCollapsed ? ' is-collapsed' : ''}`}
                       onClick={() => {
                         navigate(item.to);
@@ -311,11 +314,12 @@ export function BloxShell({ title, nav, children, homePaths = ['/'], breadcrumb,
   const drawerPaperSx = {
     width: isMobile ? EXPANDED : drawerWidth,
     boxSizing: 'border-box' as const,
-    background: `linear-gradient(180deg, ${bloxTokens.deepGreenDark} 0%, ${bloxTokens.deepGreen} 100%)`,
+    background: bloxTokens.deepGreenDark,
     color: '#fff',
     overflow: 'hidden',
     transition: 'width 0.2s ease',
     border: 'none',
+    boxShadow: 'none',
   };
 
   return (
@@ -407,15 +411,22 @@ export function BloxShell({ title, nav, children, homePaths = ['/'], breadcrumb,
                 </button>
               </span>
             )}
-            <IconButton
+            <button
+              type="button"
+              className="blox-identity"
               onClick={(e) => setAccountEl(e.currentTarget)}
               aria-label={t('ops.shell.account')}
               aria-haspopup="menu"
               aria-expanded={Boolean(accountEl)}
-              className="blox-topbar__avatar"
             >
               <Avatar className="blox-avatar">{(user?.full_name || user?.email || 'U').charAt(0).toUpperCase()}</Avatar>
-            </IconButton>
+              {!isMobile && (
+                <span className="blox-identity__copy">
+                  <b>{user?.full_name || user?.email || 'User'}</b>
+                  {user?.role && <small>{user.role.replace(/_/g, ' ')}</small>}
+                </span>
+              )}
+            </button>
             <Menu
               anchorEl={accountEl}
               open={Boolean(accountEl)}

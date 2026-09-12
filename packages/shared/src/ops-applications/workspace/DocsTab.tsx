@@ -17,6 +17,7 @@ import {
   type WizardDocumentSlot,
 } from '../customer-info';
 import { newestUploadAt, staleDocumentCategories } from '../document-freshness';
+import { documentsForSlot } from '../../lib/document-slots';
 import type { OpsDocumentSlotsResponse } from '../types';
 import type { WorkspacePanelProps } from './types';
 
@@ -46,10 +47,10 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
 
   const uploaded = useMemo(() => {
     const set = new Set<string>(slotsQuery.data?.uploaded ?? []);
-    for (const doc of docs) set.add(doc.category);
-    const kycFront = docs.some((d) => d.kyc_document_type === 'qid_front' && d.verification_status === 'verified');
-    const kycBack = docs.some((d) => d.kyc_document_type === 'qid_back' && d.verification_status === 'verified');
-    if (kycFront && kycBack) set.add('qid');
+    for (const doc of docs) {
+      if (doc.category) set.add(doc.category);
+      if (doc.kyc_document_type) set.add(doc.kyc_document_type);
+    }
     return set;
   }, [slotsQuery.data, docs]);
 
@@ -64,7 +65,7 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
   const requiredMissing = slots.filter((slot) => slot.required && !slotSatisfiedBy(slot.category, uploaded));
 
   function filesFor(category: string) {
-    return docs.filter((d) => d.category === category || (category === 'qid' && d.category === 'id'));
+    return documentsForSlot(docs, category);
   }
 
   function onPick(e: ChangeEvent<HTMLInputElement>, category: string) {
@@ -215,6 +216,7 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
           </a>
         </div>
       )}
+      <ContractDocumentsBlock id={id} canUpload={!!actions.uploadSignedContract} />
       {actions.uploadSignedContract && (
         <div className="blox-upload-block">
           <p className="blox-upload-block__title">{t('ops.workspace.uploadSignedContract')}</p>
@@ -294,5 +296,102 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
         </>
       )}
     </section>
+  );
+}
+
+type ContractDocumentRow = {
+  id: string;
+  document_type: string;
+  audience: string;
+  label: string;
+  status: string;
+  generated: boolean;
+  signed: boolean;
+};
+
+function ContractDocumentsBlock({ id, canUpload }: { id: string; canUpload: boolean }) {
+  const { t } = useOpsLabels();
+  const [files, setFiles] = useState<Record<string, File | null>>({});
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const docsQuery = useQuery({
+    queryKey: ['ops-contract-documents', id],
+    queryFn: () =>
+      apiFetch<{ items: ContractDocumentRow[]; signed_count: number; required_count: number }>(
+        `/api/applications/${id}/contract-documents`,
+      ),
+    enabled: !!id,
+    retry: false,
+  });
+  const items = docsQuery.data?.items ?? [];
+  if (items.length === 0) return null;
+
+  async function signDoc(docId: string, file: File) {
+    const fd = new FormData();
+    fd.append('file', file);
+    setPendingId(docId);
+    try {
+      await apiFetch(`/api/ops/applications/${id}/contract-documents/${docId}/sign`, { method: 'POST', body: fd });
+      await docsQuery.refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('ops.workspace.uploadSignedContract'));
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  return (
+    <div className="blox-document-card blox-document-card--contract">
+      <div>
+        <strong>{t('ops.workspace.contractDocuments')}</strong>
+        <p className="blox-muted">
+          {t('ops.workspace.contractProgress', {
+            signed: docsQuery.data?.signed_count ?? 0,
+            required: docsQuery.data?.required_count ?? items.filter((row) => row.audience === 'customer').length,
+          })}
+        </p>
+      </div>
+      <ul>
+        {items.map((doc) => {
+          const signed = doc.signed || doc.status === 'signed_submitted' || doc.status === 'verified';
+          return (
+            <li key={doc.id} style={{ marginBottom: 12 }}>
+              <strong>{doc.audience === 'ops' ? t('ops.workspace.internalCam') : doc.label}</strong>
+              {' · '}
+              {signed ? t('ops.workspace.contractDocSigned') : t('ops.workspace.contractDocPending')}
+              <div>
+                <a
+                  href={apiFileUrl(`/applications/${id}/contract-documents/${doc.id}/download`)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t('ops.workspace.downloadContractDocument')}
+                </a>
+              </div>
+              {canUpload && doc.audience === 'customer' && !signed && (
+                <label className="blox-upload-dropzone">
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    hidden
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        setFiles((current) => ({ ...current, [doc.id]: file }));
+                        void signDoc(doc.id, file);
+                      }
+                    }}
+                  />
+                  <p>
+                    {pendingId === doc.id
+                      ? t('ops.common.saving')
+                      : files[doc.id]?.name ?? t('ops.workspace.uploadSignedDocument')}
+                  </p>
+                </label>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

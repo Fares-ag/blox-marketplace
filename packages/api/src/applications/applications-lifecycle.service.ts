@@ -56,6 +56,9 @@ import { assertApprovalAuthorized, type ApprovalDecisionOutcome } from './credit
 import { customerNotificationBody } from './customer-notifications';
 import { MusharakahService } from '../musharakah/musharakah.service';
 import { AppConfigService } from '../config/app-config.service';
+import { ContractDocumentsService } from './documents/contract-documents.service';
+import { KycPlatformClient } from '../kyc/kyc-platform.client';
+import type { ContractFieldContext } from './documents/field-maps';
 
 const OPS_ROLES: UserRole[] = [UserRole.credit_officer, UserRole.admin, UserRole.super_admin];
 
@@ -114,6 +117,8 @@ export class ApplicationsLifecycleService {
     private readonly config: ConfigService,
     private readonly musharakah: MusharakahService,
     private readonly appConfig: AppConfigService,
+    private readonly contractDocuments?: ContractDocumentsService,
+    private readonly kyc?: KycPlatformClient,
   ) {}
 
   private assertOps(user: User) {
@@ -196,7 +201,21 @@ export class ApplicationsLifecycleService {
     const app = await this.prisma.application.findUnique({
       where: { id },
       include: {
-        product: { select: { make: true, model: true, modelYear: true, attributes: true, bodyType: true } },
+        product: {
+          select: {
+            make: true,
+            model: true,
+            modelYear: true,
+            trim: true,
+            color: true,
+            vin: true,
+            chassisNumber: true,
+            engineNumber: true,
+            condition: true,
+            attributes: true,
+            bodyType: true,
+          },
+        },
         company: { select: { name: true } },
         financePartner: { select: { name: true } },
         offer: { include: { financePartner: { select: { name: true } } } },
@@ -266,6 +285,66 @@ export class ApplicationsLifecycleService {
 
     const contractPdfPath = await this.storage.storeContractPdf(app.id, pdf);
 
+    let kycCase = null;
+    if (app.kycCaseId && this.kyc?.configured()) {
+      try {
+        kycCase = await this.kyc.getCaseDetail(app.kycCaseId);
+      } catch {
+        kycCase = null;
+      }
+    }
+    const fieldCtx: ContractFieldContext = {
+      applicationId: app.id,
+      approvedAt,
+      lenderName,
+      lenderAddress:
+        this.config.get<string>('CONTRACT_LENDER_ADDRESS')?.trim() || 'Qatar Financial Centre, Doha, Qatar',
+      signatoryName: this.config.get<string>('CONTRACT_SIGNATORY_NAME')?.trim() || lenderName,
+      signatoryTitle: this.config.get<string>('CONTRACT_SIGNATORY_TITLE')?.trim() || 'Authorised signatory',
+      customerEmail: app.customerEmail,
+      customerSnapshot: snap,
+      pricing,
+      vehicle: {
+        make: app.product.make,
+        model: app.product.model,
+        year: app.product.modelYear,
+        trim: app.product.trim,
+        color: app.product.color,
+        vin: app.product.vin,
+        chassisNumber: app.product.chassisNumber,
+        engineNumber: app.product.engineNumber,
+        condition: app.product.condition,
+        bodyType: app.product.bodyType,
+      },
+      dealerName: app.company.name,
+      listPrice: Number(pricing.list_price ?? 0),
+      downPayment: Number(pricing.down_payment ?? 0),
+      downPaymentPct: Number(pricing.down_payment_pct ?? 0),
+      monthly: Number(pricing.monthly ?? 0),
+      tenor: Number(pricing.tenor ?? pricing.tenure ?? 0),
+      annualRate: Number(pricing.rate ?? 0),
+      financedTotal: resolveFinancedTotal(pricing),
+      schedule,
+      credit: credit.assessed,
+      approverName: user.name ?? user.email,
+      approverRole: user.role,
+      overrideReason: opts?.overrideReason,
+      kyc: kycCase,
+      kycStatus: app.kycStatus,
+    };
+    let generatedDocs: Array<{ id: string; documentType: string; audience: 'customer' | 'ops'; label: string }> = [];
+    try {
+      generatedDocs = (await this.contractDocuments?.generateDocumentsForApproval({
+        applicationId: app.id,
+        financingType:
+          (app.offer as { financingType?: 'ijarah' | 'diminishing_musharakah' } | null)?.financingType ??
+          'diminishing_musharakah',
+        ctx: fieldCtx,
+      })) ?? [];
+    } catch {
+      generatedDocs = [];
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.musharakah.maybeOpenRegister(tx, id, pricing, user.id);
       return tx.application.update({
@@ -294,12 +373,24 @@ export class ApplicationsLifecycleService {
     });
     await this.logCreditDecision(user, id, credit, opts?.overrideReason);
     if (app.customerUserId) {
-      await this.activity.notify(
-        app.customerUserId,
-        'Contract ready to sign',
-        'Download your financing contract, sign it, and upload the signed PDF.',
-        `/app/applications/${id}`,
-      );
+      const customerDocs = generatedDocs.filter((doc) => doc.audience === 'customer');
+      if (customerDocs.length === 0) {
+        await this.activity.notify(
+          app.customerUserId,
+          'Contract ready to sign',
+          'Download your financing contract, sign it, and upload the signed PDF.',
+          `/app/applications/${id}`,
+        );
+      } else {
+        for (const doc of customerDocs) {
+          await this.activity.notify(
+            app.customerUserId,
+            `${doc.label} ready to sign`,
+            `Download ${doc.label}, sign it, and upload the signed PDF. Each agreement is signed separately.`,
+            `/app/applications/${id}`,
+          );
+        }
+      }
     }
 
     this.analytics.track('approval', {
@@ -349,22 +440,23 @@ export class ApplicationsLifecycleService {
     await this.assertSignedContractMatchesGenerated(app, file);
     const signedContractPath = await this.storage.uploadSignedContract(file, id);
 
-    const updated = await this.prisma.application.update({
-      where: { id },
-      data: {
-        status: 'contracts_submitted',
-        signedContractPath,
-      },
-    });
+    const remaining = (await this.contractDocuments?.remainingCustomerDocuments(id)) ?? 0;
+    const data =
+      remaining === 0
+        ? { status: 'contracts_submitted' as const, signedContractPath }
+        : { signedContractPath };
+    const updated = await this.prisma.application.update({ where: { id }, data });
 
-    await this.activity.log({
-      actorUserId: user.id,
-      entityType: 'application',
-      entityId: id,
-      action: 'status_transition',
-      fromValue: 'contract_signing_required',
-      toValue: 'contracts_submitted',
-    });
+    if (remaining === 0) {
+      await this.activity.log({
+        actorUserId: user.id,
+        entityType: 'application',
+        entityId: id,
+        action: 'status_transition',
+        fromValue: 'contract_signing_required',
+        toValue: 'contracts_submitted',
+      });
+    }
 
     return toApplicationDto(updated);
   }
@@ -387,30 +479,31 @@ export class ApplicationsLifecycleService {
     await this.assertSignedContractMatchesGenerated(app, file);
     const signedContractPath = await this.storage.uploadSignedContract(file, id);
 
-    const updated = await this.prisma.application.update({
-      where: { id },
-      data: {
-        status: 'contracts_submitted',
-        signedContractPath,
-      },
-    });
+    const remaining = (await this.contractDocuments?.remainingCustomerDocuments(id)) ?? 0;
+    const data =
+      remaining === 0
+        ? { status: 'contracts_submitted' as const, signedContractPath }
+        : { signedContractPath };
+    const updated = await this.prisma.application.update({ where: { id }, data });
 
-    await this.activity.log({
-      actorUserId: user.id,
-      entityType: 'application',
-      entityId: id,
-      action: 'status_transition',
-      fromValue: 'contract_signing_required',
-      toValue: 'contracts_submitted',
-      metadata: { uploadedBy: 'ops', onBehalfOfCustomer: app.customerUserId },
-    });
-    if (app.customerUserId) {
-      await this.activity.notify(
-        app.customerUserId,
-        'Signed contract received',
-        'Your signed contract was filed by our team and is now under review.',
-        `/app/applications/${id}`,
-      );
+    if (remaining === 0) {
+      await this.activity.log({
+        actorUserId: user.id,
+        entityType: 'application',
+        entityId: id,
+        action: 'status_transition',
+        fromValue: 'contract_signing_required',
+        toValue: 'contracts_submitted',
+        metadata: { uploadedBy: 'ops', onBehalfOfCustomer: app.customerUserId },
+      });
+      if (app.customerUserId) {
+        await this.activity.notify(
+          app.customerUserId,
+          'Signed contract received',
+          'Your signed contract was filed by our team and is now under review.',
+          `/app/applications/${id}`,
+        );
+      }
     }
 
     return toOpsApplicationDto(updated);
@@ -815,10 +908,16 @@ export class ApplicationsLifecycleService {
       },
     });
     if (!stillBlocking) {
-      await tx.product.update({
+      const product = await tx.product.findUnique({
         where: { id: productId },
-        data: { listingStatus: ListingStatus.published },
+        select: { listingStatus: true },
       });
+      if (product?.listingStatus === ListingStatus.reserved) {
+        await tx.product.update({
+          where: { id: productId },
+          data: { listingStatus: ListingStatus.published },
+        });
+      }
     }
   }
 }

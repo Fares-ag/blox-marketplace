@@ -139,12 +139,21 @@ export function ApplicationWorkspace({
   const revealFields: OpsUnmaskField[] = canCreditDecide(role) ? ['qid', 'phone'] : dealerRole ? ['qid'] : [];
 
   const customerName = data.customer?.name || data.customer_email || t('ops.workspace.title');
-  const vehicleLabel = `${data.product?.make ?? ''} ${data.product?.model ?? ''}`.trim();
+  const vehicleLabel = [data.product?.make, data.product?.model, data.product?.model_year].filter(Boolean).join(' ').trim();
   const label = `${vehicleLabel} · ${data.customer?.name ?? data.customer_email}`;
   const submittedAt = data.submitted_at ?? null;
-  const idLine = [id, submittedAt ? `${t('ops.workspace.submitted')} ${new Date(submittedAt).toLocaleDateString()}` : null, data.company?.name]
-    .filter(Boolean)
-    .join(' · ');
+  const idLine = (
+    <>
+      <span className="blox-detail-id__code">{id}</span>
+      {submittedAt ? (
+        <>
+          {' · '}
+          {t('ops.workspace.submitted')} {new Date(submittedAt).toLocaleDateString()}
+        </>
+      ) : null}
+      {data.company?.name ? <> · {data.company.name}</> : null}
+    </>
+  );
 
   const pricing = data.pricing_snapshot ?? {};
   const installmentPlan = data.installment_plan as InstallmentPlan | null | undefined;
@@ -305,6 +314,31 @@ export function ApplicationWorkspace({
         backLabel={t(backLabelKey)}
         title={customerName}
         idLabel={idLine}
+        meta={
+          <dl className="blox-case-meta">
+            <div className="blox-case-meta__item">
+              <dt className="blox-case-meta__label">{t('ops.workspace.fact.vehicle')}</dt>
+              <dd className="blox-case-meta__value">{vehicleLabel || '—'}</dd>
+            </div>
+            <div className="blox-case-meta__item">
+              <dt className="blox-case-meta__label">{t('ops.credit.vehiclePrice')}</dt>
+              <dd className="blox-case-meta__value is-num">
+                QAR {Number(vehiclePrice || 0).toLocaleString()}
+              </dd>
+            </div>
+            <div className="blox-case-meta__item">
+              <dt className="blox-case-meta__label">{t('ops.credit.tenure')}</dt>
+              <dd className="blox-case-meta__value">
+                {Number((pricing as { tenor?: number }).tenor)
+                  ? t('ops.common.months', {
+                      count: Number((pricing as { tenor?: number }).tenor),
+                      defaultValue: `${Number((pricing as { tenor?: number }).tenor)} months`,
+                    })
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
+        }
         status={{ label: applicationStatus(data.status), variant: applicationOpsPillVariant(data.status) }}
         headerActions={headerActions}
         tabs={visibleTabs.map((name) => ({ value: name, label: t(`ops.workspace.tab.${name}`) }))}

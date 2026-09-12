@@ -9,6 +9,8 @@ export function useOpsLabels() {
       t(`ops.status.${status}`, { defaultValue: status.replace(/_/g, ' ') }),
     listingStatus: (status: string) =>
       t(`ops.listingStatus.${status}`, { defaultValue: status.replace(/_/g, ' ') }),
+    quoteStatus: (status: string) =>
+      t(`ops.quoteStatus.${status}`, { defaultValue: status.replace(/_/g, ' ') }),
     scheduleStatus: (status: string) =>
       t(`ops.scheduleStatus.${status}`, { defaultValue: status.replace(/_/g, ' ') }),
     pagination: (from: number, to: number, total: number) =>

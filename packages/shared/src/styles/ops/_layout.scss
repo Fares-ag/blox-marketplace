@@ -2,9 +2,9 @@
 @use 'vars' as *;
 
 .blox-money {
-  font-family: var(--blox-font-display);
+  font-family: var(--blox-font-mono);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .blox-page {
@@ -40,24 +40,24 @@
   justify-content: space-between;
   gap: 12px;
 
-  // Phase 1 §02: page title 28/32/700.
   h1,
   h2 {
     margin: 0;
-    font-family: var(--blox-font-ui);
-    font-size: 1.75rem;
-    line-height: 1.15;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    font-family: var(--blox-font-display);
+    font-size: var(--blox-type-page, 1.75rem);
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.02em;
     color: var(--blox-deep-green);
     text-wrap: balance;
   }
 
   &__subtitle {
-    margin: 4px 0 0;
-    font-size: 0.8125rem;
+    margin: 6px 0 0;
+    font-size: var(--blox-type-meta, 0.75rem);
+    line-height: 1.45;
     color: var(--blox-slate);
-    max-width: 52ch;
+    max-width: 56ch;
   }
 
   &__actions {

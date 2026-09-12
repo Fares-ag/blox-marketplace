@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
+import type { OpsCardTone } from '../config/status-styles';
 
 export type OpsMetricItem = {
   label: string;
@@ -10,6 +11,8 @@ export type OpsMetricItem = {
   /** Small series (e.g. the last 8 weeks) drawn as a sparkline under the value. */
   trend?: number[];
   icon?: ReactNode;
+  /** Tinted card background — defaults to brand for the hero card, neutral otherwise. */
+  tone?: OpsCardTone;
 };
 
 /** 96×28 sparkline with an area fill and an emphasised last point. Draws to the series' own scale. */
@@ -49,8 +52,14 @@ export function OpsMetricRow({
   }
   return (
     <div className="blox-metrics-grid">
-      {(metrics ?? []).map((m, i) => (
-        <article key={m.label} className={`blox-metric-card${i === heroIndex ? ' blox-metric-card--hero' : ''}`}>
+      {(metrics ?? []).map((m, i) => {
+        const isHero = i === heroIndex;
+        const tone = m.tone ?? (isHero ? 'brand' : 'neutral');
+        return (
+        <article
+          key={m.label}
+          className={`blox-metric-card${isHero ? ' blox-metric-card--hero' : ''} blox-metric-card--${tone}`}
+        >
           {m.icon && <div className="blox-metric-card__icon">{m.icon}</div>}
           <p className="blox-metric-card__label">{m.label}</p>
           <div className="blox-metric-card__row">
@@ -65,7 +74,8 @@ export function OpsMetricRow({
             </p>
           )}
         </article>
-      ))}
+        );
+      })}
     </div>
   );
 }

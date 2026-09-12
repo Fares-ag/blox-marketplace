@@ -1,5 +1,5 @@
 /* Blox customer marketplace — remaps DriveMarket CSS vars to Blox tokens */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@use '../../../shared/src/styles/fonts';
 
 $bp-xs: 480px;
 $bp-sm: 640px;
@@ -39,9 +39,9 @@ $bp-content-ultra: 2560px;
   --dm-teal-100: #e6fbf5;
   --dm-teal-600: #00cfa2;
   --dm-teal-800: #16535b;
-  --dm-font-display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
-  --dm-font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-  --dm-font-mono: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  --dm-font-display: var(--blox-font-stack);
+  --dm-font-ui: var(--blox-font-stack);
+  --dm-font-mono: var(--blox-font-stack);
   --blox-page-gutter: clamp(16px, 4vw, 48px);
   --bp-xs: #{$bp-xs};
   --bp-sm: #{$bp-sm};
@@ -74,7 +74,7 @@ body {
 }
 
 html[lang='ar'] body {
-  font-family: 'IBM Plex Sans Arabic', var(--dm-font-ui);
+  font-family: var(--blox-font-ar-stack);
 }
 
 img,
@@ -429,6 +429,11 @@ textarea:focus-visible {
 }
 
 /* Payment calendar */
+.dm-portal__inner.dm-calendar {
+  padding: 0;
+  max-width: min(100%, var(--bp-content-max));
+}
+
 .dm-calendar {
   max-width: var(--bp-content-max);
   margin: 0 auto;
@@ -772,6 +777,74 @@ textarea:focus-visible {
   font-weight: 650;
   color: #fff;
   vertical-align: middle;
+}
+
+/* Signed-in customer portal (/app/*) */
+.dm-portal {
+  background: var(--dm-canvas);
+  min-height: 100vh;
+}
+
+.dm-portal__head {
+  padding-bottom: 32px;
+}
+
+.dm-portal__intro {
+  margin-top: 4px;
+}
+
+.dm-portal__body {
+  padding: 24px 0 64px;
+}
+
+.dm-portal__inner {
+  width: 100%;
+  max-width: min(100%, var(--bp-content-max));
+  margin-inline: auto;
+  padding-inline: var(--blox-page-gutter);
+  box-sizing: border-box;
+}
+
+.dm-portal__inner--narrow {
+  max-width: min(100%, 720px);
+}
+
+.dm-portal__inner--wide {
+  max-width: min(100%, var(--bp-content-wide, 1600px));
+}
+
+.dm-account-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+
+.dm-account-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.dm-account-nav a:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dm-account-nav a.is-active {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 /* Apply stepper layout */
@@ -2042,7 +2115,7 @@ textarea:focus-visible {
   width: 100%;
   max-width: min(100%, 900px);
   margin-inline: auto;
-  padding: 24px var(--blox-page-gutter) 64px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;

@@ -55,7 +55,7 @@ export function mountPortalApp({
         <ThemeProvider theme={theme}>
           <CssBaseline />
           <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               {scrollTop && <ScrollToTop />}
               {app}
             </BrowserRouter>

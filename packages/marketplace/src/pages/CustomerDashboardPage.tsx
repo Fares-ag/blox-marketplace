@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
-  DocumentMeta,
   MoneyText,
   apiFetch,
   formatQar,
@@ -14,7 +13,7 @@ import {
   type ProductDetailResponse,
   type ProductListResponse,
 } from '@drivemarket/shared';
-import { MarketplaceNav } from '../components/MarketplaceNav';
+import { CustomerPortalLayout } from '../components/CustomerPortalLayout';
 import { ListingCard } from '../components/ListingCard';
 import { OwnershipProgress } from '../components/OwnershipProgress';
 import { OwnershipHero, OWNERSHIP_HERO_STATUSES } from '../components/OwnershipHero';
@@ -176,11 +175,13 @@ export function CustomerDashboardPage() {
     ownershipDetail.data && OWNERSHIP_HERO_STATUSES.has(ownershipDetail.data.status) ? ownershipDetail.data : null;
 
   return (
-    <div className="dm-dash">
-      <DocumentMeta title={t('dashboard.metaTitle')} />
-      <div className="dm-dash__top">
-        <div className="dm-dash__inner">
-          <MarketplaceNav />
+    <>
+    <CustomerPortalLayout
+      metaTitle={t('dashboard.metaTitle')}
+      contentMax="wide"
+      contentClassName="dm-dash__inner dm-dash__inner--stack"
+      headerExtra={
+        <>
           <div className="dm-dash__hero">
             <div className="dm-dash__hero-copy">
               <p className="dm-dash__eyebrow">{t('dashboard.eyebrow')}</p>
@@ -203,11 +204,9 @@ export function CustomerDashboardPage() {
           {heroApp && OWNERSHIP_HERO_STATUSES.has(heroApp.status) && (
             <UnitOffersPanel applicationId={heroApp.id} />
           )}
-        </div>
-      </div>
-
-      <div className="dm-dash__body">
-        <div className="dm-dash__inner dm-dash__inner--stack">
+        </>
+      }
+    >
           <section className="dm-dash__snapshot" aria-label={t('dashboard.snapshot')}>
             <div className="dm-dash__snap">
               <span className="dm-dash__snap-label">{t('dashboard.appsCount')}</span>
@@ -408,11 +407,8 @@ export function CustomerDashboardPage() {
                     {t('nav.compare')}
                     {compareCount > 0 ? ` (${compareCount})` : ''}
                   </Link>
-                  <Link to="/app/applications">{t('application.title')}</Link>
-                  <Link to="/app/calendar">{t('calendar.shortcut')}</Link>
-                  <Link to="/app/profile">{t('customerProfile.title')}</Link>
-                  <Link to="/app/consents">{t('consentCentre.pageTitle')}</Link>
                   <Link to="/help">{t('nav.help')}</Link>
+                  <Link to="/eligibility">{t('nav.eligibility')}</Link>
                 </nav>
               </section>
             </aside>
@@ -483,42 +479,16 @@ export function CustomerDashboardPage() {
               </div>
             </section>
           )}
-        </div>
-      </div>
+    </CustomerPortalLayout>
 
       <style>{`
-        .dm-dash {
-          --dm-dash-max: min(100%, var(--bp-content-max, 1600px));
-          --dm-dash-gutter: 24px;
-          background: var(--dm-canvas);
-          min-height: 100vh;
-        }
         .dm-dash__inner {
-          width: 100%;
-          max-width: var(--dm-dash-max);
-          margin-inline: auto;
-          padding-inline: var(--dm-dash-gutter);
-          box-sizing: border-box;
+          --dm-dash-max: min(100%, var(--bp-content-wide, 1600px));
         }
         .dm-dash__inner--stack {
           display: flex;
           flex-direction: column;
           gap: 20px;
-        }
-        .dm-dash__top {
-          background:
-            radial-gradient(ellipse 80% 60% at 100% 0%, rgba(0, 207, 162, 0.18), transparent 55%),
-            linear-gradient(180deg, #0f3f45 0%, var(--dm-graphite-900) 100%);
-          color: #fff;
-          padding: 16px 0 32px;
-        }
-        .dm-dash .dm-topnav {
-          position: relative !important;
-          inset: auto !important;
-          top: auto !important;
-          z-index: auto !important;
-          padding: 0 !important;
-          margin: 0 0 24px;
         }
         .dm-dash__hero {
           display: flex;
@@ -559,9 +529,6 @@ export function CustomerDashboardPage() {
         .dm-dash__ghost {
           border-color: rgba(255,255,255,0.35) !important;
           color: #fff !important;
-        }
-        .dm-dash__body {
-          padding: 24px 0 64px;
         }
         .dm-dash__snapshot {
           display: grid;
@@ -868,26 +835,24 @@ export function CustomerDashboardPage() {
           .dm-dash__grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 480px) {
-          .dm-dash { --dm-dash-gutter: 16px; }
-          .dm-dash__body { padding-top: 16px; }
-          .dm-dash .dm-topnav { margin-bottom: 20px; }
+          .dm-portal__inner { padding-inline: 16px; }
           .dm-dash__hero-actions { width: 100%; }
           .dm-dash__hero-actions .dm-btn-cta,
           .dm-dash__hero-actions .dm-btn-ghost { flex: 1 1 auto; text-align: center; }
           .dm-dash__notice-btn { width: 100%; }
         }
         @media (min-width: 1600px) {
-          .dm-dash {
-            --dm-dash-max: min(100%, var(--bp-content-wide, 2000px));
+          .dm-portal__inner--wide {
+            max-width: min(100%, var(--bp-content-wide, 2000px));
           }
         }
         @media (min-width: 1920px) {
-          .dm-dash { --dm-dash-max: min(100%, var(--bp-content-ultra, 2560px)); }
+          .dm-portal__inner--wide { max-width: min(100%, var(--bp-content-ultra, 2560px)); }
         }
         @media (min-width: 2560px) {
-          .dm-dash { --dm-dash-max: min(100%, 2800px); }
+          .dm-portal__inner--wide { max-width: min(100%, 2800px); }
         }
       `}</style>
-    </div>
+    </>
   );
 }

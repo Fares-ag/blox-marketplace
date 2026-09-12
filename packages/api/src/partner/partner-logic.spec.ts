@@ -124,8 +124,13 @@ describe('partner DTO', () => {
     });
     expect(approverFor('admin', 'head_of_credit')).toEqual({
       role_may_approve: true,
-      required_roles: ['admin', 'super_admin'],
+      required_roles: ['credit_officer', 'admin', 'super_admin'],
       max_tier_for_role: 2,
+    });
+    expect(approverFor('credit_officer', 'head_of_credit')).toEqual({
+      role_may_approve: true,
+      required_roles: ['credit_officer', 'admin', 'super_admin'],
+      max_tier_for_role: 3,
     });
   });
 
@@ -156,7 +161,7 @@ describe('partner DTO', () => {
     });
     expect(dto?.affordability_with_guarantor?.status).toBe('within_cap');
     expect(dto?.approval_authority).toBe('above_matrix');
-    expect(dto?.approver.required_roles).toEqual(['super_admin']);
+    expect(dto?.approver.required_roles).toEqual(['credit_officer', 'admin', 'super_admin']);
     expect(dto?.financed_amount).toBe(0);
     expect(creditAssessmentForRole(null, 'partner_viewer')).toBeNull();
     expect(creditAssessmentForRole({ path: 'approve' }, 'partner_viewer')).toBeNull();

@@ -110,19 +110,19 @@
   }
 }
 
-// Empty state — Phase 1 §07: dashed field-border, 44px emerald-soft glyph, one line, one action.
 .blox-empty {
   display: grid;
   justify-items: center;
   gap: 8px;
   margin: 0;
-  padding: 36px 20px;
+  padding: 48px 24px;
   text-align: center;
   color: var(--blox-slate);
   background: var(--blox-surface);
-  border: 1.5px dashed var(--blox-field-border, #a9b8ba);
+  border: 1px solid var(--blox-border);
   border-radius: var(--blox-radius-card, 16px);
-  font-size: 0.875rem;
+  box-shadow: var(--blox-shadow-rest);
+  font-size: var(--blox-type-body, 0.875rem);
 
   &__glyph,
   &__icon {
@@ -141,7 +141,7 @@
     margin: 0;
     font-weight: 600;
     color: var(--blox-deep-green);
-    font-size: 0.9375rem;
+    font-size: var(--blox-type-section, 1rem);
   }
 
   &__body {

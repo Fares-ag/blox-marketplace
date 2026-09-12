@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from './qid';
 import { maskIban, maskPhone, maskQid } from './masking';
-import { documentSlotsFor, missingDocumentCategories } from './document-slots';
+import { documentMatchesSlot, documentSlotsFor, missingDocumentCategories } from './document-slots';
 import { missingConsents } from './consents';
 
 const NOW = new Date('2026-09-07T00:00:00Z');
@@ -77,6 +77,14 @@ describe('document slots', () => {
     const withGuarantor = documentSlotsFor({ residency: 'qatari', employmentType: 'gov-or-semi-gov', hasGuarantor: true });
     expect(withGuarantor.filter((s) => s.group === 'guarantor')).toHaveLength(3);
     expect(missingDocumentCategories({ residency: 'qatari', employmentType: 'gov-or-semi-gov' }, ['id', 'salary'])).toEqual(['bank']);
+  });
+
+  it('matches QID uploads stored as category qid to front and back slots', () => {
+    const combined = { category: 'qid', original_name: 'scan.jpg' };
+    expect(documentMatchesSlot(combined, 'qid_front')).toBe(true);
+    expect(documentMatchesSlot(combined, 'qid_back')).toBe(true);
+    expect(documentMatchesSlot({ category: 'qid', kyc_document_type: 'qid_front' }, 'qid_back')).toBe(false);
+    expect(documentMatchesSlot({ category: 'qid', kyc_document_type: 'qid_back' }, 'qid_back')).toBe(true);
   });
 });
 

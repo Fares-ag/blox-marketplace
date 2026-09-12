@@ -84,7 +84,8 @@ export function EligibilityPage() {
   const locale = getAppLocale();
   const [params] = useSearchParams();
   const productSlug = params.get('product');
-  const prefilledFromListing = !!(params.get('price') || params.get('year'));
+  const listingTitle = params.get('title');
+  const vehicleLocked = !!productSlug;
   const [form, setForm] = useState<EligForm>(() => initialForm(params));
   const [checked, setChecked] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -95,6 +96,13 @@ export function EligibilityPage() {
   const tenureOptions = useMemo(() => allowedTenureOptions(residency, null), [residency]);
   const minDown = minDownPaymentPctFor(form.condition, null);
   const downBand = downPaymentBounds();
+
+  const paramKey = params.toString();
+  useEffect(() => {
+    setForm(initialForm(params));
+    setChecked(false);
+    setTouched({});
+  }, [paramKey]);
 
   useEffect(() => {
     setForm((prev) => {
@@ -173,7 +181,7 @@ export function EligibilityPage() {
     });
   }
   function reset() {
-    setForm(initialForm(new URLSearchParams()));
+    setForm(vehicleLocked ? initialForm(params) : initialForm(new URLSearchParams()));
     setChecked(false);
     setTouched({});
     firstFieldRef.current?.focus();
@@ -196,7 +204,9 @@ export function EligibilityPage() {
           ? 'danger'
           : 'info';
 
-  const applyHref = productSlug ? `/app/applications/new?product=${encodeURIComponent(productSlug)}&tenure=${form.tenure}&downPct=${form.downPct}` : '/';
+  const applyHref = productSlug
+    ? `/app/applications/new?product=${encodeURIComponent(productSlug)}&tenure=${form.tenure}&downPct=${form.downPct}${price && price > 0 ? `&price=${price}` : ''}`
+    : '/';
   const conditionWord = form.condition === 'new' ? t('applyFlow.vehicle.conditionNew') : t('applyFlow.vehicle.conditionUsed');
 
   return (
@@ -213,7 +223,13 @@ export function EligibilityPage() {
 
       <div className="dm-elig__layout">
         <form className="dm-elig__form" onSubmit={onSubmit} noValidate>
-          {prefilledFromListing ? <Notice tone="info">{t('eligibilityCheck.prefilled')}</Notice> : null}
+          {vehicleLocked ? (
+            <Notice tone="info">
+              {listingTitle
+                ? t('eligibilityCheck.prefilledNamed', { vehicle: listingTitle })
+                : t('eligibilityCheck.prefilled')}
+            </Notice>
+          ) : null}
 
           <section className="dm-apply__card" aria-labelledby="elig-about">
             <h2 id="elig-about" className="dm-apply__step-title">
@@ -295,7 +311,18 @@ export function EligibilityPage() {
             </h2>
             <div className="dm-step">
               <Field id="elig-price" label={t('eligibilityCheck.form.price')} error={priceError} required>
-                {(a11y) => <TextInput {...a11y} ref={firstFieldRef} numeric inputMode="decimal" value={form.price} onChange={(e) => update('price', e.target.value)} onBlur={() => setTouched((p) => ({ ...p, price: true }))} />}
+                {(a11y) => (
+                  <TextInput
+                    {...a11y}
+                    ref={firstFieldRef}
+                    numeric
+                    inputMode="decimal"
+                    value={form.price}
+                    disabled={vehicleLocked}
+                    onChange={(e) => update('price', e.target.value)}
+                    onBlur={() => setTouched((p) => ({ ...p, price: true }))}
+                  />
+                )}
               </Field>
               <div className="dm-grid dm-grid--2">
                 <ChipRadioGroup<RuleVehicleCondition>
@@ -307,6 +334,7 @@ export function EligibilityPage() {
                   ]}
                   value={form.condition}
                   onChange={(v) => update('condition', v)}
+                  disabled={vehicleLocked}
                   size="sm"
                 />
                 <ChipRadioGroup<VehicleCategory>
@@ -318,11 +346,24 @@ export function EligibilityPage() {
                   ]}
                   value={form.category}
                   onChange={(v) => update('category', v)}
+                  disabled={vehicleLocked}
                   size="sm"
                 />
               </div>
               <Field id="elig-year" label={t('eligibilityCheck.form.modelYear')} optionalLabel={t('eligibilityCheck.form.optional')}>
-                {(a11y) => <TextInput {...a11y} type="number" numeric inputMode="numeric" min={1990} max={CURRENT_YEAR + 1} value={form.modelYear} onChange={(e) => update('modelYear', e.target.value)} />}
+                {(a11y) => (
+                  <TextInput
+                    {...a11y}
+                    type="number"
+                    numeric
+                    inputMode="numeric"
+                    min={1990}
+                    max={CURRENT_YEAR + 1}
+                    value={form.modelYear}
+                    disabled={vehicleLocked}
+                    onChange={(e) => update('modelYear', e.target.value)}
+                  />
+                )}
               </Field>
             </div>
           </section>

@@ -9,6 +9,6 @@ import { MusharakahModule } from '../musharakah/musharakah.module';
   imports: [ConfigModule, MusharakahModule],
   controllers: [KycController],
   providers: [KycPlatformClient, KycBridgeService],
-  exports: [KycBridgeService],
+  exports: [KycBridgeService, KycPlatformClient],
 })
 export class KycModule {}

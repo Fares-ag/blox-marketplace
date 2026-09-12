@@ -59,7 +59,10 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
         }),
       });
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      toast.success('Application updated');
+      invalidate();
+    },
     onError: fail,
   });
   const approve = useMutation({

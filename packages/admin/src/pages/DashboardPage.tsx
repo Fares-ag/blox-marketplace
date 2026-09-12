@@ -5,7 +5,10 @@ import {
   bloxTokens,
   ChartLegendItem,
   ChartPanel,
+  ACTIVE_FINANCING_STATUSES,
+  CONTRACT_STAGE_STATUSES,
   DashboardGrid,
+  DashboardPipelineSection,
   doughnutChartOptions,
   ExportButton,
   FunnelChart,
@@ -15,6 +18,8 @@ import {
   OpsDashboardPage,
   OpsDataTable,
   SecuritySettingsPanel,
+  sumStatuses,
+  totalStatuses,
   useOpsLabels,
   VerticalBarChart,
 } from '@drivemarket/shared';
@@ -71,6 +76,10 @@ export function DashboardPage() {
   });
 
   const byStatus = data?.applications_by_status ?? {};
+  const dash = (value: number | undefined) => String(value ?? '—');
+  const totalApplications = totalStatuses(byStatus);
+  const activeFinancings = sumStatuses(byStatus, ACTIVE_FINANCING_STATUSES);
+  const contractsStage = sumStatuses(byStatus, CONTRACT_STAGE_STATUSES);
   const active = byStatus.active ?? 0;
   const completed = byStatus.completed ?? 0;
   const inReview =
@@ -157,8 +166,39 @@ export function DashboardPage() {
             ? `${collection.paid} paid · ${collection.overdue} overdue`
             : undefined,
         },
+        { label: t('ops.dashboard.totalApplications'), value: dash(totalApplications) },
+        { label: t('ops.dashboard.activeFinancings'), value: dash(activeFinancings) },
+        {
+          label: t('ops.dashboard.conversionRate'),
+          value: data?.conversion_rate != null ? `${Math.round(data.conversion_rate * 100)}%` : '—',
+          delta: `${completed} completed`,
+        },
+        { label: t('ops.dashboard.pendingInstallments'), value: dash(data?.schedules_pending) },
+        { label: t('ops.admin.overdue'), value: dash(data?.schedules_overdue) },
       ]}
     >
+      <DashboardPipelineSection
+        title={t('ops.dashboard.pipelineSnapshot')}
+        subtitle={t('ops.admin.appsByStatus')}
+        stats={[
+          { label: applicationStatus('draft'), value: dash(byStatus.draft), status: 'draft' },
+          { label: applicationStatus('under_review'), value: dash(byStatus.under_review), status: 'under_review' },
+          {
+            label: applicationStatus('resubmission_required'),
+            value: dash(byStatus.resubmission_required),
+            status: 'resubmission_required',
+          },
+          { label: t('ops.dashboard.contractsStage'), value: dash(contractsStage), tone: 'progress' },
+          {
+            label: applicationStatus('partner_processing'),
+            value: dash(byStatus.partner_processing),
+            status: 'partner_processing',
+          },
+          { label: applicationStatus('active'), value: dash(byStatus.active), status: 'active' },
+          { label: applicationStatus('completed'), value: dash(byStatus.completed), status: 'completed' },
+          { label: applicationStatus('rejected'), value: dash(byStatus.rejected), status: 'rejected' },
+        ]}
+      />
       <DashboardGrid>
         <ChartPanel
           title={t('ops.dashboard.submissionsTrend')}

@@ -5,6 +5,7 @@ import { OpsStatusPill } from '../../components/ops-ui';
 import { apiFileUrl } from '../../lib/api';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
 import { CustomerInfoOverview } from '../CustomerInfoOverview';
+import { documentsForSlot } from '../../lib/document-slots';
 import {
   customerInfoFromSnapshot,
   ruleViolationMessage,
@@ -176,7 +177,7 @@ export function OverviewTab(props: Props) {
             <ul className="blox-doc-grid">
               {requiredSlots.map((slot) => {
                 const cat = slot.category;
-                const doc = docs.find((d) => d.category === cat || (cat === 'qid' && d.category === 'id'));
+                const doc = documentsForSlot(docs, cat)[0];
                 const label = t(slot.labelKey, {
                   defaultValue: t(`application.docCategory.${cat}`, { defaultValue: cat.replace(/_/g, ' ') }),
                 });

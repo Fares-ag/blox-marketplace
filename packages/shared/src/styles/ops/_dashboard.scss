@@ -15,29 +15,76 @@
   }
 }
 
+@mixin blox-card-tone($bg, $ink, $accent: $ink) {
+  background: $bg;
+  border-inline-start: 4px solid $accent;
+
+  .blox-stat-card__value,
+  .blox-metric-card__value {
+    color: $ink;
+  }
+
+  .blox-stat-card__label,
+  .blox-metric-card__label {
+    color: var(--blox-slate);
+  }
+
+  .blox-stat-card__delta,
+  .blox-metric-card__delta {
+    color: $ink;
+    opacity: 0.85;
+  }
+}
+
+.blox-stat-card,
+.blox-metric-card {
+  &--neutral {
+    @include blox-card-tone(var(--blox-status-neutral-bg), var(--blox-status-neutral-ink), var(--blox-status-neutral-ink));
+  }
+
+  &--info {
+    @include blox-card-tone(var(--blox-status-info-bg), var(--blox-status-info-ink), var(--blox-status-info-ink));
+  }
+
+  &--progress {
+    @include blox-card-tone(var(--blox-status-progress-bg), var(--blox-status-progress-ink), var(--blox-status-progress-ink));
+  }
+
+  &--success {
+    @include blox-card-tone(var(--blox-status-success-bg), var(--blox-status-success-ink), var(--blox-emerald));
+  }
+
+  &--warning {
+    @include blox-card-tone(var(--blox-status-warning-bg), var(--blox-status-warning-ink), var(--blox-status-warning-ink));
+  }
+
+  &--danger {
+    @include blox-card-tone(var(--blox-status-danger-bg), var(--blox-status-danger-ink), var(--blox-status-danger-ink));
+  }
+
+  &--cancelled {
+    @include blox-card-tone(#F3F0F4, #6B4E71, #9B7DA3);
+  }
+
+  &--brand {
+    @include blox-card-tone(var(--blox-emerald-soft), var(--blox-deep-green), var(--blox-emerald));
+  }
+}
+
 .blox-stat-card {
   background: var(--blox-surface);
   border: 1px solid var(--blox-border);
   border-radius: var(--blox-radius-card, 16px);
-  padding: 18px 20px;
+  padding: 16px 18px;
   box-shadow: var(--blox-shadow-rest, var(--blox-shadow));
-  transition: box-shadow var(--blox-motion-fast) var(--blox-ease-standard),
-              transform var(--blox-motion-fast) var(--blox-ease-standard);
-
-  @media (hover: hover) {
-    &:hover {
-      box-shadow: var(--blox-shadow-hover);
-      transform: translateY(-1px);
-    }
-  }
 
   &--hero {
-    background: linear-gradient(135deg, var(--blox-emerald) 0%, #00b890 100%);
-    border-color: transparent;
-    color: var(--blox-deep-green);
+    background: var(--blox-surface);
+    border-color: var(--blox-border);
+    color: var(--blox-ink);
 
     .blox-stat-card__label {
-      color: rgba(22, 83, 91, 0.75);
+      color: var(--blox-slate);
     }
 
     .blox-stat-card__value {
@@ -45,7 +92,7 @@
     }
 
     .blox-stat-card__delta {
-      color: var(--blox-deep-green-dark);
+      color: var(--blox-slate);
     }
   }
 
@@ -69,20 +116,22 @@
 
   &__label {
     margin: 0 0 6px;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: var(--blox-type-meta, 0.75rem);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    line-height: 1.35;
     color: var(--blox-slate);
   }
 
   &__value {
     margin: 0;
-    font-family: var(--blox-font-display);
-    font-size: 1.5rem;
+    font-family: var(--blox-font-mono);
+    font-size: 1.375rem;
     font-weight: 600;
     color: var(--blox-ink);
     letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
   }
 
   &__delta {

@@ -21,7 +21,15 @@ import {
 } from '../ops-ui-v2';
 import type { PaginatedResponse } from '../types/domain';
 import type { FinancePartnerAdminDto } from '../types/customer-platform';
+import type { OpsMetricItem } from '../ops-ui-v2/OpsMetricRow';
 import type { OpsAudience, OpsQueueItem } from './types';
+
+type DealerListMetrics = {
+  applications_by_status: Record<string, number>;
+  open_applications: number;
+  submissions_this_month: number;
+  submissions_by_week: Array<{ label: string; count: number }>;
+};
 
 function partnerItems(
   data: FinancePartnerAdminDto[] | PaginatedResponse<FinancePartnerAdminDto> | undefined,
@@ -84,6 +92,11 @@ export function ApplicationsList({
     queryFn: () =>
       apiFetch<PaginatedResponse<OpsQueueItem> & { metrics?: { loan_value: number; receivable: number; avg_payment: number } }>(path),
   });
+  const dealerMetricsQuery = useQuery({
+    queryKey: ['dealer-metrics', 'applications-list'],
+    queryFn: () => apiFetch<DealerListMetrics>('/api/ops/metrics/dealer'),
+    enabled: dealer,
+  });
   const items = data?.items ?? [];
   const { total } = paginationWindow(data?.total ?? 0, page);
   const metrics = data?.metrics;
@@ -138,13 +151,38 @@ export function ApplicationsList({
     return configs;
   }, [companies.data, dealer, lenders, t]);
 
-  const listMetrics = !dealer && metrics
-    ? [
-        { label: 'Loan value', value: `QAR ${(metrics.loan_value ?? 0).toLocaleString()}` },
-        { label: 'Receivable', value: `QAR ${(metrics.receivable ?? 0).toLocaleString()}` },
-        { label: 'Avg payment', value: `QAR ${(metrics.avg_payment ?? 0).toLocaleString()}` },
-      ]
-    : undefined;
+  const listMetrics = useMemo((): OpsMetricItem[] | undefined => {
+    if (dealer) {
+      const dm = dealerMetricsQuery.data;
+      const loading = dealerMetricsQuery.isLoading;
+      const dash = (n: number) => (loading ? '—' : String(n));
+      const status = dm?.applications_by_status ?? {};
+      const totalApps = Object.values(status).reduce((sum, n) => sum + n, 0);
+      const active =
+        (status.active ?? 0) +
+        (status.down_payment_required ?? 0) +
+        (status.down_payment_submitted ?? 0) +
+        (status.pending_finance_activation ?? 0);
+      return [
+        { label: t('ops.dealer.summaryTotal'), value: dash(totalApps), tone: 'brand' },
+        { label: t('ops.dashboard.openApplications'), value: dash(dm?.open_applications ?? 0), tone: 'info' },
+        { label: t('ops.dashboard.resubmissions'), value: dash(status.resubmission_required ?? 0), tone: 'warning' },
+        {
+          label: t('ops.dashboard.submissionsMonth'),
+          value: dash(dm?.submissions_this_month ?? 0),
+          trend: dm?.submissions_by_week?.map((w) => w.count),
+          tone: 'progress',
+        },
+        { label: t('ops.dashboard.activeFinancings'), value: dash(active), tone: 'success' },
+      ];
+    }
+    if (!metrics) return undefined;
+    return [
+      { label: 'Loan value', value: `QAR ${(metrics.loan_value ?? 0).toLocaleString()}` },
+      { label: 'Receivable', value: `QAR ${(metrics.receivable ?? 0).toLocaleString()}` },
+      { label: 'Avg payment', value: `QAR ${(metrics.avg_payment ?? 0).toLocaleString()}` },
+    ];
+  }, [dealer, dealerMetricsQuery.data, dealerMetricsQuery.isLoading, metrics, t]);
 
   const columns: Column<OpsQueueItem>[] = useMemo(
     () => [
@@ -156,13 +194,14 @@ export function ApplicationsList({
           const ownership = listOwnershipPct(a.status);
           return (
             <div className="blox-cell-stack">
-              <Link to={`${basePath}/${a.id}`}>
+              <Link to={`${basePath}/${a.id}`} className="blox-table__primary">
                 {a.product ? `${a.product.make} ${a.product.model}` : a.id.slice(0, 8)}
               </Link>
               {ownership && <OwnershipBar customerPct={ownership.customer} bloxPct={ownership.blox} />}
-              {a.deal_summary && (
-                <small className="blox-table__id">{formatQar(a.deal_summary.selling_price)} · {a.deal_summary.rate}%</small>
-              )}
+              <span className="blox-table__meta">
+                {a.id.slice(0, 8)}
+                {a.deal_summary ? ` · ${formatQar(a.deal_summary.selling_price)} · ${a.deal_summary.rate}%` : ''}
+              </span>
             </div>
           );
         },
@@ -171,7 +210,12 @@ export function ApplicationsList({
         id: 'customer',
         cardTitle: true,
         label: t('ops.col.customer'),
-        format: (_, a) => a.customer?.name ?? a.customer?.email ?? '—',
+        format: (_, a) => (
+          <span className="blox-cell-stack">
+            <span className="blox-table__primary">{a.customer?.name ?? a.customer?.email ?? '—'}</span>
+            {a.customer?.name && a.customer?.email ? <span className="blox-table__meta">{a.customer.email}</span> : null}
+          </span>
+        ),
       },
       {
         id: 'dealer',
@@ -214,7 +258,10 @@ export function ApplicationsList({
         id: 'created_at',
         sortable: true,
         label: t('ops.col.created'),
-        format: (_, a) => new Date(a.created_at).toLocaleDateString(),
+        align: 'right',
+        format: (_, a) => (
+          <span className="blox-table__mono">{new Date(a.created_at).toLocaleDateString()}</span>
+        ),
       },
     ],
     [t, basePath, applicationStatus],

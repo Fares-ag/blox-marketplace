@@ -1,20 +1,54 @@
+# ── Dependencies & build output (never needed for Docker build context) ──
 node_modules
 **/node_modules
 **/dist
 .git
+.gitignore
 .vercel
+.vercel-*
+
+# ── Uploads / local storage ──
 .uploads
 **/.uploads
-*.md
+packages/api/.uploads
+
+# ── Frontend packages (not built inside the Dockerfile) ──
+packages/marketplace
+packages/dealer
+packages/credit
+packages/finance
+packages/admin
+packages/super-admin
+
+# ── Binary / media assets the API Dockerfile doesn't need ──
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.webp
+**/*.gif
+**/*.ico
+**/*.svg
+**/*.mp4
+**/*.mov
+**/*.pdf
+**/*.docx
+!packages/api/src/applications/documents/templates/*.docx
+**/*.xlsx
+**/*.xls
+**/*.csv
+**/*.tsbuildinfo
+**/*.gz
+**/*.tgz
+**/*.tar
+**/*.zip
+
+# ── Junk folders ──
+_to_delete
 blox-production
 docs
+.turbo
+
+# ── Secrets / environment files ──
 .env
 .env.*
 !.env.example
-packages/api/.uploads
-**/*.pdf
-**/*.docx
-**/*.xlsx
-**/*.svg
-**/*.drawio
-.turbo

@@ -6,6 +6,7 @@
  * enforcement errors back to guidance.
  */
 import type { OpsPillVariant } from '../config/status-styles';
+import { roleMayOverrideHardCap } from '../lib/credit-assessment';
 import type { AffordabilityDto, CreditAssessmentDto } from '../types/customer-platform';
 import type { IntakeTranslate } from './customer-info';
 import { apiErrorCodeOf, apiErrorDetails } from './submit-gate';
@@ -72,8 +73,8 @@ export type ApproveBlock = {
 
 /**
  * Why the approval buttons are disabled for this officer, or null when they may
- * approve. Mirrors the API's order: hard cap (super-admin override only), then
- * the approval matrix, then the DBR exception tier the role may sign off.
+ * approve. Mirrors the API's order: hard cap (credit/super-admin override only),
+ * then the approval matrix, then the DBR exception tier the role may sign off.
  * Unknown assessment → null; the API still enforces.
  */
 export function approveBlockReason(input: {
@@ -83,8 +84,8 @@ export function approveBlockReason(input: {
 }): ApproveBlock | null {
   const { assessment, role, t } = input;
   if (!assessment) return null;
-  const superAdmin = role === 'super_admin';
-  if (assessment.path === 'decline' && assessment.reasons.includes('dbr_above_hard_cap') && !superAdmin) {
+  const mayOverrideHardCap = role != null && roleMayOverrideHardCap(role);
+  if (assessment.path === 'decline' && assessment.reasons.includes('dbr_above_hard_cap') && !mayOverrideHardCap) {
     return { code: 'hard_cap', message: t('dealerOps.decision.aboveHardCap') };
   }
   const approver = assessment.approver;
@@ -98,7 +99,8 @@ export function approveBlockReason(input: {
     };
   }
   const tier = effectiveExceptionTier(assessment);
-  if (approver && tier > approver.max_tier_for_role && !superAdmin) {
+  const mayBypassEscalation = mayOverrideHardCap || role === 'super_admin';
+  if (approver && tier > approver.max_tier_for_role && !mayBypassEscalation) {
     return { code: 'tier', message: t('dealerOps.decision.escalationRequired', { tier }) };
   }
   return null;

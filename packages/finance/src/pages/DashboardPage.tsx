@@ -6,6 +6,7 @@ import {
   bloxTokens,
   ChartLegendItem,
   ChartPanel,
+  DashboardPipelineSection,
   DashboardGrid,
   doughnutChartOptions,
   formatQar,
@@ -15,6 +16,7 @@ import {
   OpsDataTable,
   OpsGhostButton,
   OpsPrimaryButton,
+  OpsSecondaryButton,
   VerticalBarChart,
   useOpsLabels,
 } from '@drivemarket/shared';
@@ -46,6 +48,10 @@ export function DashboardPage() {
   });
 
   const status = data?.schedule_status ?? { pending: 0, overdue: 0, paid: 0 };
+  const dash = (value: number | undefined) => String(value ?? '—');
+  const dueThisWeek = data?.upcoming_due?.length ?? 0;
+  const dueThisWeekAmount = (data?.upcoming_due ?? []).reduce((sum, row) => sum + row.amount, 0);
+  const totalSchedules = status.pending + status.overdue + status.paid;
 
   return (
     <OpsDashboardPage
@@ -59,14 +65,15 @@ export function DashboardPage() {
       error={error ? (error as Error).message : undefined}
       heroIndex={1}
       metrics={[
-        { label: t('ops.dashboard.pendingSchedules'), value: String(data?.schedules_pending ?? '—') },
+        { label: t('ops.dashboard.pendingSchedules'), value: dash(data?.schedules_pending) },
         {
           label: t('ops.admin.overdue'),
-          value: String(data?.schedules_overdue ?? '—'),
+          value: dash(data?.schedules_overdue),
           trend: data?.overdue_trend.map((w) => w.count),
           deltaTone: data && data.schedules_overdue > 0 ? 'down' : 'up',
           delta: data ? (data.schedules_overdue > 0 ? t('ops.dashboard.needsCollection') : t('ops.dashboard.allCurrent')) : undefined,
         },
+        { label: t('ops.dashboard.paidSchedules'), value: dash(data?.schedules_paid) },
         {
           label: t('ops.dashboard.collectedMonth'),
           value: data ? formatQar(data.collected_this_month) : '—',
@@ -76,13 +83,34 @@ export function DashboardPage() {
         },
         {
           label: t('ops.dashboard.pendingTransfers'),
-          value: String(data?.pending_bank_transfers ?? '—'),
+          value: dash(data?.pending_bank_transfers),
           deltaTone: data && data.pending_bank_transfers > 0 ? 'neutral' : 'up',
           delta: data && data.pending_bank_transfers > 0 ? t('ops.dashboard.awaitingConfirmation') : undefined,
         },
-        { label: t('ops.dashboard.activeFinancings'), value: String(data?.active_financings ?? '—') },
+        { label: t('ops.dashboard.activeFinancings'), value: dash(data?.active_financings) },
+        {
+          label: t('ops.dashboard.dueThisWeek'),
+          value: dash(dueThisWeek),
+          delta: dueThisWeek > 0 ? formatQar(dueThisWeekAmount) : undefined,
+        },
       ]}
     >
+      <DashboardPipelineSection
+        title={t('ops.dashboard.scheduleStatus')}
+        subtitle={t('ops.dashboard.pipelineSnapshot')}
+        stats={[
+          { label: t('ops.scheduleStatus.pending'), value: dash(status.pending), tone: 'info' },
+          { label: t('ops.scheduleStatus.overdue'), value: dash(status.overdue), tone: 'danger' },
+          { label: t('ops.scheduleStatus.paid'), value: dash(status.paid), tone: 'success' },
+          {
+            label: t('ops.dashboard.pendingInstallments'),
+            value: dash(totalSchedules),
+            delta: data ? `${Math.round((status.paid / Math.max(totalSchedules, 1)) * 100)}% paid` : undefined,
+            tone: 'neutral',
+          },
+        ]}
+        columns={4}
+      />
       <DashboardGrid>
         <ChartPanel
           title={t('ops.dashboard.scheduleStatus')}
@@ -137,9 +165,11 @@ export function DashboardPage() {
         </ChartPanel>
       </div>
 
-      {(data?.upcoming_due?.length ?? 0) > 0 && (
-        <OpsContentCard staticHover className="blox-dashboard-section">
-          <h2 className="blox-panel__title">{t('ops.dashboard.upcomingDue')}</h2>
+      <OpsContentCard staticHover className="blox-dashboard-section">
+        <h2 className="blox-panel__title">{t('ops.dashboard.upcomingDue')}</h2>
+        {(data?.upcoming_due?.length ?? 0) === 0 ? (
+          <p className="blox-muted">{t('ops.dashboard.allCurrent')}</p>
+        ) : (
           <OpsDataTable
             columns={['Application', 'Installment', 'Due', 'Amount', '']}
             numericColumns={[3]}
@@ -153,8 +183,23 @@ export function DashboardPage() {
               </Link>,
             ])}
           />
-        </OpsContentCard>
-      )}
+        )}
+      </OpsContentCard>
+
+      <OpsContentCard staticHover className="blox-dashboard-section">
+        <h2 className="blox-panel__title">{t('ops.dashboard.quickLinks')}</h2>
+        <div className="blox-stack">
+          <Link to="/schedules" className="blox-link-reset">
+            <OpsPrimaryButton>{t('ops.finance.nav.schedules')}</OpsPrimaryButton>
+          </Link>
+          <Link to="/applications" className="blox-link-reset">
+            <OpsSecondaryButton>{t('ops.finance.nav.applications')}</OpsSecondaryButton>
+          </Link>
+          <Link to="/exports" className="blox-link-reset">
+            <OpsGhostButton>{t('ops.finance.nav.exports')}</OpsGhostButton>
+          </Link>
+        </div>
+      </OpsContentCard>
     </OpsDashboardPage>
   );
 }

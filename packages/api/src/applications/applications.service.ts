@@ -185,6 +185,47 @@ export class ApplicationsService {
       throw new ConflictException({ message: 'blocking_application', application_id: decision.applicationId });
     }
     if (decision.kind === 'resume') {
+      // When a quote token accompanies a resume, apply the negotiated price to the
+      // existing draft and consume the quote — same atomicity guarantee as on create.
+      if (dto.quoteToken) {
+        const quote = await this.prisma.dealerQuote.findUnique({ where: { token: dto.quoteToken } });
+        const quoteValid =
+          quote &&
+          quote.productId === product.id &&
+          !quote.usedAt &&
+          !quote.revokedAt &&
+          quote.expiresAt.getTime() > Date.now() &&
+          quote.customerEmail.toLowerCase() === user.email.toLowerCase();
+        if (quoteValid) {
+          const negotiatedListPrice = Number(quote!.negotiatedPrice);
+          const existingApp = await this.prisma.application.findUnique({
+            where: { id: decision.applicationId },
+            select: { pricingSnapshot: true },
+          });
+          const currentPricing = (existingApp?.pricingSnapshot as Record<string, unknown>) ?? {};
+          const quotedPricing = buildApplicationPricingSnapshot({
+            listPrice: negotiatedListPrice,
+            offer,
+            pricingSnapshot: { ...currentPricing, ...(dto.pricingSnapshot ?? {}) },
+          });
+          const now = new Date();
+          await this.prisma.$transaction(async (tx) => {
+            await tx.application.update({
+              where: { id: decision.applicationId },
+              data: { pricingSnapshot: asJson(quotedPricing), leadSource: 'dealer_quote' },
+            });
+            await tx.dealerQuote.updateMany({
+              where: {
+                token: dto.quoteToken!,
+                usedAt: null,
+                revokedAt: null,
+                expiresAt: { gt: now },
+              },
+              data: { usedAt: now, usedByApplicationId: decision.applicationId },
+            });
+          });
+        }
+      }
       return { id: decision.applicationId, resumed: true as const };
     }
 

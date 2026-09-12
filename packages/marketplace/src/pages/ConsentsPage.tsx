@@ -10,13 +10,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   CONSENT_CATALOG,
-  DocumentMeta,
   getAppLocale,
   isConsentCode,
   type ConsentCodeValue,
   type ConsentRecordDto,
 } from '@drivemarket/shared';
-import { MarketplaceNav } from '../components/MarketplaceNav';
+import { CustomerPortalLayout } from '../components/CustomerPortalLayout';
 import { Modal } from '../components/Modal';
 import { ConsentChecklist, channelLabelKey, useConsentStatus } from '../components/consents/ConsentChecklist';
 import { Notice, Pill } from './apply/fields';
@@ -82,18 +81,14 @@ export function ConsentsPage() {
   }
 
   return (
-    <div className="dm-consents-page">
-      <DocumentMeta title={t('consentCentre.metaTitle')} />
-      <header className="dm-band">
-        <div className="dm-band__inner">
-          <MarketplaceNav />
-          <p className="dm-band__eyebrow">{t('nav.account')}</p>
-          <h1>{t('consentCentre.pageTitle')}</h1>
-          <p className="dm-band__lead">{t('consentCentre.intro')}</p>
-        </div>
-      </header>
-
-      <main className="dm-consents-page__body">
+    <>
+    <CustomerPortalLayout
+      metaTitle={t('consentCentre.metaTitle')}
+      eyebrow={t('nav.account')}
+      title={t('consentCentre.pageTitle')}
+      lead={t('consentCentre.intro')}
+      contentClassName="dm-consents-page__body"
+    >
         {status.isError ? (
           <Notice
             tone="danger"
@@ -238,7 +233,7 @@ export function ConsentsPage() {
             </div>
           ) : null}
         </section>
-      </main>
+    </CustomerPortalLayout>
 
       <Modal
         open={!!target}
@@ -287,6 +282,6 @@ export function ConsentsPage() {
           />
         </label>
       </Modal>
-    </div>
+    </>
   );
 }

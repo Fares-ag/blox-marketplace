@@ -23,11 +23,11 @@ const PORTAL_MISMATCH_REASONS = new Set([
 const reasonCopy: Record<string, string> = {
   not_customer:
     'This area is for customer accounts. Sign in with your customer account, or create one.',
-  not_dealer: 'This is the dealer portal — sign in with your dealer staff account.',
-  not_credit: 'This is the credit portal — sign in with your credit officer account.',
-  not_finance: 'This is the finance portal — sign in with your finance officer account.',
-  not_admin: 'This is the admin portal — sign in with your admin account.',
-  not_super_admin: 'This is the ops portal — sign in with your super-admin account.',
+  not_dealer: 'This is the dealer portal. Sign in with your dealer staff account.',
+  not_credit: 'This is the credit portal. Sign in with your credit officer account.',
+  not_finance: 'This is the finance portal. Sign in with your finance officer account.',
+  not_admin: 'This is the admin portal. Sign in with your admin account.',
+  not_super_admin: 'This is the ops portal. Sign in with your super-admin account.',
   unverified: 'Verify your email before continuing.',
   password_reset: 'Your password has been updated. Sign in with your new password.',
   idle_timeout: 'You were signed out after a period of inactivity. Sign in again to continue.',
@@ -37,7 +37,7 @@ const reasonCopy: Record<string, string> = {
 interface LoginPageProps {
   /** Display label; omitted when `portalKey` is set (resolved from i18n). */
   portalLabel?: string;
-  /** Ops portal key — resolves label, tagline, and brand points from i18n. */
+  /** Ops portal key. resolves label, tagline, and brand points from i18n. */
   portalKey?: OpsPortalKey;
   homePath?: string;
   allowSignUp?: boolean;
@@ -81,7 +81,7 @@ export function LoginPage({
   const returnUrl = params.get('returnUrl');
   const portalMismatch = reason ? PORTAL_MISMATCH_REASONS.has(reason) : false;
 
-  // Each ops portal expects its own role — clear a session from another portal.
+  // Each ops portal expects its own role. clear a session from another portal.
   useEffect(() => {
     if (!portalMismatch || !user) return;
     void signOut();
@@ -408,7 +408,7 @@ export function ForgotPasswordPage({
         setError(data.message ?? 'Could not send reset email. Try again.');
         return;
       }
-      // Always confirm — never reveal whether the address has an account.
+      // Always confirm. never reveal whether the address has an account.
       setSent(true);
     } catch {
       setError('Could not send reset email. Check your connection and try again.');
@@ -598,7 +598,7 @@ export function VerifyEmailPage({
   const [params] = useSearchParams();
   const returnUrl = params.get('returnUrl');
   // Set by RegisterPage when sign-up created the account but (verification
-  // required) no session yet — we still want to show "check your inbox".
+  // required) no session yet. we still want to show "check your inbox".
   const pendingEmail = params.get('email')?.trim().toLowerCase() || null;
   const targetEmail = user?.email ?? pendingEmail;
   const [sent, setSent] = useState(false);
@@ -867,7 +867,7 @@ function AuthPageStyles() {
 
       .dm-auth-brand__name {
         margin: 0 0 14px;
-        font-family: var(--dm-font-display, 'Space Grotesk', sans-serif);
+        font-family: var(--dm-font-display, 'Inter', sans-serif);
         font-size: clamp(3rem, 7vw, 4.75rem);
         font-weight: 700;
         line-height: 0.95;
@@ -943,7 +943,7 @@ function AuthPageStyles() {
       }
 
       .dm-auth-card h1 {
-        font-family: var(--dm-font-display, 'Space Grotesk', sans-serif);
+        font-family: var(--dm-font-display, 'Inter', sans-serif);
         font-size: clamp(1.85rem, 3vw, 2.15rem);
         font-weight: 700;
         letter-spacing: -0.02em;

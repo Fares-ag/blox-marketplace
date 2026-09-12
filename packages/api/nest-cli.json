@@ -4,6 +4,16 @@
   "sourceRoot": "src",
   "entryFile": "api/src/main",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "assets": [
+      {
+        "include": "applications/documents/templates/**/*",
+        "watchAssets": true
+      },
+      {
+        "include": "applications/documents/brand/**/*",
+        "watchAssets": true
+      }
+    ]
   }
 }

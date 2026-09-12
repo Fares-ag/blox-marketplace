@@ -28,27 +28,30 @@
     flex: none;
   }
 
-  // neutral — draft, completed, cancelled, waived, archived, inactive
+  // neutral — draft, waived, archived, inactive
   &--neutral,
   &--draft,
   &--expired {
     background: var(--blox-status-neutral-bg, #E8EFEF);
     color: var(--blox-status-neutral-ink, #708090);
+    border: 1px solid rgba(112, 128, 144, 0.18);
     &::before { background: var(--blox-status-neutral-ink, #708090); }
   }
 
-  // info — waiting on Blox: under review, contract under review, pending activation, due
+  // info — waiting on Blox: under review, partner handoff, pending activation
   &--info,
   &--pending {
-    background: var(--blox-status-info-bg, #E6FBF5);
-    color: var(--blox-status-info-ink, #0B7A63);
-    &::before { background: var(--blox-emerald); }
+    background: var(--blox-status-info-bg, #E8F2FF);
+    color: var(--blox-status-info-ink, #1D4ED8);
+    border: 1px solid rgba(29, 78, 216, 0.12);
+    &::before { background: var(--blox-status-info-ink, #1D4ED8); }
   }
 
   // progress — contract stage: contract signing required, contracts submitted
   &--progress {
-    background: var(--blox-status-progress-bg, #E6FBF5);
+    background: var(--blox-status-progress-bg, #DCF7F2);
     color: var(--blox-status-progress-ink, #16535B);
+    border: 1px solid rgba(22, 83, 91, 0.12);
     &::before { background: var(--blox-status-progress-ink, #16535B); }
   }
 
@@ -96,9 +99,9 @@
     }
   }
 
-  // outline — the state lives elsewhere: partner processing, upcoming installments
+  // outline — upcoming installments, secondary states
   &--outline {
-    background: transparent;
+    background: #fff;
     border: 1px dashed var(--blox-field-border, #a9b8ba);
     color: var(--blox-slate);
 
@@ -108,5 +111,13 @@
       background: transparent;
       border: 1px solid currentColor;
     }
+  }
+
+  // cancelled — distinct from draft/rejected (muted rose, not alarm red)
+  &--cancelled {
+    background: #F3F0F4;
+    color: #6B4E71;
+    border: 1px solid rgba(107, 78, 113, 0.18);
+    &::before { background: #9B7DA3; }
   }
 }

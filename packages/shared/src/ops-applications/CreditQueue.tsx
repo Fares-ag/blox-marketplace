@@ -102,12 +102,19 @@ export function CreditQueue({
       {
         id: 'vehicle',
         label: t('ops.col.vehicle'),
-        format: (_, a) =>
-          a.product ? `${a.product.make} ${a.product.model} ${a.product.model_year ?? ''}` : '—',
+        format: (_, a) => (
+          <span className="blox-cell-stack">
+            <span className="blox-table__primary">
+              {a.product ? `${a.product.make} ${a.product.model}` : '—'}
+            </span>
+            {a.product?.model_year ? <span className="blox-table__meta">{a.product.model_year}</span> : null}
+          </span>
+        ),
       },
       {
         id: 'deal',
         label: t('ops.workspace.deal'),
+        numeric: true,
         format: (_, a) =>
           a.deal_summary
             ? `QAR ${a.deal_summary.selling_price.toLocaleString()} · ${a.deal_summary.rate}%`
@@ -118,11 +125,10 @@ export function CreditQueue({
         cardTitle: true,
         label: t('ops.col.customer'),
         format: (_, a) => (
-          <>
-            {a.customer?.name}
-            <br />
-            <small>{a.customer?.email}</small>
-          </>
+          <span className="blox-cell-stack">
+            <span className="blox-table__primary">{a.customer?.name ?? a.customer?.email ?? '—'}</span>
+            {a.customer?.name && a.customer?.email ? <span className="blox-table__meta">{a.customer.email}</span> : null}
+          </span>
         ),
       },
       {

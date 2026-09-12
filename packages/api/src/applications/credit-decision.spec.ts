@@ -66,12 +66,13 @@ describe('evaluateApprovalAuthorization — approval authority', () => {
     ['super_admin', WITHIN_CAP, true],
     // Credit parity: finance officers approve alongside credit officers.
     ['finance_officer', WITHIN_CAP, true],
-    ['credit_officer', HEAD_OF_CREDIT, false],
+    ['credit_officer', HEAD_OF_CREDIT, true],
     ['admin', HEAD_OF_CREDIT, true],
     ['super_admin', HEAD_OF_CREDIT, true],
-    ['credit_officer', ABOVE_MATRIX, false],
-    ['admin', ABOVE_MATRIX, false],
+    ['credit_officer', ABOVE_MATRIX, true],
+    ['admin', ABOVE_MATRIX, true],
     ['super_admin', ABOVE_MATRIX, true],
+    ['finance_officer', ABOVE_MATRIX, false],
   ])('%s on %O.approvalAuthority → allowed %s', (role, credit, allowed) => {
     const outcome = evaluateApprovalAuthorization({ role, assessment: credit });
     expect(outcome.ok).toBe(allowed);
@@ -86,8 +87,8 @@ describe('evaluateApprovalAuthorization — approval authority', () => {
 describe('evaluateApprovalAuthorization — DBR exception tiers', () => {
   it.each([
     ['credit_officer', TIER_1, true],
-    ['credit_officer', TIER_2, false],
-    ['credit_officer', TIER_3, false],
+    ['credit_officer', TIER_2, true],
+    ['credit_officer', TIER_3, true],
     ['admin', TIER_2, true],
     ['admin', TIER_3, false],
     ['super_admin', TIER_3, true],
@@ -125,18 +126,18 @@ describe('evaluateApprovalAuthorization — DBR exception tiers', () => {
 });
 
 describe('evaluateApprovalAuthorization — hard cap', () => {
-  it('escalates a hard-cap case from credit and admin before the override question arises', () => {
-    expect(evaluateApprovalAuthorization({ role: 'credit_officer', assessment: ABOVE_HARD_CAP })).toMatchObject({
-      ok: false,
-      code: 'dbr_exception_escalation_required',
-      extras: { tier: 3 },
-    });
+  it('escalates a hard-cap case from admin before the override question arises', () => {
     expect(
       evaluateApprovalAuthorization({ role: 'admin', assessment: ABOVE_HARD_CAP, overrideReason: 'board exception' }),
     ).toMatchObject({ ok: false, code: 'dbr_exception_escalation_required' });
   });
 
-  it('refuses a super admin without an override reason and records the override with one', () => {
+  it('refuses credit and super admin without an override reason and records the override with one', () => {
+    expect(evaluateApprovalAuthorization({ role: 'credit_officer', assessment: ABOVE_HARD_CAP })).toMatchObject({
+      ok: false,
+      code: 'dbr_above_hard_cap',
+      extras: { tier: 3 },
+    });
     expect(declinedForHardCap(ABOVE_HARD_CAP)).toBe(true);
     expect(declinedForHardCap(TIER_3)).toBe(false);
     expect(evaluateApprovalAuthorization({ role: 'super_admin', assessment: ABOVE_HARD_CAP })).toEqual({
@@ -155,27 +156,34 @@ describe('evaluateApprovalAuthorization — hard cap', () => {
         overrideReason: 'Board-approved exception, collateral covers the exposure',
       }),
     ).toEqual({ ok: true, overridden: true, authority: 'senior_manager', tier: 3 });
+    expect(
+      evaluateApprovalAuthorization({
+        role: 'credit_officer',
+        assessment: ABOVE_HARD_CAP,
+        overrideReason: 'Verified additional income and collateral',
+      }),
+    ).toEqual({ ok: true, overridden: true, authority: 'senior_manager', tier: 3 });
   });
 });
 
 describe('assertApprovalAuthorized', () => {
   it('throws 403 with the required roles and authority', () => {
     try {
-      assertApprovalAuthorized({ role: 'credit_officer', assessment: HEAD_OF_CREDIT });
+      assertApprovalAuthorized({ role: 'finance_officer', assessment: ABOVE_MATRIX });
       throw new Error('expected to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(ForbiddenException);
       expect((error as ForbiddenException).getResponse()).toEqual({
         message: 'approval_authority_required',
-        required_roles: ['admin', 'super_admin'],
-        authority: 'head_of_credit',
+        required_roles: ['credit_officer', 'admin', 'super_admin'],
+        authority: 'above_matrix',
       });
     }
   });
 
   it('throws 403 with the tier for an escalation', () => {
     try {
-      assertApprovalAuthorized({ role: 'credit_officer', assessment: TIER_2 });
+      assertApprovalAuthorized({ role: 'finance_officer', assessment: TIER_2 });
       throw new Error('expected to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(ForbiddenException);

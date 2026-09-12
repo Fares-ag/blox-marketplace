@@ -6,7 +6,10 @@ import {
   chartColorAt,
   chartPalette,
   ChartPanel,
+  ACTIVE_FINANCING_STATUSES,
+  CONTRACT_STAGE_STATUSES,
   DashboardGrid,
+  DashboardPipelineSection,
   doughnutChartOptions,
   HorizontalBarChart,
   VerticalBarChart,
@@ -14,6 +17,8 @@ import {
   OpsDashboardPage,
   OpsSelect,
   bloxTokens,
+  sumStatuses,
+  totalStatuses,
   useOpsLabels,
 } from '@drivemarket/shared';
 import { OriginationFunnelSection } from '../components/OriginationFunnelSection';
@@ -62,9 +67,16 @@ export function DashboardPage() {
       }>(`/api/ops/activity-stats?range=${range}`),
   });
   const data = metrics.data;
-  const active = data?.applications_by_status?.active ?? 0;
-  const underReview = data?.applications_by_status?.under_review ?? 0;
-  const statusBars = Object.entries(data?.applications_by_status ?? {}).map(([status, count], index) => ({
+  const byStatus = data?.applications_by_status ?? {};
+  const dash = (value: number | undefined) => String(value ?? '—');
+  const active = byStatus.active ?? 0;
+  const underReview = byStatus.under_review ?? 0;
+  const totalApplications = totalStatuses(byStatus);
+  const activeFinancings = sumStatuses(byStatus, ACTIVE_FINANCING_STATUSES);
+  const contractsStage = sumStatuses(byStatus, CONTRACT_STAGE_STATUSES);
+  const completed = byStatus.completed ?? 0;
+  const conversionRate = totalApplications > 0 ? completed / totalApplications : 0;
+  const statusBars = Object.entries(byStatus).map(([status, count], index) => ({
     label: applicationStatus(status),
     value: count,
     color: chartColorAt(index),
@@ -76,12 +88,16 @@ export function DashboardPage() {
       subtitle={t('ops.superAdmin.analyticsSubtitle')}
       heroIndex={4}
       metrics={[
-        { label: 'Users', value: String(data?.users_total ?? '—'), delta: `${data?.customers_total ?? 0} customers` },
-        { label: 'Active dealers', value: String(data?.companies_active ?? '—') },
-        { label: 'Published vehicles', value: String(data?.products_published ?? '—') },
-        { label: 'Applications in review', value: String(underReview), delta: `${active} active financings` },
-        { label: t('ops.superAdmin.totalActions'), value: String(stats.data?.total_actions ?? '—') },
-        { label: t('ops.admin.overdue'), value: String(data?.schedules_overdue ?? '—') },
+        { label: 'Users', value: dash(data?.users_total), delta: `${data?.customers_total ?? 0} customers` },
+        { label: 'Active dealers', value: dash(data?.companies_active) },
+        { label: 'Published vehicles', value: dash(data?.products_published) },
+        { label: t('ops.dashboard.totalApplications'), value: dash(totalApplications) },
+        { label: 'Applications in review', value: dash(underReview), delta: `${activeFinancings} active financings` },
+        { label: t('ops.dashboard.activeFinancings'), value: dash(activeFinancings) },
+        { label: t('ops.dashboard.conversionRate'), value: `${Math.round(conversionRate * 100)}%`, delta: `${completed} completed` },
+        { label: t('ops.dashboard.pendingInstallments'), value: dash(data?.schedules_pending) },
+        { label: t('ops.admin.overdue'), value: dash(data?.schedules_overdue) },
+        { label: t('ops.superAdmin.totalActions'), value: dash(stats.data?.total_actions) },
       ]}
       toolbar={
         <div className="blox-filter-bar blox-dashboard-section">
@@ -99,6 +115,28 @@ export function DashboardPage() {
         </div>
       }
     >
+      <DashboardPipelineSection
+        title={t('ops.dashboard.pipelineSnapshot')}
+        subtitle={t('ops.admin.appsByStatus')}
+        stats={[
+          { label: applicationStatus('draft'), value: dash(byStatus.draft), status: 'draft' },
+          { label: applicationStatus('under_review'), value: dash(byStatus.under_review), status: 'under_review' },
+          {
+            label: applicationStatus('resubmission_required'),
+            value: dash(byStatus.resubmission_required),
+            status: 'resubmission_required',
+          },
+          { label: t('ops.dashboard.contractsStage'), value: dash(contractsStage), tone: 'progress' },
+          {
+            label: applicationStatus('partner_processing'),
+            value: dash(byStatus.partner_processing),
+            status: 'partner_processing',
+          },
+          { label: applicationStatus('active'), value: dash(byStatus.active), status: 'active' },
+          { label: applicationStatus('completed'), value: dash(byStatus.completed), status: 'completed' },
+          { label: applicationStatus('rejected'), value: dash(byStatus.rejected), status: 'rejected' },
+        ]}
+      />
       <DashboardGrid>
         <ChartPanel title={t('ops.dashboard.submissionsTrend')}>
           <LineChart

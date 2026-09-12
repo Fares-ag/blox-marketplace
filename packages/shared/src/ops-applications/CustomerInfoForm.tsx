@@ -36,10 +36,13 @@ export function CustomerInfoForm({
   value,
   onChange,
   allowExistingCustomer = true,
+  submitted = false,
 }: {
   value: CustomerInfoFormValue;
   onChange: (next: CustomerInfoFormValue) => void;
   allowExistingCustomer?: boolean;
+  /** When true (set by the wizard after a failed Next attempt), all required-empty fields show their error. */
+  submitted?: boolean;
 }) {
   const { t } = useOpsLabels();
   const [useExisting, setUseExisting] = useState(false);
@@ -65,29 +68,76 @@ export function CustomerInfoForm({
   // is caught here rather than by the API on the last step of the wizard.
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const markTouched = (field: string) => setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }));
-  const showError = (field: string, invalid: boolean) => (touched[field] && invalid ? true : false);
+  /** Show an error if the field has been touched OR the form was submitted. */
+  const show = (field: string, invalid: boolean) => (touched[field] || submitted) && invalid;
+  /** Required-empty: only show after touch or submit. */
+  const req = (field: string, empty: boolean, msg: string) => show(field, empty) ? msg : undefined;
 
-  const emailError = showError('email', !!value.email.trim() && !isValidEmail(value.email))
+  // Individual errors
+  const firstNameError = req('firstName', !value.firstName.trim(), t('dealerOps.validation.nameRequired'));
+  const lastNameError = req('lastName', !value.lastName.trim(), t('dealerOps.validation.nameRequired'));
+  const genderError = req('gender', !value.gender, t('dealerOps.validation.genderRequired'));
+  const dobError = dobUnreal
+    ? t('dealerOps.validation.dobInvalid')
+    : dobMismatch
+      ? t('dealerOps.intake.dobMismatch')
+      : req('dateOfBirth', !value.dateOfBirth.trim(), t('dealerOps.validation.dobRequired'));
+  const qidError = value.qid.length === QID_LENGTH && !parsedQid.valid
+    ? t('dealerOps.validation.qidInvalid')
+    : req('qid', !value.qid.trim() || value.qid.length < QID_LENGTH, t('dealerOps.validation.qidInvalid'));
+  const nationalityError = req('nationality', !value.nationality.trim(), t('dealerOps.validation.nationalityRequired'));
+  const residenceDurationError = residency === 'expat'
+    ? req('residenceDuration', !value.residenceDuration, t('dealerOps.validation.residenceDurationRequired'))
+    : undefined;
+  const emailError = show('email', !!value.email.trim() && !isValidEmail(value.email))
     ? t('dealerOps.validation.emailInvalid')
-    : undefined;
-  const phoneError = showError('phone', !!value.phone.trim() && !isValidQatarPhone(value.phone))
+    : req('email', !value.email.trim(), t('dealerOps.validation.emailRequired'));
+  const phoneError = show('phone', !!value.phone.trim() && !isValidQatarPhone(value.phone))
     ? t('dealerOps.validation.phoneInvalid')
+    : req('phone', !value.phone.trim(), t('dealerOps.validation.phoneRequired'));
+  // Address
+  const addrLine1Error = req('addrLine1', !(value.address.line1 ?? '').trim(), t('dealerOps.validation.addressLine1Required'));
+  const addrCityError = req('addrCity', !(value.address.city ?? '').trim(), t('dealerOps.validation.cityRequired'));
+  // Employment
+  const companyError = req('company', !(value.employment.company ?? '').trim(), t('dealerOps.validation.companyRequired'));
+  const positionError = req('position', !(value.employment.position ?? '').trim(), t('dealerOps.validation.positionRequired'));
+  const empTypeError = req('employmentType', !value.employment.employmentType, t('dealerOps.validation.employmentTypeRequired'));
+  const empDurationError = req('employmentDuration', !value.employment.employmentDuration, t('dealerOps.validation.employmentDurationRequired'));
+  const incomeError = req('income', !value.monthlyIncome || value.monthlyIncome <= 0, t('dealerOps.validation.incomeRequired'));
+  // Guarantor
+  const guarantorNameError = value.hasGuarantor ? req('guarantorName', !value.guarantor.fullName.trim(), t('dealerOps.validation.guarantorNameRequired')) : undefined;
+  const guarantorQidError = value.hasGuarantor ? req('guarantorQid', !/^\d{11}$/.test(value.guarantor.qid.trim()) || !parseQid(value.guarantor.qid.trim()).valid, t('dealerOps.validation.qidInvalid')) : undefined;
+  const guarantorPhoneError = value.hasGuarantor
+    ? show('guarantorPhone', !!value.guarantor.phone.trim() && !isValidQatarPhone(value.guarantor.phone))
+      ? t('dealerOps.validation.phoneInvalid')
+      : req('guarantorPhone', !value.guarantor.phone.trim(), t('dealerOps.validation.guarantorPhoneRequired'))
     : undefined;
-  const genderError = showError('gender', !value.gender) ? t('dealerOps.validation.genderRequired') : undefined;
+  const guarantorRelError = value.hasGuarantor ? req('guarantorRel', !value.guarantor.relationship, t('dealerOps.validation.guarantorRelationshipRequired')) : undefined;
+
+  // Corporate errors
   const parsedSignatoryQid = useMemo(
     () => parseQid(value.corporate.authorizedSignatory?.qid ?? ''),
     [value.corporate.authorizedSignatory?.qid],
   );
-  const signatoryPhoneError = showError(
+  const corpLegalNameError = req('corpLegalName', !value.corporate.legalName?.trim(), t('dealerOps.validation.corpLegalName'));
+  const corpCrError = req('corpCr', !value.corporate.crNumber?.trim(), t('dealerOps.validation.corpCr'));
+  const corpStreetError = req('corpStreet', !value.corporate.registeredAddress?.street?.trim(), t('dealerOps.validation.corpStreet'));
+  const corpCityError = req('corpCity', !value.corporate.registeredAddress?.city?.trim(), t('dealerOps.validation.corpCity'));
+  const corpCountryError = req('corpCountry', !value.corporate.registeredAddress?.country?.trim(), t('dealerOps.validation.corpCountry'));
+  const sigFirstNameError = req('sigFirstName', !value.corporate.authorizedSignatory?.firstName?.trim(), t('dealerOps.validation.corpSignatoryName'));
+  const sigLastNameError = req('sigLastName', !value.corporate.authorizedSignatory?.lastName?.trim(), t('dealerOps.validation.corpSignatoryName'));
+  const sigEmailError = req('sigEmail', !value.corporate.authorizedSignatory?.email?.trim(), t('dealerOps.validation.corpSignatoryEmail'));
+  const signatoryPhoneError = show(
     'signatoryPhone',
     !!value.corporate.authorizedSignatory?.phone?.trim() && !isValidQatarPhone(value.corporate.authorizedSignatory.phone),
   )
     ? t('dealerOps.validation.phoneInvalid')
-    : undefined;
+    : req('signatoryPhone', !value.corporate.authorizedSignatory?.phone?.trim(), t('dealerOps.validation.corpSignatoryPhone'));
   const signatoryQidError =
     (value.corporate.authorizedSignatory?.qid ?? '').length === QID_LENGTH && !parsedSignatoryQid.valid
       ? t('dealerOps.validation.qidInvalid')
-      : undefined;
+      : req('signatoryQid', !value.corporate.authorizedSignatory?.qid?.trim(), t('dealerOps.validation.qidInvalid'));
+  const sigNationalityError = req('sigNationality', !value.corporate.authorizedSignatory?.nationality?.trim(), t('dealerOps.validation.corpSignatoryNationality'));
 
   function patch(partial: Partial<CustomerInfoFormValue>) {
     onChange({ ...value, ...partial });
@@ -183,14 +233,18 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.legalName')}
                 required
+                error={corpLegalNameError}
                 value={value.corporate.legalName ?? ''}
                 onChange={(e) => patch({ corporate: { ...value.corporate, legalName: e.target.value } })}
+                onBlur={() => markTouched('corpLegalName')}
               />
               <OpsField
                 label={t('ops.wizard.corporateCr')}
                 required
+                error={corpCrError}
                 value={value.corporate.crNumber ?? ''}
                 onChange={(e) => patch({ corporate: { ...value.corporate, crNumber: normalizeCrNumber(e.target.value) } })}
+                onBlur={() => markTouched('corpCr')}
                 inputMode="numeric"
                 mono
               />
@@ -209,7 +263,9 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.street')}
                 required
+                error={corpStreetError}
                 value={value.corporate.registeredAddress?.street ?? ''}
+                onBlur={() => markTouched('corpStreet')}
                 onChange={(e) =>
                   patch({
                     corporate: {
@@ -222,7 +278,9 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.city')}
                 required
+                error={corpCityError}
                 value={value.corporate.registeredAddress?.city ?? ''}
+                onBlur={() => markTouched('corpCity')}
                 onChange={(e) =>
                   patch({
                     corporate: {
@@ -235,7 +293,9 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.country')}
                 required
+                error={corpCountryError}
                 value={value.corporate.registeredAddress?.country ?? ''}
+                onBlur={() => markTouched('corpCountry')}
                 onChange={(e) =>
                   patch({
                     corporate: {
@@ -262,7 +322,9 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.firstName')}
                 required
+                error={sigFirstNameError}
                 value={value.corporate.authorizedSignatory?.firstName ?? ''}
+                onBlur={() => markTouched('sigFirstName')}
                 onChange={(e) =>
                   patch({
                     corporate: {
@@ -275,7 +337,9 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.lastName')}
                 required
+                error={sigLastNameError}
                 value={value.corporate.authorizedSignatory?.lastName ?? ''}
+                onBlur={() => markTouched('sigLastName')}
                 onChange={(e) =>
                   patch({
                     corporate: {
@@ -289,7 +353,9 @@ export function CustomerInfoForm({
                 label={t('ops.col.email')}
                 required
                 type="email"
+                error={sigEmailError}
                 value={value.corporate.authorizedSignatory?.email ?? ''}
+                onBlur={() => markTouched('sigEmail')}
                 onChange={(e) =>
                   patch({
                     corporate: {
@@ -350,7 +416,9 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.nationality')}
                 required
+                error={sigNationalityError}
                 value={value.corporate.authorizedSignatory?.nationality ?? ''}
+                onBlur={() => markTouched('sigNationality')}
                 onChange={(e) =>
                   patch({
                     corporate: {
@@ -380,15 +448,19 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.firstName')}
                 required
+                error={firstNameError}
                 value={value.firstName}
                 onChange={(e) => patch({ firstName: e.target.value })}
+                onBlur={() => markTouched('firstName')}
                 autoComplete="given-name"
               />
               <OpsField
                 label={t('ops.customer.lastName')}
                 required
+                error={lastNameError}
                 value={value.lastName}
                 onChange={(e) => patch({ lastName: e.target.value })}
+                onBlur={() => markTouched('lastName')}
                 autoComplete="family-name"
               />
               <OpsSelect
@@ -412,31 +484,29 @@ export function CustomerInfoForm({
                 required
                 value={value.dateOfBirth}
                 onChange={(e) => patch({ dateOfBirth: e.target.value })}
-                error={
-                  dobUnreal
-                    ? t('dealerOps.validation.dobInvalid')
-                    : dobMismatch
-                      ? t('dealerOps.intake.dobMismatch')
-                      : undefined
-                }
+                onBlur={() => markTouched('dateOfBirth')}
+                error={dobError}
               />
               <OpsField
                 label={t('ops.credit.qid')}
                 required
+                error={qidError}
                 value={value.qid}
                 onChange={(e) => patchQid(e.target.value)}
+                onBlur={() => markTouched('qid')}
                 inputMode="numeric"
                 pattern="\d{11}"
                 maxLength={QID_LENGTH}
                 hint={t('dealerOps.intake.qidHint')}
-                error={value.qid.length === QID_LENGTH && !parsedQid.valid ? t('dealerOps.validation.qidInvalid') : undefined}
                 mono
               />
               <OpsField
                 label={t('ops.customer.nationality')}
                 required
+                error={nationalityError}
                 value={value.nationality}
                 onChange={(e) => patch({ nationality: e.target.value })}
+                onBlur={() => markTouched('nationality')}
                 hint={
                   nationalityDerived
                     ? t('dealerOps.intake.nationalityDerived')
@@ -467,8 +537,10 @@ export function CustomerInfoForm({
                 <OpsSelect
                   label={t('dealerOps.intake.residenceDuration')}
                   required
+                  error={residenceDurationError}
                   value={value.residenceDuration}
                   onChange={(e) => patch({ residenceDuration: e.target.value as ResidenceDurationValue | '' })}
+                  onBlur={() => markTouched('residenceDuration')}
                   hint={t('dealerOps.intake.residenceDurationHint')}
                 >
                   <option value="">{t('ops.common.dash')}</option>
@@ -506,8 +578,10 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('dealerOps.intake.addressLine1')}
                 required
+                error={addrLine1Error}
                 value={value.address.line1 ?? ''}
                 onChange={(e) => patch({ address: { ...value.address, line1: e.target.value } })}
+                onBlur={() => markTouched('addrLine1')}
                 fullWidth
               />
               <OpsField
@@ -518,8 +592,10 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.city')}
                 required
+                error={addrCityError}
                 value={value.address.city ?? ''}
                 onChange={(e) => patch({ address: { ...value.address, city: e.target.value } })}
+                onBlur={() => markTouched('addrCity')}
               />
               <OpsField
                 label={t('dealerOps.intake.zone')}
@@ -536,20 +612,26 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.companyName')}
                 required
+                error={companyError}
                 value={value.employment.company ?? ''}
                 onChange={(e) => patch({ employment: { ...value.employment, company: e.target.value } })}
+                onBlur={() => markTouched('company')}
               />
               <OpsField
                 label={t('ops.customer.position')}
                 required
+                error={positionError}
                 value={value.employment.position ?? ''}
                 onChange={(e) => patch({ employment: { ...value.employment, position: e.target.value } })}
+                onBlur={() => markTouched('position')}
               />
               <OpsSelect
                 label={t('ops.customer.employmentType')}
                 required
+                error={empTypeError}
                 value={value.employment.employmentType ?? ''}
                 onChange={(e) => patch({ employment: { ...value.employment, employmentType: e.target.value } })}
+                onBlur={() => markTouched('employmentType')}
               >
                 <option value="">{t('ops.common.dash')}</option>
                 {EMPLOYMENT_TYPE_OPTIONS.map((opt) => (
@@ -561,8 +643,10 @@ export function CustomerInfoForm({
               <OpsSelect
                 label={t('ops.customer.employmentDuration')}
                 required
+                error={empDurationError}
                 value={value.employment.employmentDuration ?? ''}
                 onChange={(e) => patch({ employment: { ...value.employment, employmentDuration: e.target.value } })}
+                onBlur={() => markTouched('employmentDuration')}
               >
                 <option value="">{t('ops.common.dash')}</option>
                 {EMPLOYMENT_DURATION_OPTIONS.map((opt) => (
@@ -574,9 +658,11 @@ export function CustomerInfoForm({
               <OpsNumberField
                 label={t('ops.credit.statedIncome')}
                 required
+                error={incomeError}
                 min={0}
                 value={value.monthlyIncome}
                 onValueChange={(monthlyIncome) => patch({ monthlyIncome })}
+                onBlur={() => markTouched('income')}
                 mono
               />
               <OpsNumberField
@@ -602,16 +688,20 @@ export function CustomerInfoForm({
                   <OpsField
                     label={t('dealerOps.intake.guarantorName')}
                     required
+                    error={guarantorNameError}
                     value={value.guarantor.fullName}
                     onChange={(e) => patch({ guarantor: { ...value.guarantor, fullName: e.target.value } })}
+                    onBlur={() => markTouched('guarantorName')}
                   />
                   <OpsSelect
                     label={t('dealerOps.intake.guarantorRelationship')}
                     required
+                    error={guarantorRelError}
                     value={value.guarantor.relationship}
                     onChange={(e) =>
                       patch({ guarantor: { ...value.guarantor, relationship: e.target.value as GuarantorRelationship | '' } })
                     }
+                    onBlur={() => markTouched('guarantorRel')}
                   >
                     <option value="">{t('ops.common.dash')}</option>
                     {GUARANTOR_RELATIONSHIP_OPTIONS.map((opt) => (
@@ -623,10 +713,12 @@ export function CustomerInfoForm({
                   <OpsField
                     label={t('dealerOps.intake.guarantorQid')}
                     required
+                    error={guarantorQidError}
                     value={value.guarantor.qid}
                     onChange={(e) =>
                       patch({ guarantor: { ...value.guarantor, qid: e.target.value.replace(/\D/g, '').slice(0, QID_LENGTH) } })
                     }
+                    onBlur={() => markTouched('guarantorQid')}
                     inputMode="numeric"
                     pattern="\d{11}"
                     maxLength={QID_LENGTH}
@@ -635,9 +727,13 @@ export function CustomerInfoForm({
                   <OpsField
                     label={t('dealerOps.intake.guarantorPhone')}
                     required
+                    error={guarantorPhoneError}
                     value={value.guarantor.phone}
-                    onChange={(e) => patch({ guarantor: { ...value.guarantor, phone: e.target.value } })}
-                    inputMode="tel"
+                    onChange={(e) =>
+                      patch({ guarantor: { ...value.guarantor, phone: normalizePhoneTyping(e.target.value) } })
+                    }
+                    onBlur={() => markTouched('guarantorPhone')}
+                    inputMode="numeric"
                     mono
                   />
                   <OpsField

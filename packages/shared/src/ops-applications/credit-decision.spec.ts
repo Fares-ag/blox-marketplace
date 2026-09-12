@@ -45,7 +45,7 @@ function assessment(overrides: Partial<CreditAssessmentDto> = {}): CreditAssessm
     assessed_at: '2026-09-07T00:00:00.000Z',
     financed_amount: 80_000,
     monthly_installment: 3200,
-    approver: { role_may_approve: true, required_roles: ['credit_officer', 'admin', 'super_admin'], max_tier_for_role: 1 },
+    approver: { role_may_approve: true, required_roles: ['credit_officer', 'admin', 'super_admin'], max_tier_for_role: 3 },
     ...overrides,
   };
 }
@@ -81,27 +81,27 @@ describe('approveBlockReason', () => {
     expect(approveBlockReason({ assessment: null, role: 'credit_officer', t })).toBeNull();
   });
 
-  it('blocks everyone but a super admin above the hard cap', () => {
+  it('blocks everyone but credit and super admin above the hard cap', () => {
     const declined = assessment({
       path: 'decline',
       reasons: ['dbr_above_hard_cap'],
       affordability: affordability({ dbr: 0.8, status: 'above_hard_cap', exception_tier: 3 }),
       approver: { role_may_approve: true, required_roles: ['credit_officer'], max_tier_for_role: 3 },
     });
-    expect(approveBlockReason({ assessment: declined, role: 'credit_officer', t })?.code).toBe('hard_cap');
+    expect(approveBlockReason({ assessment: declined, role: 'credit_officer', t })).toBeNull();
     expect(approveBlockReason({ assessment: declined, role: 'admin', t })?.code).toBe('hard_cap');
     expect(approveBlockReason({ assessment: declined, role: 'super_admin', t })).toBeNull();
   });
 
   it('blocks on the approval matrix before the tier', () => {
-    const headOfCredit = assessment({
-      approval_authority: 'head_of_credit',
-      approver: { role_may_approve: false, required_roles: ['admin', 'super_admin'], max_tier_for_role: 1 },
+    const aboveMatrix = assessment({
+      approval_authority: 'above_matrix',
+      approver: { role_may_approve: false, required_roles: ['credit_officer', 'admin', 'super_admin'], max_tier_for_role: 1 },
     });
-    const block = approveBlockReason({ assessment: headOfCredit, role: 'credit_officer', t });
+    const block = approveBlockReason({ assessment: aboveMatrix, role: 'finance_officer', t });
     expect(block?.code).toBe('authority');
-    expect(block?.message).toContain('dealerOps.creditAssessment.role.admin');
-    expect(block?.message).toContain('authorityLevel.head_of_credit');
+    expect(block?.message).toContain('dealerOps.creditAssessment.role.credit_officer');
+    expect(block?.message).toContain('authorityLevel.above_matrix');
   });
 
   it('blocks a tier the role may not sign off, using the guarantor variant when present', () => {
@@ -112,7 +112,12 @@ describe('approveBlockReason', () => {
       affordability_with_guarantor: affordability({ dbr: 0.54, status: 'exception_tier_2', exception_tier: 2 }),
     });
     expect(effectiveExceptionTier(tier2)).toBe(2);
-    expect(approveBlockReason({ assessment: tier2, role: 'credit_officer', t })).toEqual({
+    expect(approveBlockReason({ assessment: tier2, role: 'credit_officer', t })).toBeNull();
+    const tier2Finance = {
+      ...tier2,
+      approver: { role_may_approve: true, required_roles: ['credit_officer', 'finance_officer'], max_tier_for_role: 1 },
+    };
+    expect(approveBlockReason({ assessment: tier2Finance, role: 'finance_officer', t })).toEqual({
       code: 'tier',
       message: 'dealerOps.decision.escalationRequired[tier=2]',
     });

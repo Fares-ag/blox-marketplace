@@ -154,6 +154,29 @@ export function identityPresentSet(uploadedCategories: Iterable<string>): Set<st
   return present;
 }
 
+type SlotDocument = {
+  category?: string | null;
+  kyc_document_type?: string | null;
+  kycDocumentType?: string | null;
+};
+
+/** True when an uploaded file belongs to a checklist slot (including QID front/back aliases). */
+export function documentMatchesSlot(doc: SlotDocument, category: string): boolean {
+  const stored = String(doc.category ?? '');
+  const kyc = String(doc.kyc_document_type ?? doc.kycDocumentType ?? '');
+  if (kyc === category || stored === category) return true;
+  if (category === 'qid' && (stored === 'id' || kyc === 'qid_front' || kyc === 'qid_back')) return true;
+  if (category === 'qid_front' || category === 'qid_back') {
+    if (kyc && kyc !== category) return false;
+    return stored === 'qid' || stored === 'id';
+  }
+  return false;
+}
+
+export function documentsForSlot<T extends SlotDocument>(docs: T[], category: string): T[] {
+  return docs.filter((doc) => documentMatchesSlot(doc, category));
+}
+
 /** Upload constraints shared by every upload surface (LOS FSD Stage 1 "Document Controls"). */
 export const DOCUMENT_UPLOAD_ACCEPT = '.pdf,image/jpeg,image/png';
 export const DOCUMENT_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;

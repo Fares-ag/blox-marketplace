@@ -36,7 +36,7 @@ export const theme = createTheme({
     divider: bloxTokens.border,
   },
   typography: {
-    fontFamily: '"IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     h1: { fontSize: '32px', fontWeight: 700, lineHeight: '40px', letterSpacing: '-0.02em' },
     h2: { fontSize: '28px', fontWeight: 700, lineHeight: '36px', letterSpacing: '-0.02em' },
     h3: { fontSize: '20px', fontWeight: 600, lineHeight: '28px', letterSpacing: '-0.01em' },
@@ -53,7 +53,7 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           textTransform: 'none',
-          fontFamily: '"IBM Plex Sans", sans-serif',
+          fontFamily: '"Inter", sans-serif',
           fontSize: '15px',
           fontWeight: 500,
           letterSpacing: '-0.01em',

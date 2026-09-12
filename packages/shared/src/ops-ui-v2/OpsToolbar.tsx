@@ -12,7 +12,7 @@ export function OpsToolbar({
   actions?: ReactNode;
 }) {
   return (
-    <section className="blox-detail-section blox-toolbar">
+    <section className="blox-toolbar">
       <div className="blox-toolbar__row">
         {search && <div className="blox-toolbar__search">{search}</div>}
         {actions && <div className="blox-toolbar__actions">{actions}</div>}

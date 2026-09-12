@@ -12,11 +12,11 @@
   --blox-lime: #00CFA2;
   --blox-slate: #708090;
   --blox-slate-soft: #D8E2E2;
-  --blox-canvas: #F0F5F5;
+  --blox-canvas: #F4F7F7;
   --blox-surface: #ffffff;
-  --blox-ink: #16535B;
-  --blox-border: #D8E2E2;
-  --blox-surface-muted: #F0F5F5;
+  --blox-ink: #12383D;
+  --blox-border: #D5E0E0;
+  --blox-surface-muted: #EEF3F3;
   --blox-danger: #b42318;
   /* Phase 1 semantic additions — docs/design/blox-ops-design-system-phase1.html §01 */
   --blox-emerald-ink: #0B7A63;
@@ -31,9 +31,9 @@
   /* Status semantic tokens — Phase 2 §06 pills */
   --blox-status-neutral-bg: #E8EFEF;
   --blox-status-neutral-ink: #708090;
-  --blox-status-info-bg: #E6FBF5;
-  --blox-status-info-ink: #0B7A63;
-  --blox-status-progress-bg: #E6FBF5;
+  --blox-status-info-bg: #E8F2FF;
+  --blox-status-info-ink: #1D4ED8;
+  --blox-status-progress-bg: #DCF7F2;
   --blox-status-progress-ink: #16535B;
   --blox-status-success-bg: #E6FBF5;
   --blox-status-success-ink: #0B7A63;
@@ -51,8 +51,19 @@
   --blox-radius: 10px;
   --blox-radius-sm: 8px;
   --blox-space: 20px;
-  --blox-font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-  --blox-font-display: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --blox-font-ui: var(--blox-font-stack);
+  --blox-font-display: var(--blox-font-stack);
+  --blox-font-mono: var(--blox-font-stack);
+
+  .blox-pre,
+  .blox-cell--meta,
+  .blox-cell--money {
+    font-variant-numeric: tabular-nums;
+  }
+  --blox-type-page: 1.75rem;
+  --blox-type-section: 1rem;
+  --blox-type-body: 0.875rem;
+  --blox-type-meta: 0.75rem;
   /* Spacing scale (8px grid) */
   --blox-space-2xs: 4px;
   --blox-space-xs: 8px;
@@ -95,6 +106,7 @@
   --dm-slate-400: var(--blox-slate-soft);
   --dm-danger: var(--blox-danger);
   --dm-canvas: var(--blox-canvas);
+  --dm-slate-200: var(--blox-border);
   --dm-surface: var(--blox-surface);
   --dm-ink: var(--blox-ink);
   --dm-amber: var(--blox-emerald);

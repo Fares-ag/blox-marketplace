@@ -100,6 +100,13 @@ describe('ApplicationsLifecycleService.approveWithContract compliance gate', () 
       storage as StorageService,
       compliance as ComplianceService,
       { get: vi.fn() } as unknown as ConfigService,
+      {
+        maybeOpenRegister: vi.fn(),
+        assertActivationGates: vi.fn(),
+        maybeCreateFirstUnitOffer: vi.fn(),
+        notifyVehicleCareOnActivate: vi.fn(),
+      } as never,
+      { preDisbursalGateEnabled: false } as never,
     );
   }
 
@@ -142,6 +149,9 @@ describe('ApplicationsLifecycleService.approveWithContract compliance gate', () 
       },
       // Lender-of-record lookup: no default lender configured in this scenario.
       financePartner: { findFirst: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn(async (fn: (tx: { application: { update: (args: unknown) => Promise<unknown> } }) => unknown) =>
+        fn({ application: { update: vi.fn().mockResolvedValue(approved) } }),
+      ),
     };
     const storage = {
       storeContractPdf: vi.fn().mockResolvedValue('contracts/app-1.pdf'),
@@ -193,6 +203,13 @@ describe('ApplicationsLifecycleService.activate direct-activate compliance gate'
       {} as StorageService,
       compliance as ComplianceService,
       { get: vi.fn() } as unknown as ConfigService,
+      {
+        maybeOpenRegister: vi.fn(),
+        assertActivationGates: vi.fn(),
+        maybeCreateFirstUnitOffer: vi.fn(),
+        notifyVehicleCareOnActivate: vi.fn(),
+      } as never,
+      { preDisbursalGateEnabled: false } as never,
     );
   }
 

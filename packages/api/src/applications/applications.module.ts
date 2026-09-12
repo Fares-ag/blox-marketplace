@@ -9,6 +9,7 @@ import { ApplicationsService } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 import { ApplicationsStaffService } from './applications-staff.service';
 import { ApplicationIntakeService } from './application-intake.service';
+import { ContractDocumentsService } from './documents/contract-documents.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { QuotesModule } from '../quotes/quotes.module';
 import { MusharakahModule } from '../musharakah/musharakah.module';
@@ -21,7 +22,8 @@ import { MusharakahModule } from '../musharakah/musharakah.module';
     ApplicationsLifecycleService,
     ApplicationsStaffService,
     ApplicationIntakeService,
+    ContractDocumentsService,
   ],
-  exports: [ApplicationsService, ApplicationsStaffService, ApplicationIntakeService],
+  exports: [ApplicationsService, ApplicationsStaffService, ApplicationIntakeService, ContractDocumentsService],
 })
 export class ApplicationsModule {}

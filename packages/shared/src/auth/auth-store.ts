@@ -66,8 +66,8 @@ function retryAfterMinutes(res: Response): number | null {
 function rateLimitMessage(res: Response): string {
   const minutes = retryAfterMinutes(res);
   return minutes
-    ? `Too many attempts. Your credentials were not checked — wait ${minutes} minute${minutes === 1 ? '' : 's'} and try again.`
-    : 'Too many attempts. Your credentials were not checked — wait a few minutes and try again.';
+    ? `Too many sign-in attempts. Wait ${minutes} minute${minutes === 1 ? '' : 's'} and try again.`
+    : 'Too many sign-in attempts. Wait a few minutes and try again.';
 }
 
 async function readAuthError(res: Response): Promise<string> {

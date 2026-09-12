@@ -4,48 +4,35 @@
 
 .blox-facts {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 1px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px 20px;
   margin: 0 0 var(--blox-space-lg, 24px);
-  background: var(--blox-border);
+  padding: 16px 18px;
+  background: var(--blox-surface);
   border: 1px solid var(--blox-border);
-  border-radius: var(--blox-radius-card, 12px);
-  overflow: hidden;
+  border-radius: var(--blox-radius-card, 16px);
   box-shadow: var(--blox-shadow-rest);
-
-  @media (max-width: $bp-md) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  @media (max-width: $bp-sm) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .blox-fact {
   display: grid;
   gap: 3px;
   min-width: 0;
-  padding: 12px 16px;
-  background: var(--blox-surface);
-  transition: background var(--blox-motion-fast) var(--blox-ease-standard);
-
-  &:hover {
-    background: #fafefe;
-  }
+  padding: 0;
+  background: transparent;
 
   dt {
     margin: 0;
-    font-size: 0.625rem;
-    font-weight: 600;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
+    font-size: var(--blox-type-meta, 0.75rem);
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--blox-slate);
   }
 
   dd {
     margin: 0;
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--blox-deep-green);
     white-space: nowrap;
@@ -161,11 +148,10 @@
 }
 
 .blox-decision {
-  border-color: var(--blox-emerald);
-  box-shadow: 0 0 0 3px var(--blox-emerald-soft), var(--blox-shadow-rest);
-
-  // Emerald accent on the inline-start edge
+  border-color: var(--blox-border);
+  box-shadow: var(--blox-shadow-rest);
   border-inline-start: 3px solid var(--blox-emerald);
+  background: var(--blox-surface);
 
   &__eyebrow {
     margin: 0;

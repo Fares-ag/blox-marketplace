@@ -91,10 +91,15 @@
     padding: 0 12px;
     height: 40px;
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.88);
+    color: rgba(255, 255, 255, 0.82);
     gap: 12px;
+    overflow: hidden;
     transition: background var(--blox-motion-fast) var(--blox-ease-standard),
                 color var(--blox-motion-fast) var(--blox-ease-standard);
+
+    .MuiTouchRipple-root {
+      display: none;
+    }
 
     &:hover {
       background: rgba(255, 255, 255, 0.06);
@@ -102,10 +107,11 @@
     }
 
     &.active {
-      background: rgba(0, 207, 162, 0.15);
+      background: rgba(0, 207, 162, 0.12);
       color: #fff;
       font-weight: 600;
-      border-inline-start: 2px solid var(--blox-emerald);
+      box-shadow: inset 3px 0 0 var(--blox-emerald);
+      border-inline-start: 0;
 
       .blox-side__icon.MuiListItemIcon-root {
         color: var(--blox-emerald);
@@ -166,10 +172,9 @@
   gap: 8px;
   height: 56px;
   padding: 0 20px;
-  background: var(--blox-surface);
   border-bottom: 1px solid var(--blox-border);
-  backdrop-filter: blur(8px);
-  background: color-mix(in srgb, var(--blox-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--blox-surface) 94%, transparent);
 
   &__crumb {
     display: flex;
@@ -238,6 +243,55 @@
 
   @media (max-width: $bp-sm) {
     padding: 0 12px;
+  }
+}
+
+.blox-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: 4px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-pill);
+  background: var(--blox-surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  min-height: 40px;
+
+  &:hover {
+    background: var(--blox-surface-muted);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--blox-focus-ring);
+  }
+
+  &__copy {
+    display: grid;
+    gap: 0;
+    text-align: start;
+    min-width: 0;
+
+    b {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--blox-deep-green);
+      line-height: 1.2;
+      max-width: 16ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small {
+      font-size: 0.6875rem;
+      color: var(--blox-slate);
+      text-transform: capitalize;
+      line-height: 1.2;
+    }
   }
 }
 

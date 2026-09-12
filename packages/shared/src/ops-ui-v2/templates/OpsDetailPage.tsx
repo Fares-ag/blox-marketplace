@@ -9,6 +9,7 @@ export function OpsDetailPage({
   backLabel,
   title,
   idLabel,
+  meta,
   status,
   statusVariant: _statusVariant,
   headerActions,
@@ -21,7 +22,8 @@ export function OpsDetailPage({
   backTo: string;
   backLabel?: string;
   title: string;
-  idLabel?: string;
+  idLabel?: ReactNode;
+  meta?: ReactNode;
   status?: { label: string; variant: OpsPillVariant };
   statusVariant?: never;
   headerActions?: ReactNode;
@@ -34,19 +36,22 @@ export function OpsDetailPage({
   return (
     <div className="blox-page blox-detail-page">
       <header className={`blox-page-header blox-detail-header${sticky ? ' blox-page-header--sticky' : ''}`}>
-        <div className="blox-detail-header__start">
-          <Link to={backTo} className="blox-detail-back">
-            ← {backLabel ?? 'Back'}
-          </Link>
-          <div>
+        <Link to={backTo} className="blox-detail-back">
+          ← {backLabel ?? 'Back'}
+        </Link>
+        <div className="blox-detail-header__title-row">
+          <div className="blox-detail-header__title-block">
             <h1>{title}</h1>
             {idLabel && <p className="blox-detail-id">{idLabel}</p>}
           </div>
+          {(status || headerActions) && (
+            <div className="blox-page-header__actions blox-detail-header__actions">
+              {status && <OpsStatusPill label={status.label} variant={status.variant} />}
+              {headerActions}
+            </div>
+          )}
         </div>
-        <div className="blox-page-header__actions blox-detail-header__actions">
-          {status && <OpsStatusPill label={status.label} variant={status.variant} />}
-          {headerActions}
-        </div>
+        {meta && <div className="blox-detail-header__meta">{meta}</div>}
       </header>
       {tabs && tabs.length > 0 && activeTab && onTabChange && (
         <OpsTabs tabVariant="workspace" value={activeTab} onChange={(_, v) => onTabChange(v)} sx={{ mb: 2 }}>

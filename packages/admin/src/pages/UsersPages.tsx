@@ -635,20 +635,22 @@ export function UserDetailPage() {
             <OpsGhostButton type="button" onClick={() => setPasswordDialogOpen(true)}>
               {t('ops.superAdmin.setPassword')}
             </OpsGhostButton>
-            <button
-              type="button"
-              className="blox-btn blox-btn--danger"
-              disabled={removeUser.isPending}
-              onClick={() => {
-                setConfirm({
-                  title: t('ops.superAdmin.deleteUser'),
-                  message: t('ops.superAdmin.deleteUserConfirm', { email: data.email }),
-                  onConfirm: () => removeUser.mutate(),
-                });
-              }}
-            >
-              {removeUser.isPending ? t('ops.common.saving') : t('ops.superAdmin.deleteUser')}
-            </button>
+            {data.role !== 'customer' && (
+              <button
+                type="button"
+                className="blox-btn blox-btn--danger"
+                disabled={removeUser.isPending}
+                onClick={() => {
+                  setConfirm({
+                    title: t('ops.superAdmin.deleteUser'),
+                    message: t('ops.superAdmin.deleteUserConfirm', { email: data.email }),
+                    onConfirm: () => removeUser.mutate(),
+                  });
+                }}
+              >
+                {removeUser.isPending ? t('ops.common.saving') : t('ops.superAdmin.deleteUser')}
+              </button>
+            )}
           </div>
         </OpsFormSection>
       )}

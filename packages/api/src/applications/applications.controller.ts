@@ -46,6 +46,7 @@ import { StorageService } from '../storage/storage.service';
 import { ApplicationsService, type UnmaskField } from './applications.service';
 import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 import { ApplicationsStaffService } from './applications-staff.service';
+import { ContractDocumentsService } from './documents/contract-documents.service';
 import {
   APPLICATION_DOC_CATEGORIES,
   type ApplicationDocCategory,
@@ -330,6 +331,7 @@ export class ApplicationsController {
     private readonly staff: ApplicationsStaffService,
     private readonly storage: StorageService,
     private readonly customerPayments: CustomerPaymentsService,
+    private readonly contractDocuments: ContractDocumentsService,
   ) {}
 
   @Roles(UserRole.customer)
@@ -483,6 +485,50 @@ export class ApplicationsController {
     res.setHeader('Content-Type', file.contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
     res.send(file.buffer);
+  }
+
+  @Get('applications/:id/contract-documents')
+  listContractDocuments(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.contractDocuments.listForUser(user, id);
+  }
+
+  @Get('applications/:id/contract-documents/:docId/download')
+  async downloadContractDocument(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.contractDocuments.downloadForUser(user, id, docId);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.send(file.buffer);
+  }
+
+  @Roles(UserRole.customer)
+  @HttpCode(200)
+  @Post('applications/:id/contract-documents/:docId/sign')
+  @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
+  signContractDocument(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.contractDocuments.signForUser(user, id, docId, file, false);
+  }
+
+  @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
+  @HttpCode(200)
+  @Post('ops/applications/:id/contract-documents/:docId/sign')
+  @UseInterceptors(FileInterceptor('file', multerUploadOptions()))
+  signContractDocumentOps(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.contractDocuments.signForUser(user, id, docId, file, true);
   }
 
   @Roles(UserRole.customer)

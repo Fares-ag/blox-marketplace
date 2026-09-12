@@ -2,7 +2,11 @@
 @use 'vars' as *;
 
 .blox-dashboard-section {
-  margin-bottom: var(--blox-space-xl, 24px);
+  margin-bottom: var(--blox-space-lg, 20px);
+
+  .blox-dashboard-card__body .blox-dashboard-grid {
+    margin-bottom: var(--blox-space-md, 16px);
+  }
 }
 
 .blox-mini-table {
@@ -18,12 +22,12 @@
   }
 
   thead th {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--blox-emerald);
-    background: var(--blox-deep-green);
+    font-size: var(--blox-type-meta, 0.75rem);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--blox-slate);
+    background: var(--blox-surface);
   }
 }
 

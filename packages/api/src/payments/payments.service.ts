@@ -525,7 +525,7 @@ export class PaymentsService {
       if (result.customerUserId) {
         await this.activity.notify(
           result.customerUserId,
-          'Congratulations — you own your vehicle!',
+          'Congratulations. You own your vehicle!',
           'Your final installment is recorded. Your financing is complete.',
           `/app/applications/${result.applicationId}`,
         );
@@ -1396,7 +1396,7 @@ export class PaymentsService {
       if (result.customerUserId) {
         await this.activity.notify(
           result.customerUserId,
-          'Congratulations — you own your vehicle!',
+          'Congratulations. You own your vehicle!',
           'Your final installment is recorded. Your financing is complete.',
           `/app/applications/${result.applicationId}`,
         );

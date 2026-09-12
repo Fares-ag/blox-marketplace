@@ -42,7 +42,7 @@
     color: var(--field-lable-color);
     font-weight: 500;
     font-size: 14px;
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: var(--blox-font-stack, 'Inter', sans-serif);
     transform: translate(14px, 14px) scale(1);
 
     &.MuiInputLabel-shrink {
@@ -63,7 +63,7 @@
     font-size: 12px;
     margin-top: 6px;
     margin-left: 0;
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: var(--blox-font-stack, 'Inter', sans-serif);
     font-weight: 400;
 
     &.Mui-error {

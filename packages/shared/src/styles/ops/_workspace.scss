@@ -6,35 +6,27 @@
 
 .blox-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--blox-space-lg, 24px);
-  margin-bottom: var(--blox-space-xl, 32px);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: var(--blox-space-lg, 24px);
 }
 
 .blox-metric-card {
   background: var(--blox-surface, var(--card-background));
   border: 1px solid var(--blox-border, var(--divider-color));
   border-radius: var(--blox-radius-card, 16px);
-  padding: 20px 22px;
+  padding: 16px 18px;
   box-shadow: var(--blox-shadow-rest, var(--card-shadow));
-  transition: box-shadow var(--blox-motion-fast, var(--transition-base)),
-              transform var(--blox-motion-fast) var(--blox-ease-standard);
-
-  @media (hover: hover) {
-    &:hover {
-      box-shadow: var(--blox-shadow-hover, var(--card-shadow-hover));
-      transform: translateY(-1px);
-    }
-  }
+  border-inline-start-width: 1px;
 
   &--hero {
-    background: linear-gradient(135deg, var(--blox-emerald) 0%, #00b890 100%);
-    border-color: transparent;
-    color: var(--blox-deep-green);
+    background: var(--blox-surface);
+    border-color: var(--blox-border);
+    color: var(--blox-ink);
 
     .blox-metric-card__label,
     .blox-metric-card__delta {
-      color: rgba(22, 83, 91, 0.75);
+      color: var(--blox-slate);
     }
 
     .blox-metric-card__value {
@@ -49,20 +41,22 @@
   }
 
   &__label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--secondary-text);
-    margin: 0 0 var(--spacing-xs);
+    font-size: var(--blox-type-meta, 0.75rem);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--blox-slate);
+    margin: 0 0 6px;
   }
 
   &__value {
-    font-size: 28px;
-    font-weight: 700;
+    font-size: 1.375rem;
+    font-weight: 600;
     line-height: 1.2;
     margin: 0;
-    color: var(--primary-text);
+    color: var(--blox-deep-green);
+    font-family: var(--blox-font-mono);
+    font-variant-numeric: tabular-nums;
   }
 
   &__delta {
@@ -78,13 +72,15 @@
 
 /* Workspace tabs */
 .blox-workspace-tabs {
-  border: 1px solid var(--divider-color);
-  border-radius: var(--radius-card);
-  background: var(--card-background);
-  margin-bottom: var(--spacing-lg);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin-bottom: var(--blox-space-md, 16px);
+  border-bottom: 1px solid var(--blox-border);
 
   .MuiTabs-root {
-    border-bottom: 1px solid var(--divider-color);
+    border-bottom: 0;
+    min-height: 0;
   }
 }
 
@@ -108,10 +104,10 @@
 
 .blox-info-item {
   display: grid;
-  grid-template-columns: 148px 1fr;
-  gap: 8px 16px;
-  padding: 7px 0;
-  font-size: 0.8125rem;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 10px 0;
+  font-size: var(--blox-type-body, 0.875rem);
   border-bottom: 1px solid var(--blox-border);
 
   &:last-child {
@@ -121,12 +117,13 @@
   strong {
     color: var(--blox-slate);
     font-weight: 500;
+    font-size: var(--blox-type-meta, 0.75rem);
   }
 
   em {
     color: var(--blox-slate);
     font-style: normal;
-    font-size: 0.75rem;
+    font-size: var(--blox-type-meta, 0.75rem);
   }
 }
 

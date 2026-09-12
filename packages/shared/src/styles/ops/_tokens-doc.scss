@@ -8,11 +8,11 @@
   --blox-lime: #00CFA2;
   --blox-slate: #708090;
   --blox-slate-soft: #D8E2E2;
-  --blox-canvas: #F0F5F5;
+  --blox-canvas: #F4F7F7;
   --blox-surface: #ffffff;
-  --blox-ink: #16535B;
-  --blox-border: #D8E2E2;
-  --blox-surface-muted: #F0F5F5;
+  --blox-ink: #12383D;
+  --blox-border: #D5E0E0;
+  --blox-surface-muted: #EEF3F3;
   --blox-danger: #b42318;
   /* Phase 1 semantic additions — docs/design/blox-ops-design-system-phase1.html §01 */
   --blox-emerald-ink: #0B7A63;
@@ -27,9 +27,9 @@
   /* Status semantic tokens — Phase 2 §06 pills */
   --blox-status-neutral-bg: #E8EFEF;
   --blox-status-neutral-ink: #708090;
-  --blox-status-info-bg: #E6FBF5;
-  --blox-status-info-ink: #0B7A63;
-  --blox-status-progress-bg: #E6FBF5;
+  --blox-status-info-bg: #E8F2FF;
+  --blox-status-info-ink: #1D4ED8;
+  --blox-status-progress-bg: #DCF7F2;
   --blox-status-progress-ink: #16535B;
   --blox-status-success-bg: #E6FBF5;
   --blox-status-success-ink: #0B7A63;
@@ -56,7 +56,11 @@
   --dm-slate-600: #708090;
   --dm-slate-400: #8a9aa2;
   --dm-slate-200: #D8E2E2;
-  --dm-canvas: #F0F5F5;
+  --dm-canvas: #F4F7F7;
+  --blox-type-page: 1.75rem;
+  --blox-type-section: 1rem;
+  --blox-type-body: 0.875rem;
+  --blox-type-meta: 0.75rem;
   --dm-surface: #ffffff;
   --dm-surface-muted: #E6FBF5;
   --toastify-color-progress-success: #00CFA2;
@@ -87,7 +91,7 @@
   --blox-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --blox-ease-decel: cubic-bezier(0, 0, 0.2, 1);
   --blox-ease-accel: cubic-bezier(0.4, 0, 1, 1);
-  --blox-font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+  --blox-font-mono: var(--blox-font-stack);
   --bp-content-max: 1600px;
 }
 

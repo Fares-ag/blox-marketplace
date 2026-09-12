@@ -3,7 +3,8 @@ export const en = {
   subtitle: 'Two minutes, no credit check, nothing is stored. See what you could afford before you apply.',
   navLabel: 'Eligibility check',
   metaTitle: 'Eligibility check',
-  prefilled: 'Prefilled from the listing you were viewing.',
+  prefilled: 'Vehicle details are set from the listing you were viewing and cannot be changed.',
+  prefilledNamed: 'Checking eligibility for {{vehicle}}. Vehicle details cannot be changed.',
   form: {
     about: 'About you',
     residency: 'Residency',
@@ -109,7 +110,8 @@ export const ar: typeof en = {
   subtitle: 'دقيقتان، بلا استعلام ائتماني، ولا يُحفظ شيء. اعرف ما يمكنك تحمله قبل التقديم.',
   navLabel: 'فحص الأهلية',
   metaTitle: 'فحص الأهلية',
-  prefilled: 'تمت التعبئة من الإعلان الذي كنت تتصفحه.',
+  prefilled: 'تفاصيل المركبة مأخوذة من الإعلان الذي كنت تتصفحه ولا يمكن تغييرها.',
+  prefilledNamed: 'فحص الأهلية لـ {{vehicle}}. لا يمكن تغيير تفاصيل المركبة.',
   form: {
     about: 'عنك',
     residency: 'الإقامة',

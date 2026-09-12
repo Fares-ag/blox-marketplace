@@ -15,6 +15,7 @@ export function createQueryClient(config?: QueryClientConfig): QueryClient {
     defaultOptions: {
       ...config?.defaultOptions,
       queries: {
+        staleTime: 30_000,
         ...config?.defaultOptions?.queries,
         retry: shouldRetryQuery,
       },

@@ -6,10 +6,10 @@
 .blox-section-label {
   display: block;
   margin: 0;
-  font-size: 0.6875rem;
+  font-size: var(--blox-type-meta, 0.75rem);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--blox-slate);
 }
 
@@ -119,14 +119,85 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--blox-space-lg);
-  margin-bottom: var(--blox-space-xl);
+  margin-bottom: var(--blox-space-lg);
+
+  &--duo {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+
+    .blox-chart-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 380px;
+
+      &__body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 300px;
+      }
+    }
+
+    .blox-vbar {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .blox-donut-chart {
+      align-items: center;
+      min-height: 280px;
+
+      &__ring {
+        max-width: 200px;
+      }
+
+      &__legend {
+        max-height: none;
+        overflow: visible;
+      }
+    }
+  }
+
+  &--split {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+
+    .blox-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
 
   @media (max-width: $bp-lg) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    &--duo {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    &--split {
+      grid-template-columns: 1fr;
+
+      .blox-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
   }
 
   @media (max-width: $bp-md) {
     grid-template-columns: 1fr;
+
+    &--duo,
+    &--split {
+      grid-template-columns: 1fr;
+    }
+
+    &--split .blox-stat-grid {
+      grid-template-columns: 1fr;
+    }
   }
 }
 
@@ -202,6 +273,9 @@
   &__body {
     min-width: 0;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
   &__footer {
@@ -290,50 +364,66 @@
   &__plot {
     display: flex;
     align-items: flex-end;
-    gap: 8px;
-    min-height: 200px;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 2px 0;
   }
 
   &__col {
     flex: 1;
     min-width: 0;
-    display: grid;
-    grid-template-rows: auto 150px auto;
-    justify-items: center;
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
     text-align: center;
   }
 
   &__value {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.25rem;
     font-family: var(--blox-font-mono);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--blox-deep-green);
   }
 
   &__stem {
-    width: 70%;
-    max-width: 48px;
-    height: 100%;
+    position: relative;
+    width: min(100%, 64px);
     display: flex;
     align-items: flex-end;
+    justify-content: center;
+  }
+
+  &__track {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px 8px 4px 4px;
+    background: color-mix(in srgb, var(--blox-border) 65%, transparent);
   }
 
   &__bar {
+    position: relative;
+    z-index: 1;
     display: block;
     width: 100%;
-    min-height: 3px;
-    border-radius: 6px 6px 0 0;
+    border-radius: 8px 8px 4px 4px;
     transition: height var(--blox-motion-slow) var(--blox-ease-standard);
   }
 
   &__label {
     max-width: 100%;
     font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.25;
     color: var(--blox-slate);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    text-align: center;
+    min-height: 2.5em;
   }
 }
 
@@ -343,7 +433,7 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 14px;
+    gap: 10px;
   }
 
   &__stage {
@@ -376,7 +466,7 @@
     width: 100%;
     height: 28px;
     border-radius: var(--blox-radius-sm, 8px);
-    background: var(--blox-surface-muted, #f4f6f8);
+    background: color-mix(in srgb, var(--blox-border) 55%, transparent);
     overflow: hidden;
   }
 
@@ -645,6 +735,109 @@
 // Phase 4 utilities (replace inline styles in portal pages)
 .blox-link-reset { text-decoration: none; }
 .blox-chart-donut { max-width: 280px; margin: 0 auto 12px; }
+
+.blox-donut-chart {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px 24px;
+  width: 100%;
+
+  &__ring {
+    position: relative;
+    width: 100%;
+    max-width: 200px;
+    aspect-ratio: 1;
+    justify-self: center;
+  }
+
+  &__total {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    pointer-events: none;
+  }
+
+  &__total-value {
+    font-family: var(--blox-font-mono);
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+    line-height: 1;
+  }
+
+  &__total-label {
+    max-width: 5.5rem;
+    font-size: 0.625rem;
+    font-weight: 500;
+    color: var(--blox-slate);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+  }
+
+  &__legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 7px;
+    max-height: 280px;
+    overflow: auto;
+    align-content: start;
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+    justify-items: center;
+
+    &__legend {
+      width: 100%;
+      max-height: none;
+    }
+  }
+
+  &__legend li {
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.8125rem;
+    line-height: 1.3;
+
+    &.is-zero {
+      opacity: 0.42;
+    }
+  }
+
+  &__swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  &__legend-label {
+    color: var(--blox-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__legend-value {
+    font-family: var(--blox-font-mono);
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--blox-deep-green);
+    font-variant-numeric: tabular-nums;
+  }
+}
 .blox-muted { margin: 0; font-size: 0.875rem; color: var(--blox-slate); }
 .blox-m-0 { margin: 0; }
 .blox-mt-3 { margin-top: 12px; }

@@ -72,6 +72,8 @@ export interface StepProps<TData = any> {
   onPrevious: () => void;
   isFirstStep: boolean;
   isLastStep: boolean;
+  /** True after the user clicked Next/Submit and the step validation failed — lets the step component highlight all invalid fields. */
+  submitted: boolean;
 }
 
 interface MultiStepFormProps<TData = any> {
@@ -120,6 +122,7 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
     return Object.keys(files).length ? { ...(merged as any), files: { ...((merged as any).files ?? {}), ...files } } : merged;
   });
   const [stepError, setStepError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const firstRender = useRef(true);
 
@@ -157,11 +160,16 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   };
 
   const handleNext = () => {
-    if (!validateCurrentStep()) return;
+    if (!validateCurrentStep()) {
+      setSubmitted(true);
+      return;
+    }
+    setSubmitted(false);
     if (activeStep < steps.length - 1) setActiveStep((prev) => prev + 1);
   };
   const handleBack = () => {
     setStepError(null);
+    setSubmitted(false);
     setActiveStep((prev) => Math.max(0, prev - 1));
   };
   const handleUpdateData = useCallback((stepData: any) => {
@@ -177,7 +185,10 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   }, [storageKey]);
   const handleSubmit = async () => {
     if (isSubmitting) return;
-    if (!validateCurrentStep()) return;
+    if (!validateCurrentStep()) {
+      setSubmitted(true);
+      return;
+    }
     try {
       await onSubmit(formData);
     } catch (error: unknown) {
@@ -210,6 +221,7 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
           onPrevious={handleBack}
           isFirstStep={isFirstStep}
           isLastStep={isLastStep}
+          submitted={submitted}
         />
       </div>
 

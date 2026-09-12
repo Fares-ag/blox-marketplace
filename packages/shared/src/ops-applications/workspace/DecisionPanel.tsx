@@ -29,9 +29,9 @@ type Action = { key: string; label: string; onClick: () => void; disabled?: bool
  *
  * Wave 2: the credit assessment gates the approval buttons (approval matrix and DBR
  * exception tier for the signed-in role, hard cap for everyone but a super admin) and a
- * `dbr_above_hard_cap` refusal opens the super-admin override-reason dialog.
+ * `dbr_above_hard_cap` refusal opens the override-reason dialog for credit/super admin.
  */
-export function DecisionPanel({ data, actions, mutations, label, setConfirm, reason, onReasonChange, platform }: Props) {
+export function DecisionPanel({ data, actions, mutations, label, setConfirm, setError, reason, onReasonChange, platform }: Props) {
   const { t } = useOpsLabels();
   const role = useAuthStore((s) => s.user?.role ?? null);
   const busy = mutations.busy;
@@ -44,9 +44,11 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
   const effective = effectiveAffordability(assessment);
   const hardCapPct = effective ? Math.round(Number(effective.hard_cap) * 100) : HARD_CAP_PERCENT;
 
-  /** A hard-cap refusal for a super admin becomes the override dialog; anything else stays an error. */
+  /** A hard-cap refusal for credit or super admin becomes the override dialog; anything else stays an error. */
   function maybeOverride(error: Error, retry: (overrideReason: string) => void) {
-    if (role === 'super_admin' && decisionErrorCode(error) === 'dbr_above_hard_cap') setOverride({ retry });
+    if ((role === 'super_admin' || role === 'credit_officer') && decisionErrorCode(error) === 'dbr_above_hard_cap') {
+      setOverride({ retry });
+    }
   }
   function runApprove(overrideReason?: string) {
     mutations.approve.mutate(overrideReason ? { override_reason: overrideReason } : undefined, {
@@ -148,13 +150,19 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
     destructive.push({
       key: 'reject',
       label: t('ops.common.reject'),
-      onClick: () =>
+      onClick: () => {
+        if (!reason.trim()) {
+          setError(t('ops.credit.reasonRequired', { defaultValue: 'Enter a reason before rejecting this application.' }));
+          return;
+        }
+        setError(null);
         setConfirm({
           title: t('ops.common.reject'),
           message: t('ops.credit.rejectConfirm', { label }),
           onConfirm: () => runTransition('rejected'),
           danger: true,
-        }),
+        });
+      },
     });
   if (actions.cancel)
     destructive.push({
@@ -220,7 +228,7 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
       {needsReason && (
         <OpsTextarea
           label={t('ops.credit.reasonForReject')}
-          optionalLabel={t('ops.workspace.reasonOptionalHint')}
+          required
           value={reason}
           onChange={(e) => onReasonChange(e.target.value)}
           rows={3}

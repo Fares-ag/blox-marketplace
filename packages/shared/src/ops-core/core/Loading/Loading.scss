@@ -11,7 +11,7 @@
 
   .loading-message {
     color: var(--custom-text-color);
-    font-family: 'IBM Plex Sans', sans-serif;
+    font-family: var(--blox-font-stack, 'Inter', sans-serif);
     font-weight: 500;
     margin-top: var(--spacing-md);
   }

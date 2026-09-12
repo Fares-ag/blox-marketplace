@@ -3,6 +3,7 @@ import {
   APPROVAL_AUTHORITY_ROLES,
   roleMayApprove,
   roleMayApproveTier,
+  roleMayOverrideHardCap,
   type ApprovalAuthority,
   type CreditAssessment,
 } from '@drivemarket/shared/domain-rules';
@@ -16,7 +17,7 @@ import {
  *   2. a DBR exception tier above what the role may sign off must be escalated
  *                                          → 403 `dbr_exception_escalation_required`
  *   3. a case the matrix declines for the hard cap can only be approved by a
- *      super administrator giving an override reason
+ *      credit officer or super administrator giving an override reason
  *                                          → 409 `dbr_above_hard_cap`
  *
  * Pure so the matrix is unit-tested without a database.
@@ -25,7 +26,7 @@ import {
 export type ApprovalDecisionInput = {
   role: string;
   assessment: CreditAssessment;
-  /** Super-admin justification for approving above the hard cap (logged as `credit_override`). */
+  /** Justification for approving above the hard cap (logged as `credit_override`). */
   overrideReason?: string | null;
 };
 
@@ -67,7 +68,7 @@ export function evaluateApprovalAuthorization(input: ApprovalDecisionInput): App
   let overridden = false;
   if (declinedForHardCap(assessment)) {
     const reason = input.overrideReason?.trim();
-    if (role !== 'super_admin' || !reason) {
+    if (!roleMayOverrideHardCap(role) || !reason) {
       return { ok: false, status: 409, code: 'dbr_above_hard_cap', extras: { tier } };
     }
     overridden = true;

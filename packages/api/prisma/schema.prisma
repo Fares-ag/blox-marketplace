@@ -74,6 +74,30 @@ enum OfferStatus {
   inactive
 }
 
+enum FinancingType {
+  diminishing_musharakah
+  ijarah
+}
+
+enum ContractDocumentType {
+  ijarah_agreement
+  musharakah_agreement
+  ownership_rental_schedule
+  credit_appraisal_memorandum
+}
+
+enum ContractDocumentAudience {
+  customer
+  ops
+}
+
+enum ContractDocumentStatus {
+  pending
+  generated
+  signed_submitted
+  verified
+}
+
 enum ApplicationStatus {
   draft
   under_review
@@ -512,6 +536,7 @@ model Offer {
   company            Company?    @relation(fields: [companyId], references: [id])
   financePartnerId   String?
   financePartner     FinancePartner? @relation(fields: [financePartnerId], references: [id])
+  financingType      FinancingType @default(diminishing_musharakah)
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
@@ -669,7 +694,8 @@ model Application {
   hardshipPlans     HardshipPlan[]
   repossessionCases RepossessionCase[]
   totalLossClaims   TotalLossClaim[]
-  rentPoolEntries   RentPoolLedgerEntry[]
+  rentPoolEntries    RentPoolLedgerEntry[]
+  contractDocuments  ContractDocument[]
 
   @@index([customerUserId, status])
   @@index([companyId, status])
@@ -828,6 +854,24 @@ model ApplicationDocument {
 
   @@index([applicationId, category])
   @@map("application_documents")
+}
+
+model ContractDocument {
+  id            String                   @id @default(cuid())
+  applicationId String
+  application   Application              @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  documentType  ContractDocumentType
+  audience      ContractDocumentAudience
+  label         String
+  generatedPath String?
+  contentSha256 String?
+  signedPath    String?
+  status        ContractDocumentStatus   @default(pending)
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([applicationId, audience, status])
+  @@map("contract_documents")
 }
 
 model ComplianceCheck {

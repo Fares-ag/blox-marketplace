@@ -220,13 +220,13 @@ describe('credit assessment DTO', () => {
       { code: 'financing_amount_exceeds_cap', severity: 'soft', params: { cap: 50_000, financed: 64_000 } },
     ]);
     expect(dto.approver).toEqual({
-      role_may_approve: false,
-      required_roles: ['admin', 'super_admin'],
-      max_tier_for_role: 1,
+      role_may_approve: true,
+      required_roles: ['credit_officer', 'admin', 'super_admin'],
+      max_tier_for_role: 3,
     });
     expect(toCreditAssessmentDto(assessed, 'admin').approver).toEqual({
       role_may_approve: true,
-      required_roles: ['admin', 'super_admin'],
+      required_roles: ['credit_officer', 'admin', 'super_admin'],
       max_tier_for_role: 2,
     });
   });
@@ -236,7 +236,7 @@ describe('credit assessment DTO', () => {
     expect(columns.approvalAuthority).toBe('head_of_credit');
     expect(columns.creditAssessment.approver).toEqual({
       role_may_approve: false,
-      required_roles: ['admin', 'super_admin'],
+      required_roles: ['credit_officer', 'admin', 'super_admin'],
       max_tier_for_role: 0,
     });
     expect(approverFor(null, 'senior_manager')).toEqual({

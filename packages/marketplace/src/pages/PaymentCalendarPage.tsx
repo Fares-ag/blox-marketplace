@@ -3,12 +3,11 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
-  DocumentMeta,
   apiFetch,
   formatQar,
   getAppLocale,
 } from '@drivemarket/shared';
-import { MarketplaceNav } from '../components/MarketplaceNav';
+import { CustomerPortalLayout } from '../components/CustomerPortalLayout';
 import { SETTLEMENT_ERROR_CODES } from '../lib/settlement-quote';
 import { hasErrorCode } from '../lib/errors';
 
@@ -157,21 +156,13 @@ export function PaymentCalendarPage() {
   }
 
   return (
-    <>
-      <DocumentMeta title={t('calendar.metaTitle')} />
-      <MarketplaceNav />
-      <main className="dm-calendar">
-        <header className="dm-calendar__head">
-          <div>
-            <p className="dm-calendar__eyebrow">{t('calendar.eyebrow')}</p>
-            <h1>{t('calendar.title')}</h1>
-            <p className="dm-calendar__lead">{t('calendar.lead')}</p>
-          </div>
-          <Link to="/app/dashboard" className="dm-calendar__back">
-            {t('calendar.backDashboard')}
-          </Link>
-        </header>
-
+    <CustomerPortalLayout
+      metaTitle={t('calendar.metaTitle')}
+      eyebrow={t('calendar.eyebrow')}
+      title={t('calendar.title')}
+      lead={t('calendar.lead')}
+      contentClassName="dm-calendar"
+    >
         {hub.isLoading && <p>{t('vehicles.loading')}</p>}
         {hub.isError && <p className="dm-calendar__error">{t('calendar.loadError')}</p>}
 
@@ -325,7 +316,6 @@ export function PaymentCalendarPage() {
             </aside>
           </div>
         )}
-      </main>
-    </>
+    </CustomerPortalLayout>
   );
 }
