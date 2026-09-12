@@ -162,6 +162,8 @@ export function commonDealFields(ctx: ContractFieldContext): Record<string, stri
     'Vehicle.Condition': str(ctx.vehicle.condition),
     'Vehicle.ValuationAmount': money(ctx.listPrice),
     'Vehicle.ValuationSource': 'Dealer list price locked at approval',
+    'Product.Type': 'Diminishing Musharakah + Ijarah',
+    'Product.Condition': str(ctx.vehicle.condition) || 'New',
     'BloX.RegisteredAddress': ctx.lenderAddress,
     'BloX.SignatoryName': ctx.signatoryName,
     'BloX.SignatoryTitle': ctx.signatoryTitle,

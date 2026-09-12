@@ -12,12 +12,19 @@ import { StorageService } from '../../storage/storage.service';
 import { ActivityService } from '../../common/activity.service';
 import { assertApplicationCanView } from '../application-access';
 import { assertCompanyScope } from '../company-scope';
-import { verifySignedContractReferencesOriginal } from '../contract-pdf';
+import { buildContractPdf, verifySignedContractReferencesOriginal } from '../contract-pdf';
 import { toApplicationDto, toOpsApplicationDto } from '../application-response.dto';
-import { fillTemplate, nestDottedFields, readTemplate, expandScheduleRows } from './docx-template';
+import { buildCamFallbackPdf } from './cam-fallback-pdf';
+import { contractPdfInputFromContext } from './contract-pdf-input';
+import {
+  fillAndValidateTemplate,
+  nestDottedFields,
+  readTemplate,
+  expandScheduleRows,
+} from './docx-template';
 import { docxToPdf, embedPdfFingerprint, isLibreOfficeError } from './pdf-converter';
-import { buildFallbackPdf } from './fallback-pdf';
-import { fallbackFieldPairs, fieldsForDocument, type ContractFieldContext } from './field-maps';
+import { buildOwnershipSchedulePdf } from './ownership-schedule-pdf';
+import { fieldsForDocument, type ContractFieldContext } from './field-maps';
 import {
   documentsForFinancingType,
   filenameFor,
@@ -58,6 +65,8 @@ const DECISION_ROLES: UserRole[] = [
   UserRole.super_admin,
 ];
 
+const AGREEMENT_TYPES = new Set(['ijarah_agreement', 'musharakah_agreement']);
+
 function hashFields(applicationId: string, documentType: string, fields: Record<string, string>): string {
   const keys = Object.keys(fields).sort();
   const canonical = JSON.stringify({ applicationId, documentType, fields: keys.map((key) => [key, fields[key]]) });
@@ -84,7 +93,14 @@ export class ContractDocumentsService {
 
     for (const spec of specs) {
       try {
-        const row = await this.generateOne(input.applicationId, spec.documentType, spec.audience, spec.label, spec.templateFile, input.ctx);
+        const row = await this.generateOne(
+          input.applicationId,
+          spec.documentType,
+          spec.audience,
+          spec.label,
+          spec.templateFile,
+          input.ctx,
+        );
         created.push({
           id: row.id,
           documentType: row.documentType,
@@ -110,27 +126,26 @@ export class ContractDocumentsService {
     ctx: ContractFieldContext,
   ) {
     const fields = fieldsForDocument(documentType, ctx);
-    const contentSha256 = hashFields(applicationId, documentType, fields);
     let pdf: Buffer;
-    try {
-      let docx = readTemplate(templateFile, { audience });
-      if (documentType === 'ownership_rental_schedule') {
-        docx = expandScheduleRows(docx, ctx.schedule.length);
+    let contentSha256: string;
+
+    if (AGREEMENT_TYPES.has(documentType)) {
+      const built = await buildContractPdf(contractPdfInputFromContext(ctx));
+      pdf = built.buffer;
+      contentSha256 = built.contentSha256;
+    } else {
+      contentSha256 = hashFields(applicationId, documentType, fields);
+      try {
+        pdf = await this.generateFromDocxTemplate(documentType, audience, templateFile, ctx, fields);
+      } catch (error) {
+        this.logger.warn(
+          `Template generation failed for ${documentType}, using structured PDF fallback: ${error instanceof Error ? error.message : error}`,
+        );
+        pdf = await this.generateStructuredFallback(documentType, ctx);
       }
-      const filled = fillTemplate(docx, nestDottedFields(fields));
-      pdf = await docxToPdf(filled);
-    } catch (error) {
-      if (!isLibreOfficeError(error) && !(error instanceof Error && error.message.startsWith('contract_template_missing'))) {
-        this.logger.warn(`Template fill failed for ${documentType}, using fallback PDF: ${error instanceof Error ? error.message : error}`);
-      }
-      pdf = await buildFallbackPdf({
-        title: label,
-        applicationId,
-        fields: fallbackFieldPairs(fields),
-        schedule: documentType === 'ownership_rental_schedule' ? ctx.schedule : undefined,
-      });
+      pdf = await embedPdfFingerprint(pdf, contentSha256, applicationId);
     }
-    pdf = await embedPdfFingerprint(pdf, contentSha256, applicationId);
+
     const generatedPath = await this.storage.storeContractDocument(applicationId, documentType, pdf);
 
     return contractDocumentsDb(this.prisma).create({
@@ -144,6 +159,36 @@ export class ContractDocumentsService {
         status: 'generated',
       },
     });
+  }
+
+  private async generateFromDocxTemplate(
+    documentType: Parameters<typeof fieldsForDocument>[0],
+    audience: ContractDocumentAudience,
+    templateFile: string,
+    ctx: ContractFieldContext,
+    fields: Record<string, string>,
+  ): Promise<Buffer> {
+    let docx = readTemplate(templateFile, { audience });
+    if (documentType === 'ownership_rental_schedule') {
+      docx = expandScheduleRows(docx, ctx.schedule.length);
+    }
+    const snapName = fields['Customer.FullNameEN'] ?? '';
+    const required = [snapName, fields['Deal.Ref'] ?? ctx.applicationId].filter(Boolean);
+    const filled = fillAndValidateTemplate(docx, nestDottedFields(fields), required);
+    return docxToPdf(filled);
+  }
+
+  private async generateStructuredFallback(
+    documentType: Parameters<typeof fieldsForDocument>[0],
+    ctx: ContractFieldContext,
+  ): Promise<Buffer> {
+    if (documentType === 'ownership_rental_schedule') {
+      return buildOwnershipSchedulePdf(ctx);
+    }
+    if (documentType === 'credit_appraisal_memorandum') {
+      return buildCamFallbackPdf(ctx);
+    }
+    throw new Error(`no_structured_fallback:${documentType}`);
   }
 
   async listForUser(user: User, applicationId: string) {

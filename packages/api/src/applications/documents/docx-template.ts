@@ -4,6 +4,7 @@ import path from 'node:path';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { applyBranding } from './apply-docx-branding';
+import { assertDocxFilled, normalizeDocxMergeTags } from './docx-normalize';
 import type { ContractDocumentAudience } from './template-catalog';
 
 export type TemplateData = Record<string, unknown>;
@@ -25,6 +26,15 @@ export function nestDottedFields(flat: Record<string, string>): TemplateData {
     cursor[parts[parts.length - 1]] = value;
   }
   return root;
+}
+
+function normalizeZipPath(entry: string): string {
+  return entry.replace(/\\/g, '/');
+}
+
+function findZipEntry(zip: PizZip, suffix: string): string | undefined {
+  const normalized = suffix.replace(/\\/g, '/');
+  return Object.keys(zip.files).find((key) => normalizeZipPath(key).endsWith(normalized));
 }
 
 export function resolveTemplatesDir(): string {
@@ -50,7 +60,7 @@ export function readTemplate(
   if (options?.branded !== false) {
     buffer = applyBranding(buffer, { templateFile, audience: options?.audience });
   }
-  return buffer;
+  return normalizeDocxMergeTags(buffer);
 }
 
 /**
@@ -60,10 +70,9 @@ export function readTemplate(
 export function expandScheduleRows(docx: Buffer, periodCount: number): Buffer {
   if (periodCount < 1) return docx;
   const zip = new PizZip(docx);
-  const xmlPath = 'word/document.xml';
-  const file = zip.file(xmlPath);
-  if (!file) return docx;
-  let xml = file.asText();
+  const xmlKey = findZipEntry(zip, 'word/document.xml');
+  if (!xmlKey) return docx;
+  let xml = zip.file(xmlKey)!.asText();
   const rows = [...xml.matchAll(/<w:tr\b[\s\S]*?<\/w:tr>/g)];
   const first = rows.find((row) => row[0].includes('Sch.1.'));
   if (!first) return docx;
@@ -75,12 +84,13 @@ export function expandScheduleRows(docx: Buffer, periodCount: number): Buffer {
     xml = xml.replace(last[0], '');
   }
   xml = xml.replace(first[0], clones.join(''));
-  zip.file(xmlPath, xml);
-  return zip.generate({ type: 'nodebuffer' }) as Buffer;
+  zip.file(xmlKey, xml);
+  return normalizeDocxMergeTags(zip.generate({ type: 'nodebuffer' }) as Buffer);
 }
 
 export function fillTemplate(docx: Buffer, data: TemplateData): Buffer {
-  const zip = new PizZip(docx);
+  const normalized = normalizeDocxMergeTags(docx);
+  const zip = new PizZip(normalized);
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
@@ -89,6 +99,16 @@ export function fillTemplate(docx: Buffer, data: TemplateData): Buffer {
   });
   doc.render(data);
   return doc.getZip().generate({ type: 'nodebuffer' }) as Buffer;
+}
+
+export function fillAndValidateTemplate(
+  docx: Buffer,
+  data: TemplateData,
+  requiredSnippets: string[],
+): Buffer {
+  const filled = fillTemplate(docx, data);
+  assertDocxFilled(filled, requiredSnippets);
+  return filled;
 }
 
 export function writeTempFile(prefix: string, buffer: Buffer, ext: string): string {

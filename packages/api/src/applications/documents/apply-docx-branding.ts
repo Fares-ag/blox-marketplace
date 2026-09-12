@@ -198,6 +198,41 @@ function copyZipEntry(sourceZip: PizZip, targetZip: PizZip, suffix: string): voi
   targetZip.file(targetKey, content.asText());
 }
 
+/** Remove the hard-coded M2P worked example at the end of the ownership schedule template. */
+function stripScheduleDemoAppendix(xml: string): string {
+  const markers = [
+    'Appendix — Worked Example',
+    'Appendix - Worked Example',
+    'Acceptance test for the M2P',
+    'اختبار قبول لمحرك الاحتساب',
+  ];
+  for (const marker of markers) {
+    const idx = xml.indexOf(marker);
+    if (idx < 0) continue;
+    const tableStart = xml.lastIndexOf('<w:tbl', idx);
+    if (tableStart >= 0) {
+      const tableEnd = xml.indexOf('</w:tbl>', idx);
+      if (tableEnd >= 0) {
+        xml = `${xml.slice(0, tableStart)}${xml.slice(tableEnd + '</w:tbl>'.length)}`;
+      }
+    }
+    const paraStart = xml.lastIndexOf('<w:p', idx);
+    if (paraStart >= 0) {
+      xml = xml.slice(0, paraStart);
+    }
+    break;
+  }
+  return xml;
+}
+
+function fixMusharakahHeaderFields(xml: string): string {
+  return xml
+    .replaceAll('Contract No.: {{Price.BloXContribution}}', 'Contract No.: {{Deal.Ref}}')
+    .replaceAll('Date: {{Price.CustomerContribution}}', 'Date: {{Deal.ExecutionDate}}')
+    .replaceAll('{{Price.BloXContribution}}Date:', '{{Deal.Ref}} Date:')
+    .replace(/\{\{Price\.BloXContribution\}\}\s*\{\{Price\.CustomerContribution\}\}/g, '{{Deal.Ref}}');
+}
+
 function copyReferenceBrandedHeader(targetZip: PizZip, templatesDir: string): void {
   const refPath = path.join(templatesDir, REFERENCE_HEADER);
   if (!fs.existsSync(refPath)) return;
@@ -238,6 +273,12 @@ export function applyBranding(
     const xml = readZipText(zip, suffix);
     if (!xml?.trim()) continue;
     let next = replaceAcrossXml(xml, BODY_REPLACEMENTS);
+    if (suffix.endsWith('document.xml') && input.templateFile.includes('Schedule')) {
+      next = stripScheduleDemoAppendix(next);
+    }
+    if (suffix.endsWith('document.xml') && input.templateFile.includes('Musharakah')) {
+      next = fixMusharakahHeaderFields(next);
+    }
     if (suffix.includes('footer')) {
       next = patchFooterXml(next, meta.code, audience);
     }
