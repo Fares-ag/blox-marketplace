@@ -12,18 +12,12 @@ import { StorageService } from '../../storage/storage.service';
 import { ActivityService } from '../../common/activity.service';
 import { assertApplicationCanView } from '../application-access';
 import { assertCompanyScope } from '../company-scope';
-import { buildContractPdf, verifySignedContractReferencesOriginal } from '../contract-pdf';
+import { verifySignedContractReferencesOriginal } from '../contract-pdf';
 import { toApplicationDto, toOpsApplicationDto } from '../application-response.dto';
-import { buildCamFallbackPdf } from './cam-fallback-pdf';
-import { contractPdfInputFromContext } from './contract-pdf-input';
-import {
-  fillAndValidateTemplate,
-  readTemplate,
-  expandScheduleRows,
-} from './docx-template';
-import { docxToPdf, embedPdfFingerprint, isLibreOfficeError } from './pdf-converter';
-import { buildOwnershipSchedulePdf } from './ownership-schedule-pdf';
+import { normalizeContractContext } from './contract-terms';
 import { fieldsForDocument, type ContractFieldContext } from './field-maps';
+import { embedPdfFingerprint } from './pdf-converter';
+import { buildProgrammaticContractPdf } from './programmatic-documents';
 import {
   documentsForFinancingType,
   filenameFor,
@@ -86,18 +80,12 @@ export class ContractDocumentsService {
     ctx: ContractFieldContext;
   }): Promise<Array<{ id: string; documentType: string; audience: ContractDocumentAudience; label: string }>> {
     const specs = documentsForFinancingType(input.financingType ?? 'diminishing_musharakah');
+    const ctx = normalizeContractContext(input.ctx);
     const created: Array<{ id: string; documentType: string; audience: ContractDocumentAudience; label: string }> = [];
 
     for (const spec of specs) {
       try {
-        const row = await this.generateOne(
-          input.applicationId,
-          spec.documentType,
-          spec.audience,
-          spec.label,
-          spec.templateFile,
-          input.ctx,
-        );
+        const row = await this.generateOne(input.applicationId, spec.documentType, spec.audience, spec.label, ctx);
         created.push({
           id: row.id,
           documentType: row.documentType,
@@ -119,25 +107,11 @@ export class ContractDocumentsService {
     documentType: Parameters<typeof fieldsForDocument>[0],
     audience: ContractDocumentAudience,
     label: string,
-    templateFile: string,
     ctx: ContractFieldContext,
   ) {
     const fields = fieldsForDocument(documentType, ctx);
     const contentSha256 = hashFields(applicationId, documentType, fields);
-    let pdf: Buffer;
-
-    // Primary path for every document is the real DOCX template filled with the
-    // deal data and branded, then converted to PDF via LibreOffice. Only if that
-    // pipeline fails (e.g. LibreOffice unavailable) do we drop to a programmatic
-    // fallback so approval never blocks on document generation.
-    try {
-      pdf = await this.generateFromDocxTemplate(documentType, audience, templateFile, ctx, fields);
-    } catch (error) {
-      this.logger.warn(
-        `Template generation failed for ${documentType}, using programmatic PDF fallback: ${error instanceof Error ? error.message : error}`,
-      );
-      pdf = await this.generateFallback(documentType, ctx);
-    }
+    let pdf = await buildProgrammaticContractPdf(documentType, ctx);
     pdf = await embedPdfFingerprint(pdf, contentSha256, applicationId);
 
     const generatedPath = await this.storage.storeContractDocument(applicationId, documentType, pdf);
@@ -153,38 +127,6 @@ export class ContractDocumentsService {
         status: 'generated',
       },
     });
-  }
-
-  private async generateFromDocxTemplate(
-    documentType: Parameters<typeof fieldsForDocument>[0],
-    audience: ContractDocumentAudience,
-    templateFile: string,
-    ctx: ContractFieldContext,
-    fields: Record<string, string>,
-  ): Promise<Buffer> {
-    let docx = readTemplate(templateFile, { audience });
-    if (documentType === 'ownership_rental_schedule') {
-      docx = expandScheduleRows(docx, ctx.schedule.length);
-    }
-    const snapName = fields['Customer.FullNameEN'] ?? '';
-    const required = [snapName, fields['Deal.Ref'] ?? ctx.applicationId].filter(Boolean);
-    const filled = fillAndValidateTemplate(docx, fields, required);
-    return docxToPdf(filled);
-  }
-
-  private async generateFallback(
-    documentType: Parameters<typeof fieldsForDocument>[0],
-    ctx: ContractFieldContext,
-  ): Promise<Buffer> {
-    if (documentType === 'ownership_rental_schedule') {
-      return buildOwnershipSchedulePdf(ctx);
-    }
-    if (documentType === 'credit_appraisal_memorandum') {
-      return buildCamFallbackPdf(ctx);
-    }
-    // ijarah_agreement / musharakah_agreement
-    const built = await buildContractPdf(contractPdfInputFromContext(ctx));
-    return built.buffer;
   }
 
   async listForUser(user: User, applicationId: string) {

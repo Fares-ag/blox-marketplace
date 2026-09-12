@@ -27,11 +27,12 @@ import {
   roleToActor,
 } from './application-transitions';
 import {
-  buildContractAmortizationSchedule,
-  buildContractPdf,
-  resolveFinancedTotal,
+  hashContractContent,
   verifySignedContractReferencesOriginal,
 } from './contract-pdf';
+import { contractPdfInputFromContext } from './documents/contract-pdf-input';
+import { normalizeContractContext } from './documents/contract-terms';
+import { buildProgrammaticContractPdf } from './documents/programmatic-documents';
 import {
   assertDownPaymentRecordedForDirectActivation,
   assertDownPaymentSatisfied,
@@ -247,44 +248,6 @@ export class ApplicationsLifecycleService {
       defaultLenderName: defaultLender?.name,
       configuredName: this.config.get<string>('CONTRACT_LENDER_NAME'),
     });
-    const schedule = buildContractAmortizationSchedule(pricing, approvedAt);
-    const contractData = {
-      applicationId: app.id,
-      customer: snap,
-      pricing,
-      vehicle: {
-        make: app.product.make,
-        model: app.product.model,
-        year: app.product.modelYear,
-      },
-      dealer: app.company.name,
-      approvedAt: approvedAt.toISOString(),
-      lenderName,
-      schedule,
-    };
-
-    const { buffer: pdf, contentSha256 } = await buildContractPdf({
-      applicationId: app.id,
-      approvedAt: approvedAt.toISOString(),
-      customerName: String(snap.full_name ?? ''),
-      customerEmail: app.customerEmail,
-      customerPhone: String(snap.phone ?? ''),
-      customerQid: String(snap.qid ?? ''),
-      vehicleLabel: `${app.product.make} ${app.product.model} ${app.product.modelYear ?? ''}`.trim(),
-      dealerName: app.company.name,
-      listPrice: Number(pricing.list_price ?? 0),
-      downPayment: Number(pricing.down_payment ?? 0),
-      downPaymentPct: Number(pricing.down_payment_pct ?? 0),
-      monthly: Number(pricing.monthly ?? 0),
-      tenor: Number(pricing.tenor ?? pricing.tenure ?? 0),
-      annualRate: Number(pricing.rate ?? 0),
-      financedTotal: resolveFinancedTotal(pricing),
-      lenderName,
-      schedule,
-    });
-
-    const contractPdfPath = await this.storage.storeContractPdf(app.id, pdf);
-
     let kycCase = null;
     if (app.kycCaseId && this.kyc?.configured()) {
       try {
@@ -293,7 +256,12 @@ export class ApplicationsLifecycleService {
         kycCase = null;
       }
     }
-    const fieldCtx: ContractFieldContext = {
+    const financingType =
+      (app.offer as { financingType?: 'ijarah' | 'diminishing_musharakah' } | null)?.financingType ??
+      'diminishing_musharakah';
+    const agreementType = financingType === 'ijarah' ? 'ijarah_agreement' : 'musharakah_agreement';
+
+    const fieldCtx: ContractFieldContext = normalizeContractContext({
       applicationId: app.id,
       approvedAt,
       lenderName,
@@ -323,22 +291,40 @@ export class ApplicationsLifecycleService {
       monthly: Number(pricing.monthly ?? 0),
       tenor: Number(pricing.tenor ?? pricing.tenure ?? 0),
       annualRate: Number(pricing.rate ?? 0),
-      financedTotal: resolveFinancedTotal(pricing),
-      schedule,
+      financedTotal: Number(pricing.financed_total ?? 0),
+      schedule: [],
       credit: credit.assessed,
       approverName: user.name ?? user.email,
       approverRole: user.role,
       overrideReason: opts?.overrideReason,
       kyc: kycCase,
       kycStatus: app.kycStatus,
+    });
+
+    const pdf = await buildProgrammaticContractPdf(agreementType, fieldCtx);
+    const contentSha256 = hashContractContent(contractPdfInputFromContext(fieldCtx));
+    const contractPdfPath = await this.storage.storeContractPdf(app.id, pdf);
+
+    const contractData = {
+      applicationId: app.id,
+      customer: snap,
+      pricing,
+      vehicle: {
+        make: app.product.make,
+        model: app.product.model,
+        year: app.product.modelYear,
+      },
+      dealer: app.company.name,
+      approvedAt: approvedAt.toISOString(),
+      lenderName,
+      schedule: fieldCtx.schedule,
     };
+
     let generatedDocs: Array<{ id: string; documentType: string; audience: 'customer' | 'ops'; label: string }> = [];
     try {
       generatedDocs = (await this.contractDocuments?.generateDocumentsForApproval({
         applicationId: app.id,
-        financingType:
-          (app.offer as { financingType?: 'ijarah' | 'diminishing_musharakah' } | null)?.financingType ??
-          'diminishing_musharakah',
+        financingType,
         ctx: fieldCtx,
       })) ?? [];
     } catch {

@@ -1,29 +1,8 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import { roundMoney } from '@drivemarket/shared/pricing';
-import type { ContractScheduleRow } from '../contract-pdf';
-import { resolveBrandAssetsDir } from './apply-docx-branding';
-import type { ContractFieldContext } from './field-maps';
 import { readCustomerSnapshot } from '../customer-snapshot';
-
-const PAGE_WIDTH = 595;
-const PAGE_HEIGHT = 842;
-const MARGIN_X = 40;
-
-const BRAND = {
-  deepGreen: rgb(0.086, 0.325, 0.357),
-  emerald: rgb(0, 0.812, 0.635),
-  slate: rgb(0.439, 0.502, 0.565),
-  ink: rgb(0.071, 0.22, 0.239),
-} as const;
-
-function qar(amount: number): string {
-  return roundMoney(amount).toLocaleString('en-QA', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+import { normalizeContractContext } from './contract-terms';
+import type { ContractFieldContext } from './field-maps';
+import { BrandedPdfWriter, formatPct, formatQar } from './pdf-brand';
 
 function unitsFor(listPrice: number, downPayment: number, tenor: number) {
   const totalUnits = 100;
@@ -34,103 +13,91 @@ function unitsFor(listPrice: number, downPayment: number, tenor: number) {
   return { totalUnits, customerOpening, bloxOpening, unitsPerPeriod, unitPrice };
 }
 
-type EmbeddedLogo = Awaited<ReturnType<PDFDocument['embedPng']>>;
-
-async function tryReadLogo(doc: PDFDocument): Promise<EmbeddedLogo | null> {
-  try {
-    const logoPath = path.join(resolveBrandAssetsDir(), 'blox-logo-nav.png');
-    if (!fs.existsSync(logoPath)) return null;
-    return doc.embedPng(fs.readFileSync(logoPath));
-  } catch {
-    return null;
-  }
-}
-
-function headerBand(page: PDFPage, title: string, subtitle: string, logo: EmbeddedLogo | null, bold: PDFFont, font: PDFFont) {
-  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 68, width: PAGE_WIDTH, height: 68, color: BRAND.deepGreen });
-  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 72, width: PAGE_WIDTH, height: 4, color: BRAND.emerald });
-  const textX = logo ? MARGIN_X + 110 : MARGIN_X;
-  if (logo) {
-    page.drawImage(logo, { x: MARGIN_X, y: PAGE_HEIGHT - 54, width: 90, height: 26 });
-  }
-  page.drawText(title, { x: textX, y: PAGE_HEIGHT - 36, size: 12, font: bold, color: rgb(1, 1, 1) });
-  page.drawText(subtitle, { x: textX, y: PAGE_HEIGHT - 52, size: 8, font, color: rgb(0.88, 0.95, 0.95) });
-}
-
 export async function buildOwnershipSchedulePdf(ctx: ContractFieldContext): Promise<Buffer> {
-  const snap = readCustomerSnapshot(ctx.customerSnapshot);
-  const units = unitsFor(ctx.listPrice, ctx.downPayment, ctx.tenor);
-  const customerOpeningPct = ctx.listPrice > 0 ? (ctx.downPayment / ctx.listPrice) * 100 : 0;
+  const normalized = normalizeContractContext(ctx);
+  const snap = readCustomerSnapshot(normalized.customerSnapshot);
+  const units = unitsFor(normalized.listPrice, normalized.downPayment, normalized.tenor);
+  const customerOpeningPct = normalized.listPrice > 0 ? (normalized.downPayment / normalized.listPrice) * 100 : 0;
 
-  const doc = await PDFDocument.create();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const logo: EmbeddedLogo | null = await tryReadLogo(doc);
-  let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  let y = PAGE_HEIGHT - 88;
-  let pageNo = 1;
-
-  headerBand(
-    page,
-    'Schedule of Ownership and Rental',
-    `Agreement ${ctx.applicationId} · Schedule 2 to Diminishing Musharakah Agreement`,
-    logo,
-    bold,
-    font,
-  );
-
-  const ensure = (need: number) => {
-    if (y - need < 56) {
-      page.drawText(`BloX LLC · blox-it.com · Page ${pageNo}`, {
-        x: MARGIN_X,
-        y: 28,
-        size: 8,
-        font,
-        color: BRAND.slate,
-      });
-      pageNo += 1;
-      page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      headerBand(page, 'Schedule of Ownership and Rental (continued)', ctx.applicationId, logo, bold, font);
-      y = PAGE_HEIGHT - 88;
-    }
-  };
-
-  const line = (text: string, size = 9, useBold = false) => {
-    ensure(size + 8);
-    page.drawText(text.slice(0, 120), { x: MARGIN_X, y, size, font: useBold ? bold : font, color: BRAND.ink });
-    y -= size + 5;
-  };
-
-  line('Agreement summary', 11, true);
-  line(`Customer: ${snap.full_name}`);
-  line(`Vehicle: ${ctx.vehicle.make} ${ctx.vehicle.model}${ctx.vehicle.year ? ` ${ctx.vehicle.year}` : ''}${ctx.vehicle.vin ? ` · VIN ${ctx.vehicle.vin}` : ''}`);
-  line(`Total ownership units: ${units.totalUnits} · Unit price: QAR ${qar(units.unitPrice)}`);
-  line(
-    `Opening units — Customer: ${units.customerOpening} (${customerOpeningPct.toFixed(2)}%) · BloX: ${units.bloxOpening} (${(100 - customerOpeningPct).toFixed(2)}%)`,
-  );
-  line(`Units per period: ${units.unitsPerPeriod} · Rental rate: ${ctx.annualRate.toFixed(2)}% p.a. · Periods: ${ctx.tenor}`);
-  line('');
-
-  line('#  Due date    Units  Unit cost   Rental      Total       You own   BloX share', 8, true);
-  for (const row of ctx.schedule) {
-    const bought = units.unitsPerPeriod;
-    const ownedPct =
-      ctx.listPrice > 0
-        ? `${(((ctx.downPayment + row.principal * row.sequence) / ctx.listPrice) * 100).toFixed(2)}%`
-        : '';
-    line(
-      `${String(row.sequence).padStart(2, ' ')}  ${row.dueDate}  ${String(bought).padStart(5, ' ')}  ${qar(row.principal).padStart(10, ' ')}  ${qar(row.interest).padStart(10, ' ')}  ${qar(row.payment).padStart(10, ' ')}  ${ownedPct.padStart(8, ' ')}  ${qar(row.balance).padStart(10, ' ')}`,
-      8,
-    );
-  }
-
-  page.drawText(`BloX LLC · blox-it.com · Page ${pageNo}`, {
-    x: MARGIN_X,
-    y: 28,
-    size: 8,
-    font,
-    color: BRAND.slate,
+  const writer = await BrandedPdfWriter.create({
+    title: 'Schedule of Ownership and Rental',
+    subtitle: `Schedule 2 · Agreement ${normalized.applicationId}`,
+    footerTag: 'BLX-TPL-020 · BloX LLC · blox-it.com · Own it, don\'t owe it.',
   });
 
-  return Buffer.from(await doc.save());
+  writer.metaGrid([
+    ['Template', 'BLX-TPL-020'],
+    ['Agreement reference', normalized.applicationId],
+    ['Customer', snap.full_name],
+    ['Asset', `${normalized.vehicle.make} ${normalized.vehicle.model}${normalized.vehicle.vin ? ` · VIN ${normalized.vehicle.vin}` : ''}`],
+    ['Total ownership units', String(units.totalUnits)],
+    ['Unit price', `QAR ${formatQar(units.unitPrice)}`],
+    ['Customer opening units', `${units.customerOpening} (${formatPct(customerOpeningPct)})`],
+    ['BloX opening units', `${units.bloxOpening} (${formatPct(100 - customerOpeningPct)})`],
+    ['Units per period', String(units.unitsPerPeriod)],
+    ['Rental rate', `${normalized.annualRate.toFixed(2)}% p.a.`],
+    ['Payment frequency', 'Monthly'],
+    ['Number of periods', String(normalized.tenor)],
+  ]);
+
+  writer.section('Ownership and rental schedule');
+  writer.line(
+    'Each period you purchase ownership units and pay rent on the share still held by BloX. Your ownership percentage must rise every period.',
+    9,
+  );
+
+  const columns = [
+    { label: '#', width: 24 },
+    { label: 'Due date', width: 62 },
+    { label: 'Units', width: 38 },
+    { label: 'Unit cost', width: 58, align: 'right' as const },
+    { label: 'Rental', width: 58, align: 'right' as const },
+    { label: 'Total', width: 58, align: 'right' as const },
+    { label: 'You own', width: 52, align: 'right' as const },
+    { label: 'BloX share', width: 58, align: 'right' as const },
+  ];
+
+  let cumulativePrincipal = normalized.downPayment;
+  const tableRows = normalized.schedule.map((row) => {
+    cumulativePrincipal = roundMoney(cumulativePrincipal + row.principal);
+    const ownedPct =
+      normalized.listPrice > 0 ? formatPct((cumulativePrincipal / normalized.listPrice) * 100) : '';
+    return [
+      String(row.sequence),
+      row.dueDate,
+      String(units.unitsPerPeriod),
+      formatQar(row.principal),
+      formatQar(row.interest),
+      formatQar(row.payment),
+      ownedPct,
+      formatQar(row.balance),
+    ];
+  });
+
+  const totalUnitsBought = roundMoney(units.unitsPerPeriod * normalized.schedule.length);
+  const totalUnitCost = normalized.schedule.reduce((sum, row) => sum + row.principal, 0);
+  const totalRent = normalized.schedule.reduce((sum, row) => sum + row.interest, 0);
+  const totalPayments = normalized.schedule.reduce((sum, row) => sum + row.payment, 0);
+  tableRows.push([
+    'Total',
+    '',
+    String(totalUnitsBought),
+    formatQar(totalUnitCost),
+    formatQar(totalRent),
+    formatQar(totalPayments),
+    '100.00%',
+    formatQar(0),
+  ]);
+
+  writer.table(columns, tableRows);
+
+  writer.section('Notes for the customer');
+  writer.line('Each unit purchase is a separate ownership transaction under the Musharakah Agreement.', 9);
+  writer.line('Late payments are handled under the Shariah policy — BloX does not earn from delay.', 9);
+  writer.line('Request an updated schedule statement from BloX at any time.', 9);
+
+  writer.section('Signatures');
+  writer.signatureBlock('The Customer', 'For BloX LLC');
+
+  return writer.toBuffer();
 }
