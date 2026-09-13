@@ -32,28 +32,36 @@ describe('decideDuplicateApplication', () => {
     });
   });
 
-  it('blocks when an application is in flight, whatever the vehicle', () => {
+  it('lets a customer apply again even with an application in flight', () => {
     const decision = decideDuplicateApplication([candidate('app-1', 'under_review', 'prod-2')], 'prod-1');
-    expect(decision).toEqual({ kind: 'blocked', applicationId: 'app-1', status: 'under_review' });
+    expect(decision).toEqual({ kind: 'create' });
   });
 
-  it('prefers the block over resuming a stale draft', () => {
+  it('creates a fresh application on a new vehicle even when another is active', () => {
+    const decision = decideDuplicateApplication(
+      [candidate('active-1', 'active', 'prod-2')],
+      'prod-1',
+    );
+    expect(decision).toEqual({ kind: 'create' });
+  });
+
+  it('still resumes a same-product draft even when another application is active', () => {
     const decision = decideDuplicateApplication(
       [candidate('draft-1', 'draft', 'prod-1'), candidate('active-1', 'active', 'prod-2')],
       'prod-1',
     );
-    expect(decision).toEqual({ kind: 'blocked', applicationId: 'active-1', status: 'active' });
+    expect(decision).toEqual({ kind: 'resume', applicationId: 'draft-1' });
   });
 
-  it('picks the newest blocking application and the newest same-product draft', () => {
-    const blocked = decideDuplicateApplication(
+  it('creates a fresh application when the only in-flight ones are on other vehicles', () => {
+    const created = decideDuplicateApplication(
       [
-        candidate('old', 'resubmission_required', 'prod-1', '2026-01-01T00:00:00.000Z'),
-        candidate('new', 'partner_processing', 'prod-1', '2026-02-01T00:00:00.000Z'),
+        candidate('old', 'resubmission_required', 'prod-2', '2026-01-01T00:00:00.000Z'),
+        candidate('new', 'partner_processing', 'prod-3', '2026-02-01T00:00:00.000Z'),
       ],
       'prod-1',
     );
-    expect(blocked).toMatchObject({ kind: 'blocked', applicationId: 'new' });
+    expect(created).toEqual({ kind: 'create' });
 
     const resumed = decideDuplicateApplication(
       [
@@ -74,15 +82,15 @@ describe('decideDuplicateApplication', () => {
 });
 
 describe('summarizeBlocking', () => {
-  it('reports the in-flight application and the resumable draft', () => {
+  it('never blocks, and reports the resumable same-product draft', () => {
     const summary = summarizeBlocking(
       [candidate('draft-1', 'draft', 'prod-1'), candidate('active-1', 'active', 'prod-2')],
       'prod-1',
     );
     expect(summary).toEqual({
-      blocking: true,
-      applicationId: 'active-1',
-      status: 'active',
+      blocking: false,
+      applicationId: null,
+      status: null,
       draftApplicationId: 'draft-1',
     });
   });

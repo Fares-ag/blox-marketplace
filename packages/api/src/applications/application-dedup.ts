@@ -5,11 +5,12 @@ import { normalizePersonName } from './customer-snapshot';
 /**
  * Duplicate handling for customer intake (LOS FSD §5.3):
  *
- *   1. An application already in flight (any product, any blocking status
- *      other than `draft`) refuses a new one — 409 `blocking_application`.
- *   2. A draft for the same product is resumed instead of duplicated.
- *   3. Otherwise a fresh draft is created (a draft on another vehicle does not
- *      block: the customer may simply have changed their mind).
+ *   1. A customer may always start another application — a pending or active
+ *      application no longer refuses a new one. There is no `blocked` outcome.
+ *   2. A draft for the same product is resumed instead of duplicated, so a
+ *      customer who reopens the same vehicle continues where they left off
+ *      rather than accumulating empty drafts.
+ *   3. Otherwise a fresh draft is created.
  *
  * Identity-level de-duplication compares the blind index of the Qatar ID with
  * every other account and application carrying it; a different name or birth
@@ -18,7 +19,10 @@ import { normalizePersonName } from './customer-snapshot';
  * Pure functions so the decisions are unit-testable without a database.
  */
 
-/** Statuses that refuse a new application outright (drafts are resumable, not blocking). */
+/**
+ * Statuses that once refused a new application. Retained for reference/analytics
+ * only — intake no longer blocks on them.
+ */
 export const ACTIVE_BLOCKING_APPLICATION_STATUSES: ApplicationStatus[] = BLOCKING_APPLICATION_STATUSES.filter(
   (status) => status !== ApplicationStatus.draft,
 );
@@ -30,24 +34,19 @@ export type DedupCandidate = {
   createdAt?: Date | null;
 };
 
-export type DedupDecision =
-  | { kind: 'create' }
-  | { kind: 'resume'; applicationId: string }
-  | { kind: 'blocked'; applicationId: string; status: ApplicationStatus };
+export type DedupDecision = { kind: 'create' } | { kind: 'resume'; applicationId: string };
 
 function newestFirst(a: DedupCandidate, b: DedupCandidate): number {
   return (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0);
 }
 
-function isActivelyBlocking(candidate: DedupCandidate): boolean {
-  return ACTIVE_BLOCKING_APPLICATION_STATUSES.includes(candidate.status);
-}
-
-/** Decide what `POST /applications` should do given the customer's existing applications. */
+/**
+ * Decide what `POST /applications` should do. A customer can always apply again,
+ * so the only choice is whether to resume an existing same-product draft or
+ * create a fresh one; pending/active applications never block.
+ */
 export function decideDuplicateApplication(existing: DedupCandidate[], productId: string): DedupDecision {
   const sorted = [...existing].sort(newestFirst);
-  const blocked = sorted.find(isActivelyBlocking);
-  if (blocked) return { kind: 'blocked', applicationId: blocked.id, status: blocked.status };
   const draft = sorted.find((a) => a.status === ApplicationStatus.draft && a.productId === productId);
   if (draft) return { kind: 'resume', applicationId: draft.id };
   return { kind: 'create' };
@@ -61,17 +60,19 @@ export type BlockingSummary = {
   draftApplicationId: string | null;
 };
 
-/** Truthful answer for `GET /applications/blocking`: mirrors `decideDuplicateApplication`. */
+/**
+ * Answer for `GET /applications/blocking`: mirrors `decideDuplicateApplication`.
+ * Nothing blocks anymore, so this only reports the resumable draft (if any).
+ */
 export function summarizeBlocking(existing: DedupCandidate[], productId?: string): BlockingSummary {
   const sorted = [...existing].sort(newestFirst);
-  const blocked = sorted.find(isActivelyBlocking);
   const draft = sorted.find(
     (a) => a.status === ApplicationStatus.draft && (!productId || a.productId === productId),
   );
   return {
-    blocking: !!blocked,
-    applicationId: blocked?.id ?? null,
-    status: blocked?.status ?? null,
+    blocking: false,
+    applicationId: null,
+    status: null,
     draftApplicationId: draft?.id ?? null,
   };
 }

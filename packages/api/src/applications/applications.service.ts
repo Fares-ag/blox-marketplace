@@ -19,7 +19,6 @@ import { ActivityService } from '../common/activity.service';
 import { IdentityService } from '../common/identity.service';
 import { isUniqueConstraintError } from '../common/prisma-errors';
 import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
-import { CREDIT_QUEUE_STATUSES } from './application-transitions';
 import { submittedStatusForPartner } from './partner-finance';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { StorageService } from '../storage/storage.service';
@@ -69,6 +68,7 @@ import {
   toOpsApplicationQueueItemDto,
   type ApplicationAudience,
 } from './application-response.dto';
+import { parseApplicationRef } from './application-reference';
 import { decideDuplicateApplication, summarizeBlocking } from './application-dedup';
 import { assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
 import {
@@ -178,12 +178,10 @@ export class ApplicationsService {
     // with the QID birth year is refused (400 dob_qid_mismatch).
     const normalized = normalizeCustomerSnapshot(dto.customerSnapshot);
 
-    // Duplicate handling: an application in flight blocks; a draft for the
-    // same vehicle is resumed instead of duplicated.
+    // Duplicate handling: customers may always apply again, even with a pending
+    // or active application. A draft for the same vehicle is resumed instead of
+    // duplicated; anything else creates a fresh application.
     const decision = decideDuplicateApplication(await this.loadDedupCandidates(user.id), product.id);
-    if (decision.kind === 'blocked') {
-      throw new ConflictException({ message: 'blocking_application', application_id: decision.applicationId });
-    }
     if (decision.kind === 'resume') {
       // When a quote token accompanies a resume, apply the negotiated price to the
       // existing draft and consume the quote — same atomicity guarantee as on create.
@@ -819,6 +817,7 @@ export class ApplicationsService {
               { customer: { name: { contains: search, mode: 'insensitive' } } },
               { company: { name: { contains: search, mode: 'insensitive' } } },
               { agent: { name: { contains: search, mode: 'insensitive' } } },
+              ...(parseApplicationRef(search) != null ? [{ referenceSeq: parseApplicationRef(search)! }] : []),
             ],
           }
         : {}),
@@ -894,6 +893,7 @@ export class ApplicationsService {
               { customerEmail: { contains: search, mode: 'insensitive' } },
               { customer: { name: { contains: search, mode: 'insensitive' } } },
               { id: { contains: search, mode: 'insensitive' } },
+              ...(parseApplicationRef(search) != null ? [{ referenceSeq: parseApplicationRef(search)! }] : []),
             ],
           }
         : {}),
@@ -1086,7 +1086,7 @@ export class ApplicationsService {
   private parseStatusIn(
     status: ApplicationStatus | undefined,
     statusIn: string | undefined,
-    role: UserRole,
+    _role: UserRole,
   ): ApplicationStatus[] | undefined {
     if (status) return [status];
     if (statusIn?.trim()) {
@@ -1094,15 +1094,6 @@ export class ApplicationsService {
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean) as ApplicationStatus[];
-    }
-    if (role === UserRole.credit_officer) return [...CREDIT_QUEUE_STATUSES];
-    if (role === UserRole.finance_officer) {
-      return [
-        ApplicationStatus.down_payment_required,
-        ApplicationStatus.down_payment_submitted,
-        ApplicationStatus.pending_finance_activation,
-        ApplicationStatus.active,
-      ];
     }
     return undefined;
   }
