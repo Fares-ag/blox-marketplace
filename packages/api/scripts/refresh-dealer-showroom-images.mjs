@@ -16,7 +16,7 @@ const OPS_ORIGIN = process.env.OPS_ORIGIN ?? 'https://ops.blox.market';
 const DEALER_EMAIL = process.env.DEALER_EMAIL ?? 'dealer@drivemarket.local';
 const SUPER_EMAIL = process.env.SUPER_EMAIL ?? 'super@drivemarket.local';
 const PASSWORD = process.env.SEED_PASSWORD ?? 'Password123!';
-const DEFAULT_OFFER_ID = 'seed-al-jazeera-offer';
+const DEFAULT_OFFER_ID = 'seed-blox-finance-offer';
 
 /** @type {Record<string, string>} */
 const VEHICLE_IMAGE_FILES = {

@@ -25,7 +25,7 @@ export type CheryListing = {
   mileage?: number;
 };
 
-export const DEFAULT_OFFER_ID = 'seed-al-jazeera-offer';
+export const DEFAULT_OFFER_ID = 'seed-blox-finance-offer';
 
 function mapTransmission(gear?: string): Transmission {
   return gear?.toLowerCase() === 'manual' ? Transmission.manual : Transmission.automatic;

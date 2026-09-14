@@ -1,7 +1,10 @@
 import { BreOwnership, FinancePartnerEngagementMode, type PrismaClient } from '@prisma/client';
 
-/** Partner whose offer is the marketplace default (existing Zoho hand-off flow). */
-export const DEFAULT_LENDER_CODE = 'al-jazeera';
+/** Partner whose offer is the marketplace default for vehicle listings and new applications. */
+export const DEFAULT_MARKETPLACE_OFFER_CODE = 'blox-finance';
+
+/** @deprecated Use DEFAULT_MARKETPLACE_OFFER_CODE — kept for imports that referenced the old name. */
+export const DEFAULT_LENDER_CODE = DEFAULT_MARKETPLACE_OFFER_CODE;
 
 /**
  * Lender of record for applications whose offer carries no partner. Blox's own
@@ -88,7 +91,7 @@ export async function seedFinancePartners(prisma: PrismaClient) {
         annualRentRate: p.offer.annualRentRate,
         minDownPaymentPct: p.offer.minDownPaymentPct,
         tenureOptions: p.offer.tenureOptions,
-        isDefault: p.code === DEFAULT_LENDER_CODE,
+        isDefault: p.code === DEFAULT_MARKETPLACE_OFFER_CODE,
         status: 'active',
         financePartnerId: partner.id,
       },
@@ -97,6 +100,7 @@ export async function seedFinancePartners(prisma: PrismaClient) {
         annualRentRate: p.offer.annualRentRate,
         minDownPaymentPct: p.offer.minDownPaymentPct,
         tenureOptions: p.offer.tenureOptions,
+        isDefault: p.code === DEFAULT_MARKETPLACE_OFFER_CODE,
         financePartnerId: partner.id,
         status: 'active',
       },
@@ -105,10 +109,17 @@ export async function seedFinancePartners(prisma: PrismaClient) {
     results.push({ partner, offer });
   }
 
+  const bloxPartner = results.find((r) => r.partner.code === DEFAULT_MARKETPLACE_OFFER_CODE)?.partner;
   await prisma.offer.updateMany({
     where: { id: 'seed-default-offer' },
-    data: { financePartnerId: results[0]?.partner.id },
+    data: { financePartnerId: bloxPartner?.id ?? results[0]?.partner.id },
   }).catch(() => undefined);
+
+  // Keep a single platform-default offer flag (Blox Finance).
+  if (bloxPartner) {
+    await prisma.offer.updateMany({ where: { isDefault: true, id: { not: 'seed-blox-finance-offer' } }, data: { isDefault: false } });
+    await prisma.offer.updateMany({ where: { id: 'seed-blox-finance-offer' }, data: { isDefault: true } });
+  }
 
   // Default lender of record: Blox's own book, unless an admin already chose one.
   const currentDefault = await prisma.financePartner.findFirst({ where: { isDefaultLender: true } });
