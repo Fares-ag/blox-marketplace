@@ -40,6 +40,12 @@ function milestoneBadgeKey(kind: OwnershipMilestoneKind): string {
   return map[kind] ?? kind;
 }
 
+/** Visual variant for milestone cards (detail page grid). */
+function milestoneCardVariant(milestone: OwnershipMilestone): string {
+  if (milestone.milestone) return milestone.milestone;
+  return milestone.sequence === 1 ? 'first_payment' : 'checkpoint';
+}
+
 function milestoneLabel(
   m: OwnershipMilestone,
   t: (key: string, opts?: Record<string, unknown>) => string,
@@ -265,10 +271,15 @@ export function OwnershipProgress({
             {keyMilestones.map((milestone) => {
               const paid = milestone.paymentStatus === 'paid';
               const missed = milestone.paymentStatus === 'missed';
+              const variant = milestoneCardVariant(milestone);
               return (
                 <li
                   key={`${milestone.sequence}-${milestone.date}`}
-                  className={`dm-ownership__step${paid ? ' is-paid' : missed ? ' is-missed' : ' is-upcoming'}`}
+                  className={[
+                    'dm-ownership__step',
+                    `dm-ownership__step--${variant}`,
+                    paid ? 'is-paid' : missed ? 'is-missed' : 'is-upcoming',
+                  ].join(' ')}
                 >
                   <div className="dm-ownership__step-icon">
                     <MilestoneIcon milestone={milestone} />
@@ -283,15 +294,15 @@ export function OwnershipProgress({
                       )}
                     </div>
                     <dl className="dm-ownership__step-stats">
-                      <div>
+                      <div className="dm-ownership__stat dm-ownership__stat--pct">
                         <dt>{t('ownership.yourStake')}</dt>
                         <dd>{milestone.ownershipPercentage.toFixed(1)}%</dd>
                       </div>
-                      <div>
+                      <div className="dm-ownership__stat dm-ownership__stat--value">
                         <dt>{t('ownership.stakeValue', { defaultValue: 'Stake value' })}</dt>
                         <dd>{fmtCurrency(milestone.ownershipAmount)}</dd>
                       </div>
-                      <div>
+                      <div className="dm-ownership__stat dm-ownership__stat--date">
                         <dt>{t('ownership.contributionDue')}</dt>
                         <dd>{new Date(milestone.date).toLocaleDateString(dateFmt)}</dd>
                       </div>
@@ -561,8 +572,8 @@ export function OwnershipProgress({
           margin: 0;
           padding: 0;
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-          gap: 14px;
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+          gap: 16px;
         }
         .dm-ownership__steps--compact {
           grid-template-columns: 1fr;
@@ -575,15 +586,85 @@ export function OwnershipProgress({
           border-radius: 14px;
           background: var(--dm-canvas);
           border: 1px solid var(--dm-slate-200);
+          border-inline-start-width: 4px;
           min-width: 0;
+          box-shadow: var(--dm-shadow-rest);
+        }
+        .dm-ownership__step--first_payment,
+        .dm-ownership__step--checkpoint {
+          border-inline-start-color: #00cfa2;
+          background: linear-gradient(135deg, rgba(0, 207, 162, 0.14) 0%, rgba(0, 207, 162, 0.04) 100%);
+        }
+        .dm-ownership__step--first_payment .dm-ownership__step-icon,
+        .dm-ownership__step--checkpoint .dm-ownership__step-icon {
+          background: linear-gradient(135deg, #00cfa2, #009e7a);
+          color: #fff;
+        }
+        .dm-ownership__step--first_payment .dm-ownership__step-badge,
+        .dm-ownership__step--checkpoint .dm-ownership__step-badge {
+          background: rgba(0, 207, 162, 0.18);
+          color: #007a5e;
+        }
+        .dm-ownership__step--quarter {
+          border-inline-start-color: #e2b13c;
+          background: linear-gradient(135deg, rgba(226, 177, 60, 0.18) 0%, rgba(226, 177, 60, 0.05) 100%);
+        }
+        .dm-ownership__step--quarter .dm-ownership__step-icon {
+          background: linear-gradient(135deg, #e2b13c, #c8941a);
+          color: #fff;
+        }
+        .dm-ownership__step--quarter .dm-ownership__step-badge {
+          background: rgba(226, 177, 60, 0.22);
+          color: #8a6410;
+        }
+        .dm-ownership__step--halfway {
+          border-inline-start-color: #3b82f6;
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.16) 0%, rgba(59, 130, 246, 0.04) 100%);
+        }
+        .dm-ownership__step--halfway .dm-ownership__step-icon {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: #fff;
+        }
+        .dm-ownership__step--halfway .dm-ownership__step-badge {
+          background: rgba(59, 130, 246, 0.18);
+          color: #1d4ed8;
+        }
+        .dm-ownership__step--three_quarters,
+        .dm-ownership__step--almost_there {
+          border-inline-start-color: #8b5cf6;
+          background: linear-gradient(135deg, rgba(139, 92, 246, 0.16) 0%, rgba(139, 92, 246, 0.04) 100%);
+        }
+        .dm-ownership__step--three_quarters .dm-ownership__step-icon,
+        .dm-ownership__step--almost_there .dm-ownership__step-icon {
+          background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+          color: #fff;
+        }
+        .dm-ownership__step--three_quarters .dm-ownership__step-badge,
+        .dm-ownership__step--almost_there .dm-ownership__step-badge {
+          background: rgba(139, 92, 246, 0.18);
+          color: #6d28d9;
+        }
+        .dm-ownership__step--full_owner {
+          border-inline-start-color: #f59e0b;
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(0, 207, 162, 0.08) 100%);
+        }
+        .dm-ownership__step--full_owner .dm-ownership__step-icon {
+          background: linear-gradient(135deg, #f59e0b, #00cfa2);
+          color: #fff;
+        }
+        .dm-ownership__step--full_owner .dm-ownership__step-badge {
+          background: rgba(245, 158, 11, 0.22);
+          color: #b45309;
         }
         .dm-ownership__step.is-paid {
-          border-color: rgba(46, 125, 50, 0.35);
-          background: rgba(46, 125, 50, 0.05);
+          border-color: rgba(46, 125, 50, 0.45);
+          border-inline-start-color: #2e7d32 !important;
+          background: linear-gradient(135deg, rgba(46, 125, 50, 0.12) 0%, rgba(46, 125, 50, 0.04) 100%) !important;
         }
         .dm-ownership__step.is-missed {
-          border-color: rgba(196, 122, 0, 0.35);
-          background: var(--dm-warning-soft);
+          border-color: rgba(196, 122, 0, 0.45);
+          border-inline-start-color: #c47a00 !important;
+          background: var(--dm-warning-soft) !important;
         }
         .dm-ownership__steps--compact .dm-ownership__step {
           grid-template-columns: 40px 1fr;
@@ -660,28 +741,45 @@ export function OwnershipProgress({
           gap: 10px;
           margin: 0;
         }
-        .dm-ownership__step-stats div {
+        .dm-ownership__stat {
           display: grid;
-          gap: 3px;
+          gap: 4px;
           padding: 10px;
           border-radius: 10px;
-          background: var(--dm-surface);
-          border: 1px solid var(--dm-slate-200);
           min-width: 0;
         }
+        .dm-ownership__stat--pct {
+          background: rgba(46, 125, 50, 0.1);
+          border: 1px solid rgba(46, 125, 50, 0.22);
+        }
+        .dm-ownership__stat--pct dt { color: #2e7d32; }
+        .dm-ownership__stat--pct dd { color: #1b5e20; }
+        .dm-ownership__stat--value {
+          background: rgba(226, 177, 60, 0.14);
+          border: 1px solid rgba(226, 177, 60, 0.28);
+        }
+        .dm-ownership__stat--value dt { color: #92680a; }
+        .dm-ownership__stat--value dd { color: #744f08; }
+        .dm-ownership__stat--date {
+          background: rgba(59, 130, 246, 0.1);
+          border: 1px solid rgba(59, 130, 246, 0.22);
+        }
+        .dm-ownership__stat--date dt { color: #2563eb; }
+        .dm-ownership__stat--date dd { color: #1e40af; }
         .dm-ownership__step-stats dt {
           font-size: 10px;
-          font-weight: 650;
+          font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.03em;
-          color: var(--dm-slate-600);
         }
         .dm-ownership__step-stats dd {
           margin: 0;
-          font-size: 14px;
-          font-weight: 700;
-          color: var(--dm-ink);
-          overflow-wrap: anywhere;
+          font-size: 13px;
+          font-weight: 800;
+          font-variant-numeric: tabular-nums;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .dm-ownership__step-meta {
           margin: 0;
