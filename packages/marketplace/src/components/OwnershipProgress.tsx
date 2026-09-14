@@ -737,14 +737,20 @@ export function OwnershipProgress({
         }
         .dm-ownership__step-stats {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: 1fr 1fr;
+          grid-template-areas:
+            'pct pct'
+            'value date';
           gap: 10px;
           margin: 0;
         }
+        .dm-ownership__stat--pct { grid-area: pct; }
+        .dm-ownership__stat--value { grid-area: value; }
+        .dm-ownership__stat--date { grid-area: date; }
         .dm-ownership__stat {
           display: grid;
           gap: 4px;
-          padding: 10px;
+          padding: 10px 12px;
           border-radius: 10px;
           min-width: 0;
         }
@@ -774,12 +780,11 @@ export function OwnershipProgress({
         }
         .dm-ownership__step-stats dd {
           margin: 0;
-          font-size: 13px;
+          font-size: 14px;
           font-weight: 800;
           font-variant-numeric: tabular-nums;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          line-height: 1.25;
+          overflow-wrap: anywhere;
         }
         .dm-ownership__step-meta {
           margin: 0;
@@ -843,7 +848,13 @@ export function OwnershipProgress({
         }
         @media (max-width: 720px) {
           .dm-ownership__steps { grid-template-columns: 1fr; }
-          .dm-ownership__step-stats { grid-template-columns: 1fr; }
+          .dm-ownership__step-stats {
+            grid-template-columns: 1fr;
+            grid-template-areas:
+              'pct'
+              'value'
+              'date';
+          }
         }
         @media (max-width: 480px) {
           .dm-ownership { padding: 16px; }
