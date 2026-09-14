@@ -346,9 +346,9 @@ export class ApplicationsStaffService {
       throw new BadRequestException('invalid_status_transition');
     }
     const fromStatus = app.status;
-    // identity_hold → consents_required → documents_missing → documents_stale →
+    // consents_required → documents_missing → documents_stale →
     // guarantor_consent_required → vehicle_identity_incomplete (only when
-    // reserving) → vehicle_age_rule
+    // reserving) → vehicle_age_rule. An identity hold is non-blocking here.
     assertSubmitGates({
       application: app,
       documents: app.documents.map(({ uploadedBy, ...doc }) => ({ ...doc, uploadedByRole: uploadedBy?.role ?? null })),

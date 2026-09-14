@@ -50,7 +50,6 @@ describe('evaluateSubmitGates', () => {
 
   it('checks the gates in the documented order', () => {
     expect(SUBMIT_GATE_ORDER).toEqual([
-      'identity_hold',
       'consents_required',
       'documents_missing',
       'documents_stale',
@@ -59,7 +58,7 @@ describe('evaluateSubmitGates', () => {
       'vehicle_age_rule',
     ]);
 
-    // Everything failing at once → identity hold first.
+    // An active identity hold never blocks submission — consents fail first.
     const everythingWrong = input({
       application: {
         identityHoldAt: new Date('2026-09-02T00:00:00.000Z'),
@@ -71,23 +70,16 @@ describe('evaluateSubmitGates', () => {
       documents: [],
       product: { vin: null, chassisNumber: null, engineNumber: null, modelYear: 2010 },
     });
-    expect(evaluateSubmitGates(everythingWrong)?.code).toBe('identity_hold');
-
-    // Hold cleared by credit → consents next.
-    const holdCleared = input({
-      ...everythingWrong,
-      application: { ...everythingWrong.application, identityHoldClearedAt: new Date('2026-09-03T00:00:00.000Z') },
-    });
-    expect(evaluateSubmitGates(holdCleared)?.code).toBe('consents_required');
+    expect(evaluateSubmitGates(everythingWrong)?.code).toBe('consents_required');
 
     // Consents captured → documents, with the profile-aware missing list.
     const consented = input({
-      ...holdCleared,
-      application: { ...holdCleared.application, consentsCompletedAt: new Date('2026-09-04T00:00:00.000Z') },
+      ...everythingWrong,
+      application: { ...everythingWrong.application, consentsCompletedAt: new Date('2026-09-04T00:00:00.000Z') },
     });
     expect(evaluateSubmitGates(consented)).toEqual({
       code: 'documents_missing',
-      missing: ['qid', 'passport', 'salary', 'bank'],
+      missing: ['qid_front', 'qid_back', 'passport', 'salary', 'bank'],
     });
 
     // Documents in but the salary certificate is 45 days old → freshness.
@@ -282,7 +274,7 @@ describe('assertSubmitGates', () => {
     } catch (error) {
       const response = (error as ConflictException).getResponse() as { message: string; missing: string[] };
       expect(response.message).toBe('documents_missing');
-      expect(response.missing).toEqual(['qid', 'passport', 'salary', 'bank']);
+      expect(response.missing).toEqual(['qid_front', 'qid_back', 'passport', 'salary', 'bank']);
     }
   });
 
@@ -330,7 +322,7 @@ describe('helpers', () => {
         identityPolicy: { ekycRequired: true },
       }),
     );
-    expect(failure).toEqual({ code: 'documents_missing', missing: ['qid'] });
+    expect(failure).toEqual({ code: 'documents_missing', missing: ['qid_front', 'qid_back'] });
   });
 
   it('passes under e-KYC when the identity came from the KYC platform', () => {

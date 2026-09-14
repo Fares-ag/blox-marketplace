@@ -12,19 +12,22 @@ import { hasGuarantorOf, readCustomerSnapshot } from './customer-snapshot';
 /**
  * Submit gates, evaluated in this order (each a 409 with the code as message):
  *
- *   1. `identity_hold`               — MISMATCHED_IDENTITY hold set and not cleared by credit
- *   2. `consents_required`           — the four mandatory consents were not captured
- *   3. `documents_missing`           — required document slots still empty (`missing` list)
- *   4. `documents_stale`             — time-sensitive uploads older than the slot allows (`stale` list)
- *   5. `guarantor_consent_required`  — a declared guarantor has not completed the consent session
- *   6. `vehicle_identity_incomplete` — VIN + chassis + engine number before the listing is reserved
- *   7. `vehicle_age_rule`            — vehicle older than 10 years at tenure end
+ *   1. `consents_required`           — the four mandatory consents were not captured
+ *   2. `documents_missing`           — required document slots still empty (`missing` list)
+ *   3. `documents_stale`             — time-sensitive uploads older than the slot allows (`stale` list)
+ *   4. `guarantor_consent_required`  — a declared guarantor has not completed the consent session
+ *   5. `vehicle_identity_incomplete` — VIN + chassis + engine number before the listing is reserved
+ *   6. `vehicle_age_rule`            — vehicle older than 10 years at tenure end
+ *
+ * NOTE: a MISMATCHED_IDENTITY hold is deliberately NOT a submit gate. The
+ * customer may submit even when the details they entered do not match the QID
+ * on file; the hold is recorded and surfaced to ops (`identityHoldActive`) so
+ * the team follows up, but it never blocks the customer's submission.
  *
  * Pure so the ordering is unit-tested without a database.
  */
 
 export const SUBMIT_GATE_ORDER = [
-  'identity_hold',
   'consents_required',
   'documents_missing',
   'documents_stale',
@@ -98,7 +101,8 @@ export function vehicleIdentityComplete(product: SubmitGateProduct): boolean {
 export function evaluateSubmitGates(input: SubmitGateInput): SubmitGateFailure | null {
   const { application, product } = input;
 
-  if (identityHoldActive(application)) return { code: 'identity_hold' };
+  // A MISMATCHED_IDENTITY hold is intentionally non-blocking: the customer can
+  // still submit, and ops follows up via `identityHoldActive`. See SUBMIT_GATE_ORDER.
 
   if (input.requireConsents !== false && !application.consentsCompletedAt) {
     return { code: 'consents_required' };
