@@ -190,7 +190,13 @@ export class ContractDocumentsService {
     });
     if (!row) throw new NotFoundException();
     this.storage.assertSignedContractFile(file);
-    if (!row.contentSha256 || !(await verifySignedContractReferencesOriginal(file.buffer, row.contentSha256, applicationId))) {
+    // Customer uploads accept any PDF; credit review validates manually. Ops keeps
+    // the fingerprint check so back-office filings stay tied to generated docs.
+    if (
+      asOps &&
+      (!row.contentSha256 ||
+        !(await verifySignedContractReferencesOriginal(file.buffer, row.contentSha256, applicationId)))
+    ) {
       throw new BadRequestException('contract_hash_mismatch');
     }
     const signedPath = await this.storage.uploadSignedContractDocument(file, applicationId, row.documentType);
@@ -255,5 +261,38 @@ export class ContractDocumentsService {
       );
     }
     return updated;
+  }
+
+  /** Customer explicitly submits the agreement package for review (even if not every slot is signed). */
+  async submitContractsForUser(user: User, applicationId: string) {
+    const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
+    if (!app) throw new NotFoundException();
+    if (user.role !== UserRole.customer || app.customerUserId !== user.id) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    if (app.status !== 'contract_signing_required') {
+      throw new BadRequestException('invalid_status_transition');
+    }
+    const latestSigned = await contractDocumentsDb(this.prisma).findFirst({
+      where: { applicationId, audience: 'customer', signedPath: { not: null } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const updated = await this.prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: 'contracts_submitted',
+        signedContractPath: latestSigned?.signedPath ?? app.signedContractPath,
+      },
+    });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: applicationId,
+      action: 'status_transition',
+      fromValue: 'contract_signing_required',
+      toValue: 'contracts_submitted',
+      metadata: { submittedBy: 'customer', manualSubmit: true },
+    });
+    return toApplicationDto(updated);
   }
 }

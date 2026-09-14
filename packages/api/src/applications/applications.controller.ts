@@ -518,6 +518,13 @@ export class ApplicationsController {
     return this.contractDocuments.signForUser(user, id, docId, file, false);
   }
 
+  @Roles(UserRole.customer)
+  @HttpCode(200)
+  @Post('applications/:id/contract-documents/submit')
+  submitContractDocuments(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.contractDocuments.submitContractsForUser(user, id);
+  }
+
   @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/applications/:id/contract-documents/:docId/sign')

@@ -261,7 +261,8 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       app.status,
     );
   const [contractError, setContractError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState<'submit' | 'resubmit' | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<'submit' | 'resubmit' | 'contracts' | null>(null);
+  const [contractSubmitting, setContractSubmitting] = useState(false);
 
   // ---- document slots (required/optional + freshness) ---------------------
   const slotsQuery = useQuery({
@@ -464,7 +465,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         items: Array<{
           id: string;
           document_type: string;
-          audience: string;
+          audience?: string;
           label: string;
           status: string;
           generated: boolean;
@@ -476,7 +477,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     enabled: canDownloadContract,
     retry: false,
   });
-  const contractDocs = contractDocsQuery.data?.items ?? [];
+  const contractDocs = (contractDocsQuery.data?.items ?? []).filter((doc) => doc.audience !== 'ops');
 
   async function signedUploadErrorMessage(res: Response): Promise<string> {
     let code = '';
@@ -527,19 +528,38 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     await postSignedUpload(`/api/applications/${app.id}/contract-documents/${docId}/sign`, file);
   }
 
+  async function submitContractPackage() {
+    setContractError(null);
+    setContractSubmitting(true);
+    try {
+      await apiFetch(`/api/applications/${app.id}/contract-documents/submit`, { method: 'POST' });
+      setSubmitSuccess('contracts');
+      invalidate();
+      void contractDocsQuery.refetch();
+    } catch (error) {
+      setContractError(error instanceof Error ? error.message : t('application.contractSubmitFailed'));
+    } finally {
+      setContractSubmitting(false);
+    }
+  }
+
   return (
     <div className="dm-app-detail">
       <SuccessDialog
         open={submitSuccess !== null}
         title={
-          submitSuccess === 'resubmit'
-            ? t('application.resubmitSuccessTitle')
-            : t('application.submitSuccessTitle')
+          submitSuccess === 'contracts'
+            ? t('application.contractSubmitSuccessTitle')
+            : submitSuccess === 'resubmit'
+              ? t('application.resubmitSuccessTitle')
+              : t('application.submitSuccessTitle')
         }
         message={
-          submitSuccess === 'resubmit'
-            ? t('application.resubmitSuccessBody')
-            : t('application.submitSuccessBody')
+          submitSuccess === 'contracts'
+            ? t('application.contractSubmitSuccessBody')
+            : submitSuccess === 'resubmit'
+              ? t('application.resubmitSuccessBody')
+              : t('application.submitSuccessBody')
         }
         dismissLabel={t('application.submitSuccessDismiss')}
         onClose={() => setSubmitSuccess(null)}
@@ -819,6 +839,18 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
             </>
           )}
           {contractError && <p className="dm-app-detail__error">{contractError}</p>}
+          {canSignContract && contractDocs.length > 0 && (
+            <div className="dm-app-detail__actions" style={{ marginTop: 16, maxWidth: '100%' }}>
+              <button
+                type="button"
+                className="dm-btn-cta"
+                disabled={contractSubmitting}
+                onClick={() => void submitContractPackage()}
+              >
+                {contractSubmitting ? t('application.contractSubmitting') : t('application.submitSignedContract')}
+              </button>
+            </div>
+          )}
         </section>
       )}
 
