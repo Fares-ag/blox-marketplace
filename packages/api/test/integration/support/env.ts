@@ -10,6 +10,9 @@ export function applyIntegrationEnv(overrides: Record<string, string | undefined
   process.env.CORS_ORIGINS = TEST_ORIGIN;
   process.env.REQUIRE_EMAIL_VERIFICATION = 'false';
   process.env.SKIPCASH_SANDBOX = 'false';
+  // Isolate integration tests from local .env feature flags (e.g. LPO gate).
+  process.env.LPO_GATE_ENABLED = 'false';
+  process.env.PRE_DISBURSAL_GATE_ENABLED = 'false';
 
   for (const [key, value] of Object.entries(overrides)) {
     if (value === undefined) delete process.env[key];
