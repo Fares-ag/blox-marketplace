@@ -212,6 +212,10 @@ export const en = {
     pricingSummary: 'Your plan estimate',
     downPayment: 'Initial contribution',
     timeline: 'Your progress',
+    timelineStepOf: 'Step {{current}} of {{total}}',
+    timelineComplete: 'All steps complete',
+    quickLinks: 'Quick links',
+    resubmissionNotice: 'Action needed',
     nextSteps:
       'After you save, upload all four documents on the next screen. Submit to confirm your plan only when every category is complete.',
     timelineStep: {
@@ -1439,6 +1443,10 @@ export const ar: typeof en = {
     pricingSummary: 'تقدير خطتك',
     downPayment: 'المساهمة الأولى',
     timeline: 'تقدمك',
+    timelineStepOf: 'الخطوة {{current}} من {{total}}',
+    timelineComplete: 'اكتملت جميع الخطوات',
+    quickLinks: 'روابط سريعة',
+    resubmissionNotice: 'إجراء مطلوب',
     nextSteps:
       'بعد الحفظ، ارفع المستندات الأربعة في الشاشة التالية. قدّم لتأكيد خطتك فقط عند اكتمال كل فئة.',
     timelineStep: {

@@ -727,7 +727,7 @@ function ApplicationDetailPage() {
   }, [searchParams, id, qc]);
 
   return (
-    <CustomerPortalLayout metaTitle={t('application.title')} contentMax="narrow">
+    <CustomerPortalLayout metaTitle={t('application.title')} contentMax="wide">
         {isLoading && <p>{t('vehicles.loading')}</p>}
         {data && <ApplicationDetailPanel app={data} />}
     </CustomerPortalLayout>

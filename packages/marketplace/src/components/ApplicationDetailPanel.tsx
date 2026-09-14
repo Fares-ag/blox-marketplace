@@ -582,58 +582,8 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
 
       <ApplicationStatusView app={app} />
 
-      {showFacts && (
-        <section className="dm-app-detail__section" aria-labelledby="dm-plan-facts-title">
-          <h3 id="dm-plan-facts-title">{t('ownershipHero.plan.factsTitle')}</h3>
-          <dl className="dm-app-detail__facts">
-            {lenderLabel && (
-              <div>
-                <dt>{t('ownershipHero.plan.lender')}</dt>
-                <dd>{lenderLabel}</dd>
-              </div>
-            )}
-            {app.dealerName && (
-              <div>
-                <dt>{t('ownershipHero.plan.dealer')}</dt>
-                <dd>{app.dealerName}</dd>
-              </div>
-            )}
-            {app.branchName && (
-              <div>
-                <dt>{t('ownershipHero.plan.branch')}</dt>
-                <dd>{app.branchName}</dd>
-              </div>
-            )}
-            {consentsRow && (
-              <div>
-                <dt>{t('ownershipHero.plan.consents')}</dt>
-                <dd className={consentsRow === 'done' ? 'is-ok' : 'is-warn'}>
-                  {consentsRow === 'done'
-                    ? t('ownershipHero.plan.consentsDone', { date: formatDate(app.consentsCompletedAt, locale) })
-                    : t('ownershipHero.plan.consentsPending')}
-                  {consentsRow === 'pending' && (
-                    <>
-                      {' · '}
-                      <Link to={`/app/consents?application_id=${encodeURIComponent(app.id)}`}>
-                        {t('ownershipHero.plan.consentsLink')}
-                      </Link>
-                    </>
-                  )}
-                </dd>
-              </div>
-            )}
-            {app.identityHold?.clearedAt && (
-              <div>
-                <dt>{t('ownershipHero.plan.identityHoldTitle')}</dt>
-                <dd className="is-ok">
-                  {t('ownershipHero.plan.identityHoldCleared', { date: formatDate(app.identityHold.clearedAt, locale) })}
-                </dd>
-              </div>
-            )}
-          </dl>
-        </section>
-      )}
-
+      <div className="dm-app-detail__layout">
+        <div className="dm-app-detail__main">
       {ruleFlags.length > 0 && (
         <section className="dm-app-detail__section dm-app-detail__flags" aria-labelledby="dm-rule-flags-title">
           <h3 id="dm-rule-flags-title">{t('ownershipHero.plan.ruleFlagsTitle')}</h3>
@@ -791,15 +741,17 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
             </p>
           )}
           {contractDocs.length > 0 ? (
-            <ul className="dm-app-detail__doc-list">
+            <div className="dm-app-detail__contract-grid">
               {contractDocs.map((doc) => {
                 const signed = doc.signed || doc.status === 'signed_submitted' || doc.status === 'verified';
                 return (
-                  <li key={doc.id}>
-                    <strong>{doc.label}</strong>
-                    <span className="dm-app-detail__hint">
-                      {signed ? t('application.contractDocSigned') : t('application.contractDocPending')}
-                    </span>
+                  <article key={doc.id} className={`dm-app-detail__contract-card${signed ? ' is-signed' : ''}`}>
+                    <div className="dm-app-detail__contract-card-head">
+                      <h4>{doc.label}</h4>
+                      <span className={`dm-app-detail__contract-badge${signed ? ' is-signed' : ''}`}>
+                        {signed ? t('application.contractDocSigned') : t('application.contractDocPending')}
+                      </span>
+                    </div>
                     <a
                       className="dm-app-detail__link-btn"
                       href={apiFileUrl(`/applications/${app.id}/contract-documents/${doc.id}/download`)}
@@ -815,10 +767,10 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
                         onUpload={(file) => uploadSignedContractDocument(doc.id, file)}
                       />
                     )}
-                  </li>
+                  </article>
                 );
               })}
-            </ul>
+            </div>
           ) : (
             <>
               <a
@@ -840,7 +792,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           )}
           {contractError && <p className="dm-app-detail__error">{contractError}</p>}
           {canSignContract && contractDocs.length > 0 && (
-            <div className="dm-app-detail__actions" style={{ marginTop: 16, maxWidth: '100%' }}>
+            <div className="dm-app-detail__contract-submit">
               <button
                 type="button"
                 className="dm-btn-cta"
@@ -975,16 +927,142 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           </div>
         </section>
       )}
+        </div>
+
+        <aside className="dm-app-detail__aside">
+          {showFacts && (
+            <section className="dm-app-detail__aside-card" aria-labelledby="dm-plan-facts-title">
+              <h3 id="dm-plan-facts-title">{t('ownershipHero.plan.factsTitle')}</h3>
+              <dl className="dm-app-detail__facts dm-app-detail__facts--stacked">
+                {lenderLabel && (
+                  <div>
+                    <dt>{t('ownershipHero.plan.lender')}</dt>
+                    <dd>{lenderLabel}</dd>
+                  </div>
+                )}
+                {app.dealerName && (
+                  <div>
+                    <dt>{t('ownershipHero.plan.dealer')}</dt>
+                    <dd>{app.dealerName}</dd>
+                  </div>
+                )}
+                {app.branchName && (
+                  <div>
+                    <dt>{t('ownershipHero.plan.branch')}</dt>
+                    <dd>{app.branchName}</dd>
+                  </div>
+                )}
+                {consentsRow && (
+                  <div>
+                    <dt>{t('ownershipHero.plan.consents')}</dt>
+                    <dd className={consentsRow === 'done' ? 'is-ok' : 'is-warn'}>
+                      {consentsRow === 'done'
+                        ? t('ownershipHero.plan.consentsDone', { date: formatDate(app.consentsCompletedAt, locale) })
+                        : t('ownershipHero.plan.consentsPending')}
+                      {consentsRow === 'pending' && (
+                        <>
+                          {' · '}
+                          <Link to={`/app/consents?application_id=${encodeURIComponent(app.id)}`}>
+                            {t('ownershipHero.plan.consentsLink')}
+                          </Link>
+                        </>
+                      )}
+                    </dd>
+                  </div>
+                )}
+                {app.identityHold?.clearedAt && (
+                  <div>
+                    <dt>{t('ownershipHero.plan.identityHoldTitle')}</dt>
+                    <dd className="is-ok">
+                      {t('ownershipHero.plan.identityHoldCleared', { date: formatDate(app.identityHold.clearedAt, locale) })}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+          )}
+
+          <section className="dm-app-detail__aside-card dm-app-detail__aside-links">
+            <h3>{t('application.quickLinks', { defaultValue: 'Quick links' })}</h3>
+            <nav aria-label={t('application.quickLinks', { defaultValue: 'Quick links' })}>
+              <Link to="/app/applications">{t('application.title')}</Link>
+              <Link to="/app/profile">{t('customerProfile.title')}</Link>
+              <Link to="/app/consents">{t('consentCentre.pageTitle')}</Link>
+              <Link to="/help">{t('nav.help')}</Link>
+            </nav>
+          </section>
+        </aside>
+      </div>
 
       <style>{`
-        .dm-app-detail { display: grid; gap: 24px; }
+        .dm-app-detail { display: grid; gap: 28px; }
+        .dm-app-detail__layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+          gap: 24px;
+          align-items: start;
+        }
+        .dm-app-detail__main { display: grid; gap: 20px; min-width: 0; }
+        .dm-app-detail__aside {
+          display: grid;
+          gap: 16px;
+          position: sticky;
+          top: 88px;
+        }
+        .dm-app-detail__aside-card {
+          background: var(--dm-surface);
+          border: 1px solid var(--dm-slate-200);
+          border-radius: 14px;
+          padding: 18px 20px;
+          box-shadow: var(--dm-shadow-rest);
+        }
+        .dm-app-detail__aside-card h3 {
+          margin: 0 0 14px;
+          font-family: var(--dm-font-display);
+          font-size: 0.95rem;
+        }
+        .dm-app-detail__aside-links nav {
+          display: grid;
+          gap: 8px;
+        }
+        .dm-app-detail__aside-links a {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 10px 12px;
+          border-radius: 10px;
+          background: var(--dm-canvas);
+          border: 1px solid var(--dm-slate-200);
+          font-size: 14px;
+          font-weight: 650;
+          color: var(--dm-ink);
+          text-decoration: none;
+        }
+        .dm-app-detail__aside-links a:hover {
+          border-color: var(--dm-steel);
+          color: var(--dm-steel);
+        }
+        .dm-app-detail__aside-links a::after {
+          content: '→';
+          color: var(--dm-slate-600);
+        }
+        .dm-app-detail__facts--stacked {
+          grid-template-columns: 1fr;
+          gap: 14px;
+        }
         .dm-app-detail__section {
           background: var(--dm-surface);
           border: 1px solid var(--dm-slate-200);
-          border-radius: 12px;
-          padding: 20px;
+          border-radius: 14px;
+          padding: 22px 24px;
+          box-shadow: var(--dm-shadow-rest);
         }
-        .dm-app-detail__section h3 { margin: 0 0 12px; font-size: 1rem; }
+        .dm-app-detail__section h3 {
+          margin: 0 0 14px;
+          font-family: var(--dm-font-display);
+          font-size: 1.05rem;
+        }
         .dm-app-detail__section h4.dm-step__subtitle { margin: 16px 0 8px; font-size: 0.85rem; }
         .dm-app-detail__section .dm-docs__summary { margin-bottom: 4px; }
         .dm-app-detail__settlement { scroll-margin-top: 16px; }
@@ -1174,7 +1252,56 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
         .dm-app-detail__link-btn:hover {
           background: var(--dm-steel-soft);
         }
-        .dm-app-detail__actions { display: grid; gap: 12px; max-width: 420px; }
+        .dm-app-detail__actions { display: grid; gap: 12px; max-width: 480px; }
+        .dm-app-detail__contract-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 14px;
+        }
+        .dm-app-detail__contract-card {
+          display: grid;
+          gap: 12px;
+          padding: 16px;
+          border-radius: 12px;
+          background: var(--dm-canvas);
+          border: 1px solid var(--dm-slate-200);
+        }
+        .dm-app-detail__contract-card.is-signed {
+          border-color: rgba(6, 118, 71, 0.35);
+          background: rgba(6, 118, 71, 0.05);
+        }
+        .dm-app-detail__contract-card-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
+        }
+        .dm-app-detail__contract-card-head h4 {
+          margin: 0;
+          font-size: 0.95rem;
+          line-height: 1.35;
+        }
+        .dm-app-detail__contract-badge {
+          flex-shrink: 0;
+          padding: 4px 8px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          background: var(--dm-warning-soft, #fff4e0);
+          color: var(--dm-warning, #b54708);
+        }
+        .dm-app-detail__contract-badge.is-signed {
+          background: rgba(6, 118, 71, 0.12);
+          color: #067647;
+        }
+        .dm-app-detail__contract-submit {
+          margin-top: 18px;
+          padding-top: 18px;
+          border-top: 1px solid var(--dm-slate-200);
+        }
+        .dm-app-detail__contract-submit .dm-btn-cta {
+          min-width: min(100%, 320px);
+        }
         .dm-app-detail__cancel-reason { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: var(--dm-slate-600); }
         .dm-app-detail__cancel-reason input {
           min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--dm-slate-200); font: inherit;
@@ -1198,9 +1325,18 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           opacity: 0.55;
           cursor: not-allowed;
         }
+        @media (max-width: 1024px) {
+          .dm-app-detail__layout { grid-template-columns: 1fr; }
+          .dm-app-detail__aside {
+            position: static;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          }
+        }
         @media (max-width: 640px) {
           .dm-app-detail__checklist,
-          .dm-app-detail__upload-grid { grid-template-columns: 1fr; }
+          .dm-app-detail__upload-grid,
+          .dm-app-detail__contract-grid { grid-template-columns: 1fr; }
+          .dm-app-detail__aside { grid-template-columns: 1fr; }
         }
         @media (max-width: 480px) {
           .dm-app-detail__section { padding: 16px; }

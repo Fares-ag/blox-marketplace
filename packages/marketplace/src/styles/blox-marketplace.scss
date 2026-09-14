@@ -827,16 +827,18 @@ textarea:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 20px;
+  margin: 0 0 24px;
+  padding-bottom: 4px;
 }
 
 .dm-account-nav a {
   display: inline-flex;
   align-items: center;
-  padding: 8px 14px;
+  padding: 9px 16px;
   border-radius: 999px;
   font-size: 0.875rem;
   font-weight: 600;
+  white-space: nowrap;
   line-height: 1.2;
   color: rgba(255, 255, 255, 0.78);
   text-decoration: none;
