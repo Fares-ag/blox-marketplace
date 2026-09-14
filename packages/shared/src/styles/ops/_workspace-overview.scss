@@ -48,6 +48,15 @@
   }
 }
 
+.blox-detail-section .blox-panel__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 // Panel title with a trailing cluster (pill, small button).
 .blox-panel__title-aside {
   margin-inline-start: auto;

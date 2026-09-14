@@ -48,9 +48,12 @@ export function ApplicationStatusView({
     status: string;
     createdAt?: string;
     submittedAt?: string | null;
+    completedAt?: string | null;
     pricingSnapshot?: Record<string, unknown> | null;
     product?: { make?: string; model?: string; slug?: string; modelYear?: number; price?: number };
     resubmissionComment?: string | null;
+    settlementRequest?: { status: string; settlementAmount?: number; decidedAt?: string | null } | null;
+    customerOwnershipPct?: number | null;
   };
 }) {
   const { t } = useTranslation();
@@ -65,7 +68,8 @@ export function ApplicationStatusView({
   const declined = app.status === 'rejected';
   const submittedLabel = app.submittedAt ?? app.createdAt;
   const journeyComplete = currentStep >= JOURNEY_STEPS.length;
-  const showPricing = !declined && (monthly > 0 || down > 0 || vehiclePrice > 0);
+  const settlementApproved = app.status === 'completed' && app.settlementRequest?.status === 'approved';
+  const showPricing = !declined && !settlementApproved && (monthly > 0 || down > 0 || vehiclePrice > 0);
 
   return (
     <div className="dm-app-status">
@@ -144,6 +148,20 @@ export function ApplicationStatusView({
 
       {showPricing && (
         <p className="dm-app-status__note">{t('detail.estimateNote')}</p>
+      )}
+
+      {settlementApproved && (
+        <section className="dm-app-status__settlement-complete" aria-live="polite">
+          <p>{t('ownershipHero.settlement.approvedComplete')}</p>
+          {(app.customerOwnershipPct ?? 0) >= 99.9 && (
+            <p className="dm-app-status__note">
+              {t('ownershipHero.milestone100')}
+              {app.completedAt
+                ? ` · ${new Date(app.completedAt).toLocaleDateString(dateFmt, { day: 'numeric', month: 'short', year: 'numeric' })}`
+                : ''}
+            </p>
+          )}
+        </section>
       )}
 
       {declined && (

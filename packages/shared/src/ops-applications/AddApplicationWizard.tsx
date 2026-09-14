@@ -490,7 +490,7 @@ export function AddApplicationWizard({
           ? buildPricingSnapshot({
               listPrice: ctx.priceForPlan,
               annualRatePercent: ctx.rate,
-              minDownPaymentPct: ctx.minDown,
+              minDownPaymentPct: downPaymentBounds().min,
               tenureMonths: data.tenure,
               downPaymentPct: data.downPct,
             })
@@ -502,7 +502,7 @@ export function AddApplicationWizard({
         const tenureOptions = allowedTenureOptions(residency, ctx.tenureOptions);
         const income = data.customerInfo.monthlyIncome;
         const affordability =
-          income > 0 && residency
+          data.customerInfo.applicantType !== 'corporate' && income > 0 && residency
             ? assessAffordability({
                 monthlyIncome: income,
                 monthlyLiabilities: data.customerInfo.monthlyLiabilities,
@@ -787,6 +787,12 @@ export function AddApplicationWizard({
     }
   }
 
+  function handleCancel() {
+    if (!window.confirm(t('ops.wizard.discardDraftConfirm'))) return;
+    clearMultiStepDraft(DRAFT_STORAGE_KEY);
+    navigate(detailBase);
+  }
+
   return (
     <div className="blox-page">
       <OpsPageHeader title={t('ops.wizard.newApplication')} subtitle={t('ops.wizard.step.customer')} />
@@ -800,7 +806,9 @@ export function AddApplicationWizard({
           steps={steps}
           initialData={initialData}
           onSubmit={onSubmit}
+          onCancel={handleCancel}
           isSubmitting={busy}
+          labels={{ cancel: t('ops.wizard.exitApplication') }}
           storageKey={DRAFT_STORAGE_KEY}
           storageOmitKeys={DRAFT_OMIT_KEYS}
         />

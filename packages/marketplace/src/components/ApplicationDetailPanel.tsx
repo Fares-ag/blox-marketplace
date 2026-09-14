@@ -315,8 +315,12 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const showFacts = !!lenderLabel || !!app.dealerName || !!app.branchName || consentsRow !== null;
   const ruleFlags = app.ruleFlags ?? [];
   const showSchedule = app.status === 'active' && (app.paymentSchedules?.length ?? 0) > 0;
-  const showSettlement = app.status === 'active';
-  const settlementQuote = useSettlementQuote(app.id, showSettlement);
+  const settlementRequest = app.settlementRequest;
+  const hasPendingSettlement = settlementRequest?.status === 'pending';
+  const settlementApproved = settlementRequest?.status === 'approved';
+  const showSettlement = app.status === 'active' || (app.status === 'completed' && settlementApproved);
+  const canSettle = app.status === 'active' && !hasPendingSettlement;
+  const settlementQuote = useSettlementQuote(app.id, app.status === 'active' && !hasPendingSettlement);
 
   // The dashboard hero deep-links to `#schedule` / `#settlement`; the sections
   // only exist once the detail has loaded, so scroll after render.
@@ -610,14 +614,24 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
 
       {showSettlement && (
         <section className="dm-app-detail__settlement" id="settlement" ref={settlementRef}>
-          <SettlementQuoteCard
-            applicationId={app.id}
-            quote={settlementQuote.data}
-            loading={settlementQuote.isLoading}
-            error={settlementQuote.isError}
-            variant="detail"
-            canSettle
-          />
+          {settlementApproved ? (
+            <p className="dm-app-detail__hint dm-app-detail__hint--success" role="status">
+              {t('ownershipHero.settlement.approvedComplete')}
+            </p>
+          ) : hasPendingSettlement ? (
+            <p className="dm-app-detail__hint" role="status">
+              {t('ownershipHero.settlement.pendingReview')}
+            </p>
+          ) : (
+            <SettlementQuoteCard
+              applicationId={app.id}
+              quote={settlementQuote.data}
+              loading={settlementQuote.isLoading}
+              error={settlementQuote.isError}
+              variant="detail"
+              canSettle={canSettle}
+            />
+          )}
         </section>
       )}
 
@@ -754,14 +768,18 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
                         {signed ? t('application.contractDocSigned') : t('application.contractDocPending')}
                       </span>
                     </div>
-                    <a
-                      className="dm-app-detail__link-btn"
-                      href={apiFileUrl(`/applications/${app.id}/contract-documents/${doc.id}/download`)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {t('application.downloadContractDocument')}
-                    </a>
+                    {doc.generated ? (
+                      <a
+                        className="dm-app-detail__link-btn"
+                        href={apiFileUrl(`/applications/${app.id}/contract-documents/${doc.id}/download`)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {t('application.downloadContractDocument')}
+                      </a>
+                    ) : (
+                      <span className="dm-app-detail__hint">{t('application.contractGenerating')}</span>
+                    )}
                     {canSignContract && !signed && (
                       <DocumentUploadCard
                         title={t('application.uploadSignedDocument')}

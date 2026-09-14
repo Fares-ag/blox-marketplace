@@ -284,8 +284,10 @@ export function OwnershipHero({ app, loading = false }: Props) {
 
   // The early-settlement figure always comes from the API quote (principal
   // outstanding + rent to date); the card below owns the settle action.
-  const settlementActive = !!app && app.status === 'active';
+  const hasPendingSettlement = app?.settlementRequest?.status === 'pending';
+  const settlementActive = !!app && app.status === 'active' && !hasPendingSettlement;
   const settlementQuote = useSettlementQuote(app?.id ?? null, settlementActive);
+  const canSettle = !!app && app.status === 'active' && !hasPendingSettlement;
 
   const styles = <style>{HERO_CSS}</style>;
 
@@ -495,15 +497,21 @@ export function OwnershipHero({ app, loading = false }: Props) {
       </div>
       {isActive && (
         <div id="dm-settlement-hero" className="dm-ohero__settlement">
-          <SettlementQuoteCard
-            applicationId={app.id}
-            quote={settlementQuote.data}
-            loading={settlementQuote.isLoading}
-            error={settlementQuote.isError}
-            variant="hero"
-            canSettle
-            compact
-          />
+          {hasPendingSettlement ? (
+            <p className="dm-ohero__pending" role="status">
+              {t('ownershipHero.settlement.pendingReview')}
+            </p>
+          ) : (
+            <SettlementQuoteCard
+              applicationId={app.id}
+              quote={settlementQuote.data}
+              loading={settlementQuote.isLoading}
+              error={settlementQuote.isError}
+              variant="hero"
+              canSettle={canSettle}
+              compact
+            />
+          )}
         </div>
       )}
       {styles}

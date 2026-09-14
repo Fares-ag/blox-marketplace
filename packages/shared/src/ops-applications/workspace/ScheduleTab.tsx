@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
 import { OpsField, OpsSelect } from '../../ops-ui-v2';
 import { OpsGhostButton, OpsPrimaryButton } from '../../components/ops-ui';
@@ -20,6 +20,12 @@ export function ScheduleTab({ data, actions, mutations, setConfirm, setError, in
   const [payMethod, setPayMethod] = useState<string>('bank_transfer');
   const [payReference, setPayReference] = useState('');
   const [payProof, setPayProof] = useState<File | null>(null);
+  const payFormRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!payTarget) return;
+    payFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [payTarget]);
 
   function openPayDialog(row: PayTarget) {
     setError(null);
@@ -60,7 +66,7 @@ export function ScheduleTab({ data, actions, mutations, setConfirm, setError, in
         }
       />
       {payTarget && (
-        <div className="blox-detail-section blox-pay-form">
+        <div className="blox-detail-section blox-pay-form" ref={payFormRef}>
           <h3 className="blox-panel__title">
             {t('ops.finance.recordPaymentTitle', {
               seq: payTarget.sequence,

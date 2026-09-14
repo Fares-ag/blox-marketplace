@@ -4,6 +4,7 @@ import { formatMonthsToTenure } from '../lib/tenure';
 import { generateInstallmentSchedule } from '../lib/generate-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
 import { buildPricingSnapshot, sumInstallmentAmounts } from '../lib/pricing';
+import { downPaymentBounds } from '../lib/product-rules';
 import { formatQar, formatPercent } from '../lib/format';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsSelect } from '../ops-ui-v2/OpsField';
@@ -35,7 +36,7 @@ export function InstallmentPlanStep({
     const snapshot = buildPricingSnapshot({
       listPrice: vehiclePrice,
       annualRatePercent: offerRate,
-      minDownPaymentPct: minDownPct,
+      minDownPaymentPct: downPaymentBounds().min,
       tenureMonths,
       downPaymentPct,
     });

@@ -47,6 +47,7 @@ export function SettlementQuoteCard({
       setConfirmOpen(false);
       setNotice({ tone: 'ok', text: t('ownershipHero.settlement.requested') });
       void qc.invalidateQueries({ queryKey: ['app', applicationId] });
+      void qc.invalidateQueries({ queryKey: ['my-apps'] });
     },
     onError: () => {
       setConfirmOpen(false);

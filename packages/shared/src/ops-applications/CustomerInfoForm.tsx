@@ -14,6 +14,7 @@ import {
   GENDER_OPTIONS,
   GUARANTOR_RELATIONSHIP_OPTIONS,
   customerInfoFromSnapshot,
+  emptyCustomerInfo,
   residencyForInfo,
   type CustomerGender,
   type CustomerInfoFormValue,
@@ -36,6 +37,10 @@ function isCorporateSignatoryHit(hit: CustomerSearchHit): boolean {
   if (snap.applicantType === 'corporate') return true;
   const corp = snap.corporate as { authorizedSignatory?: unknown; legalName?: string } | undefined;
   return Boolean(corp?.authorizedSignatory || corp?.legalName?.trim());
+}
+
+function isIndividualCustomerHit(hit: CustomerSearchHit): boolean {
+  return !isCorporateSignatoryHit(hit);
 }
 
 const QID_LENGTH = 11;
@@ -174,11 +179,12 @@ export function CustomerInfoForm({
     if (value.applicantType === 'corporate') {
       const sig = fromSnapshot.corporate?.authorizedSignatory ?? {};
       onChange({
-        ...value,
+        ...fromSnapshot,
+        applicantType: 'corporate',
         corporate: {
-          ...value.corporate,
+          ...fromSnapshot.corporate,
           authorizedSignatory: {
-            ...value.corporate.authorizedSignatory,
+            ...(fromSnapshot.corporate?.authorizedSignatory ?? {}),
             firstName: sig.firstName?.trim() || nameParts[0] || '',
             lastName: sig.lastName?.trim() || nameParts.slice(1).join(' '),
             email: hit.email || sig.email || '',
@@ -205,7 +211,7 @@ export function CustomerInfoForm({
   }
 
   const existingCustomerHits = (customers.data?.items ?? []).filter((row) =>
-    value.applicantType === 'corporate' ? isCorporateSignatoryHit(row) : true,
+    value.applicantType === 'corporate' ? isCorporateSignatoryHit(row) : isIndividualCustomerHit(row),
   );
 
   return (
@@ -214,7 +220,14 @@ export function CustomerInfoForm({
           <OpsSelect
             label={t('ops.wizard.applicantType')}
             value={value.applicantType}
-            onChange={(e) => patch({ applicantType: e.target.value as CustomerInfoFormValue['applicantType'] })}
+            onChange={(e) => {
+              const nextType = e.target.value as CustomerInfoFormValue['applicantType'];
+              if (nextType === value.applicantType) return;
+              setUseExisting(false);
+              setSearch('');
+              setTouched({});
+              onChange({ ...emptyCustomerInfo(), applicantType: nextType });
+            }}
           >
             <option value="individual">{t('ops.wizard.individual')}</option>
             <option value="corporate">{t('ops.wizard.corporate')}</option>

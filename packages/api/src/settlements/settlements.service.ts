@@ -231,6 +231,18 @@ export class SettlementsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      let approvalValues: ReturnType<typeof settlementRequestValues> | null = null;
+      if (decision === 'approved') {
+        if (row.application.status !== ApplicationStatus.active) {
+          throw new BadRequestException('settlement_requires_active_financing');
+        }
+        const app = await tx.application.findUniqueOrThrow({
+          where: { id: row.applicationId },
+          select: QUOTE_SELECT,
+        });
+        approvalValues = settlementRequestValues(quoteForApplication(app));
+      }
+
       const settled = await tx.applicationSettlement.update({
         where: { id },
         data: {
@@ -238,19 +250,25 @@ export class SettlementsService {
           decidedAt: new Date(),
           decidedByUserId: user.id,
           decisionReason: reason?.trim() || null,
+          ...(approvalValues
+            ? {
+                settlementAmount: approvalValues.settlementAmount,
+                remainingPrincipal: approvalValues.remainingPrincipal,
+                forgivenRent: approvalValues.forgivenRent,
+                accruedProfit: approvalValues.accruedProfit,
+                quoteAsOf: approvalValues.quoteAsOf,
+              }
+            : {}),
         },
         include: APP_INCLUDE,
       });
-      if (decision === 'approved') {
-        if (row.application.status !== ApplicationStatus.active) {
-          throw new BadRequestException('settlement_requires_active_financing');
-        }
+      if (decision === 'approved' && approvalValues) {
         await this.musharakah.completeSettlementLedger(tx, {
           applicationId: row.applicationId,
-          amount: row.settlementAmount,
+          amount: new Prisma.Decimal(approvalValues.settlementAmount),
           actorUserId: user.id,
           settlementId: id,
-          forgivenRent: row.forgivenRent,
+          forgivenRent: new Prisma.Decimal(approvalValues.forgivenRent),
         });
       }
       return settled;

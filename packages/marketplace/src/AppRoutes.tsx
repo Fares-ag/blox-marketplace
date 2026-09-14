@@ -505,7 +505,9 @@ function DealerShowroomPage() {
             c.logo_url && <img src={c.logo_url} alt="" style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }} />
           )}
           <div>
-            <h1 style={{ fontFamily: 'var(--dm-font-display)', margin: '0 0 8px' }}>{t('dealers.showroomTitle', { name: brand.displayName ?? c.name })}</h1>
+            <h1 style={{ fontFamily: 'var(--dm-font-display)', margin: '0 0 8px' }}>
+              {branded ? t('dealers.showroomHeading') : t('dealers.showroomTitle', { name: brand.displayName ?? c.name })}
+            </h1>
             <p style={{ margin: 0, opacity: 0.78 }}>{brand.tagline ?? t('dealers.showroomBody')}</p>
           </div>
         </div>

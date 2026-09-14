@@ -742,6 +742,22 @@ export class ApplicationsService {
       }));
     }
 
+    if (audience === 'customer') {
+      const settlement = await this.prisma.applicationSettlement.findFirst({
+        where: { applicationId: id },
+        orderBy: { requestedAt: 'desc' },
+      });
+      if (settlement) {
+        dto.settlement_request = {
+          id: settlement.id,
+          status: settlement.status,
+          settlement_amount: Number(settlement.settlementAmount),
+          requested_at: settlement.requestedAt.toISOString(),
+          decided_at: settlement.decidedAt?.toISOString() ?? null,
+        };
+      }
+    }
+
     return dto;
   }
 

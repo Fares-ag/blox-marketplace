@@ -66,6 +66,14 @@ export type CustomerApplicationRuleFlag = {
   params: Record<string, string | number>;
 };
 
+export type CustomerSettlementRequest = {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  settlementAmount: number;
+  requestedAt: string;
+  decidedAt: string | null;
+};
+
 export type CustomerApplication = {
   id: string;
   status: string;
@@ -104,6 +112,7 @@ export type CustomerApplication = {
   paymentSchedules?: CustomerApplicationSchedule[];
   customerPhase?: string | null;
   customerOwnershipPct?: number | null;
+  settlementRequest?: CustomerSettlementRequest | null;
 };
 
 function asIso(value: unknown): string {
@@ -172,6 +181,7 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
   const pricingSnapshot = pick<Record<string, unknown> | null>(raw, 'pricingSnapshot', 'pricing_snapshot') ?? null;
   const company = pick<Raw | null>(raw, 'company', 'company') ?? null;
   const financingSource = pick<string | null>(raw, 'financingSource', 'financing_source') ?? null;
+  const settlementRaw = pick<Raw | null>(raw, 'settlementRequest', 'settlement_request') ?? null;
 
   return {
     ...raw,
@@ -200,6 +210,15 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
     branchName: pick<string | null>(raw, 'branchName', 'branch_name') ?? null,
     customerPhase: pick<string | null>(raw, 'customerPhase', 'customer_phase') ?? null,
     customerOwnershipPct: asNumberOrNull(pick(raw, 'customerOwnershipPct', 'customer_ownership_pct')),
+    settlementRequest: settlementRaw
+      ? {
+          id: String(settlementRaw.id),
+          status: String(settlementRaw.status) as CustomerSettlementRequest['status'],
+          settlementAmount: asNumberOrNull(pick(settlementRaw, 'settlementAmount', 'settlement_amount')) ?? 0,
+          requestedAt: asIso(pick(settlementRaw, 'requestedAt', 'requested_at')),
+          decidedAt: asNullableIso(pick(settlementRaw, 'decidedAt', 'decided_at')),
+        }
+      : null,
     ruleFlags: normalizeRuleFlags(raw, pricingSnapshot),
     customerSnapshot: pick<Record<string, unknown> | null>(raw, 'customerSnapshot', 'customer_snapshot') ?? null,
     takafulPolicies: takaful?.map(normalizeTakafulPolicy),
