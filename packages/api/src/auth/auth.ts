@@ -8,6 +8,7 @@ import type { MailService } from '../mail/mail.service';
 import {
   resolveAuthBaseUrl,
   resolveAuthSecret,
+  resolveAutoConfirmUsers,
   resolveCookieDomain,
   resolvePrivilegedLoginLockout,
   resolveRequireEmailVerification,
@@ -36,7 +37,12 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
     .split(',')
     .map((o) => o.trim());
   const cookieDomain = resolveCookieDomain(config);
-  const requireEmailVerification = resolveRequireEmailVerification(config);
+  // TEMPORARY email-plan bridge: auto-confirm forces verification off so new
+  // users get a session on sign-up and can use the platform immediately.
+  const autoConfirmUsers = resolveAutoConfirmUsers(config);
+  const requireEmailVerification = autoConfirmUsers
+    ? false
+    : resolveRequireEmailVerification(config);
   const sessionCookieCacheMaxAge = resolveSessionCookieCacheMaxAge(config);
   const loginLockout = resolvePrivilegedLoginLockout(config);
   const sessionPolicy = resolveSessionPolicy(config);
@@ -71,9 +77,12 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
       },
     },
     emailVerification: {
-      sendOnSignUp: true,
+      // TEMPORARY email-plan bridge: don't send the sign-up verification email
+      // while AUTH_AUTO_CONFIRM_USERS is on (email quota exhausted).
+      sendOnSignUp: !autoConfirmUsers,
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
+        if (autoConfirmUsers) return;
         await mail.sendVerificationEmail(user.email, url);
       },
     },
@@ -183,6 +192,14 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
             await prisma.user.update({
               where: { id: user.id },
               data: { preferredLanguage: 'en' },
+            });
+          }
+          // TEMPORARY email-plan bridge: mark every new sign-up verified so
+          // applying and other emailVerified gates pass without an email.
+          if (autoConfirmUsers && !user.emailVerified) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { emailVerified: true },
             });
           }
           if (

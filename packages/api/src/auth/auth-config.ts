@@ -75,6 +75,20 @@ export function resolveRequireEmailVerification(config: ConfigService): boolean 
   return process.env.NODE_ENV === 'production';
 }
 
+/**
+ * TEMPORARY (email-plan bridge): when true, new customer sign-ups skip the
+ * verification email entirely and are auto-confirmed + auto-signed-in so they
+ * can use the platform immediately. Enable this only while transactional email
+ * is unavailable (e.g. the Postmark free tier is exhausted).
+ *
+ * To restore normal email verification: set AUTH_AUTO_CONFIRM_USERS=false (or
+ * remove it) and redeploy — no code change required.
+ */
+export function resolveAutoConfirmUsers(config: ConfigService): boolean {
+  const raw = config.get<string>('AUTH_AUTO_CONFIRM_USERS')?.trim().toLowerCase();
+  return raw === 'true' || raw === '1';
+}
+
 /** When set (e.g. `.blox.market`), enables cross-subdomain session cookies in production. */
 export function resolveCookieDomain(config: ConfigService): string | undefined {
   const domain = config.get<string>('COOKIE_DOMAIN')?.trim();
