@@ -599,11 +599,13 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
       )}
 
       {(app.paymentSchedules?.length ?? 0) > 0 && (
-        <OwnershipProgress
-          pricingSnapshot={app.pricingSnapshot ?? undefined}
-          paymentSchedules={app.paymentSchedules}
-          showTimeline
-        />
+        <section className="dm-app-detail__section dm-app-detail__ownership">
+          <OwnershipProgress
+            pricingSnapshot={app.pricingSnapshot ?? undefined}
+            paymentSchedules={app.paymentSchedules}
+            showTimeline
+          />
+        </section>
       )}
 
       {showSettlement && (
@@ -1062,6 +1064,15 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           margin: 0 0 14px;
           font-family: var(--dm-font-display);
           font-size: 1.05rem;
+        }
+        .dm-app-detail__ownership {
+          padding: 0;
+          overflow: hidden;
+        }
+        .dm-app-detail__ownership .dm-ownership {
+          border: none;
+          box-shadow: none;
+          border-radius: 0;
         }
         .dm-app-detail__section h4.dm-step__subtitle { margin: 16px 0 8px; font-size: 0.85rem; }
         .dm-app-detail__section .dm-docs__summary { margin-bottom: 4px; }

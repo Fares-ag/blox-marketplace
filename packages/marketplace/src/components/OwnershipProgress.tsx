@@ -257,11 +257,11 @@ export function OwnershipProgress({
         </div>
       )}
 
-      {/* Vertical milestone stepper */}
+      {/* Key milestones — card grid on detail, compact list on dashboard */}
       {showTimeline && keyMilestones.length > 0 && (
         <section className="dm-ownership__stepper">
           {!compact && <h5 className="dm-ownership__stepper-title">{t('ownership.timelineTitle')}</h5>}
-          <ol className="dm-ownership__steps">
+          <ol className={`dm-ownership__steps${compact ? ' dm-ownership__steps--compact' : ''}`}>
             {keyMilestones.map((milestone) => {
               const paid = milestone.paymentStatus === 'paid';
               const missed = milestone.paymentStatus === 'missed';
@@ -282,17 +282,20 @@ export function OwnershipProgress({
                         </span>
                       )}
                     </div>
-                    <div className="dm-ownership__step-chips">
-                      <span className="dm-ownership__chip dm-ownership__chip--pct">
-                        {milestone.ownershipPercentage.toFixed(1)}% {t('ownership.yourStake').toLowerCase()}
-                      </span>
-                      <span className="dm-ownership__chip dm-ownership__chip--amt">
-                        {fmtCurrency(milestone.ownershipAmount)}
-                      </span>
-                      <span className="dm-ownership__chip dm-ownership__chip--date">
-                        {new Date(milestone.date).toLocaleDateString(dateFmt)}
-                      </span>
-                    </div>
+                    <dl className="dm-ownership__step-stats">
+                      <div>
+                        <dt>{t('ownership.yourStake')}</dt>
+                        <dd>{milestone.ownershipPercentage.toFixed(1)}%</dd>
+                      </div>
+                      <div>
+                        <dt>{t('ownership.stakeValue', { defaultValue: 'Stake value' })}</dt>
+                        <dd>{fmtCurrency(milestone.ownershipAmount)}</dd>
+                      </div>
+                      <div>
+                        <dt>{t('ownership.contributionDue')}</dt>
+                        <dd>{new Date(milestone.date).toLocaleDateString(dateFmt)}</dd>
+                      </div>
+                    </dl>
                     <p className="dm-ownership__step-meta">
                       {t('ownership.paymentOf', {
                         n: milestone.sequence,
@@ -312,6 +315,7 @@ export function OwnershipProgress({
       {/* Full payment schedule with customer / Blox share columns */}
       {showTimeline && timeline.milestones.length > 0 && (
         <div className="dm-ownership__schedule">
+          <h5 className="dm-ownership__schedule-title">{t('ownership.scheduleTitle', { defaultValue: 'Full contribution schedule' })}</h5>
           <table>
             <thead>
               <tr>
@@ -361,15 +365,19 @@ export function OwnershipProgress({
       <style>{`
         .dm-ownership {
           display: grid;
-          gap: 14px;
-          padding: 16px;
-          border-radius: 12px;
-          background: linear-gradient(180deg, var(--dm-steel-soft), var(--dm-surface));
+          gap: 20px;
+          padding: 22px 24px;
+          border-radius: 14px;
+          background: var(--dm-surface);
           border: 1px solid var(--dm-slate-200);
+          box-shadow: var(--dm-shadow-rest);
+          width: 100%;
         }
         .dm-ownership--compact {
           padding: 12px 14px;
           gap: 10px;
+          background: linear-gradient(180deg, var(--dm-steel-soft), var(--dm-surface));
+          box-shadow: none;
         }
         .dm-ownership__journey-head {
           display: flex;
@@ -542,8 +550,9 @@ export function OwnershipProgress({
           border: 1px solid var(--dm-slate-300);
         }
         .dm-ownership__stepper-title {
-          margin: 0 0 10px;
-          font-size: 0.95rem;
+          margin: 0 0 14px;
+          font-family: var(--dm-font-display);
+          font-size: 1.05rem;
           font-weight: 700;
           color: var(--dm-ink);
         }
@@ -552,31 +561,62 @@ export function OwnershipProgress({
           margin: 0;
           padding: 0;
           display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+          gap: 14px;
+        }
+        .dm-ownership__steps--compact {
+          grid-template-columns: 1fr;
           gap: 0;
         }
         .dm-ownership__step {
           display: grid;
+          gap: 14px;
+          padding: 18px;
+          border-radius: 14px;
+          background: var(--dm-canvas);
+          border: 1px solid var(--dm-slate-200);
+          min-width: 0;
+        }
+        .dm-ownership__step.is-paid {
+          border-color: rgba(46, 125, 50, 0.35);
+          background: rgba(46, 125, 50, 0.05);
+        }
+        .dm-ownership__step.is-missed {
+          border-color: rgba(196, 122, 0, 0.35);
+          background: var(--dm-warning-soft);
+        }
+        .dm-ownership__steps--compact .dm-ownership__step {
           grid-template-columns: 40px 1fr;
           gap: 12px;
           padding: 12px 0;
+          border-radius: 0;
+          background: transparent;
+          border: none;
           border-inline-start: 2px solid var(--dm-slate-200);
           margin-inline-start: 19px;
           padding-inline-start: 20px;
           position: relative;
         }
-        .dm-ownership__step:last-child { border-inline-start-color: transparent; }
+        .dm-ownership__steps--compact .dm-ownership__step:last-child {
+          border-inline-start-color: transparent;
+        }
         .dm-ownership__step-icon {
-          position: absolute;
-          inset-inline-start: -21px;
-          top: 12px;
-          width: 40px;
-          height: 40px;
+          width: 44px;
+          height: 44px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           background: var(--dm-slate-200);
           color: var(--dm-slate-600);
+          flex-shrink: 0;
+        }
+        .dm-ownership__steps--compact .dm-ownership__step-icon {
+          position: absolute;
+          inset-inline-start: -21px;
+          top: 12px;
+          width: 40px;
+          height: 40px;
         }
         .dm-ownership__step.is-paid .dm-ownership__step-icon {
           background: #2E7D32;
@@ -586,62 +626,81 @@ export function OwnershipProgress({
           background: var(--dm-warning-soft);
           color: var(--dm-warning);
         }
-        .dm-ownership__step-body { display: grid; gap: 6px; min-width: 0; }
+        .dm-ownership__step-body { display: grid; gap: 10px; min-width: 0; }
         .dm-ownership__step-head {
           display: flex;
-          align-items: center;
-          gap: 8px;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
           flex-wrap: wrap;
         }
         .dm-ownership__step-head strong {
-          font-size: 14px;
+          font-size: 1rem;
+          line-height: 1.3;
           color: var(--dm-ink);
         }
         .dm-ownership__step-badge {
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-size: 9px;
+          padding: 4px 8px;
+          border-radius: 999px;
+          font-size: 10px;
           font-weight: 700;
           letter-spacing: 0.04em;
           text-transform: uppercase;
           background: var(--dm-steel-soft);
           color: var(--dm-ink);
+          flex-shrink: 0;
         }
         .dm-ownership__step.is-paid .dm-ownership__step-badge {
           background: rgba(46, 125, 50, 0.15);
           color: #2E7D32;
         }
-        .dm-ownership__step-chips {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
+        .dm-ownership__step-stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+          margin: 0;
         }
-        .dm-ownership__chip {
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
+        .dm-ownership__step-stats div {
+          display: grid;
+          gap: 3px;
+          padding: 10px;
+          border-radius: 10px;
+          background: var(--dm-surface);
+          border: 1px solid var(--dm-slate-200);
+          min-width: 0;
         }
-        .dm-ownership__chip--pct {
-          background: rgba(46, 125, 50, 0.12);
-          color: #1B5E20;
-        }
-        .dm-ownership__chip--amt {
-          background: rgba(14, 25, 9, 0.06);
-          color: var(--dm-ink);
-        }
-        .dm-ownership__chip--date {
-          background: rgba(0, 0, 0, 0.04);
+        .dm-ownership__step-stats dt {
+          font-size: 10px;
+          font-weight: 650;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
           color: var(--dm-slate-600);
+        }
+        .dm-ownership__step-stats dd {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 700;
+          color: var(--dm-ink);
+          overflow-wrap: anywhere;
         }
         .dm-ownership__step-meta {
           margin: 0;
           font-size: 12px;
           color: var(--dm-slate-600);
+          line-height: 1.45;
         }
         .dm-ownership__schedule {
           overflow-x: auto;
           margin-top: 4px;
+          padding-top: 8px;
+          border-top: 1px solid var(--dm-slate-200);
+        }
+        .dm-ownership__schedule-title {
+          margin: 0 0 12px;
+          font-family: var(--dm-font-display);
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: var(--dm-ink);
         }
         .dm-ownership__schedule table {
           width: 100%;
@@ -684,7 +743,12 @@ export function OwnershipProgress({
           color: var(--dm-slate-600);
           line-height: 1.4;
         }
+        @media (max-width: 720px) {
+          .dm-ownership__steps { grid-template-columns: 1fr; }
+          .dm-ownership__step-stats { grid-template-columns: 1fr; }
+        }
         @media (max-width: 480px) {
+          .dm-ownership { padding: 16px; }
           .dm-ownership__journey-pct strong { font-size: 1.4rem; }
           .dm-ownership__schedule th:nth-child(2),
           .dm-ownership__schedule td:nth-child(2) { display: none; }
