@@ -70,6 +70,14 @@ export type ApplicationDocumentForValidation = {
 export type IdentityPolicy = {
   ekycRequired?: boolean;
   allowStaffManualIdentity?: boolean;
+  /**
+   * Let a customer's own manual QID upload satisfy identity even under e-KYC.
+   * The customer marketplace apply flow has no in-flow KYC-platform capture, so
+   * without this the QID slot can never be completed there — the customer
+   * uploads front/back, the file stores, but the slot stays empty. Ops leaves
+   * this off for channels that do run OCR + liveness.
+   */
+  allowCustomerManualIdentity?: boolean;
 };
 
 function isVerifiedKycSlot(doc: ApplicationDocumentForValidation, type: string): boolean {
@@ -78,8 +86,9 @@ function isVerifiedKycSlot(doc: ApplicationDocumentForValidation, type: string):
 
 function manualIdentityAccepted(doc: ApplicationDocumentForValidation, policy: IdentityPolicy): boolean {
   if (!policy.ekycRequired) return true;
-  if (policy.allowStaffManualIdentity === false) return false;
-  return !!doc.uploadedByRole && doc.uploadedByRole !== 'customer';
+  const uploadedByCustomer = !doc.uploadedByRole || doc.uploadedByRole === 'customer';
+  if (uploadedByCustomer) return policy.allowCustomerManualIdentity === true;
+  return policy.allowStaffManualIdentity !== false;
 }
 
 function isManualIdentityUpload(doc: ApplicationDocumentForValidation): boolean {
@@ -320,6 +329,9 @@ export function documentSlotsForApplication(
     uploaded: uploadedDocumentCategories(documents, policy),
     missing: missingDocumentsForApplication(snapshotRaw, documents, policy),
     stale: slots.filter((slot) => isSlotStale(slot, newest.get(slot.category), now)).map((slot) => slot.category),
-    ekyc_required: !!policy.ekycRequired,
+    // Only surface the "e-KYC, not a photo" notice when a manual QID genuinely
+    // cannot satisfy the slot. When customer manual identity is allowed, the
+    // upload does count, so telling them otherwise is misleading.
+    ekyc_required: !!policy.ekycRequired && policy.allowCustomerManualIdentity !== true,
   };
 }

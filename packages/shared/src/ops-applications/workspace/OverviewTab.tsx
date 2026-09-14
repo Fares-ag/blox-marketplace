@@ -21,6 +21,7 @@ import { CreditAssessmentPanel } from './CreditAssessmentPanel';
 import { GuarantorPanel } from './GuarantorPanel';
 import { TakafulPanel } from './TakafulPanel';
 import type { WorkspacePanelProps } from './types';
+import { resolveLenderLabel } from './lender-label';
 
 type Props = WorkspacePanelProps & {
   reason: string;
@@ -116,7 +117,7 @@ export function OverviewTab(props: Props) {
                 </>
               )}
               <dt>{t('dealerOps.workspace.lender')}</dt>
-              <dd>{data.finance_partner_name ?? t('financeProviders.lenderUntagged')}</dd>
+              <dd>{resolveLenderLabel(data, t)}</dd>
             </dl>
             {ruleFlags.length > 0 && (
               <div className="blox-form-block">

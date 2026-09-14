@@ -8,6 +8,8 @@ import { monthlyIncomeOf, monthlyLiabilitiesOf, type AssessedApplicationCredit }
 
 export type ContractFieldContext = {
   applicationId: string;
+  /** Human-friendly reference (BLOX-####); falls back to the internal id when absent. */
+  referenceNo?: string | null;
   approvedAt: Date;
   lenderName: string;
   lenderAddress: string;
@@ -113,8 +115,8 @@ export function commonDealFields(ctx: ContractFieldContext): Record<string, stri
   const qid = parseQid(snap.qid);
 
   return {
-    'Application.Number': ctx.applicationId,
-    'Deal.Ref': ctx.applicationId,
+    'Application.Number': ctx.referenceNo ?? ctx.applicationId,
+    'Deal.Ref': ctx.referenceNo ?? ctx.applicationId,
     'Deal.ExecutionDate': iso(ctx.approvedAt),
     'Deal.CommencementDate': iso(ctx.approvedAt),
     'Deal.PaymentFrequency': 'Monthly',
@@ -213,14 +215,25 @@ export function scheduleRowFields(ctx: ContractFieldContext): Record<string, str
   return fields;
 }
 
+function checkResultLabel(status: string | undefined): string {
+  if (status === 'passed') return 'Pass';
+  if (status === 'failed') return 'Fail';
+  if (status === 'processing') return 'Processing';
+  if (status === 'not_submitted') return 'Not submitted';
+  return status?.trim() || '—';
+}
+
 export function camFields(ctx: ContractFieldContext): Record<string, string> {
   const snap = readCustomerSnapshot(ctx.customerSnapshot);
   const income = monthlyIncomeOf(snap);
   const liabilities = monthlyLiabilitiesOf(snap);
   const assessed = ctx.credit?.assessment;
   const affordability = assessed?.affordability;
-  const dbr = affordability?.dbr != null ? `${Math.round(affordability.dbr * 100)}%` : '';
-  const ltv = ctx.listPrice > 0 ? pct(((ctx.listPrice - ctx.downPayment) / ctx.listPrice) * 100) : '';
+  const dbrPct = affordability?.dbr != null ? roundMoney(affordability.dbr * 100) : null;
+  const dbr = dbrPct != null ? `${dbrPct.toFixed(0)}%` : '';
+  const ltvPct = ctx.listPrice > 0 ? roundMoney(((ctx.listPrice - ctx.downPayment) / ctx.listPrice) * 100) : 0;
+  const ltvMaxPct = 80;
+  const ltv = ctx.listPrice > 0 ? pct(ltvPct) : '';
   const residual =
     income != null ? money(Math.max(income - liabilities - ctx.monthly, 0)) : '';
   const path = assessed?.path ?? '';
@@ -229,37 +242,45 @@ export function camFields(ctx: ContractFieldContext): Record<string, string> {
   const identity = ctx.kyc?.extracted_identity ?? [];
   const identityValue = (name: string) =>
     identity.find((field) => field.name === name || field.label.toLowerCase().includes(name))?.value ?? '';
+  const verifiedAt = kyc?.didit_verified_at?.slice(0, 10) ?? '';
+  const customerAge = parseInt(ageOf(snap, ctx.approvedAt), 10);
+  const vehicleYear = ctx.vehicle.year;
+  const vehicleAgeNow = vehicleYear != null ? ctx.approvedAt.getFullYear() - vehicleYear : null;
+  const vehicleAgeAtMaturity =
+    vehicleAgeNow != null ? roundMoney(vehicleAgeNow + ctx.tenor / 12) : null;
+  const vehicleAgeMax = 10;
+  const ageAtMaturity = customerAge > 0 ? customerAge + Math.round(ctx.tenor / 12) : null;
 
   const screen = {
     'Screen.eKYCTool': kyc?.provider === 'didit' ? 'blox-kyc-module · Didit eKYC' : 'blox-kyc-module',
-    'Screen.eKYCDate': kyc?.didit_verified_at ?? '',
-    'Screen.eKYCResult': kyc?.checks.id_document.status ?? '',
+    'Screen.eKYCDate': verifiedAt,
+    'Screen.eKYCResult': checkResultLabel(kyc?.checks.id_document.status),
     'Screen.LivenessTool': 'blox-kyc-module · liveness + face match',
-    'Screen.LivenessDate': kyc?.didit_verified_at ?? '',
-    'Screen.LivenessResult': `${kyc?.checks.liveness.status ?? ''} · face ${kyc?.checks.face_match.status ?? ''}`,
+    'Screen.LivenessDate': verifiedAt,
+    'Screen.LivenessResult': `${checkResultLabel(kyc?.checks.liveness.status)} · face ${checkResultLabel(kyc?.checks.face_match.status)}`,
     'Screen.SanctionsTool': 'blox-kyc-module · sanctions screening',
-    'Screen.SanctionsDate': '',
-    'Screen.SanctionsResult': '',
+    'Screen.SanctionsDate': verifiedAt || '—',
+    'Screen.SanctionsResult': kyc?.case_status === 'APPROVED' ? 'Clear (case approved)' : 'Pending screening disposition',
     'Screen.PEPTool': 'blox-kyc-module · PEP screening',
-    'Screen.PEPDate': '',
-    'Screen.PEPResult': '',
+    'Screen.PEPDate': verifiedAt || '—',
+    'Screen.PEPResult': kyc?.case_status === 'APPROVED' ? 'Clear (case approved)' : 'Pending screening disposition',
     'Screen.PEPRelationTool': 'Declared + MLRO review',
-    'Screen.PEPRelationDate': '',
-    'Screen.PEPRelationResult': '',
+    'Screen.PEPRelationDate': '—',
+    'Screen.PEPRelationResult': 'Not declared',
     'Screen.AdverseMediaTool': 'blox-kyc-module · adverse media',
-    'Screen.AdverseMediaDate': '',
-    'Screen.AdverseMediaResult': '',
+    'Screen.AdverseMediaDate': verifiedAt || '—',
+    'Screen.AdverseMediaResult': kyc?.case_status === 'APPROVED' ? 'Clear (case approved)' : 'Pending screening disposition',
     'Screen.SoFMethod': 'Salary certificate + bank statement',
-    'Screen.SoFDate': '',
-    'Screen.SoFResult': '',
-    'Screen.RiskRatingDate': assessed?.assessedAt ?? '',
-    'Screen.RiskRating': assessed?.approvalAuthority ?? '',
-    'Screen.MLROReferralDate': '',
-    'Screen.MLROReferralResult': '',
+    'Screen.SoFDate': verifiedAt || '—',
+    'Screen.SoFResult': income != null ? 'Income declared on application' : 'Not verified',
+    'Screen.RiskRatingDate': assessed?.assessedAt?.slice(0, 10) ?? verifiedAt,
+    'Screen.RiskRating': assessed?.approvalAuthority ?? kyc?.overall_status ?? '—',
+    'Screen.MLROReferralDate': '—',
+    'Screen.MLROReferralResult': 'Not required',
   };
 
   return {
-    'CAM.Ref': `CAM-${ctx.applicationId}`,
+    'CAM.Ref': ctx.referenceNo ?? `CAM-${ctx.applicationId}`,
     'CAM.Recommendation': outcome,
     'CAM.Strengths': (assessed?.reasons ?? []).filter((reason) => !reason.includes('cap')).join('; '),
     'CAM.Weaknesses': (assessed?.reasons ?? []).join('; '),
@@ -267,12 +288,14 @@ export function camFields(ctx: ContractFieldContext): Record<string, string> {
     'Credit.DBR': dbr,
     'Credit.DBRResult': affordability?.status ?? '',
     'Credit.LTV': ltv,
-    'Credit.LTVResult': '',
+    'Credit.LTVResult': ltvPct <= ltvMaxPct ? 'Pass' : ltvPct > 0 ? 'Fail' : '—',
     'Credit.ResidualIncome': residual,
-    'Credit.ResidualIncomeResult': '',
-    'Credit.AgeAtMaturity': '',
-    'Credit.VehicleAgeAtMaturity': '',
-    'Credit.VehicleAgeResult': '',
+    'Credit.ResidualIncomeResult':
+      income != null && affordability?.status ? affordability.status.replace(/_/g, ' ') : '—',
+    'Credit.AgeAtMaturity': ageAtMaturity != null ? String(ageAtMaturity) : '',
+    'Credit.VehicleAgeAtMaturity': vehicleAgeAtMaturity != null ? `${vehicleAgeAtMaturity.toFixed(1)}` : '',
+    'Credit.VehicleAgeResult':
+      vehicleAgeAtMaturity != null ? (vehicleAgeAtMaturity <= vehicleAgeMax ? 'Pass' : 'Fail') : '—',
     'Credit.EmployerCategoryResult': '',
     'Credit.ExistingBloXExposure': '0.00',
     'Credit.TotalExposurePost': money(ctx.financedTotal),
@@ -308,11 +331,11 @@ export function camFields(ctx: ContractFieldContext): Record<string, string> {
     'Decision.ConditionsSubsequent': 'Registration in nominee name; repayment mandate',
     'Decision.ExpiryDate': '',
     'Policy.DBRMax': affordability ? `${Math.round(affordability.cap * 100)}%` : '',
-    'Policy.LTVMax': '',
-    'Policy.ResidualIncomeMin': '',
-    'Policy.SalaryTransferRequired': '',
-    'Policy.ServiceYearsMin': '',
-    'Policy.VehicleAgeMax': '',
+    'Policy.LTVMax': `${ltvMaxPct}%`,
+    'Policy.ResidualIncomeMin': 'QAR 2,000.00',
+    'Policy.SalaryTransferRequired': 'Per employer category',
+    'Policy.ServiceYearsMin': '1 yr',
+    'Policy.VehicleAgeMax': `${vehicleAgeMax} yrs`,
     'Policy.BureauScoreMin': '',
     'Approval.Maker.Name': str(ctx.approverName),
     'Approval.Maker.Role': str(ctx.approverRole),

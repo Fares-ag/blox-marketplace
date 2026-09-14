@@ -1,4 +1,5 @@
 import { ApplicationStatus, DocumentCategory, type Prisma } from '@prisma/client';
+import { formatApplicationRef } from '../applications/application-reference';
 import {
   APPROVAL_AUTHORITY_ROLES,
   MAX_EXCEPTION_TIER_BY_ROLE,
@@ -235,6 +236,7 @@ export function creditAssessmentForRole(raw: unknown, role: string): CreditAsses
 
 export type PartnerApplicationRow = {
   id: string;
+  referenceSeq?: number | null;
   status: ApplicationStatus;
   submittedAt: Date | null;
   updatedAt: Date;
@@ -252,6 +254,7 @@ export type PartnerApplicationRow = {
 export function toPartnerApplicationDto(row: PartnerApplicationRow, role = 'partner_viewer'): PartnerApplicationDto {
   return {
     id: row.id,
+    reference_no: formatApplicationRef(row.referenceSeq),
     status: row.status,
     submitted_at: row.submittedAt?.toISOString() ?? null,
     updated_at: row.updatedAt.toISOString(),

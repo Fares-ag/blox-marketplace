@@ -19,6 +19,7 @@ import {
   getAppLocale,
   MAX_TENURE_MONTHS,
   MIN_TENURE_MONTHS,
+  minDownPaymentPctFor,
   applicationMarketplacePillVariant,
   applicationStatusLabel,
   type ProductDetailResponse,
@@ -84,9 +85,13 @@ function VehiclesPage() {
     () => JSON.stringify({ filters: browse.filters, sort: browse.sort }),
     [browse.filters, browse.sort],
   );
+  // Pagination is kept in local state (not the URL) so "Load more" does not
+  // change the query string and trip the global ScrollToTop — the customer
+  // stays exactly where they were.
+  const [offset, setOffset] = useState(0);
   const queryString = buildProductsQuery(browse.filters, {
     sort: browse.sort,
-    offset: browse.offset,
+    offset,
     limit: browse.limit,
   });
 
@@ -94,6 +99,7 @@ function VehiclesPage() {
 
   useEffect(() => {
     setAllItems([]);
+    setOffset(0);
   }, [browseKey]);
 
   const dealers = useQuery({
@@ -108,7 +114,7 @@ function VehiclesPage() {
 
   useEffect(() => {
     if (!data?.items) return;
-    if (browse.offset === 0) {
+    if (offset === 0) {
       setAllItems(data.items);
     } else {
       setAllItems((prev) => {
@@ -120,7 +126,7 @@ function VehiclesPage() {
         return next;
       });
     }
-  }, [data, browse.offset]);
+  }, [data, offset]);
 
   function onSortChange(sort: BrowseSort) {
     const next = new URLSearchParams(searchParams);
@@ -131,14 +137,12 @@ function VehiclesPage() {
   }
 
   function loadMore() {
-    const next = new URLSearchParams(searchParams);
-    next.set('offset', String(browse.offset + browse.limit));
-    setSearchParams(next);
+    setOffset((prev) => prev + browse.limit);
   }
 
   const shown = allItems.length > 0 ? allItems : data?.items ?? [];
   const total = data?.total ?? 0;
-  const hasMore = total > browse.offset + (data?.items.length ?? 0);
+  const hasMore = total > offset + (data?.items.length ?? 0);
 
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
@@ -250,18 +254,26 @@ function VehicleDetailPage() {
   useBrandPageScope(company?.code ?? null);
 
   const [tenure, setTenure] = useState(36);
-  const [downPct, setDownPct] = useState(10);
+  // Start at the real minimum contribution for the vehicle (20% new / 15% used,
+  // or higher when the offer asks for more) instead of a flat 10% that sits
+  // below the policy floor and carries an invalid figure into the apply flow.
+  const [downPct, setDownPct] = useState(20);
+
+  const minDownPct = useMemo(() => {
+    const condition = product?.condition === 'used' ? 'used' : 'new';
+    return minDownPaymentPctFor(condition, offer?.min_down_payment_pct ?? null);
+  }, [product?.condition, offer?.min_down_payment_pct]);
 
   useEffect(() => {
-    if (offer?.min_down_payment_pct != null) setDownPct(Number(offer.min_down_payment_pct));
-  }, [offer]);
+    setDownPct((prev) => (prev < minDownPct ? minDownPct : prev));
+  }, [minDownPct]);
 
   const monthly = useMemo(() => {
     if (!product || !offer) return 0;
     return buildPricingSnapshot({
       listPrice: product.price,
       annualRatePercent: offer.annual_rent_rate,
-      minDownPaymentPct: Number(offer.min_down_payment_pct ?? 10),
+      minDownPaymentPct: minDownPct,
       tenureMonths: tenure,
       downPaymentPct: downPct,
     }).monthly;
@@ -376,7 +388,7 @@ function VehicleDetailPage() {
                 {t('detail.downPayment')}
                 <input
                   type="number"
-                  min={offer.min_down_payment_pct}
+                  min={minDownPct}
                   max={80}
                   value={downPct}
                   onChange={(e) => setDownPct(Number(e.target.value))}
@@ -501,9 +513,9 @@ function DealerShowroomPage() {
       <style>{BRANDABLE_BAND_CSS}</style>
       <div style={{ width: '100%', margin: 0, padding: '24px 32px', boxSizing: 'border-box' }}>
         <p style={{ color: 'var(--dm-slate-600)' }}>{t('dealers.listings', { count: products.data?.total ?? 0 })}</p>
-        <div className="dm-listing-stack">
+        <div className="dm-listing-stack dm-listing-stack--showroom">
           {products.data?.items.map((p) => (
-            <ListingCard key={p.id} product={p} variant="row" />
+            <ListingCard key={p.id} product={p} variant="row" showroom />
           ))}
         </div>
       </div>

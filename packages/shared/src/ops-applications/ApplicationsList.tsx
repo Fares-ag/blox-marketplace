@@ -195,11 +195,11 @@ export function ApplicationsList({
           return (
             <div className="blox-cell-stack">
               <Link to={`${basePath}/${a.id}`} className="blox-table__primary">
-                {a.product ? `${a.product.make} ${a.product.model}` : a.id.slice(0, 8)}
+                {a.product ? `${a.product.make} ${a.product.model}` : (a.reference_no ?? a.id.slice(0, 8))}
               </Link>
               {ownership && <OwnershipBar customerPct={ownership.customer} bloxPct={ownership.blox} />}
               <span className="blox-table__meta">
-                {a.id.slice(0, 8)}
+                {a.reference_no ?? a.id.slice(0, 8)}
                 {a.deal_summary ? ` · ${formatQar(a.deal_summary.selling_price)} · ${a.deal_summary.rate}%` : ''}
               </span>
             </div>

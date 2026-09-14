@@ -165,6 +165,18 @@ describe('document freshness', () => {
       expect(hasAllRequiredDocuments([{ category: 'id' }, ...rest], EKYC)).toBe(false);
     });
 
+    it('accepts a customer-uploaded manual QID when allowCustomerManualIdentity is on', () => {
+      const docs = [
+        { category: 'qid', kycDocumentType: 'qid_front', uploadedByRole: 'customer' },
+        { category: 'qid', kycDocumentType: 'qid_back', uploadedByRole: 'customer' },
+        ...rest,
+      ];
+      const policy = { ...EKYC, allowCustomerManualIdentity: true };
+      expect(missingRequiredDocumentCategories(docs, policy)).toEqual([]);
+      expect(uploadedDocumentCategories(docs, policy)).toContain('qid');
+      expect(hasAllRequiredDocuments(docs, policy)).toBe(true);
+    });
+
     it('accepts a staff-uploaded QID (face-to-face intake) unless disabled', () => {
       const docs = [{ category: 'qid', uploadedByRole: 'dealer_agent' }, ...rest];
       expect(hasAllRequiredDocuments(docs, EKYC)).toBe(true);

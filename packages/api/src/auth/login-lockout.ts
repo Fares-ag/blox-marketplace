@@ -7,8 +7,8 @@ export type LoginLockoutConfig = {
 };
 
 export const DEFAULT_LOGIN_LOCKOUT: LoginLockoutConfig = {
-  maxFailedAttempts: 5,
-  lockoutDurationSeconds: 900,
+  maxFailedAttempts: 10,
+  lockoutDurationSeconds: 300,
 };
 
 export function isAccountLocked(user: Pick<User, 'lockedUntil'>, now = new Date()): boolean {

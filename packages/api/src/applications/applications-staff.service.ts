@@ -359,6 +359,7 @@ export class ApplicationsStaffService {
       identityPolicy: {
         ekycRequired: this.appConfig.kycEkycRequired,
         allowStaffManualIdentity: this.appConfig.kycAllowStaffManualIdentity,
+        allowCustomerManualIdentity: this.appConfig.kycAllowCustomerManualIdentity,
       },
       now: new Date(),
     });

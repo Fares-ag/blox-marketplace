@@ -43,6 +43,7 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     void qc.invalidateQueries({ queryKey: ['ops-app-credit-assessment', id] });
     void qc.invalidateQueries({ queryKey: ['ops-apps'] });
     void qc.invalidateQueries({ queryKey: ['credit-queue'] });
+    void qc.invalidateQueries({ queryKey: ['finance-queue'] });
   };
   const fail = (e: Error) => opts.onError(e.message, e);
 

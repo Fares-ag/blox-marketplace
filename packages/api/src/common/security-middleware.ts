@@ -16,7 +16,7 @@ function readLimitConfig(config: ConfigService) {
   return {
     windowMs,
     globalMax: parsePositiveInt(config.get<string>('RATE_LIMIT_MAX'), 300),
-    authMax: parsePositiveInt(config.get<string>('RATE_LIMIT_AUTH_MAX'), 30),
+    authMax: parsePositiveInt(config.get<string>('RATE_LIMIT_AUTH_MAX'), 100),
     publicMax: parsePositiveInt(config.get<string>('RATE_LIMIT_PUBLIC_MAX'), 120),
   };
 }
@@ -94,6 +94,13 @@ export async function applySecurityMiddleware(
   const redisUrl =
     rateLimitStore === 'memory' ? undefined : config.get<string>('REDIS_URL')?.trim();
 
+  const authRateLimitHandler: RequestHandler = (_req, res) => {
+    const minutes = Math.max(1, Math.ceil(windowMs / 60_000));
+    res.status(429).json({
+      message: `Too many sign-in attempts. Wait ${minutes} minute${minutes === 1 ? '' : 's'} and try again.`,
+      code: 'RATE_LIMITED',
+    });
+  };
   const rateLimitHandler: RequestHandler = (_req, res) => {
     res.status(429).json({
       message: 'Too many requests. Try again later.',
@@ -114,6 +121,7 @@ export async function applySecurityMiddleware(
       ...base,
       max: authMax,
       store: createRedisStore(redisClient, 'auth'),
+      handler: authRateLimitHandler,
     });
     const publicLimiter: RequestHandler = rateLimit({
       ...base,
@@ -133,7 +141,7 @@ export async function applySecurityMiddleware(
     return;
   }
 
-  const authLimiter: RequestHandler = rateLimit({ ...base, max: authMax });
+  const authLimiter: RequestHandler = rateLimit({ ...base, max: authMax, handler: authRateLimitHandler });
   const publicLimiter: RequestHandler = rateLimit({ ...base, max: publicMax });
   const globalLimiter: RequestHandler = rateLimit({
     ...base,

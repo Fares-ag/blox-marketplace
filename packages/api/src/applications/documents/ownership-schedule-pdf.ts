@@ -2,7 +2,7 @@ import { roundMoney } from '@drivemarket/shared/pricing';
 import { readCustomerSnapshot } from '../customer-snapshot';
 import { normalizeContractContext } from './contract-terms';
 import type { ContractFieldContext } from './field-maps';
-import { BrandedPdfWriter, formatPct, formatQar } from './pdf-brand';
+import { BrandedPdfWriter, BRAND, formatPct, formatQar } from './pdf-brand';
 
 function unitsFor(listPrice: number, downPayment: number, tenor: number) {
   const totalUnits = 100;
@@ -20,12 +20,18 @@ export async function buildOwnershipSchedulePdf(ctx: ContractFieldContext): Prom
   const customerOpeningPct = normalized.listPrice > 0 ? (normalized.downPayment / normalized.listPrice) * 100 : 0;
 
   const writer = await BrandedPdfWriter.create({
-    title: 'Schedule of Ownership and Rental',
-    subtitle: `Schedule 2 · Agreement ${normalized.applicationId}`,
+    title: 'Schedule 2 — Ownership & Rental',
+    subtitle: `Agreement ${normalized.referenceNo ?? normalized.applicationId} · ${snap.full_name}`,
     footerTag: 'BLX-TPL-020 · BloX LLC · blox-it.com · Own it, don\'t owe it.',
   });
 
-  writer.metaGrid([
+  writer.paragraph('Schedule of Ownership and Rental', { size: 14, bold: true, color: BRAND.deepGreen, gap: 4 });
+  writer.paragraph(
+    'Annex to the Diminishing Musharakah Agreement. Each period you purchase ownership units and pay rent on the share still held by BloX.',
+    { size: 9, gap: 10 },
+  );
+
+  writer.factSheet([
     ['Template', 'BLX-TPL-020'],
     ['Agreement reference', normalized.applicationId],
     ['Customer', snap.full_name],
@@ -40,21 +46,17 @@ export async function buildOwnershipSchedulePdf(ctx: ContractFieldContext): Prom
     ['Number of periods', String(normalized.tenor)],
   ]);
 
-  writer.section('Ownership and rental schedule');
-  writer.line(
-    'Each period you purchase ownership units and pay rent on the share still held by BloX. Your ownership percentage must rise every period.',
-    9,
-  );
+  writer.section('Payment schedule');
 
   const columns = [
-    { label: '#', width: 24 },
-    { label: 'Due date', width: 62 },
-    { label: 'Units', width: 38 },
-    { label: 'Unit cost', width: 58, align: 'right' as const },
-    { label: 'Rental', width: 58, align: 'right' as const },
-    { label: 'Total', width: 58, align: 'right' as const },
-    { label: 'You own', width: 52, align: 'right' as const },
-    { label: 'BloX share', width: 58, align: 'right' as const },
+    { label: '#', width: 28 },
+    { label: 'Due date', width: 72 },
+    { label: 'Units', width: 44 },
+    { label: 'Unit cost', width: 68, align: 'right' as const },
+    { label: 'Rental', width: 68, align: 'right' as const },
+    { label: 'Total', width: 68, align: 'right' as const },
+    { label: 'You own', width: 60, align: 'right' as const },
+    { label: 'BloX share', width: 107, align: 'right' as const },
   ];
 
   let cumulativePrincipal = normalized.downPayment;
@@ -89,7 +91,7 @@ export async function buildOwnershipSchedulePdf(ctx: ContractFieldContext): Prom
     formatQar(0),
   ]);
 
-  writer.table(columns, tableRows);
+  writer.table(columns, tableRows, { repeatHeader: true, fontSize: 7.5 });
 
   writer.section('Notes for the customer');
   writer.line('Each unit purchase is a separate ownership transaction under the Musharakah Agreement.', 9);

@@ -10,11 +10,13 @@ export function HelpPage() {
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
       <DocumentMeta title={t('meta.helpTitle')} />
-      <MarketplaceNav variant="solid" />
-      <div className="dm-page-head dm-page-head--brand">
-        <h1>{t('help.title')}</h1>
-        <p>{t('help.subtitle')}</p>
-      </div>
+      <header className="dm-band">
+        <div className="dm-band__inner">
+          <MarketplaceNav />
+          <h1>{t('help.title')}</h1>
+          <p className="dm-band__lead">{t('help.subtitle')}</p>
+        </div>
+      </header>
       <div className="blox-page-pad dm-help-wrap">
         <div className="dm-help-faq">
           {sections.map((section) => (

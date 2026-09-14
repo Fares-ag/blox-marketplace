@@ -63,17 +63,33 @@ function retryAfterMinutes(res: Response): number | null {
  * fall through to "Sign in failed" — which tells the user to re-check
  * credentials that were never the problem.
  */
-function rateLimitMessage(res: Response): string {
-  const minutes = retryAfterMinutes(res);
+function signInThrottleMessage(minutes: number | null): string {
   return minutes
     ? `Too many sign-in attempts. Wait ${minutes} minute${minutes === 1 ? '' : 's'} and try again.`
     : 'Too many sign-in attempts. Wait a few minutes and try again.';
 }
 
+function rateLimitMessage(res: Response): string {
+  return signInThrottleMessage(retryAfterMinutes(res));
+}
+
+/** Better Auth and our lockout use different copy — show one consistent message. */
+function normalizeAuthMessage(message: string): string {
+  const trimmed = message.trim();
+  if (!trimmed) return trimmed;
+  if (/too many/i.test(trimmed) && /sign.?in|attempt|login/i.test(trimmed)) {
+    const minutesMatch = trimmed.match(/(\d+)\s*minute/i);
+    return signInThrottleMessage(minutesMatch ? Number(minutesMatch[1]) : null);
+  }
+  return trimmed;
+}
+
 async function readAuthError(res: Response): Promise<string> {
   if (res.status === 429) return rateLimitMessage(res);
   const data = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
-  if (data.code === 'ACCOUNT_LOCKED') return data.message ?? 'Account temporarily locked.';
+  if (data.code === 'ACCOUNT_LOCKED') {
+    return normalizeAuthMessage(data.message ?? 'Account temporarily locked.');
+  }
   if (data.code === 'EMAIL_MISMATCH') {
     return 'Session mismatch. Sign out, sign in again, then resend the verification email.';
   }
@@ -81,7 +97,7 @@ async function readAuthError(res: Response): Promise<string> {
     if (data.message === 'Internal Server Error' && res.status >= 500) {
       return 'Could not send verification email. Try again in a minute or check your spam folder.';
     }
-    return data.message;
+    return normalizeAuthMessage(data.message);
   }
   return res.statusText || 'Request failed';
 }
@@ -124,9 +140,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // body never parsed as JSON, so this used to surface as "Sign in failed".
         if (res.status === 429) return { error: rateLimitMessage(res) };
         if (data.code === 'ACCOUNT_LOCKED') {
-          return { error: data.message ?? 'Account temporarily locked.' };
+          return { error: normalizeAuthMessage(data.message ?? 'Account temporarily locked.') };
         }
-        return { error: data.message ?? 'Sign in failed' };
+        return { error: data.message ? normalizeAuthMessage(data.message) : 'Sign in failed' };
       }
       if (data.twoFactorRedirect) {
         set({ loading: false });

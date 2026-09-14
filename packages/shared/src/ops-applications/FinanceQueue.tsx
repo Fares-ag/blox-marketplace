@@ -24,8 +24,8 @@ function queueAge(iso?: string | null) {
 
 /**
  * Finance queue (blox-vercel `FinanceQueuePage`):
- *  - Activation (default): handoff states, **view only** — Activate is on the credit portal.
- *  - Review: credit-parity pipeline / rejected, with decisions on the workspace.
+ *  - Review (default): credit-parity pipeline / rejected, with decisions on the workspace.
+ *  - Activation: handoff states, **view only** — Activate is on the credit portal.
  */
 export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: string }) {
   const portalBase = usePortalBasePath();
@@ -33,7 +33,7 @@ export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: stri
   const { t, applicationStatus } = useOpsLabels();
   const [page, setPage] = useState(0);
   const [q, setQ] = useState('');
-  const [mainTab, setMainTab] = useState<MainTab>('activation');
+  const [mainTab, setMainTab] = useState<MainTab>('review');
   const [reviewTab, setReviewTab] = useState<ReviewTab>('pipeline');
 
   const statusIn =
@@ -81,7 +81,7 @@ export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: stri
         id: 'id',
         mono: true,
         label: t('ops.col.application'),
-        format: (_, a) => <Link to={`${detailBase}/${a.id}`}>{a.id.slice(0, 10)}…</Link>,
+        format: (_, a) => <Link to={`${detailBase}/${a.id}`}>{a.reference_no ?? `${a.id.slice(0, 10)}…`}</Link>,
       },
       {
         id: 'vehicle',

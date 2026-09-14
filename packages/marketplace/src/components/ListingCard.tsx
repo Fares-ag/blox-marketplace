@@ -16,9 +16,12 @@ import { toDialDigits } from './ListingCtaPanel';
 export function ListingCard({
   product,
   variant = 'row',
+  /** On a dealer showroom page the header already names the dealer — hide the chip. */
+  showroom = false,
 }: {
   product: ProductCard;
   variant?: 'grid' | 'row';
+  showroom?: boolean;
 }) {
   const { t } = useTranslation();
   const locale = getAppLocale();
@@ -56,8 +59,10 @@ export function ListingCard({
     navigate(`/dealers/${product.company_code}`);
   }
 
+  const showDealer = !showroom && Boolean(product.company_name);
+
   return (
-    <article className={`dm-listing-card dm-listing-card--${variant}`}>
+    <article className={`dm-listing-card dm-listing-card--${variant}${showroom ? ' dm-listing-card--showroom' : ''}`}>
       <Link
         to={detailHref}
         className="dm-listing-card__overlay"
@@ -82,15 +87,14 @@ export function ListingCard({
           {product.trim ? ` ${product.trim}` : ''}
         </h3>
         <div className="dm-listing-card__meta-row">
-          {product.company_name && (
-            product.company_code ? (
+          {showDealer &&
+            (product.company_code ? (
               <button type="button" className="dm-listing-card__dealer-chip" onClick={onDealerClick}>
                 {product.company_name}
               </button>
             ) : (
               <span className="dm-listing-card__dealer-chip">{product.company_name}</span>
-            )
-          )}
+            ))}
           {hasWarranty(product.warranty_months) && (
             <span className="dm-listing-card__warranty">{t('facets.warranty')}</span>
           )}
@@ -315,9 +319,9 @@ export function ListingCard({
         }
         .dm-listing-card__specs > div {
           display: grid;
-          grid-template-columns: minmax(72px, 0.9fr) minmax(0, 1.1fr);
-          gap: 8px;
-          align-items: baseline;
+          grid-template-columns: 92px minmax(0, 1fr);
+          gap: 10px;
+          align-items: center;
           font-size: 13px;
           min-width: 0;
         }
@@ -325,14 +329,17 @@ export function ListingCard({
           margin: 0;
           color: var(--dm-slate-600);
           font-weight: 500;
+          line-height: 1.3;
         }
         .dm-listing-card__specs dd {
           margin: 0;
           font-weight: 700;
           color: var(--dm-ink);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          line-height: 1.3;
+          font-variant-numeric: tabular-nums;
+          overflow: visible;
+          white-space: normal;
+          word-break: break-word;
         }
         .dm-listing-card__aside {
           display: flex;
@@ -412,21 +419,108 @@ export function ListingCard({
           background: #1ebe57;
         }
 
+        /* Dealer showroom: taller photo, no redundant dealer chip, specs in a tidy grid. */
+        .dm-listing-card--showroom {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-areas:
+            "media"
+            "identity"
+            "specs"
+            "aside";
+          min-height: 0;
+        }
+        .dm-listing-card--showroom .dm-listing-card__media {
+          grid-area: media;
+          width: 100%;
+          min-height: 200px;
+          aspect-ratio: 16 / 10;
+        }
+        .dm-listing-card--showroom .dm-listing-card__new-ribbon {
+          writing-mode: horizontal-tb;
+          transform: none;
+          inset-inline-end: auto;
+          inset-inline-start: 12px;
+          top: 12px;
+          bottom: auto;
+          width: auto;
+          height: auto;
+          padding: 4px 10px;
+          border-radius: 6px;
+        }
+        .dm-listing-card--showroom .dm-listing-card__identity {
+          grid-area: identity;
+          padding: 14px 16px 8px;
+        }
+        .dm-listing-card--showroom .dm-listing-card__specs {
+          grid-area: specs;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px 20px;
+          padding: 4px 16px 12px;
+        }
+        .dm-listing-card--showroom .dm-listing-card__specs > div {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          align-items: flex-start;
+        }
+        .dm-listing-card--showroom .dm-listing-card__aside {
+          grid-area: aside;
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px 16px;
+          border-top: 1px solid var(--dm-slate-200);
+        }
+        .dm-listing-card--showroom .dm-listing-card__pricing {
+          text-align: start;
+        }
+        .dm-listing-card--showroom .dm-listing-card__contact {
+          justify-content: flex-start;
+        }
+
         @media (min-width: 1600px) {
-          .dm-listing-card {
+          .dm-listing-card:not(.dm-listing-card--showroom) {
             grid-template-columns: 160px minmax(140px, 1.2fr) minmax(160px, 1fr) minmax(150px, 0.95fr);
             min-height: 132px;
           }
-          .dm-listing-card__media { min-height: 132px; }
+          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__media { min-height: 132px; }
         }
         @media (min-width: 1920px) {
-          .dm-listing-card {
+          .dm-listing-card:not(.dm-listing-card--showroom) {
             grid-template-columns: 168px minmax(120px, 1.15fr) minmax(140px, 1fr) minmax(140px, 0.9fr);
             min-height: 128px;
           }
         }
 
         @media (max-width: 900px) {
+          .dm-listing-card--showroom {
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-areas:
+              "media"
+              "identity"
+              "specs"
+              "aside";
+            min-height: 0;
+          }
+          .dm-listing-card--showroom .dm-listing-card__media {
+            min-height: 180px;
+            aspect-ratio: 16 / 10;
+          }
+          .dm-listing-card--showroom .dm-listing-card__identity {
+            padding: 14px 16px 8px;
+          }
+          .dm-listing-card--showroom .dm-listing-card__specs {
+            padding: 4px 16px 12px;
+            gap: 12px 16px;
+          }
+          .dm-listing-card--showroom .dm-listing-card__aside {
+            flex-direction: row;
+            align-items: center;
+            padding: 12px 16px 16px;
+            border-top: 1px solid var(--dm-slate-200);
+          }
           .dm-listing-card {
             grid-template-columns: 120px minmax(0, 1fr) auto;
             grid-template-areas:
@@ -446,8 +540,14 @@ export function ListingCard({
             padding: 4px 12px 12px;
           }
           .dm-listing-card__specs > div {
-            grid-template-columns: auto 1fr;
+            grid-template-columns: 84px minmax(0, 1fr);
+            gap: 8px;
             font-size: 12px;
+          }
+          .dm-listing-card--showroom .dm-listing-card__specs > div {
+            display: flex;
+            flex-direction: column;
+            grid-template-columns: unset;
           }
           .dm-listing-card__aside {
             grid-area: aside;
@@ -496,27 +596,27 @@ export function ListingCard({
         }
 
         @media (max-width: 480px) {
-          .dm-listing-card {
+          .dm-listing-card:not(.dm-listing-card--showroom) {
             grid-template-columns: 88px minmax(0, 1fr) auto;
             min-height: 88px;
           }
           .dm-listing-card__specs {
             grid-template-columns: 1fr 1fr;
           }
-          .dm-listing-card__specs > div:nth-child(n + 3) {
+          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__specs > div:nth-child(n + 3) {
             display: none;
           }
         }
 
         @media (max-width: 360px) {
-          .dm-listing-card {
+          .dm-listing-card:not(.dm-listing-card--showroom) {
             grid-template-columns: 76px minmax(0, 1fr);
             grid-template-areas:
               "media identity"
               "media aside";
             min-height: 84px;
           }
-          .dm-listing-card__specs { display: none; }
+          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__specs { display: none; }
           .dm-listing-card__aside {
             flex-direction: row;
             flex-wrap: wrap;

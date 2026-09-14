@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   MoneyText,
@@ -48,6 +49,34 @@ export function VehiclePlanStep({
   const financed = Math.max(ctx.price - pricing.down_payment, 0);
   const tenureBand = tenureBounds();
   const downBand = downPaymentBounds();
+
+  // Local draft for the free-text "choose your own length" input so partially
+  // typed or momentarily-empty values are not snapped back to the minimum (3)
+  // by the plan normaliser on every keystroke. We only propagate a whole month
+  // inside the accepted band, and commit/clamp on blur.
+  const [tenureDraft, setTenureDraft] = useState<string>(String(plan.tenure));
+  useEffect(() => {
+    setTenureDraft(String(plan.tenure));
+  }, [plan.tenure]);
+
+  function onCustomTenureChange(raw: string) {
+    setTenureDraft(raw);
+    const n = Number(raw);
+    if (raw.trim() !== '' && Number.isInteger(n) && n >= tenureBand.min && n <= tenureBand.max) {
+      onPlanChange({ ...plan, tenure: n });
+    }
+  }
+
+  function commitCustomTenure() {
+    const n = Number(tenureDraft);
+    if (tenureDraft.trim() === '' || !Number.isFinite(n)) {
+      setTenureDraft(String(plan.tenure));
+      return;
+    }
+    const clamped = Math.min(Math.max(Math.round(n), tenureBand.min), tenureBand.max);
+    setTenureDraft(String(clamped));
+    if (clamped !== plan.tenure) onPlanChange({ ...plan, tenure: clamped });
+  }
 
   function ruleMessage(v: ProductRuleViolation): string {
     const params: Record<string, string | number> = { ...v.params };
@@ -105,8 +134,9 @@ export function VehiclePlanStep({
             min={tenureBand.min}
             max={tenureBand.max}
             step={1}
-            value={String(plan.tenure)}
-            onChange={(e) => onPlanChange({ ...plan, tenure: Number(e.target.value) })}
+            value={tenureDraft}
+            onChange={(e) => onCustomTenureChange(e.target.value)}
+            onBlur={commitCustomTenure}
           />
         )}
       </Field>
@@ -115,7 +145,7 @@ export function VehiclePlanStep({
         id="apply-down-pct"
         label={t('applyFlow.vehicle.downPayment')}
         hint={t('applyFlow.vehicle.downPaymentHint', { min: minDownPct, condition: conditionWord })}
-        min={downBand.min}
+        min={minDownPct}
         max={downBand.max}
         value={plan.downPct}
         onChange={(v) => onPlanChange({ ...plan, downPct: v })}

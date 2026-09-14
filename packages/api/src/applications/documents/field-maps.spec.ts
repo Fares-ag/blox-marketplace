@@ -67,6 +67,7 @@ describe('contract document field maps', () => {
     const dm = documentsForFinancingType('diminishing_musharakah');
     expect(dm.map((doc) => doc.documentType)).toEqual([
       'musharakah_agreement',
+      'ijarah_agreement',
       'ownership_rental_schedule',
       'credit_appraisal_memorandum',
     ]);

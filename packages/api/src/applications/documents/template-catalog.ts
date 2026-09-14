@@ -30,13 +30,32 @@ export type ContractDocumentSpec = {
 export function documentsForFinancingType(financingType: FinancingType): ContractDocumentSpec[] {
   const agreementType: ContractDocumentType =
     financingType === 'ijarah' ? 'ijarah_agreement' : 'musharakah_agreement';
+  const agreements: ContractDocumentSpec[] =
+    financingType === 'diminishing_musharakah'
+      ? [
+          {
+            documentType: 'musharakah_agreement',
+            audience: 'customer',
+            label: CONTRACT_DOCUMENT_LABELS.musharakah_agreement,
+            templateFile: CONTRACT_TEMPLATES.musharakah_agreement,
+          },
+          {
+            documentType: 'ijarah_agreement',
+            audience: 'customer',
+            label: CONTRACT_DOCUMENT_LABELS.ijarah_agreement,
+            templateFile: CONTRACT_TEMPLATES.ijarah_agreement,
+          },
+        ]
+      : [
+          {
+            documentType: agreementType,
+            audience: 'customer',
+            label: CONTRACT_DOCUMENT_LABELS[agreementType],
+            templateFile: CONTRACT_TEMPLATES[agreementType],
+          },
+        ];
   return [
-    {
-      documentType: agreementType,
-      audience: 'customer',
-      label: CONTRACT_DOCUMENT_LABELS[agreementType],
-      templateFile: CONTRACT_TEMPLATES[agreementType],
-    },
+    ...agreements,
     {
       documentType: 'ownership_rental_schedule',
       audience: 'customer',

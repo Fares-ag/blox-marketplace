@@ -45,11 +45,13 @@ export function ComparePage() {
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
       <DocumentMeta title={t('meta.compareTitle')} />
-      <MarketplaceNav variant="solid" />
-      <div className="dm-page-head dm-page-head--brand">
-        <h1>{t('compare.title')}</h1>
-        <p>{t('compare.subtitle')}</p>
-      </div>
+      <header className="dm-band">
+        <div className="dm-band__inner">
+          <MarketplaceNav />
+          <h1>{t('compare.title')}</h1>
+          <p className="dm-band__lead">{t('compare.subtitle')}</p>
+        </div>
+      </header>
       <div className="blox-page-pad blox-content-wide">
         {!entries.length ? (
           <div className="dm-compare-empty">

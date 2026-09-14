@@ -609,6 +609,8 @@ model ProductImage {
 
 model Application {
   id                 String            @id @default(cuid())
+  /// Human-friendly sequential reference, surfaced as BLOX-#### in the UI and contracts.
+  referenceSeq       Int               @unique @default(autoincrement()) @map("reference_seq")
   customerUserId     String?
   customer           User?             @relation("CustomerApplications", fields: [customerUserId], references: [id])
   customerEmail      String

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
+  ApiError,
   DOCUMENT_UPLOAD_ACCEPT,
   DocumentMeta,
   apiFetch,
@@ -87,7 +88,7 @@ function trimmedOrUndefined(value: string): string | undefined {
   return v ? v : undefined;
 }
 
-function toPatchBody(form: ProfileForm): Record<string, unknown> {
+function toPatchBody(form: ProfileForm, baseline: CustomerProfileDto): Record<string, unknown> {
   const address: Record<string, string> = {};
   const line1 = trimmedOrUndefined(form.address.line1);
   const area = trimmedOrUndefined(form.address.area);
@@ -99,12 +100,21 @@ function toPatchBody(form: ProfileForm): Record<string, unknown> {
   if (city) address.city = city;
   if (zone) address.zone = zone;
   if (poBox) address.po_box = poBox;
+
+  // Date of birth and phone are re-validated server-side (DOB is cross-checked
+  // against the QID, phone against the Qatar format). Only send them when the
+  // customer actually changed them, so saving an unrelated change — a
+  // notification toggle, address, name — never fails on a stale value that was
+  // already stored during onboarding.
+  const baselineDob = baseline.date_of_birth ? baseline.date_of_birth.slice(0, 10) : '';
+  const baselinePhone = baseline.phone ?? '';
+
   return {
     first_name: trimmedOrUndefined(form.firstName),
     last_name: trimmedOrUndefined(form.lastName),
-    phone: trimmedOrUndefined(form.phone),
+    ...(form.phone.trim() !== baselinePhone.trim() ? { phone: trimmedOrUndefined(form.phone) } : {}),
     gender: form.gender || undefined,
-    date_of_birth: form.dateOfBirth || undefined,
+    ...(form.dateOfBirth !== baselineDob ? { date_of_birth: form.dateOfBirth || undefined } : {}),
     nationality: trimmedOrUndefined(form.nationality),
     preferred_language: form.preferredLanguage,
     notification_preferences: { channels: form.channels, reminders: form.reminders },
@@ -129,6 +139,22 @@ const EMPTY_VAULT_FORM: VaultForm = {
 };
 
 type Notice = { tone: 'ok' | 'error'; text: string } | null;
+
+/** Map a profile-save failure to a message the customer can act on. */
+function saveErrorMessage(error: unknown, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  const code = error instanceof ApiError ? error.code : null;
+  const fallback = t('customerProfile.saveError');
+  switch (code) {
+    case 'dob_qid_mismatch':
+      return t('customerProfile.saveErrorDobQid', { defaultValue: fallback });
+    case 'date_of_birth_invalid':
+      return t('customerProfile.saveErrorDob', { defaultValue: fallback });
+    case 'phone_invalid':
+      return t('customerProfile.saveErrorPhone', { defaultValue: fallback });
+    default:
+      return fallback;
+  }
+}
 
 export function ProfilePage() {
   const { t } = useTranslation();
@@ -186,14 +212,14 @@ export function ProfilePage() {
       setProfileNotice({ tone: 'ok', text: t('customerProfile.saved') });
       void refreshProfile();
     },
-    onError: () => setProfileNotice({ tone: 'error', text: t('customerProfile.saveError') }),
+    onError: (error) => setProfileNotice({ tone: 'error', text: saveErrorMessage(error, t) }),
   });
 
   function onSubmitProfile(e: FormEvent) {
     e.preventDefault();
-    if (!form) return;
+    if (!form || !profile.data) return;
     setProfileNotice(null);
-    saveProfile.mutate(toPatchBody(form));
+    saveProfile.mutate(toPatchBody(form, profile.data));
   }
 
   function onLanguageChange(next: AppLocale) {

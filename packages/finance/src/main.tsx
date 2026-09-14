@@ -84,11 +84,11 @@ function App() {
   return (
     <OpsAppFrame>
       <Routes>
-        <Route path="/auth/login" element={<LoginPage portalKey="finance" homePath="/queue" />} />
+        <Route path="/auth/login" element={<LoginPage portalKey="finance" homePath="/dashboard" />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage portalKey="finance" />} />
         <Route path="/auth/reset-password" element={<ResetPasswordPage portalKey="finance" />} />
-        <Route path="/auth/two-factor" element={<TwoFactorLoginPage portalKey="finance" homePath="/queue" />} />
-        <Route path="/auth/mfa-setup" element={<MfaSetupPage portalKey="finance" homePath="/queue" />} />
+        <Route path="/auth/two-factor" element={<TwoFactorLoginPage portalKey="finance" homePath="/dashboard" />} />
+        <Route path="/auth/mfa-setup" element={<MfaSetupPage portalKey="finance" homePath="/dashboard" />} />
         <Route
           path="/*"
           element={
@@ -96,7 +96,7 @@ function App() {
               <BloxShell
                 title={partner ? t('dealerOps.partnerView.title') : 'Finance'}
                 nav={navItems}
-                homePaths={[partner ? '/partner' : '/queue']}
+                homePaths={[partner ? '/partner' : '/dashboard']}
                 searchPath={partner ? '/partner' : '/applications'}
               >
                 {partner ? (
@@ -108,7 +108,7 @@ function App() {
                   </Routes>
                 ) : (
                   <Routes>
-                    <Route path="/" element={<Navigate to="/queue" replace />} />
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/queue" element={<FinanceQueue />} />
                     <Route path="/book" element={<FinanceBookPage />} />
@@ -124,7 +124,7 @@ function App() {
                     <Route path="/schedules" element={<Navigate to="/payments?tab=schedules" replace />} />
                     <Route path="/bank-transfers" element={<Navigate to="/payments?tab=bank" replace />} />
                     <Route path="/partner/*" element={<Navigate to="/queue" replace />} />
-                    <Route path="*" element={<Navigate to="/queue" replace />} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
                 )}
               </BloxShell>

@@ -5,6 +5,7 @@ import type { OpsWorkspace } from '../types';
 import { isGuarantorSessionActive } from './GuarantorPanel';
 import { isIdentityHoldActive } from './IdentityHoldBanner';
 import type { WorkspaceGuarantorProps } from './types';
+import { resolveLenderLabel } from './lender-label';
 
 function qar(value: unknown): string {
   const n = Number(value ?? 0);
@@ -69,7 +70,7 @@ export function WorkspaceFacts({
       <div className="blox-fact">
         <dt>{t('dealerOps.workspace.lender')}</dt>
         <dd className="blox-cell-row">
-          <span>{data.finance_partner_name ?? t('financeProviders.lenderUntagged')}</span>
+          <span>{resolveLenderLabel(data, t)}</span>
           {onTagLender && (
             <button type="button" className="blox-btn blox-btn--ghost blox-btn--sm" onClick={onTagLender}>
               {t('financeProviders.tagLender')}

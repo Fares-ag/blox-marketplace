@@ -77,7 +77,6 @@ export function DashboardPage() {
         {
           label: t('ops.dashboard.collectedMonth'),
           value: data ? formatQar(data.collected_this_month) : '—',
-          trend: data?.collections_by_week.map((w) => w.amount),
           deltaTone: 'up',
           delta: data ? t('ops.dashboard.lastWeeks', { count: data.collections_by_week.length }) : undefined,
         },

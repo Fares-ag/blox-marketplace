@@ -1,5 +1,7 @@
 # Deploy blox.market (Vercel + Railway)
 
+> **Future / compliance:** for an all-in-Qatar Azure plan (QCB & PDPPL), see [AZURE_QATAR_HOSTING.md](./AZURE_QATAR_HOSTING.md). This file describes **current** production hosting.
+
 Production layout for the DriveMarket monorepo:
 
 | Host | App | Platform |

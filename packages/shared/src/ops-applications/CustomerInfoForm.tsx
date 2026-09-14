@@ -30,6 +30,14 @@ type CustomerSearchHit = {
   latest_snapshot?: Record<string, unknown> | null;
 };
 
+/** Corporate signatory lookup should not list plain individual applicants. */
+function isCorporateSignatoryHit(hit: CustomerSearchHit): boolean {
+  const snap = hit.latest_snapshot ?? {};
+  if (snap.applicantType === 'corporate') return true;
+  const corp = snap.corporate as { authorizedSignatory?: unknown; legalName?: string } | undefined;
+  return Boolean(corp?.authorizedSignatory || corp?.legalName?.trim());
+}
+
 const QID_LENGTH = 11;
 
 export function CustomerInfoForm({
@@ -162,6 +170,28 @@ export function CustomerInfoForm({
     const fromSnapshot = customerInfoFromSnapshot(hit.latest_snapshot ?? {});
     const nameParts = (hit.name ?? '').split(/\s+/).filter(Boolean);
     const qid = hit.qid && /^\d{11}$/.test(hit.qid) ? hit.qid : fromSnapshot.qid;
+
+    if (value.applicantType === 'corporate') {
+      const sig = fromSnapshot.corporate?.authorizedSignatory ?? {};
+      onChange({
+        ...value,
+        corporate: {
+          ...value.corporate,
+          authorizedSignatory: {
+            ...value.corporate.authorizedSignatory,
+            firstName: sig.firstName?.trim() || nameParts[0] || '',
+            lastName: sig.lastName?.trim() || nameParts.slice(1).join(' '),
+            email: hit.email || sig.email || '',
+            phone: hit.phone ?? sig.phone ?? '',
+            qid: qid || sig.qid || '',
+            nationality: sig.nationality?.trim() || fromSnapshot.nationality || '',
+          },
+        },
+        existingCustomerLinked: true,
+      });
+      return;
+    }
+
     onChange({
       ...fromSnapshot,
       firstName: fromSnapshot.firstName || nameParts[0] || '',
@@ -173,6 +203,10 @@ export function CustomerInfoForm({
       existingCustomerLinked: true,
     });
   }
+
+  const existingCustomerHits = (customers.data?.items ?? []).filter((row) =>
+    value.applicantType === 'corporate' ? isCorporateSignatoryHit(row) : true,
+  );
 
   return (
     <>
@@ -211,12 +245,12 @@ export function CustomerInfoForm({
                   defaultValue=""
                   fullWidth
                   onChange={(e) => {
-                    const hit = (customers.data?.items ?? []).find((row) => row.email === e.target.value);
+                    const hit = existingCustomerHits.find((row) => row.email === e.target.value);
                     if (hit) applyExisting(hit);
                   }}
                 >
                   <option value="">{t('ops.customer.selectCustomer')}</option>
-                  {(customers.data?.items ?? []).map((row) => (
+                  {existingCustomerHits.map((row) => (
                     <option key={row.id} value={row.email}>
                       {(row.name ?? row.email) + (row.phone ? ` · ${row.phone}` : '')}
                     </option>

@@ -1,123 +1,226 @@
 import { roundMoney } from '@drivemarket/shared/pricing';
-import { NO_LATE_CHARGES_LINE } from '../contract-disclosures';
 import { readCustomerSnapshot } from '../customer-snapshot';
 import { commonDealFields } from './field-maps';
 import type { ContractFieldContext } from './field-maps';
 import { normalizeContractContext } from './contract-terms';
-import { BrandedPdfWriter, formatPct, formatQar } from './pdf-brand';
+import { buildIjarahClauses, type IjarahBind } from './ijarah-agreement-clauses';
+import {
+  buildMusharakahClauses,
+  MUSHARAKAH_TOC,
+  type MusharakahBind,
+} from './musharakah-agreement-clauses';
+import { BrandedPdfWriter, formatQar } from './pdf-brand';
 
 function unitsFor(listPrice: number, downPayment: number, tenor: number) {
   const totalUnits = 100;
   const customerOpening = listPrice > 0 ? roundMoney((downPayment / listPrice) * totalUnits) : 0;
   const bloxOpening = roundMoney(Math.max(totalUnits - customerOpening, 0));
-  const unitsPerPeriod = tenor > 0 ? roundMoney(bloxOpening / tenor) : 0;
   const unitPrice = totalUnits > 0 ? roundMoney(listPrice / totalUnits) : 0;
-  return { totalUnits, customerOpening, bloxOpening, unitsPerPeriod, unitPrice };
+  return { bloxOpening, unitPrice };
 }
 
-async function buildAgreementPdf(
-  ctx: ContractFieldContext,
-  config: { title: string; templateCode: string; productLabel: string },
-): Promise<Buffer> {
+function musharakahBind(ctx: ContractFieldContext, fields: Record<string, string>): MusharakahBind {
+  const snap = readCustomerSnapshot(ctx.customerSnapshot);
+  const units = unitsFor(ctx.listPrice, ctx.downPayment, ctx.tenor);
+  const amountFinanced = roundMoney(Math.max(ctx.listPrice - ctx.downPayment, 0));
+  const approvedDate = ctx.approvedAt.toISOString().slice(0, 10);
+
+  return {
+    contractNo: ctx.referenceNo ?? ctx.applicationId,
+    executionDate: approvedDate,
+    customerName: snap.full_name || 'Customer',
+    customerQid: snap.qid || '—',
+    customerAddress: fields['Customer.NationalAddress'] || '—',
+    customerPhoneEmail: fields['Customer.PhoneEmail'] || ctx.customerEmail || '—',
+    bloxAddress: ctx.lenderAddress,
+    signatoryName: ctx.signatoryName,
+    signatoryTitle: ctx.signatoryTitle,
+    vehicleType: fields['Vehicle.Type'] || 'Motor vehicle',
+    vehicleMakeModel: `${ctx.vehicle.make} ${ctx.vehicle.model}`.trim(),
+    vehicleYear: ctx.vehicle.year != null ? String(ctx.vehicle.year) : '—',
+    chassisNo: ctx.vehicle.chassisNumber ?? ctx.vehicle.vin ?? '—',
+    engineNo: ctx.vehicle.engineNumber ?? '—',
+    plateNo: fields['Vehicle.Plate'] || '—',
+    totalPrice: formatQar(ctx.listPrice),
+    bloxContribution: formatQar(amountFinanced),
+    bloxPct: fields['Ownership.BloXOpeningPct'],
+    customerContribution: formatQar(ctx.downPayment),
+    customerPct: fields['Ownership.CustomerOpeningPct'],
+    numberOfUnits: String(units.bloxOpening),
+    unitValue: formatQar(units.unitPrice),
+    annualRate: `${ctx.annualRate.toFixed(2)}% per annum`,
+    tenor: String(ctx.tenor),
+    rentDefaultDays: '30',
+    defaultNoticeDays: '30',
+    saleProcureDays: '30',
+    disputeDays: '30',
+    forceMajeureNoticeDays: '7',
+    forceMajeureMaxDays: '90',
+    latePaymentDaily: '50',
+  };
+}
+
+export async function buildMusharakahAgreementPdf(ctx: ContractFieldContext): Promise<Buffer> {
   const normalized = normalizeContractContext(ctx);
-  const snap = readCustomerSnapshot(normalized.customerSnapshot);
   const fields = commonDealFields(normalized);
-  const units = unitsFor(normalized.listPrice, normalized.downPayment, normalized.tenor);
-  const amountFinanced = roundMoney(Math.max(normalized.listPrice - normalized.downPayment, 0));
-  const totalRent = normalized.schedule.reduce((sum, row) => sum + row.interest, 0);
-  const totalPayable = roundMoney(normalized.downPayment + normalized.financedTotal);
-  const approvedDate = normalized.approvedAt.toISOString().slice(0, 10);
+  const bind = musharakahBind(normalized, fields);
+  const clauses = buildMusharakahClauses(bind);
+  const snap = readCustomerSnapshot(normalized.customerSnapshot);
 
   const writer = await BrandedPdfWriter.create({
-    title: config.title,
-    subtitle: `Agreement ${normalized.applicationId} · ${config.productLabel}`,
-    footerTag: `${config.templateCode} · BloX LLC · blox-it.com · Own it, don't owe it.`,
+    title: 'Diminishing Musharakah Agreement',
+    subtitle: `Contract ${bind.contractNo}`,
+    footerTag: 'BLX-TPL-MUSH-V2 · BloX LLC · QFC No. 03403 · blox-it.com',
+    arabic: true,
   });
 
-  writer.metaGrid([
-    ['Template', config.templateCode],
-    ['Agreement reference', normalized.applicationId],
-    ['Execution date', approvedDate],
-    ['Lender of record', normalized.lenderName],
-    ['Status', 'Final'],
-  ]);
+  writer.contractCover({
+    titleEn: 'Diminishing Musharakah Agreement',
+    titleAr: 'عقد المشاركة المتناقصة',
+    subtitleEn: 'Joint Ownership & Diminishing Musharakah (Shirkat Al-Milk) Structure',
+    subtitleAr: 'هيكل الملكية المشتركة والمشاركة المتناقصة (شركة الملك)',
+    contractNo: bind.contractNo,
+    executionDate: bind.executionDate,
+    draft: false,
+  });
 
-  writer.section('1. Parties');
-  writer.keyValue('Customer', snap.full_name);
-  writer.keyValue('QID', snap.qid);
-  writer.keyValue('National address', fields['Customer.NationalAddress']);
-  writer.keyValue('Phone / email', fields['Customer.PhoneEmail']);
-  writer.keyValue('Dealer', normalized.dealerName);
-  writer.keyValue('BloX registered address', normalized.lenderAddress);
+  writer.tableOfContents(MUSHARAKAH_TOC);
 
-  writer.section('2. Financed asset');
-  writer.keyValue('Vehicle', `${normalized.vehicle.make} ${normalized.vehicle.model}${normalized.vehicle.year ? ` ${normalized.vehicle.year}` : ''}`);
-  writer.keyValue('VIN', normalized.vehicle.vin ?? undefined);
-  writer.keyValue('Chassis', normalized.vehicle.chassisNumber ?? undefined);
-  writer.keyValue('Engine no.', normalized.vehicle.engineNumber ?? undefined);
-  writer.keyValue('Condition', normalized.vehicle.condition ?? undefined);
-  writer.keyValue('Cash price (list)', `QAR ${formatQar(normalized.listPrice)}`);
-
-  writer.section('3. Co-ownership structure (100 units)');
-  writer.keyValue('Total ownership units', String(units.totalUnits));
-  writer.keyValue('Unit price', `QAR ${formatQar(units.unitPrice)}`);
-  writer.keyValue('Customer opening units', `${units.customerOpening} (${fields['Ownership.CustomerOpeningPct']})`);
-  writer.keyValue('BloX opening units', `${units.bloxOpening} (${fields['Ownership.BloXOpeningPct']})`);
-  writer.keyValue('Units purchased per period', String(units.unitsPerPeriod));
-
-  writer.section('4. Financing summary (locked at approval)');
-  writer.keyValue('Customer contribution (down payment)', `QAR ${formatQar(normalized.downPayment)} (${formatPct(normalized.downPaymentPct)})`);
-  writer.keyValue('Amount financed (co-owner share purchased over term)', `QAR ${formatQar(amountFinanced)}`);
-  writer.keyValue('Annual rental rate', `${normalized.annualRate.toFixed(2)}% per annum on BloX remaining share`);
-  writer.keyValue('Payment frequency', 'Monthly');
-  writer.keyValue('Number of periods', String(normalized.tenor));
-  writer.keyValue('Periodic payment (principal + rent)', `QAR ${formatQar(normalized.monthly)}`);
-  writer.keyValue('Total installments payable', `QAR ${formatQar(normalized.financedTotal)}`);
-  writer.keyValue('Total rent payable', `QAR ${formatQar(roundMoney(totalRent))}`);
-  writer.keyValue('Total amount payable', `QAR ${formatQar(totalPayable)}`);
-
-  writer.section('5. Product terms');
-  writer.line(fields['Classification.RenderedRulesEN'] ?? '', 9);
-  writer.keyValue('Takaful operator', fields['Takaful.Operator']);
-  writer.keyValue('Takaful borne by', fields['Takaful.BorneBy']);
-  writer.keyValue('Sharia asset classification', fields['Sharia.AssetPermissible']);
-  if (config.productLabel.includes('Ijarah')) {
-    writer.keyValue('Abatement days', fields['Ijarah.AbatementDays']);
-    writer.keyValue('Incident notice days', fields['Ijarah.IncidentNoticeDays']);
-    writer.keyValue('Inspections per year', fields['Ijarah.InspectionsPerYear']);
-    writer.keyValue('Max days abroad', fields['Ijarah.MaxDaysAbroad']);
+  for (const clause of clauses) {
+    if (clause.number === '22') continue;
+    writer.clause(clause.number, clause.titleEn, clause.titleAr, clause.bodyEn, clause.bodyAr);
   }
-  writer.line('The detailed ownership and rental schedule is set out in Schedule 2 (Ownership & Rental Schedule) attached to this agreement.', 9);
 
-  writer.section('6. Customer disclosures');
-  writer.line(
-    'This agreement is a Diminishing Musharakah (declining co-ownership) arrangement. Each installment combines principal (ownership units transferred to you) and rent (profit on the share still held by BloX). As your share grows, the rent component falls.',
-    9,
-  );
-  writer.line(NO_LATE_CHARGES_LINE, 9);
-  writer.line(
-    'Early settlement is available: you pay the principal outstanding plus rent accrued to the settlement date. Request a full payment schedule and account statement at any time.',
-    9,
-  );
+  const signatures = clauses.find((c) => c.number === '22');
+  if (signatures) {
+    writer.clause(signatures.number, signatures.titleEn, signatures.titleAr, signatures.bodyEn, signatures.bodyAr);
+    writer.bilingualSignatureBlock(snap.full_name || bind.customerName, bind.signatoryName, bind.signatoryTitle);
+  }
 
-  writer.section('7. Signatures');
-  writer.signatureBlock('The Customer', `For ${normalized.lenderName}`);
+  writer.paragraph(
+    'Schedule 2 (Ownership & Rental Schedule) is attached and forms an integral part of this Agreement.',
+    { size: 8 },
+  );
+  writer.paragraphAr('يُرفق الجدول 2 (جدول الملكية والإيجار) ويُعدّ جزءاً لا يتجزأ من هذا العقد.', { size: 8 });
 
   return writer.toBuffer();
 }
 
-export function buildMusharakahAgreementPdf(ctx: ContractFieldContext): Promise<Buffer> {
-  return buildAgreementPdf(ctx, {
-    title: 'Diminishing Musharakah Agreement',
-    templateCode: 'BLX-TPL-MUSH-V2',
-    productLabel: 'Diminishing Musharakah + Ijarah',
-  });
+function ijarahBind(ctx: ContractFieldContext, fields: Record<string, string>): IjarahBind {
+  const snap = readCustomerSnapshot(ctx.customerSnapshot);
+  const guarantor = snap.guarantor && typeof snap.guarantor === 'object' ? snap.guarantor : null;
+  const approvedDate = ctx.approvedAt.toISOString().slice(0, 10);
+  const coName = guarantor && typeof guarantor.fullName === 'string' ? guarantor.fullName.trim() : '';
+  const coQid = guarantor && typeof guarantor.qid === 'string' ? guarantor.qid.trim() : '';
+
+  return {
+    dealRef: fields['Deal.Ref'] || ctx.applicationId,
+    executionDate: fields['Deal.ExecutionDate'] || approvedDate,
+    commencementDate: fields['Deal.CommencementDate'] || approvedDate,
+    rentalRate: fields['Deal.RentalRate'] || `${ctx.annualRate.toFixed(2)}% per annum`,
+    paymentFrequency: fields['Deal.PaymentFrequency'] || 'Monthly',
+    dueDayDescription:
+      fields['Deal.DueDayDescription'] || 'the same calendar day of each month as the commencement date',
+    customerNameEn: fields['Customer.FullNameEN'] || snap.full_name || 'Customer',
+    customerNameAr: fields['Customer.FullNameAR'] || snap.full_name || 'Customer',
+    customerQid: fields['Customer.QID'] || snap.qid || '—',
+    customerAddress: fields['Customer.NationalAddress'] || '—',
+    coApplicantName: coName || fields['CoApplicant.FullNameEN'] || 'Not applicable',
+    coApplicantQid: coQid || fields['CoApplicant.QID'] || '—',
+    bloxAddress: fields['BloX.RegisteredAddress'] || ctx.lenderAddress,
+    signatoryName: fields['BloX.SignatoryName'] || ctx.signatoryName,
+    maxDaysAbroad: fields['Ijarah.MaxDaysAbroad'] || '90',
+    incidentNoticeDays: fields['Ijarah.IncidentNoticeDays'] || '5',
+    inspectionsPerYear: fields['Ijarah.InspectionsPerYear'] || '2',
+    abatementDays: fields['Ijarah.AbatementDays'] || '15',
+  };
 }
 
-export function buildIjarahAgreementPdf(ctx: ContractFieldContext): Promise<Buffer> {
-  return buildAgreementPdf(ctx, {
+/** Full bilingual Ijarah Agreement (BLX-TPL-011) — separate from the Musharakah Agreement. */
+export async function buildIjarahAgreementPdf(ctx: ContractFieldContext): Promise<Buffer> {
+  const normalized = normalizeContractContext(ctx);
+  const fields = commonDealFields(normalized);
+  const bind = ijarahBind(normalized, fields);
+  const clauses = buildIjarahClauses(bind);
+
+  const writer = await BrandedPdfWriter.create({
     title: 'Ijarah Agreement',
-    templateCode: 'BLX-TPL-011',
-    productLabel: 'Ijarah',
+    subtitle: `Agreement ${bind.dealRef}`,
+    footerTag: 'BLX-TPL-011 v1.1 · BloX LLC · QFC No. 03403 · blox-it.com',
+    arabic: true,
   });
+
+  writer.contractCover({
+    titleEn: 'Ijarah Agreement',
+    titleAr: 'اتفاقية الإجارة',
+    subtitleEn: "Rental of BloX's ownership share in the Asset",
+    subtitleAr: 'إجارة حصة بلوكس في ملكية الأصل',
+    contractNo: bind.dealRef,
+    executionDate: bind.executionDate,
+    draft: false,
+  });
+
+  writer.metaStrip([
+    ['TEMPLATE ID', 'BLX-TPL-011', 'VERSION', '1.1'],
+    ['OWNER', 'BloX Legal', 'STATUS', 'Draft for M2P implementation'],
+  ]);
+  writer.paragraph(
+    'SIGN-OFF GATE: Qatari counsel · Sharia Supervisory Board (Amanah Advisors) · AAOIFI standard citations to be confirmed',
+    { size: 7.5, gap: 10 },
+  );
+
+  writer.noticeBox(
+    'Language and Sharia',
+    'اللغة والأحكام الشرعية',
+    'This agreement is executed in Arabic and English. In the event of any conflict the Arabic text prevails. This agreement is subject to the rulings of the BloX Sharia Supervisory Board; where any provision is found to conflict with those rulings, that provision is to be read and applied in the manner the Board directs.',
+    'حررت هذه الاتفاقية باللغتين العربية والإنجليزية، وعند التعارض يعتد بالنص العربي. وتخضع هذه الاتفاقية لقرارات هيئة الرقابة الشرعية لدى بلوكس، وإذا تبين تعارض أي حكم مع تلك القرارات فيفسر ذلك الحكم ويطبق على النحو الذي تقرره الهيئة.',
+  );
+
+  writer.definitionGrid([
+    [
+      { en: 'Agreement reference', ar: 'رقم الاتفاقية', value: bind.dealRef },
+      { en: 'Date', ar: 'التاريخ', value: bind.executionDate },
+    ],
+    [
+      {
+        en: 'First Party',
+        ar: 'الطرف الأول',
+        value: `BloX LLC, QFC No. 03403, ${bind.bloxAddress} ("BloX")`,
+      },
+      {
+        en: 'Second Party',
+        ar: 'الطرف الثاني',
+        value: `${bind.customerNameEn} · ${bind.customerNameAr} · QID ${bind.customerQid} · ${bind.customerAddress} ("the Customer")`,
+      },
+    ],
+    [
+      {
+        en: 'Co-owner party',
+        ar: 'الطرف المشارك',
+        value: `${bind.coApplicantName} · QID ${bind.coApplicantQid}`,
+      },
+    ],
+  ]);
+
+  writer.section('Operative Provisions', 'الأحكام');
+  for (const clause of clauses) {
+    writer.clause(clause.number, clause.titleEn, clause.titleAr, clause.bodyEn, clause.bodyAr);
+  }
+
+  writer.contractSignatureBlock({
+    leftHeadingEn: 'For BloX LLC',
+    leftHeadingAr: 'عن بلوكس ذ.م.م',
+    leftName: bind.signatoryName,
+    rightHeadingEn: 'The Customer',
+    rightHeadingAr: 'العميل',
+    rightName: bind.customerNameEn,
+  });
+
+  writer.paragraph(
+    'Schedule 2 (Schedule of Ownership and Rental) is attached and forms an integral part of this Agreement.',
+    { size: 8 },
+  );
+  writer.paragraphAr('يُرفق الجدول 2 (جدول الملكية والأجرة) ويُعدّ جزءاً لا يتجزأ من هذه الاتفاقية.', { size: 8 });
+
+  return writer.toBuffer();
 }

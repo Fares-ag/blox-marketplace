@@ -305,10 +305,20 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+/* Showroom cards are vertical with a large photo — two columns from tablet up. */
+.dm-listing-stack--showroom {
+  gap: 16px;
+}
+
 @media (min-width: $bp-md) {
   .dm-listing-stack {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
+  }
+
+  .dm-listing-stack--showroom {
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+    gap: 20px;
   }
 }
 

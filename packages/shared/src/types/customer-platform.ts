@@ -363,6 +363,7 @@ export type DataRightsRequestDto = {
 
 export type PartnerApplicationDto = {
   id: string;
+  reference_no?: string | null;
   status: string;
   submitted_at: string | null;
   updated_at: string;

@@ -73,6 +73,15 @@ export class AppConfigService {
   readonly kycEkycRequired: boolean;
   /** Face-to-face branch procedure: staff may still attach the QID they inspected in person. */
   readonly kycAllowStaffManualIdentity: boolean;
+  /**
+   * Customer self-service apply flow: accept the customer's own manual QID
+   * front/back as identity even under e-KYC. On by default because the
+   * marketplace apply flow has no in-flow KYC-platform capture step, so the QID
+   * slot would otherwise be impossible to complete. Set
+   * KYC_ALLOW_CUSTOMER_MANUAL_IDENTITY=false once that flow performs OCR +
+   * liveness itself.
+   */
+  readonly kycAllowCustomerManualIdentity: boolean;
   /** Dual-write the ownership register; legacy ownership.ts remains the read path until backfill. */
   readonly musharakahRegisterEnabled: boolean;
   /** Period unit-offer loop vs legacy schedule pay. */
@@ -109,6 +118,10 @@ export class AppConfigService {
     const kycConfigured = !!config.get<string>('KYC_API_KEY')?.trim();
     this.kycEkycRequired = parseBool(config.get<string>('KYC_EKYC_REQUIRED'), kycConfigured);
     this.kycAllowStaffManualIdentity = parseBool(config.get<string>('KYC_ALLOW_STAFF_MANUAL_IDENTITY'), true);
+    this.kycAllowCustomerManualIdentity = parseBool(
+      config.get<string>('KYC_ALLOW_CUSTOMER_MANUAL_IDENTITY'),
+      true,
+    );
     this.musharakahRegisterEnabled = parseBool(config.get<string>('MUSHARAKAH_REGISTER_ENABLED'), false);
     this.unitOffersEnabled = parseBool(config.get<string>('UNIT_OFFERS_ENABLED'), false);
     this.lpoGateEnabled = parseBool(config.get<string>('LPO_GATE_ENABLED'), false);

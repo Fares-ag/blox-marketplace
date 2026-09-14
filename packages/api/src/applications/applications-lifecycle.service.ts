@@ -44,6 +44,7 @@ import { syncPaymentSchedulesFromInstallmentPlan } from './installment-plan-sync
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
 import { resolveLenderOfRecord } from '../finance-partners/lender-of-record';
 import { assertCompanyScope } from './company-scope';
+import { formatApplicationRef } from './application-reference';
 import { assertApplicationCanView, BLOCKING_APPLICATION_STATUSES } from './application-access';
 import { transitionApplication } from './guarded-transitions';
 import { toApplicationDto, toOpsApplicationDto } from './application-response.dto';
@@ -263,6 +264,7 @@ export class ApplicationsLifecycleService {
 
     const fieldCtx: ContractFieldContext = normalizeContractContext({
       applicationId: app.id,
+      referenceNo: formatApplicationRef(app.referenceSeq),
       approvedAt,
       lenderName,
       lenderAddress:

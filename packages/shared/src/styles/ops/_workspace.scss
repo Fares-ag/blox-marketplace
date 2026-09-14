@@ -109,6 +109,7 @@
   padding: 10px 0;
   font-size: var(--blox-type-body, 0.875rem);
   border-bottom: 1px solid var(--blox-border);
+  min-width: 0;
 
   &:last-child {
     border-bottom: none;
@@ -118,6 +119,12 @@
     color: var(--blox-slate);
     font-weight: 500;
     font-size: var(--blox-type-meta, 0.75rem);
+  }
+
+  span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   em {

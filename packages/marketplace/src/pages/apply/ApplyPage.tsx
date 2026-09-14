@@ -60,6 +60,7 @@ import {
   type GuarantorForm,
   type PlanContext,
 } from './apply-model';
+import { clearApplyDraft, loadApplyDraft, saveApplyDraft } from './apply-draft-cache';
 import {
   applyErrorCode,
   blockingApplicationIdFrom,
@@ -293,6 +294,32 @@ export function ApplyPage() {
     setDraftId(resumeCandidate?.id ?? null);
     setResumeDecided(true);
   }
+
+  // ---- local autosave (survives refresh / accidental close) -----------------
+  // Restore any locally cached progress once, before the server draft (if any)
+  // loads. A server-side draft resumes afterwards and takes precedence.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current || !product || !productSlug) return;
+    hydratedRef.current = true;
+    const cached = loadApplyDraft(user?.id, productSlug);
+    if (!cached) return;
+    setForm(cached.form);
+    setPlan(cached.plan);
+    setPlanReady(true);
+    setStep(cached.step);
+    setMaxReached(stepIndex(cached.step));
+  }, [product, productSlug, user?.id]);
+
+  // Mirror in-progress input to localStorage so nothing is lost mid-application.
+  useEffect(() => {
+    if (!productSlug || showResume) return;
+    const started =
+      step !== 'vehicle' ||
+      !!(form.firstName || form.lastName || form.qid || form.dateOfBirth || form.phone || form.email);
+    if (!started) return;
+    saveApplyDraft(user?.id, productSlug, { form, plan, step });
+  }, [form, plan, step, productSlug, user?.id, showResume]);
 
   // ---- derived plan numbers ---------------------------------------------
   const pricing = useMemo(() => (ctx ? buildPlanPricing(plan, ctx) : null), [plan, ctx]);
@@ -617,7 +644,14 @@ export function ApplyPage() {
 
   function focusFirstInvalid() {
     requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('#apply-step-card [aria-invalid="true"]')?.focus();
+      const target =
+        document.querySelector<HTMLElement>('#apply-step-card [aria-invalid="true"]') ??
+        document.querySelector<HTMLElement>('#apply-step-card .dm-field__error');
+      if (!target) return;
+      // Take the customer straight to the first problem — they usually trigger
+      // validation from the sticky bar at the bottom of the page.
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      target.focus({ preventScroll: true });
     });
   }
 
@@ -701,6 +735,7 @@ export function ApplyPage() {
         company_id: product?.company_id,
         source: 'stepper',
       });
+      clearApplyDraft(user?.id, productSlug);
       void qc.invalidateQueries({ queryKey: ['my-apps'] });
       void qc.invalidateQueries({ queryKey: ['apps-blocking'] });
       void qc.invalidateQueries({ queryKey: ['products'] });

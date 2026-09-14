@@ -11,8 +11,8 @@
   // not --blox-space-xl: bleeding wider than the container pushed the header
   // past the viewport and gave every ops detail page a horizontal scrollbar.
   // Vertical padding stays on the larger step so the header keeps its height.
-  margin: calc(-1 * var(--blox-space-xl)) calc(-1 * var(--spacing-lg)) var(--blox-space-lg);
-  padding: var(--blox-space-xl) var(--spacing-lg);
+  margin: calc(-1 * var(--blox-space-md)) calc(-1 * var(--spacing-lg)) var(--blox-space-md);
+  padding: var(--blox-space-md) var(--spacing-lg);
   border-bottom: 1px solid var(--blox-border);
 }
 
@@ -210,7 +210,7 @@
 
   &__meta {
     width: 100%;
-    padding: 14px 18px;
+    padding: 10px 14px;
     background: var(--blox-surface);
     border: 1px solid var(--blox-border);
     border-radius: var(--blox-radius-card, 12px);

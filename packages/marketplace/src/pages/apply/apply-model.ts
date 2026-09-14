@@ -169,10 +169,9 @@ export function formFromSnapshot(raw: Record<string, unknown> | null | undefined
   form.gender = gender === 'male' || gender === 'female' ? gender : '';
   form.dateOfBirth = str(raw.dateOfBirth).slice(0, 10);
   form.qid = normalizeQid(str(raw.qid));
-  // The free-text nationality only exists for QIDs whose country code we cannot
-  // read; a known code always wins, so do not echo the derived value back.
-  const parsedQid = parseQid(form.qid);
-  form.nationality = parsedQid.valid && parsedQid.nationality ? '' : str(raw.nationality);
+  // Keep whatever nationality was stored so an applicant's correction survives a
+  // resume; when it simply mirrors the QID-derived value the field still shows it.
+  form.nationality = str(raw.nationality);
   form.residenceDuration = str(raw.residenceDuration);
   form.phone = str(raw.phone);
   form.email = str(raw.email);
@@ -241,11 +240,14 @@ export function ageFromIsoDate(dateOfBirth: string, now: Date = new Date()): num
 export function deriveIdentity(form: ApplyForm, locale: 'en' | 'ar', now: Date = new Date()): DerivedIdentity {
   const parsed = parseQid(normalizeQid(form.qid), now);
   const known = parsed.valid && parsed.nationality != null;
+  // A typed value always wins so applicants can correct a mismatch between the
+  // QID country code and the nationality printed on their documents.
+  const typed = form.nationality.trim();
   return {
     parsed,
     residency: parsed.valid ? parsed.residency : null,
     nationalityLabel: known ? parsed.nationality![locale] : null,
-    nationalityValue: known ? parsed.nationality!.en : form.nationality.trim(),
+    nationalityValue: typed || (known ? parsed.nationality!.en : ''),
     nationalityKnown: known,
     dobMatch: parsed.valid ? dateOfBirthMatchesQid(form.dateOfBirth || null, parsed.qid) : null,
     age: ageFromIsoDate(form.dateOfBirth, now),

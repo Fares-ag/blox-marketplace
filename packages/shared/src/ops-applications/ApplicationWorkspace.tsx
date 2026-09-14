@@ -144,7 +144,7 @@ export function ApplicationWorkspace({
   const submittedAt = data.submitted_at ?? null;
   const idLine = (
     <>
-      <span className="blox-detail-id__code">{id}</span>
+      <span className="blox-detail-id__code">{data.reference_no ?? id}</span>
       {submittedAt ? (
         <>
           {' · '}

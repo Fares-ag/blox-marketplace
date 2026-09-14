@@ -88,7 +88,7 @@ export function PartnerApplicationsList({ basePath = '/partner' }: { basePath?: 
         format: (_, a) => (
           <span className="blox-cell-stack">
             <Link to={`${basePath}/${a.id}`}>{vehicleLabel(a)}</Link>
-            <small className="blox-table__id">{a.id.slice(0, 10)}…</small>
+            <small className="blox-table__id">{a.reference_no ?? `${a.id.slice(0, 10)}…`}</small>
           </span>
         ),
       },

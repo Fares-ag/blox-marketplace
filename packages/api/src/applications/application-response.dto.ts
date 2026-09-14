@@ -3,6 +3,7 @@ import { maskCustomerSnapshot, maskPhone } from '@drivemarket/shared/domain-rule
 import { toPublicOfferDto } from '../common/offer-response.dto';
 import { ruleFlagsOf } from './application-rules';
 import { customerPhaseFor } from '@drivemarket/shared/application-status-map';
+import { formatApplicationRef } from './application-reference';
 
 type DecimalLike = Prisma.Decimal | number | string | null | undefined;
 
@@ -219,6 +220,7 @@ export function toTakafulPolicyDto(policy: TakafulPolicyRow, now: Date = new Dat
 
 type ApplicationCore = {
   id: string;
+  referenceSeq?: number | null;
   customerUserId: string | null;
   customerEmail: string;
   customerSnapshot: unknown;
@@ -325,6 +327,7 @@ export function identityAndConsentFields(app: {
 function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudience) {
   const dto: Record<string, unknown> = {
     id: app.id,
+    reference_no: formatApplicationRef(app.referenceSeq),
     customer_user_id: app.customerUserId,
     customer_email: app.customerEmail,
     customer_snapshot: snapshotForAudience(app.customerSnapshot, audience),
@@ -459,6 +462,7 @@ export function toApplicationBlockingDto(result: {
 /** Customer list row — like the detail DTO, carries no decision reason. */
 export function toApplicationListItemDto(app: {
   id: string;
+  referenceSeq?: number | null;
   status: ApplicationStatus;
   createdAt: Date;
   submittedAt?: Date | null;
@@ -480,6 +484,7 @@ export function toApplicationListItemDto(app: {
 }) {
   return {
     id: app.id,
+    reference_no: formatApplicationRef(app.referenceSeq),
     status: app.status,
     customer_phase: customerPhaseFor(app.status),
     created_at: app.createdAt,
@@ -505,6 +510,7 @@ export function toApplicationListItemDto(app: {
 
 export function toOpsApplicationQueueItemDto(app: {
   id: string;
+  referenceSeq?: number | null;
   status: ApplicationStatus;
   createdAt: Date;
   submittedAt?: Date | null;
@@ -532,6 +538,7 @@ export function toOpsApplicationQueueItemDto(app: {
 
   return {
     id: app.id,
+    reference_no: formatApplicationRef(app.referenceSeq),
     status: app.status,
     created_at: app.createdAt,
     submitted_at: app.submittedAt ?? null,
@@ -596,6 +603,7 @@ function deriveRiskLevel(
 
 export function toDealerApplicationListItemDto(app: {
   id: string;
+  referenceSeq?: number | null;
   status: ApplicationStatus;
   createdAt: Date;
   customerEmail?: string;
@@ -615,6 +623,7 @@ export function toDealerApplicationListItemDto(app: {
 }) {
   return {
     id: app.id,
+    reference_no: formatApplicationRef(app.referenceSeq),
     status: app.status,
     created_at: app.createdAt,
     customer_snapshot: snapshotForAudience(app.customerSnapshot, 'dealer'),

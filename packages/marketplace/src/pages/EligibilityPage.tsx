@@ -28,11 +28,23 @@ import {
 import { MarketplaceNav } from '../components/MarketplaceNav';
 import { ChipRadioGroup, Field, Notice, PercentSlider, Pill, SelectInput, TextInput, type PillTone } from './apply/fields';
 import { formatInteger, formatRatioPct } from './apply/format';
-import { parseAmount } from './apply/apply-model';
+import { ageFromIsoDate, parseAmount } from './apply/apply-model';
 
 /** Seeded offers rent at ~12% p.a.; used when no dealer offer is in context. */
 const INDICATIVE_RATE_PERCENT = 12;
 const CURRENT_YEAR = new Date().getFullYear();
+const MIN_DOB_YEAR = 1900;
+
+/** Same date-of-birth rules as the application "About you" step, returned as a translation key. */
+function dobFieldErrorKey(iso: string): string | null {
+  if (!iso) return null;
+  const match = /^(\d{4})-\d{2}-\d{2}$/.exec(iso);
+  if (!match || Number(match[1]) < MIN_DOB_YEAR) return 'applyFlow.error.invalidDob';
+  const age = ageFromIsoDate(iso);
+  if (age == null) return 'applyFlow.error.invalidDob';
+  if (age < 18 || age > 80) return 'applyFlow.error.ageRange';
+  return null;
+}
 
 type EligForm = {
   residency: ResidencyClass | '';
@@ -149,7 +161,8 @@ export function EligibilityPage() {
         ? t('applyFlow.error.invalidAmount')
         : null;
   const residencyError = touched.residency && !form.residency ? t('applyFlow.error.required') : null;
-  const dobError = touched.dateOfBirth && !form.dateOfBirth ? t('applyFlow.error.required') : null;
+  const dobErrorKey = !form.dateOfBirth ? 'applyFlow.error.required' : dobFieldErrorKey(form.dateOfBirth);
+  const dobError = touched.dateOfBirth && dobErrorKey ? t(dobErrorKey) : null;
   const residenceDurationError =
     touched.residenceDuration && form.residency === 'expat' && !form.residenceDuration ? t('applyFlow.error.required') : null;
 
@@ -167,7 +180,7 @@ export function EligibilityPage() {
       residenceDuration: true,
     }));
     if (!form.residency) return;
-    if (!form.dateOfBirth) return;
+    if (!form.dateOfBirth || dobFieldErrorKey(form.dateOfBirth)) return;
     if (form.residency === 'expat' && !form.residenceDuration) return;
     if (!price || price <= 0) {
       firstFieldRef.current?.focus();
@@ -257,6 +270,7 @@ export function EligibilityPage() {
                       type="date"
                       numeric
                       value={form.dateOfBirth}
+                      min={`${MIN_DOB_YEAR}-01-01`}
                       max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) => update('dateOfBirth', e.target.value)}
                       onBlur={() => setTouched((p) => ({ ...p, dateOfBirth: true }))}
@@ -384,7 +398,7 @@ export function EligibilityPage() {
                 id="elig-down"
                 label={t('eligibilityCheck.form.downPayment')}
                 hint={t('eligibilityCheck.form.downPaymentHint', { min: minDown, condition: conditionWord })}
-                min={downBand.min}
+                min={minDown}
                 max={downBand.max}
                 value={form.downPct}
                 onChange={(v) => update('downPct', v)}

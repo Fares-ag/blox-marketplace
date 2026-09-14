@@ -478,50 +478,53 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   });
   const contractDocs = contractDocsQuery.data?.items ?? [];
 
-  async function uploadSignedContract(file: File) {
+  async function signedUploadErrorMessage(res: Response): Promise<string> {
+    let code = '';
+    try {
+      const body = (await res.clone().json()) as { error?: { code?: unknown }; code?: unknown };
+      code = String(body?.error?.code ?? body?.code ?? '').trim();
+    } catch {
+      /* non-JSON error body */
+    }
+    switch (code) {
+      case 'contract_hash_mismatch':
+      case 'contract_not_fingerprinted':
+        return t('application.contractUploadWrongFile');
+      case 'file_too_large':
+        return t('application.contractUploadTooLarge');
+      case 'invalid_file_type':
+        return t('application.contractUploadWrongType');
+      default:
+        return t('application.contractUploadFailed');
+    }
+  }
+
+  async function postSignedUpload(url: string, file: File) {
     setContractError(null);
     const body = new FormData();
     body.append('file', file);
     try {
-      const res = await fetch(apiUrl(`/api/applications/${app.id}/contract/signed`), {
-        method: 'POST',
-        credentials: 'include',
-        body,
-      });
+      const res = await fetch(apiUrl(url), { method: 'POST', credentials: 'include', body });
       if (!res.ok) {
-        setContractError(t('application.contractUploadFailed'));
-        throw new Error(t('application.contractUploadFailed'));
+        const message = await signedUploadErrorMessage(res);
+        setContractError(message);
+        throw new Error(message);
       }
       invalidate();
       void contractDocsQuery.refetch();
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('application.contractUploadFailed');
-      setContractError(message);
+      if (err instanceof Error && err.message) setContractError((prev) => prev ?? err.message);
+      else setContractError((prev) => prev ?? t('application.contractUploadFailed'));
       throw err;
     }
   }
 
+  async function uploadSignedContract(file: File) {
+    await postSignedUpload(`/api/applications/${app.id}/contract/signed`, file);
+  }
+
   async function uploadSignedContractDocument(docId: string, file: File) {
-    setContractError(null);
-    const body = new FormData();
-    body.append('file', file);
-    try {
-      const res = await fetch(apiUrl(`/api/applications/${app.id}/contract-documents/${docId}/sign`), {
-        method: 'POST',
-        credentials: 'include',
-        body,
-      });
-      if (!res.ok) {
-        setContractError(t('application.contractUploadFailed'));
-        throw new Error(t('application.contractUploadFailed'));
-      }
-      invalidate();
-      void contractDocsQuery.refetch();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t('application.contractUploadFailed');
-      setContractError(message);
-      throw err;
-    }
+    await postSignedUpload(`/api/applications/${app.id}/contract-documents/${docId}/sign`, file);
   }
 
   return (

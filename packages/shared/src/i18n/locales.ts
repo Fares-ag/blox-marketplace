@@ -298,6 +298,9 @@ export const en = {
     uploadSignedContract: 'Signed agreement (PDF only)',
     submitSignedContract: 'Submit signed agreement',
     contractUploadFailed: 'Could not upload signed agreement. Use a PDF under 10 MB.',
+    contractUploadWrongType: 'Upload the signed agreement as a PDF file.',
+    contractUploadTooLarge: 'That file is too large. Upload the signed PDF (under 10 MB).',
+    contractUploadWrongFile: 'This does not match the agreement we generated. Upload the exact PDF you downloaded from Blox and signed — not a scan, photo, or re-saved copy. The file name does not matter.',
     scheduleTitle: 'Your ownership timeline',
   },
   ownership: {
@@ -1518,6 +1521,9 @@ export const ar: typeof en = {
     uploadSignedContract: 'الاتفاقية الموقّعة (PDF فقط)',
     submitSignedContract: 'إرسال الاتفاقية الموقّعة',
     contractUploadFailed: 'تعذر رفع الاتفاقية. استخدم PDF أقل من 10 ميجابايت.',
+    contractUploadWrongType: 'ارفع الاتفاقية الموقّعة كملف PDF.',
+    contractUploadTooLarge: 'حجم الملف كبير جداً. ارفع ملف PDF الموقّع (أقل من 10 ميجابايت).',
+    contractUploadWrongFile: 'هذا الملف لا يطابق الاتفاقية التي أصدرناها. ارفع نفس ملف PDF الذي نزّلته من Blox بعد توقيعه — وليس نسخة ممسوحة ضوئياً أو صورة أو نسخة أُعيد حفظها. اسم الملف غير مهم.',
     scheduleTitle: 'جدول ملكيتك',
   },
   ownership: {

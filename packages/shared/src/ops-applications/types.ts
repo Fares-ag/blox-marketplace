@@ -65,6 +65,7 @@ export type IdentityRevealProps = {
 
 export type OpsQueueItem = {
   id: string;
+  reference_no?: string | null;
   status: ApplicationStatus;
   created_at: string;
   submitted_at?: string | null;
@@ -148,6 +149,7 @@ export type KycVerificationSummary = {
 
 export type OpsWorkspace = {
   id: string;
+  reference_no?: string | null;
   status: ApplicationStatus;
   contract_generated?: boolean;
   customer_email?: string;

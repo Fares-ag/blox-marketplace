@@ -93,15 +93,28 @@ export function IdentityStep({ form, derived, errors, onChange, onBlur, prefille
           required
         >
           {(a11y) => (
-            <TextInput {...a11y} type="date" numeric value={form.dateOfBirth} autoComplete="bday" max={new Date().toISOString().slice(0, 10)} onChange={(e) => onChange({ dateOfBirth: e.target.value })} onBlur={() => onBlur('dateOfBirth')} />
+            <TextInput {...a11y} type="date" numeric value={form.dateOfBirth} autoComplete="bday" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} onChange={(e) => onChange({ dateOfBirth: e.target.value })} onBlur={() => onBlur('dateOfBirth')} />
           )}
         </Field>
       </div>
 
-      {derived.parsed.valid && !derived.nationalityKnown ? (
-        <Field id="apply-nationality" label={t('applyFlow.identity.nationality')} hint={t('applyFlow.identity.nationalityUnknown')} error={err('nationality')} required>
+      {derived.parsed.valid ? (
+        <Field
+          id="apply-nationality"
+          label={t('applyFlow.identity.nationality')}
+          hint={derived.nationalityKnown ? t('applyFlow.identity.nationalityEditable') : t('applyFlow.identity.nationalityUnknown')}
+          error={err('nationality')}
+          required={!derived.nationalityKnown}
+        >
           {(a11y) => (
-            <TextInput {...a11y} value={form.nationality} placeholder={t('applyFlow.identity.nationalityPlaceholder')} autoComplete="country-name" onChange={(e) => onChange({ nationality: e.target.value })} onBlur={() => onBlur('nationality')} />
+            <TextInput
+              {...a11y}
+              value={form.nationality || (derived.nationalityKnown ? derived.nationalityValue : '')}
+              placeholder={t('applyFlow.identity.nationalityPlaceholder')}
+              autoComplete="country-name"
+              onChange={(e) => onChange({ nationality: e.target.value })}
+              onBlur={() => onBlur('nationality')}
+            />
           )}
         </Field>
       ) : null}

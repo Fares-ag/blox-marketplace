@@ -134,6 +134,7 @@ export class ApplicationsService {
     return {
       ekycRequired: this.appConfig.kycEkycRequired,
       allowStaffManualIdentity: this.appConfig.kycAllowStaffManualIdentity,
+      allowCustomerManualIdentity: this.appConfig.kycAllowCustomerManualIdentity,
     };
   }
 

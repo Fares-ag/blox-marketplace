@@ -95,7 +95,7 @@ export function CreditQueue({
         label: t('ops.col.application'),
         format: (_, a) => (
           <Link to={`${detailBase}/${a.id}`}>
-            {a.id.slice(0, 10)}…
+            {a.reference_no ?? `${a.id.slice(0, 10)}…`}
           </Link>
         ),
       },

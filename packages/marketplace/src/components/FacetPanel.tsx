@@ -100,9 +100,9 @@ export function FacetPanel({ dealers, onApplied, className = '', variant = 'top'
   const [searchParams, setSearchParams] = useSearchParams();
   const initial = useMemo(() => parseFilters(searchParams), [searchParams]);
   const [draft, setDraft] = useState(initial);
-  const [expanded, setExpanded] = useState(() =>
-    typeof window === 'undefined' ? true : window.matchMedia('(min-width: 901px)').matches,
-  );
+  // Start collapsed so the grid does not dominate the page; the header button
+  // (rendered for the `top` variant) expands it on demand.
+  const [expanded, setExpanded] = useState(false);
 
   const facets = useQuery({
     queryKey: ['product-facet-options'],

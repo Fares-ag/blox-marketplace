@@ -53,6 +53,9 @@ export const en = {
   save: 'Save changes',
   saved: 'Profile saved',
   saveError: 'We could not save your profile. Please try again.',
+  saveErrorDobQid: 'Your date of birth does not match your Qatar ID. Please correct it before saving.',
+  saveErrorDob: 'Please enter a valid date of birth.',
+  saveErrorPhone: 'Please enter a valid Qatar phone number.',
   vault: {
     title: 'Document vault',
     intro: 'Keep your identity documents here once; we reuse them for every application.',
@@ -229,6 +232,9 @@ export const ar: typeof en = {
   save: 'حفظ التغييرات',
   saved: 'تم حفظ الملف الشخصي',
   saveError: 'تعذر حفظ ملفك الشخصي. يرجى المحاولة مرة أخرى.',
+  saveErrorDobQid: 'تاريخ ميلادك لا يطابق البطاقة الشخصية. يرجى تصحيحه قبل الحفظ.',
+  saveErrorDob: 'يرجى إدخال تاريخ ميلاد صحيح.',
+  saveErrorPhone: 'يرجى إدخال رقم هاتف قطري صحيح.',
   vault: {
     title: 'خزنة المستندات',
     intro: 'احفظ مستندات هويتك هنا مرة واحدة؛ ونعيد استخدامها في كل طلب.',
