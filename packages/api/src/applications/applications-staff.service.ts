@@ -486,7 +486,10 @@ export class ApplicationsStaffService {
     // than fire-and-forget: parallel syncs would each read the attachment list
     // before the other had written, and upload the same file twice.
     if (shouldSyncStatusToCrm(app.status)) {
-      await this.zoho.syncApplicationToZoho(id, actor.id);
+      // Attach-only: the submit/create sync already POSTed the lead. A PUT
+      // here is what made Al Jazeera list a brand-new application as a
+      // modified prospect instead of a new one.
+      await this.zoho.syncApplicationToZoho(id, actor.id, { updateLeadFields: false });
     }
 
     return {

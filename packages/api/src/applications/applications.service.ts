@@ -1280,7 +1280,7 @@ export class ApplicationsService {
     // synced earlier, and nothing re-sent it. Draft uploads still skip sync —
     // the submit/resubmit path sends every document in one awaited sync, same
     // as the dealer wizard's per-file sync after the application is submitted.
-    await this.syncToCrmIfNeeded(id, app.status, user.id);
+    await this.syncToCrmIfNeeded(id, app.status, user.id, { updateLeadFields: false });
 
     return toApplicationDocumentDto(doc);
   }
@@ -1332,9 +1332,10 @@ export class ApplicationsService {
     applicationId: string,
     status: ApplicationStatus,
     actorUserId?: string,
+    options?: { updateLeadFields?: boolean },
   ): Promise<void> {
     if (!shouldSyncStatusToCrm(status)) return;
-    await this.zoho.syncApplicationToZoho(applicationId, actorUserId);
+    await this.zoho.syncApplicationToZoho(applicationId, actorUserId, options);
   }
 
   async deleteOps(user: User, id: string) {

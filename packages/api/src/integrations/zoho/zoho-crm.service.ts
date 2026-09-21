@@ -34,6 +34,16 @@ type ZohoAttachmentListResponse = {
 /** Outcome of an update against a specific Zoho lead id. */
 type UpdateOutcome = 'updated' | 'not_found';
 
+export type ZohoSyncOptions = {
+  /**
+   * When false, an existing lead is left as-is and only new attachments are
+   * uploaded. Document-upload re-sync uses this so attaching files after
+   * create does not PUT the lead — Zoho then lists it as a modified lead
+   * rather than a new one. A missing lead is still created.
+   */
+  updateLeadFields?: boolean;
+};
+
 /** Extension for an attachment whose name has none, so the CRM can preview it. */
 function extensionFor(mimeType?: string | null): string {
   switch ((mimeType ?? '').toLowerCase()) {
@@ -56,6 +66,13 @@ function extensionFor(mimeType?: string | null): string {
 export class ZohoCrmService {
   private readonly logger = new Logger(ZohoCrmService.name);
 
+  /**
+   * Serialises syncs for the same application. The walk-in wizard fires a
+   * create sync and then per-file document syncs; without a queue both can
+   * read a still-null `zohoLeadId` and each POST a lead for one application.
+   */
+  private readonly syncChain = new Map<string, Promise<void>>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auth: ZohoAuthService,
@@ -69,6 +86,31 @@ export class ZohoCrmService {
   async syncApplicationToZoho(
     applicationId: string,
     actorUserId?: string,
+    options: ZohoSyncOptions = {},
+  ): Promise<{ zohoLeadId: string | null; error?: string; documentsUploaded?: number }> {
+    return this.enqueueSync(applicationId, () =>
+      this.syncApplicationToZohoLocked(applicationId, actorUserId, options),
+    );
+  }
+
+  private enqueueSync<T>(applicationId: string, work: () => Promise<T>): Promise<T> {
+    const previous = this.syncChain.get(applicationId) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(work);
+    const tracked = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.syncChain.set(applicationId, tracked);
+    void tracked.then(() => {
+      if (this.syncChain.get(applicationId) === tracked) this.syncChain.delete(applicationId);
+    });
+    return next;
+  }
+
+  private async syncApplicationToZohoLocked(
+    applicationId: string,
+    actorUserId: string | undefined,
+    options: ZohoSyncOptions,
   ): Promise<{ zohoLeadId: string | null; error?: string; documentsUploaded?: number }> {
     // Partner routing is resolved BEFORE any config check. Callers gate only on
     // status (see shouldSyncStatusToCrm), so this method also runs for Blox
@@ -126,28 +168,29 @@ export class ZohoCrmService {
         { qid: this.identity.readQid(app.customer) },
       );
 
+      // One Blox application ↔ one Zoho lead, keyed only by `zohoLeadId`.
+      // Matching by email was collapsing every later application for the same
+      // customer onto the first lead, so Al Jazeera saw a modified overdue
+      // prospect instead of a new one in their queue.
       let leadId: string | null = app.zohoLeadId;
+      const updateFields = options.updateLeadFields !== false;
 
-      if (leadId) {
+      if (leadId && updateFields) {
         const outcome = await this.updateLead(leadId, leadPayload);
         if (outcome === 'not_found') {
           // Z4: the lead was deleted or merged in Zoho. Drop the stale id and
-          // re-link, instead of 404-ing on every future sync forever.
+          // create a new one for THIS application, instead of 404-ing on every
+          // future sync forever — and instead of hijacking another lead that
+          // happens to share the customer's email.
           this.logger.warn(
-            `Zoho lead ${leadId} no longer exists for application ${applicationId}; re-linking.`,
+            `Zoho lead ${leadId} no longer exists for application ${applicationId}; creating a new lead.`,
           );
           leadId = null;
         }
       }
 
       if (!leadId) {
-        const existingId = await this.findLeadIdByEmail(app.customerEmail);
-        if (existingId) {
-          const outcome = await this.updateLead(existingId, leadPayload);
-          leadId = outcome === 'not_found' ? await this.createLead(leadPayload) : existingId;
-        } else {
-          leadId = await this.createLead(leadPayload);
-        }
+        leadId = await this.createLead(leadPayload);
       }
 
       if (!leadId) throw new Error('zoho_lead_resolution_failed');
@@ -155,9 +198,9 @@ export class ZohoCrmService {
       // Persist the lead id BEFORE uploading attachments. The walk-in path
       // fires a sync on create and the wizard's first document upload fires
       // another moments later; both previously read a still-null zohoLeadId
-      // and each created its own lead, leaving Al Jazeera with two records for
-      // one customer and Blox tracking only the second. Writing it here closes
-      // most of that window — attachment upload is by far the slowest part.
+      // and each created its own lead. The per-application queue above plus
+      // writing the id here means the second call updates (or only attaches)
+      // the lead this application already owns.
       await this.prisma.application.update({
         where: { id: applicationId },
         data: { zohoLeadId: leadId },
@@ -316,36 +359,6 @@ export class ZohoCrmService {
       throw new Error(row?.message ?? JSON.stringify(body));
     }
     return 'updated';
-  }
-
-  /**
-   * Z7: uses the search API's dedicated `email` parameter. The previous criteria
-   * string interpolated the raw address into `(Email:equals:...)`, which breaks
-   * for addresses containing `(`, `)` or `,` — legal characters that would
-   * produce a malformed query and, in turn, a duplicate lead.
-   */
-  private async findLeadIdByEmail(email: string): Promise<string | null> {
-    const token = await this.auth.getAccessToken();
-    const res = await this.zohoFetch(
-      `${this.config.apiDomain}/crm/v8/Leads/search?email=${encodeURIComponent(email)}`,
-      {
-        headers: { Authorization: `Zoho-oauthtoken ${token}` },
-      },
-    );
-
-    if (res.status === 204) return null;
-
-    if (!res.ok) {
-      // Preserved behaviour: fall through to creating a lead rather than losing
-      // it. Logged because it is the one path that can produce a duplicate.
-      this.logger.warn(
-        `Zoho lead search failed (${res.status}) for ${email}; a duplicate lead may be created.`,
-      );
-      return null;
-    }
-
-    const body = (await res.json()) as { data?: Array<{ id: string }> };
-    return body.data?.[0]?.id ?? null;
   }
 
   private async syncDocuments(

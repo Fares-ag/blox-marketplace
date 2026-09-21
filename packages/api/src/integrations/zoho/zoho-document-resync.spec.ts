@@ -13,6 +13,10 @@ import { shouldSyncStatusToCrm } from './zoho-sync-policy';
  * Both uploadDoc paths now re-sync, gated on this policy. These cases pin the
  * gate: the states a document can be uploaded in must be states that sync,
  * otherwise the re-sync is dead code and the bug returns silently.
+ *
+ * The re-sync is attach-only (`updateLeadFields: false`): it must not PUT the
+ * lead record. A PUT after create is what made Al Jazeera list a brand-new
+ * dealer application as a modified prospect rather than a new one.
  */
 
 // Mirrors the guards in applications.service.uploadDoc (customer) and
