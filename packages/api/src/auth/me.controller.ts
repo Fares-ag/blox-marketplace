@@ -71,10 +71,13 @@ export class MeController {
           select: { id: true, name: true },
         })
       : null;
+    const sessionPolicy = resolveSessionPolicy(this.config);
     return {
       id: user.id,
       email: user.email,
       name: user.name,
+      first_name: user.firstName ?? null,
+      last_name: user.lastName ?? null,
       role: user.role,
       company_id: user.companyId,
       credit_scope: user.creditScope,
@@ -86,8 +89,7 @@ export class MeController {
       two_factor_enabled: user.twoFactorEnabled,
       mfa_required: mfaRequired,
       mfa_setup_required: mfaEnforced && mfaRequired && !user.twoFactorEnabled,
-      // Lets every portal run the same idle-timeout countdown the API enforces.
-      session_policy: sessionPolicyDto(resolveSessionPolicy(this.config)),
+      session_policy: sessionPolicy.timeoutsDisabled ? null : sessionPolicyDto(sessionPolicy),
       finance_partner_id: user.financePartnerId ?? null,
       finance_partner_name: partner?.name ?? null,
     };
