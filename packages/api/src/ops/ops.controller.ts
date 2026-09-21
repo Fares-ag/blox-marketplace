@@ -17,6 +17,7 @@ import { backfillListingImageUrls } from '../../prisma/backfill-listing-image-ur
 import { bootstrapQauto } from '../../prisma/bootstrap-qauto';
 import { backfillInstallmentPlans } from '../applications/backfill-installment-plan';
 import { resolveDescendantCompanyIds } from '../companies/company-hierarchy';
+import { splitDisplayName } from '../customers/customer-profile';
 import { PrismaService } from '../prisma/prisma.service';
 import { vehicleIdentityComplete } from '../products/vehicle-identity';
 import { countInRange, weekBuckets } from './ops-metrics.helpers';
@@ -793,7 +794,7 @@ export class OpsController {
             }
           : {}),
       },
-      select: { id: true, email: true, name: true, phone: true, qid: true },
+      select: { id: true, email: true, name: true, firstName: true, lastName: true, phone: true, qid: true },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
@@ -805,10 +806,13 @@ export class OpsController {
           orderBy: { createdAt: 'desc' },
           select: { customerSnapshot: true },
         });
+        const derived = splitDisplayName(user.name);
         return {
           id: user.id,
           email: user.email,
           name: user.name,
+          first_name: user.firstName ?? (derived.firstName || null),
+          last_name: user.lastName ?? (derived.lastName || null),
           phone: user.phone,
           qid: user.qid,
           latest_snapshot: latest?.customerSnapshot ?? null,
