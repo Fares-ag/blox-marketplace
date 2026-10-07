@@ -90,10 +90,18 @@ export function ListingCard({
           {showDealer &&
             (product.company_code ? (
               <button type="button" className="dm-listing-card__dealer-chip" onClick={onDealerClick}>
+                {product.company_logo ? (
+                  <img src={product.company_logo} alt="" className="dm-listing-card__dealer-logo" />
+                ) : null}
                 {product.company_name}
               </button>
             ) : (
-              <span className="dm-listing-card__dealer-chip">{product.company_name}</span>
+              <span className="dm-listing-card__dealer-chip">
+                {product.company_logo ? (
+                  <img src={product.company_logo} alt="" className="dm-listing-card__dealer-logo" />
+                ) : null}
+                {product.company_name}
+              </span>
             ))}
           {hasWarranty(product.warranty_months) && (
             <span className="dm-listing-card__warranty">{t('facets.warranty')}</span>
@@ -282,9 +290,16 @@ export function ListingCard({
           gap: 6px;
           margin-top: 4px;
         }
+        .dm-listing-card__dealer-logo {
+          width: 16px;
+          height: 16px;
+          object-fit: contain;
+          flex-shrink: 0;
+        }
         .dm-listing-card__dealer-chip {
           display: inline-flex;
           align-items: center;
+          gap: 6px;
           max-width: 100%;
           padding: 3px 8px;
           border: none;

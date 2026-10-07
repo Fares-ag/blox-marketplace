@@ -85,10 +85,12 @@ export async function seedCheryInventory(prisma: PrismaClient) {
       code: 'chery-elite-motors',
       status: 'active',
       allowDirectActivate: true,
+      logoUrl: '/brand/dealers/chery-elite-motors.svg',
     },
     update: {
       name: 'Chery Elite Motors',
       status: 'active',
+      logoUrl: '/brand/dealers/chery-elite-motors.svg',
     },
   });
 

@@ -59,6 +59,15 @@ export function parseBrowseParams(params: URLSearchParams) {
   };
 }
 
+export function countActiveFilters(filters: VehicleFilters): number {
+  return FILTER_KEYS.reduce((n, key) => {
+    if (key === 'q') return n;
+    const value = filters[key];
+    if (typeof value === 'boolean') return value ? n + 1 : n;
+    return value ? n + 1 : n;
+  }, 0);
+}
+
 export function filtersToSearchParams(filters: VehicleFilters): URLSearchParams {
   const params = new URLSearchParams();
   (Object.entries(filters) as [keyof VehicleFilters, string | boolean][]).forEach(([key, value]) => {
@@ -221,10 +230,14 @@ export function FacetPanel({ dealers, onApplied, className = '', variant = 'top'
             ))}
           </select>
         </label>
-        {field(t('vehicles.yearMin'), 'yearMin', 'number')}
-        {field(t('vehicles.yearMax'), 'yearMax', 'number')}
-        {field(t('vehicles.priceMin'), 'priceMin', 'number')}
-        {field(t('vehicles.priceMax'), 'priceMax', 'number')}
+        <div className="dm-facet-pair">
+          {field(t('vehicles.yearMin'), 'yearMin', 'number')}
+          {field(t('vehicles.yearMax'), 'yearMax', 'number')}
+        </div>
+        <div className="dm-facet-pair">
+          {field(t('vehicles.priceMin'), 'priceMin', 'number')}
+          {field(t('vehicles.priceMax'), 'priceMax', 'number')}
+        </div>
         <label className="dm-facet-field">
           <span>{t('vehicles.condition')}</span>
           <select value={draft.condition} onChange={(e) => setDraft({ ...draft, condition: e.target.value })}>
@@ -344,6 +357,15 @@ export function FacetPanel({ dealers, onApplied, className = '', variant = 'top'
         .dm-facet-grid {
           display: grid;
           gap: 12px;
+        }
+        .dm-facet-pair {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          min-width: 0;
+        }
+        .dm-facet-panel--top .dm-facet-pair {
+          display: contents;
         }
         .dm-facet-panel--top .dm-facet-grid.is-collapsed,
         .dm-facet-panel--top .dm-facet-grid[hidden] {
@@ -488,16 +510,42 @@ export function FacetMobileTrigger({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const activeCount = countActiveFilters(parseFilters(searchParams));
+
   return (
     <>
       <button type="button" className="dm-facet-mobile-trigger" onClick={() => onOpenChange(true)}>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+          <path d="M2 4h14M4.5 9h9M7 14h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        </svg>
         {t('vehicles.filters')}
+        {activeCount > 0 ? <span className="dm-facet-mobile-trigger__count">{activeCount}</span> : null}
       </button>
       {open && (
         <>
           <div className="dm-facet-sheet-backdrop" onClick={() => onOpenChange(false)} aria-hidden />
-          <div className="dm-facet-sheet" role="dialog" aria-label={t('vehicles.filters')}>
-            <FacetPanel dealers={dealers} onApplied={() => onOpenChange(false)} />
+          <div className="dm-facet-sheet" role="dialog" aria-modal="true" aria-label={t('vehicles.filters')}>
+            <div className="dm-facet-sheet__handle" aria-hidden />
+            <header className="dm-facet-sheet__head">
+              <h2>{t('vehicles.filters')}</h2>
+              <button
+                type="button"
+                className="dm-facet-sheet__close"
+                onClick={() => onOpenChange(false)}
+                aria-label={t('vehicles.hideFilters')}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+                  <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                </svg>
+              </button>
+            </header>
+            <FacetPanel
+              dealers={dealers}
+              variant="sidebar"
+              className="dm-facet-panel--in-sheet"
+              onApplied={() => onOpenChange(false)}
+            />
           </div>
         </>
       )}
@@ -506,38 +554,122 @@ export function FacetMobileTrigger({
           display: none;
           align-items: center;
           justify-content: center;
-          min-height: 40px;
-          padding: 0 14px;
+          gap: 8px;
+          min-height: 44px;
+          padding: 0 16px;
           border: 1.5px solid var(--dm-slate-200);
-          border-radius: 8px;
+          border-radius: 12px;
           background: var(--dm-surface);
           color: var(--dm-ink);
           font: inherit;
-          font-size: 0.875rem;
+          font-size: 0.9375rem;
           font-weight: 600;
           cursor: pointer;
           flex-shrink: 0;
+          touch-action: manipulation;
         }
         .dm-facet-mobile-trigger:hover {
           border-color: var(--dm-steel);
           background: var(--dm-steel-soft);
         }
+        .dm-facet-mobile-trigger__count {
+          min-width: 20px;
+          height: 20px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: var(--dm-graphite-900, #123);
+          color: #fff;
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 20px;
+          text-align: center;
+        }
         .dm-facet-sheet-backdrop {
           position: fixed;
           inset: 0;
-          background: rgba(15, 63, 69, 0.45);
+          background: rgba(15, 63, 69, 0.48);
           z-index: 40;
         }
         .dm-facet-sheet {
           position: fixed;
           inset-inline: 0;
           bottom: 0;
-          max-height: 85vh;
-          overflow: auto;
           z-index: 41;
-          border-radius: 16px 16px 0 0;
-          box-shadow: 0 -8px 32px rgba(0,0,0,0.15);
+          display: flex;
+          flex-direction: column;
+          max-height: min(92vh, 760px);
+          padding-bottom: env(safe-area-inset-bottom, 0);
+          border-radius: 20px 20px 0 0;
+          box-shadow: 0 -12px 40px rgba(0,0,0,0.18);
           background: var(--dm-surface);
+          overscroll-behavior: contain;
+        }
+        .dm-facet-sheet__handle {
+          width: 40px;
+          height: 4px;
+          margin: 10px auto 0;
+          border-radius: 999px;
+          background: var(--dm-slate-200);
+        }
+        .dm-facet-sheet__head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px 16px 8px;
+        }
+        .dm-facet-sheet__head h2 {
+          margin: 0;
+          font-family: var(--dm-font-display);
+          font-size: 1.15rem;
+        }
+        .dm-facet-sheet__close {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 44px;
+          height: 44px;
+          border: none;
+          border-radius: 12px;
+          background: var(--dm-slate-100, #f3f4f6);
+          color: var(--dm-ink);
+          cursor: pointer;
+          touch-action: manipulation;
+        }
+        .dm-facet-panel--in-sheet {
+          border: none;
+          border-radius: 0;
+          padding: 0 16px 16px;
+          background: transparent;
+          overflow: auto;
+          min-height: 0;
+        }
+        .dm-facet-panel--in-sheet > h2 {
+          display: none;
+        }
+        .dm-facet-panel--in-sheet .dm-facet-grid {
+          gap: 14px;
+          padding-bottom: 88px;
+        }
+        .dm-facet-panel--in-sheet .dm-facet-field input,
+        .dm-facet-panel--in-sheet .dm-facet-field select {
+          min-height: 48px;
+          border-radius: 12px;
+          font-size: 16px;
+        }
+        .dm-facet-panel--in-sheet .dm-facet-actions {
+          position: sticky;
+          bottom: 0;
+          margin: 0 -16px;
+          padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
+          background: linear-gradient(180deg, transparent, var(--dm-surface) 18%);
+          flex-direction: column;
+        }
+        .dm-facet-panel--in-sheet .dm-facet-actions .dm-btn-cta,
+        .dm-facet-panel--in-sheet .dm-facet-actions .dm-facet-clear {
+          width: 100%;
+          min-height: 48px;
+          border-radius: 12px;
         }
         @media (max-width: 900px) {
           .dm-facet-mobile-trigger { display: inline-flex; }

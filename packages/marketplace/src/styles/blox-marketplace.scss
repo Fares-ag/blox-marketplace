@@ -214,6 +214,30 @@ textarea:focus-visible {
   flex-shrink: 0;
 }
 
+.dm-dealer-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: #fff;
+  padding: 6px;
+  border: 1px solid var(--dm-slate-200);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.dm-dealer-logo--sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.dm-dealer-logo--empty {
+  background: var(--dm-slate-100);
+  border-color: transparent;
+}
+
 .blox-detail-dealer > div {
   min-width: 0;
 }

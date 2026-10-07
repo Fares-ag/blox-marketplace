@@ -227,11 +227,22 @@ function VehiclesPage() {
           padding: 0 10px;
           background: #fff;
         }
-        .dm-facet-mobile-trigger {
-          min-height: 40px;
-          padding: 0 16px;
-          border: 1px solid var(--dm-slate-200) !important;
-          color: var(--dm-ink) !important;
+        @media (max-width: 900px) {
+          .dm-browse-toolbar {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: stretch;
+            gap: 10px;
+          }
+          .dm-browse-sort {
+            min-width: 0;
+          }
+          .dm-browse-sort select {
+            min-height: 44px;
+            width: 100%;
+            border-radius: 12px;
+            font-size: 16px;
+          }
         }
       `}</style>
     </div>
@@ -342,7 +353,7 @@ function VehicleDetailPage() {
           {company && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               {company.logo_url && (
-                <img src={company.logo_url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />
+                <img src={company.logo_url} alt="" className="dm-dealer-logo dm-dealer-logo--sm" />
               )}
               <div>
                 <div style={{ fontSize: 13, color: 'var(--dm-slate-600)' }}>{t('detail.soldBy')}</div>
@@ -455,9 +466,9 @@ function DealersDirectoryPage() {
               }}
             >
               {d.logo_url ? (
-                <img src={d.logo_url} alt="" style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover' }} />
+                <img src={d.logo_url} alt="" className="dm-dealer-logo" />
               ) : (
-                <div style={{ width: 56, height: 56, borderRadius: 12, background: 'var(--dm-slate-100)' }} />
+                <div className="dm-dealer-logo dm-dealer-logo--empty" />
               )}
               <div>
                 <div style={{ fontFamily: 'var(--dm-font-display)', fontSize: 18, fontWeight: 600 }}>{d.name}</div>

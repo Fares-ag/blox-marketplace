@@ -5,6 +5,7 @@ import {
   EXPECTED_QATAR_MARKET_COUNT,
   QATAR_MARKET_DEALER_CODES,
   dealerForMake,
+  dealerLogoUrl,
   QATAR_MARKET_EXCLUDED_MAKES,
   loadQatarMarketListings,
 } from '../../prisma/seed-qatar-market';
@@ -76,6 +77,17 @@ describe('Qatar-market inventory import', () => {
         const filename = listing.image?.replace(/^\/vehicles\//, '');
         expect(filename).toBeTruthy();
         await access(path.join(catalogDir, filename!));
+      }),
+    );
+  });
+
+  it('ships a logo file for every authorized Qatar dealer', async () => {
+    const brandDir = path.resolve(process.cwd(), '../shared/public/brand/dealers');
+    const codes = [...QATAR_MARKET_DEALER_CODES, 'chery-elite-motors'];
+    await Promise.all(
+      codes.map(async (code) => {
+        const file = dealerLogoUrl(code).replace('/brand/dealers/', '');
+        await access(path.join(brandDir, file));
       }),
     );
   });

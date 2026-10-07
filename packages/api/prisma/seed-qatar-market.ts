@@ -47,6 +47,13 @@ export const QATAR_MARKET_DEALERS = [
 
 export const QATAR_MARKET_DEALER_CODES = QATAR_MARKET_DEALERS.map((d) => d.code);
 
+const PNG_DEALER_LOGOS = new Set(['mannai-autos', 'jaidah-automotive']);
+
+export function dealerLogoUrl(code: string): string {
+  const ext = PNG_DEALER_LOGOS.has(code) ? 'png' : 'svg';
+  return `/brand/dealers/${code}.${ext}`;
+}
+
 export function dealerForMake(make: string) {
   const dealer = QATAR_MARKET_DEALERS.find((d) => (d.makes as readonly string[]).includes(make));
   if (!dealer) {
@@ -115,6 +122,7 @@ async function upsertQatarMarketDealer(
   prisma: PrismaClient,
   spec: { code: string; name: string },
 ) {
+  const logoUrl = dealerLogoUrl(spec.code);
   return prisma.company.upsert({
     where: { code: spec.code },
     create: {
@@ -122,10 +130,12 @@ async function upsertQatarMarketDealer(
       code: spec.code,
       status: 'active',
       allowDirectActivate: true,
+      logoUrl,
     },
     update: {
       name: spec.name,
       status: 'active',
+      logoUrl,
     },
   });
 }
