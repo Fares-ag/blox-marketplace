@@ -495,6 +495,7 @@ export function ListingCard({
         }
 
         @media (max-width: 900px) {
+          .dm-listing-card,
           .dm-listing-card--showroom {
             grid-template-columns: minmax(0, 1fr);
             grid-template-areas:
@@ -504,146 +505,94 @@ export function ListingCard({
               "aside";
             min-height: 0;
           }
+          .dm-listing-card__media,
           .dm-listing-card--showroom .dm-listing-card__media {
-            min-height: 180px;
-            aspect-ratio: 16 / 10;
+            grid-area: media;
+            width: 100%;
+            min-height: 0;
+            aspect-ratio: 16 / 9;
+            background-color: var(--dm-surface-muted);
           }
+          .dm-listing-card__new-ribbon,
+          .dm-listing-card--showroom .dm-listing-card__new-ribbon {
+            writing-mode: horizontal-tb;
+            transform: none;
+            inset-inline-end: auto;
+            inset-inline-start: 12px;
+            top: 12px;
+            bottom: auto;
+            width: auto;
+            height: auto;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 10px;
+          }
+          .dm-listing-card__identity,
           .dm-listing-card--showroom .dm-listing-card__identity {
-            padding: 14px 16px 8px;
-          }
-          .dm-listing-card--showroom .dm-listing-card__specs {
-            padding: 4px 16px 12px;
-            gap: 12px 16px;
-          }
-          .dm-listing-card--showroom .dm-listing-card__aside {
-            flex-direction: row;
-            align-items: center;
-            padding: 12px 16px 16px;
-            border-top: 1px solid var(--dm-slate-200);
-          }
-          .dm-listing-card {
-            grid-template-columns: 148px minmax(0, 1fr) auto;
-            grid-template-areas:
-              "media identity aside"
-              "media specs specs";
-            min-height: 108px;
-          }
-          .dm-listing-card__media { grid-area: media; min-height: 100%; }
-          .dm-listing-card__identity {
             grid-area: identity;
-            padding: 10px 12px 4px;
+            padding: 14px 16px 6px;
           }
-          .dm-listing-card__specs {
+          .dm-listing-card__make {
+            font-size: 1.15rem;
+            white-space: normal;
+          }
+          .dm-listing-card__model {
+            font-size: 0.95rem;
+            white-space: normal;
+          }
+          .dm-listing-card__specs,
+          .dm-listing-card--showroom .dm-listing-card__specs {
             grid-area: specs;
-            grid-template-columns: 1fr 1fr;
-            gap: 4px 12px;
-            padding: 4px 12px 12px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 16px;
+            padding: 4px 16px 12px;
           }
-          .dm-listing-card__specs > div {
-            grid-template-columns: 84px minmax(0, 1fr);
-            gap: 8px;
-            font-size: 12px;
-          }
+          .dm-listing-card__specs > div,
           .dm-listing-card--showroom .dm-listing-card__specs > div {
             display: flex;
             flex-direction: column;
-            grid-template-columns: unset;
-          }
-          .dm-listing-card__aside {
-            grid-area: aside;
-            padding: 10px 12px;
-            align-items: flex-end;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .dm-listing-card {
-            grid-template-columns: 132px minmax(0, 1fr) auto;
-            min-height: 96px;
-          }
-          .dm-listing-card__media { min-height: 100%; }
-          .dm-listing-card__new-ribbon { width: 16px; font-size: 8px; }
-          .dm-listing-card__identity { padding: 8px 10px 2px; }
-          .dm-listing-card__make { font-size: 0.98rem; }
-          .dm-listing-card__model { font-size: 0.75rem; }
-          .dm-listing-card__meta-row { gap: 4px; margin-top: 2px; }
-          .dm-listing-card__dealer-chip,
-          .dm-listing-card__warranty { font-size: 10px; padding: 2px 6px; }
-          .dm-listing-card__specs {
-            grid-template-columns: 1fr 1fr;
-            padding: 2px 10px 8px;
-            gap: 6px 12px;
-            border-top: none;
-          }
-          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__specs > div {
-            display: flex;
-            flex-direction: column;
             align-items: flex-start;
-            gap: 1px;
-            min-width: 0;
-            font-size: 11px;
+            gap: 2px;
+            grid-template-columns: unset;
+            font-size: 12px;
           }
-          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__specs dd {
+          .dm-listing-card__specs dd {
             white-space: nowrap;
             word-break: normal;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
           }
-          .dm-listing-card__aside {
-            flex-direction: column;
-            align-items: flex-end;
-            justify-content: space-between;
-            padding: 8px 10px;
-            gap: 6px;
-          }
-          .dm-listing-card__pricing { text-align: end; }
-          .dm-listing-card__compare { padding: 4px 8px; font-size: 10px; }
-          .dm-listing-card__price { font-size: 0.98rem; }
-          .dm-listing-card__monthly { font-size: 10px; }
-          .dm-listing-card__call,
-          .dm-listing-card__whatsapp {
-            min-height: 26px;
-            padding: 0 8px;
-            font-size: 10px;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .dm-listing-card:not(.dm-listing-card--showroom) {
-            grid-template-columns: 118px minmax(0, 1fr) auto;
-            min-height: 88px;
-          }
-          .dm-listing-card__specs {
-            grid-template-columns: 1fr 1fr;
-          }
-          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__specs > div:nth-child(n + 3) {
-            display: none;
-          }
-        }
-
-        @media (max-width: 360px) {
-          .dm-listing-card:not(.dm-listing-card--showroom) {
-            grid-template-columns: 104px minmax(0, 1fr);
-            grid-template-areas:
-              "media identity"
-              "media aside";
-            min-height: 84px;
-          }
-          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__specs { display: none; }
-          .dm-listing-card__aside {
+          .dm-listing-card__aside,
+          .dm-listing-card--showroom .dm-listing-card__aside {
+            grid-area: aside;
             flex-direction: row;
             flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
-            padding: 0 8px 8px;
+            gap: 10px;
+            padding: 12px 16px 16px;
+            border-top: 1px solid var(--dm-slate-200);
+          }
+          .dm-listing-card__pricing,
+          .dm-listing-card--showroom .dm-listing-card__pricing {
+            text-align: start;
+          }
+          .dm-listing-card__price { font-size: 1.2rem; }
+          .dm-listing-card__monthly { font-size: 12px; }
+          .dm-listing-card__compare {
+            min-height: 40px;
+            padding: 8px 14px;
+            font-size: 13px;
+          }
+          .dm-listing-card__contact,
+          .dm-listing-card--showroom .dm-listing-card__contact {
+            justify-content: flex-start;
             width: 100%;
           }
-          .dm-listing-card__pricing { text-align: start; }
-          .dm-listing-card__contact {
-            justify-content: flex-start;
-            order: 3;
-            width: 100%;
+          .dm-listing-card__call,
+          .dm-listing-card__whatsapp {
+            min-height: 40px;
+            padding: 0 14px;
+            font-size: 13px;
           }
         }
       `}</style>
