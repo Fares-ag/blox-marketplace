@@ -3,7 +3,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   EXPECTED_QATAR_MARKET_COUNT,
-  QATAR_MARKET_DEALER_CODE,
+  QATAR_MARKET_DEALER_CODES,
+  dealerForMake,
   QATAR_MARKET_EXCLUDED_MAKES,
   loadQatarMarketListings,
 } from '../../prisma/seed-qatar-market';
@@ -11,10 +12,27 @@ import {
 const catalogDir = path.resolve(process.cwd(), 'assets/qauto-catalog');
 
 describe('Qatar-market inventory import', () => {
-  it('loads the Qatar multi-brand showroom mix for Chery Elite Motors', () => {
+  it('loads the Qatar mix and maps each make to its authorized dealer', () => {
     const listings = loadQatarMarketListings();
     expect(listings).toHaveLength(EXPECTED_QATAR_MARKET_COUNT);
-    expect(QATAR_MARKET_DEALER_CODE).toBe('chery-elite-motors');
+    expect(QATAR_MARKET_DEALER_CODES).not.toContain('chery-elite-motors');
+    expect(dealerForMake('Toyota').code).toBe('al-abdulghani-motors');
+    expect(dealerForMake('Lexus').name).toBe('Al Abdulghani Motors');
+    expect(dealerForMake('Nissan').name).toBe('Saleh Al Hamad Al Mana');
+    expect(dealerForMake('Hyundai').name).toBe('Skyline Automotive');
+    expect(dealerForMake('Kia').name).toBe('Al-Attiya Motors');
+    expect(dealerForMake('Honda').name).toBe('DOMASCO');
+    expect(dealerForMake('Mitsubishi').name).toBe('Qatar Automobiles Company');
+    expect(dealerForMake('GMC').name).toBe('Mannai Autos');
+    expect(dealerForMake('Chevrolet').name).toBe('Jaidah Automotive');
+    expect(dealerForMake('Ford').name).toBe('Almana Motors');
+    expect(dealerForMake('Mercedes-Benz').name).toBe('Nasser Bin Khaled Automobiles');
+    expect(dealerForMake('BMW').name).toBe('Alfardan Automobiles');
+    expect(dealerForMake('Range Rover').name).toBe('Alfardan Premier Motors');
+    expect(dealerForMake('Land Rover').name).toBe('Alfardan Premier Motors');
+    for (const listing of listings) {
+      expect(dealerForMake(listing.make).code).toBeTruthy();
+    }
   });
 
   it('uses stable slugs, prices, and catalog image paths', () => {

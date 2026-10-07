@@ -20,7 +20,7 @@ async function main() {
 
   const qatar = await seedQatarMarketInventory(prisma);
   console.log(
-    `Published ${qatar.listingsPublished} Qatar-market listings on ${qatar.companyName} (dealer@drivemarket.local).`,
+    `Published ${qatar.listingsPublished} Qatar-market listings across ${qatar.dealers.length} authorized dealers.`,
   );
 
   // One MAIN branch per seeded dealership; dealer agents without a home branch get it.

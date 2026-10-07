@@ -1,5 +1,5 @@
 /**
- * Seed Qatar-market inventory (Chery Elite Motors / dealer@drivemarket.local) via ops endpoint.
+ * Seed Qatar-market inventory onto each make's authorized dealer via ops endpoint.
  * Usage: node packages/api/scripts/seed-qatar-market-production.mjs
  */
 const base = process.env.API_BASE ?? 'https://api.blox.market';

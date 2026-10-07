@@ -849,7 +849,9 @@ export class OpsController {
   async seedQatarMarket() {
     await seedFinancePartners(this.prisma);
     await seedCheryInventory(this.prisma);
-    return seedQatarMarketInventory(this.prisma);
+    const qatar = await seedQatarMarketInventory(this.prisma);
+    await seedBranches(this.prisma);
+    return qatar;
   }
 
   @Roles(UserRole.super_admin)

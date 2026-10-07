@@ -1,13 +1,15 @@
 import { CompanyKind, UserRole, type PrismaClient } from '@prisma/client';
+import { QATAR_MARKET_DEALER_CODES } from './seed-qatar-market';
 
 export const SEED_BRANCH_CODE = 'MAIN';
 
-/** Dealerships created by the other seeds (Chery + the QAuto group). */
+/** Dealerships created by the other seeds (Chery + QAuto group + Qatar-market). */
 export const SEEDED_DEALERSHIP_CODES = [
   'chery-elite-motors',
   'qauto-audi',
   'qauto-vw',
   'qauto-skoda',
+  ...QATAR_MARKET_DEALER_CODES,
 ] as const;
 
 /** Pure: the branch every seeded dealership starts with. */
