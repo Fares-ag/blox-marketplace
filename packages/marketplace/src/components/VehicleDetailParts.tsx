@@ -178,7 +178,7 @@ export function ImageGallery({ images }: { images: { storage_path: string; alt_t
         .dm-carousel__image {
           width: 100%;
           height: 100%;
-          background: center / cover no-repeat var(--dm-surface-muted);
+          background: center / contain no-repeat var(--dm-surface-muted);
         }
         .dm-carousel__nav {
           position: absolute;
@@ -239,7 +239,7 @@ export function ImageGallery({ images }: { images: { storage_path: string; alt_t
           height: 56px;
           border-radius: 10px;
           border: 2px solid transparent;
-          background: center / cover no-repeat var(--dm-surface-muted);
+          background: center / contain no-repeat var(--dm-surface-muted);
           cursor: pointer;
           flex: 0 0 auto;
           opacity: 0.75;

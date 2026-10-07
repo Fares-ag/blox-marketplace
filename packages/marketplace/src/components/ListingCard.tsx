@@ -167,7 +167,7 @@ export function ListingCard({
         .dm-listing-card {
           position: relative;
           display: grid;
-          grid-template-columns: 140px minmax(120px, 1.1fr) minmax(140px, 1fr) minmax(140px, 0.95fr);
+          grid-template-columns: 196px minmax(120px, 1.1fr) minmax(140px, 1fr) minmax(140px, 0.95fr);
           align-items: stretch;
           gap: 0;
           text-decoration: none;
@@ -207,7 +207,7 @@ export function ListingCard({
         }
         .dm-listing-card__media {
           position: relative;
-          background: center / cover no-repeat var(--dm-surface-muted);
+          background: center / contain no-repeat var(--dm-surface-muted);
           min-height: 118px;
           align-self: stretch;
         }
@@ -482,14 +482,14 @@ export function ListingCard({
 
         @media (min-width: 1600px) {
           .dm-listing-card:not(.dm-listing-card--showroom) {
-            grid-template-columns: 160px minmax(140px, 1.2fr) minmax(160px, 1fr) minmax(150px, 0.95fr);
+            grid-template-columns: 220px minmax(140px, 1.2fr) minmax(160px, 1fr) minmax(150px, 0.95fr);
             min-height: 132px;
           }
           .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__media { min-height: 132px; }
         }
         @media (min-width: 1920px) {
           .dm-listing-card:not(.dm-listing-card--showroom) {
-            grid-template-columns: 168px minmax(120px, 1.15fr) minmax(140px, 1fr) minmax(140px, 0.9fr);
+            grid-template-columns: 236px minmax(120px, 1.15fr) minmax(140px, 1fr) minmax(140px, 0.9fr);
             min-height: 128px;
           }
         }
@@ -522,7 +522,7 @@ export function ListingCard({
             border-top: 1px solid var(--dm-slate-200);
           }
           .dm-listing-card {
-            grid-template-columns: 120px minmax(0, 1fr) auto;
+            grid-template-columns: 148px minmax(0, 1fr) auto;
             grid-template-areas:
               "media identity aside"
               "media specs specs";
@@ -558,7 +558,7 @@ export function ListingCard({
 
         @media (max-width: 640px) {
           .dm-listing-card {
-            grid-template-columns: 104px minmax(0, 1fr) auto;
+            grid-template-columns: 132px minmax(0, 1fr) auto;
             min-height: 96px;
           }
           .dm-listing-card__media { min-height: 100%; }
@@ -611,7 +611,7 @@ export function ListingCard({
 
         @media (max-width: 480px) {
           .dm-listing-card:not(.dm-listing-card--showroom) {
-            grid-template-columns: 88px minmax(0, 1fr) auto;
+            grid-template-columns: 118px minmax(0, 1fr) auto;
             min-height: 88px;
           }
           .dm-listing-card__specs {
@@ -624,7 +624,7 @@ export function ListingCard({
 
         @media (max-width: 360px) {
           .dm-listing-card:not(.dm-listing-card--showroom) {
-            grid-template-columns: 76px minmax(0, 1fr);
+            grid-template-columns: 104px minmax(0, 1fr);
             grid-template-areas:
               "media identity"
               "media aside";
