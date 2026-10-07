@@ -70,6 +70,15 @@ export function composeName(first: string | null | undefined, last: string | nul
   return f && l ? `${f} ${l}` : null;
 }
 
+/** Split a display name into first / last (first token vs remainder). */
+export function splitDisplayName(name: string | null | undefined): { firstName: string; lastName: string } {
+  const parts = String(name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return { firstName: parts[0] ?? '', lastName: parts.slice(1).join(' ') };
+}
+
 /** `qid` is the plaintext read through `IdentityService.readQid(user)` — never `user.qid` directly. */
 export function toCustomerProfileDto(user: User, qid: string | null): CustomerProfileDto {
   const parsed = qid ? parseQid(qid) : null;
