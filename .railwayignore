@@ -25,6 +25,8 @@ packages/super-admin
 **/*.jpg
 **/*.jpeg
 **/*.webp
+# Studio catalog renders are copied into the API image and served at /api/v1/media/catalog.
+!packages/api/assets/qauto-catalog/*.webp
 **/*.gif
 **/*.ico
 **/*.svg
