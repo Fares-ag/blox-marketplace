@@ -919,7 +919,7 @@
       "mileage": 0,
       "price": 159900,
       "description": "Amarok DC Style 2.3 l TSI 222 KW 4W",
-      "image": null,
+      "image": "/vehicles/vw-amarok.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -955,7 +955,7 @@
       "mileage": 0,
       "price": 74900,
       "description": "Caddy Cargo 1.6 l 81 kW PFI",
-      "image": null,
+      "image": "/vehicles/vw-caddy.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -991,7 +991,7 @@
       "mileage": 0,
       "price": 74900,
       "description": "Caddy Cargo 1.6 l 81 kW PFI",
-      "image": null,
+      "image": "/vehicles/vw-caddy.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1027,7 +1027,7 @@
       "mileage": 0,
       "price": 104900,
       "description": "Jetta Highline 1.5L Sedan FWD 4Doors",
-      "image": null,
+      "image": "/vehicles/vw-jetta.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1063,7 +1063,7 @@
       "mileage": 0,
       "price": 89900,
       "description": "Jetta Trendline 1.5L Sedan FWD 4Doors",
-      "image": null,
+      "image": "/vehicles/vw-jetta.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1099,7 +1099,7 @@
       "mileage": 0,
       "price": 89900,
       "description": "Jetta Trendline 1.5L Sedan FWD 4Doors",
-      "image": null,
+      "image": "/vehicles/vw-jetta.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1135,7 +1135,7 @@
       "mileage": 0,
       "price": 89900,
       "description": "Jetta Trendline 1.5L Sedan FWD 4Doors",
-      "image": null,
+      "image": "/vehicles/vw-jetta.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1171,7 +1171,7 @@
       "mileage": 0,
       "price": 104900,
       "description": "Passat A-Line 1.5L Sedan FWD",
-      "image": null,
+      "image": "/vehicles/vw-passat.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1207,7 +1207,7 @@
       "mileage": 0,
       "price": 104900,
       "description": "Passat A-Line 1.5L Sedan FWD",
-      "image": null,
+      "image": "/vehicles/vw-passat.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1243,7 +1243,7 @@
       "mileage": 0,
       "price": 104900,
       "description": "Passat A-Line 1.5L Sedan FWD",
-      "image": null,
+      "image": "/vehicles/vw-passat.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1279,7 +1279,7 @@
       "mileage": 0,
       "price": 114900,
       "description": "Passat B-Line 1.5L Sedan FWD",
-      "image": null,
+      "image": "/vehicles/vw-passat.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1315,7 +1315,7 @@
       "mileage": 0,
       "price": 114900,
       "description": "Passat B-Line 1.5L Sedan FWD",
-      "image": null,
+      "image": "/vehicles/vw-passat.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1351,7 +1351,7 @@
       "mileage": 0,
       "price": 89900,
       "description": "T-Roc Life 1.4 L",
-      "image": null,
+      "image": "/vehicles/vw-t-roc.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1387,7 +1387,7 @@
       "mileage": 0,
       "price": 89900,
       "description": "T-Roc Life 1.4 L",
-      "image": null,
+      "image": "/vehicles/vw-t-roc.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1423,7 +1423,7 @@
       "mileage": 0,
       "price": 89900,
       "description": "T-Roc Life 1.4 l TSI 110 kW (150 PS) 8-speed automatic",
-      "image": null,
+      "image": "/vehicles/vw-t-roc.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1459,7 +1459,7 @@
       "mileage": 0,
       "price": 209900,
       "description": "Teramont Comfortline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1495,7 +1495,7 @@
       "mileage": 0,
       "price": 209900,
       "description": "Teramont Comfortline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1531,7 +1531,7 @@
       "mileage": 0,
       "price": 209900,
       "description": "Teramont Comfortline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1567,7 +1567,7 @@
       "mileage": 0,
       "price": 209900,
       "description": "Teramont Comfortline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1603,7 +1603,7 @@
       "mileage": 0,
       "price": 209900,
       "description": "Teramont Comfortline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1639,7 +1639,7 @@
       "mileage": 0,
       "price": 209900,
       "description": "Teramont Comfortline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1675,7 +1675,7 @@
       "mileage": 0,
       "price": 259900,
       "description": "Teramont R-Line 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1711,7 +1711,7 @@
       "mileage": 0,
       "price": 259900,
       "description": "Teramont R-Line 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1747,7 +1747,7 @@
       "mileage": 0,
       "price": 179900,
       "description": "Teramont Trendline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1783,7 +1783,7 @@
       "mileage": 0,
       "price": 179900,
       "description": "Teramont Trendline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1819,7 +1819,7 @@
       "mileage": 0,
       "price": 179900,
       "description": "Teramont Trendline 2.0L",
-      "image": null,
+      "image": "/vehicles/vw-teramont.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1855,7 +1855,7 @@
       "mileage": 0,
       "price": 169900,
       "description": "Tiguan Elegance 1.4 I TSI",
-      "image": null,
+      "image": "/vehicles/vw-tiguan.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1891,7 +1891,7 @@
       "mileage": 0,
       "price": 119900,
       "description": "Tiguan Life 1.4 I TSI",
-      "image": null,
+      "image": "/vehicles/vw-tiguan.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1927,7 +1927,7 @@
       "mileage": 0,
       "price": 119900,
       "description": "Tiguan Life 1.4 I TSI",
-      "image": null,
+      "image": "/vehicles/vw-tiguan.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1963,7 +1963,7 @@
       "mileage": 0,
       "price": 119900,
       "description": "Tiguan Life 1.4 I TSI",
-      "image": null,
+      "image": "/vehicles/vw-tiguan.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -1999,7 +1999,7 @@
       "mileage": 0,
       "price": 119900,
       "description": "Tiguan Life 1.4 I TSI",
-      "image": null,
+      "image": "/vehicles/vw-tiguan.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -2035,7 +2035,7 @@
       "mileage": 0,
       "price": 119900,
       "description": "Tiguan Life 1.4 I TSI",
-      "image": null,
+      "image": "/vehicles/vw-tiguan.webp",
       "attributes": [
         {
           "id": "model_family_key",
@@ -2071,7 +2071,7 @@
       "mileage": 0,
       "price": 99900,
       "description": "Skoda Karoq Selection 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2137,7 +2137,7 @@
       "mileage": 0,
       "price": 99900,
       "description": "Skoda Karoq Selection 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2203,7 +2203,7 @@
       "mileage": 0,
       "price": 99900,
       "description": "Skoda Karoq Selection 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2269,7 +2269,7 @@
       "mileage": 0,
       "price": 99900,
       "description": "Skoda Karoq Selection 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2335,7 +2335,7 @@
       "mileage": 0,
       "price": 99900,
       "description": "Skoda Karoq Selection 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2401,7 +2401,7 @@
       "mileage": 0,
       "price": 99900,
       "description": "Skoda Karoq Selection 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2467,7 +2467,7 @@
       "mileage": 0,
       "price": 127900,
       "description": "Skoda Karoq Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2533,7 +2533,7 @@
       "mileage": 0,
       "price": 127900,
       "description": "Skoda Karoq Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2599,7 +2599,7 @@
       "mileage": 0,
       "price": 127900,
       "description": "Skoda Karoq Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2665,7 +2665,7 @@
       "mileage": 0,
       "price": 127900,
       "description": "Skoda Karoq Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-karoq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2731,7 +2731,7 @@
       "mileage": 0,
       "price": 176900,
       "description": "Skoda Kodiaq Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2802,7 +2802,7 @@
       "mileage": 0,
       "price": 176900,
       "description": "Skoda Kodiaq Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2873,7 +2873,7 @@
       "mileage": 0,
       "price": 176900,
       "description": "Skoda Kodiaq Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -2944,7 +2944,7 @@
       "mileage": 0,
       "price": 176900,
       "description": "Skoda Kodiaq Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3015,7 +3015,7 @@
       "mileage": 0,
       "price": 173900,
       "description": "Skoda Kodiaq Selection Plus 2.0 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3086,7 +3086,7 @@
       "mileage": 0,
       "price": 173900,
       "description": "Skoda Kodiaq Selection Plus 2.0 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3157,7 +3157,7 @@
       "mileage": 0,
       "price": 173900,
       "description": "Skoda Kodiaq Selection Plus 2.0 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3228,7 +3228,7 @@
       "mileage": 0,
       "price": 143900,
       "description": "Skoda Kodiaq Selection Loft 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3299,7 +3299,7 @@
       "mileage": 0,
       "price": 143900,
       "description": "Skoda Kodiaq Selection Loft 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3370,7 +3370,7 @@
       "mileage": 0,
       "price": 166900,
       "description": "Skoda Kodiaq Selection Plus 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3441,7 +3441,7 @@
       "mileage": 0,
       "price": 124900,
       "description": "Skoda Kodiaq Essence 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3512,7 +3512,7 @@
       "mileage": 0,
       "price": 124900,
       "description": "Skoda Kodiaq Essence 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3583,7 +3583,7 @@
       "mileage": 0,
       "price": 163900,
       "description": "Skoda Kodiaq Selection Plus NPS 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3654,7 +3654,7 @@
       "mileage": 0,
       "price": 131900,
       "description": "Skoda Kodiaq Essence Plus 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3725,7 +3725,7 @@
       "mileage": 0,
       "price": 131900,
       "description": "Skoda Kodiaq Essence Plus 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3796,7 +3796,7 @@
       "mileage": 0,
       "price": 131900,
       "description": "Skoda Kodiaq Essence Plus 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kodiaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3867,7 +3867,7 @@
       "mileage": 0,
       "price": 69450,
       "description": "Skoda Kushaq Ambition 1.0 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kushaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3933,7 +3933,7 @@
       "mileage": 0,
       "price": 69450,
       "description": "Skoda Kushaq Ambition 1.0 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kushaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -3999,7 +3999,7 @@
       "mileage": 0,
       "price": 69450,
       "description": "Skoda Kushaq Ambition 1.0 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kushaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -4065,7 +4065,7 @@
       "mileage": 0,
       "price": 69450,
       "description": "Skoda Kushaq Ambition 1.0 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-kushaq.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -4131,7 +4131,7 @@
       "mileage": 0,
       "price": 146900,
       "description": "Skoda Octavia RS 2.0 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-octavia-rs.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -4197,7 +4197,7 @@
       "mileage": 0,
       "price": 119900,
       "description": "Skoda Octavia Selection 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-octavia.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -4258,7 +4258,7 @@
       "mileage": 0,
       "price": 119900,
       "description": "Skoda Octavia Selection 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-octavia.webp",
       "attributes": [
         {
           "id": "body_style",
@@ -4319,7 +4319,7 @@
       "mileage": 0,
       "price": 124900,
       "description": "Skoda Octavia Sportline 1.4 TSI",
-      "image": null,
+      "image": "/vehicles/skoda-octavia.webp",
       "attributes": [
         {
           "id": "body_style",

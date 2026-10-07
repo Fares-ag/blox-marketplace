@@ -106,7 +106,7 @@ export function CustomerDashboardPage() {
 
   const arrivals = useQuery({
     queryKey: ['products', 'dashboard-arrivals'],
-    queryFn: () => apiFetch<ProductListResponse>('/api/products?sort=newest&limit=4'),
+    queryFn: () => apiFetch<ProductListResponse>('/api/products?limit=4'),
   });
 
   const vaultDocs = useQuery({
@@ -470,7 +470,7 @@ export function CustomerDashboardPage() {
                   <h2>{t('home.newArrivals')}</h2>
                   <p className="dm-dash__muted">{t('home.newArrivalsBody')}</p>
                 </div>
-                <Link to="/vehicles?sort=newest">{t('home.viewAll')}</Link>
+                <Link to="/vehicles">{t('home.viewAll')}</Link>
               </div>
               <div className="dm-dash__arrivals-list dm-listing-stack">
                 {arrivals!.data!.items.map((p) => (

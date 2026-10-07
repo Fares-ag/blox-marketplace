@@ -24,12 +24,12 @@ const VEHICLE_IMAGE_FILES = {
   'Chery|Tiggo 8 Pro': 'chery-tiggo-8-pro-white-2026-qs462557.webp',
   'Chery|Omoda 5': 'chery-tiggo-7-silver-2026-qs509580.webp',
   'Chery|Arrizo 8': 'chery-arrizo-8-standard-gray-2026-qs387742.webp',
-  'Toyota|Camry': 'audi-a5-sedan.webp',
-  'Nissan|Patrol': 'audi-q7-250-kw.webp',
-  'Hyundai|Tucson': 'audi-q5-suv.webp',
-  'Kia|Sportage': 'audi-q5-sportback.webp',
-  'MG|HS': 'vehicle-70-mg-zs-white.png',
-  'Chery|Tiggo 4 Pro': 'vehicle-67-chery-tiggo4-blue.png',
+  'Toyota|Camry': 'toyota-camry.webp',
+  'Nissan|Patrol': 'nissan-patrol.webp',
+  'Hyundai|Tucson': 'hyundai-tucson.webp',
+  'Kia|Sportage': 'kia-sportage.webp',
+  'MG|HS': 'mg-hs.webp',
+  'Chery|Tiggo 4 Pro': 'chery-tiggo-4-pro.webp',
 };
 
 /** @type {Array<Record<string, unknown>>} */
@@ -182,11 +182,6 @@ const GALLERY_FILES = {
   'Chery|Tiggo 7 Pro': ['chery-tiggo-7-pro-max-gray-2026-qs365017.webp'],
   'Chery|Tiggo 8 Pro': ['chery-tiggo-8-pro-max-silver-2026-qs379168.webp'],
   'Chery|Omoda 5': ['chery-tiggo-7-gray-2026-qs509583.webp'],
-  'Toyota|Camry': ['audi-a6.webp'],
-  'Nissan|Patrol': ['vehicle-1-vw-teramont-grey.png'],
-  'Hyundai|Tucson': ['vehicle-72-hyundai-accent-silver.png'],
-  'Kia|Sportage': ['audi-q3-sportback.webp'],
-  'MG|HS': ['vehicle-71-mg-zs-red.png'],
   'Chery|Tiggo 4 Pro': ['vehicle-65-chery-tiggo4-white.png'],
 };
 

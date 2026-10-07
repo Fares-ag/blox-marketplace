@@ -22,12 +22,12 @@ const VEHICLE_IMAGE_FILES = {
   'Chery|Tiggo 8 Pro': 'chery-tiggo-8-pro-white-2026-qs462557.webp',
   'Chery|Omoda 5': 'chery-tiggo-7-silver-2026-qs509580.webp',
   'Chery|Arrizo 8': 'chery-arrizo-8-standard-gray-2026-qs387742.webp',
-  'Toyota|Camry': 'audi-a5-sedan.webp',
-  'Nissan|Patrol': 'audi-q7-250-kw.webp',
-  'Hyundai|Tucson': 'audi-q5-suv.webp',
-  'Kia|Sportage': 'audi-q5-sportback.webp',
-  'MG|HS': 'vehicle-70-mg-zs-white.png',
-  'Chery|Tiggo 4 Pro': 'vehicle-67-chery-tiggo4-blue.png',
+  'Toyota|Camry': 'toyota-camry.webp',
+  'Nissan|Patrol': 'nissan-patrol.webp',
+  'Hyundai|Tucson': 'hyundai-tucson.webp',
+  'Kia|Sportage': 'kia-sportage.webp',
+  'MG|HS': 'mg-hs.webp',
+  'Chery|Tiggo 4 Pro': 'chery-tiggo-4-pro.webp',
 };
 
 async function resolveVehicleImageFile(make, model) {

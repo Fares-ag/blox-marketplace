@@ -130,7 +130,7 @@ function VehiclesPage() {
 
   function onSortChange(sort: BrowseSort) {
     const next = new URLSearchParams(searchParams);
-    if (sort === 'newest') next.delete('sort');
+    if (sort === 'mixed') next.delete('sort');
     else next.set('sort', sort);
     next.delete('offset');
     setSearchParams(next);
@@ -162,6 +162,7 @@ function VehiclesPage() {
             <label className="dm-browse-sort">
               <span>{t('vehicles.sort')}</span>
               <select value={browse.sort} onChange={(e) => onSortChange(e.target.value as BrowseSort)}>
+                <option value="mixed">{t('vehicles.sortMixed')}</option>
                 <option value="newest">{t('vehicles.sortNewest')}</option>
                 <option value="price_asc">{t('vehicles.sortPriceAsc')}</option>
                 <option value="price_desc">{t('vehicles.sortPriceDesc')}</option>

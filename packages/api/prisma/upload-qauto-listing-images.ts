@@ -4,17 +4,6 @@ import { CreateBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client
 import type { PrismaClient } from '@prisma/client';
 import { loadQautoListings, type QautoListing } from './seed-qauto-inventory';
 
-/** Placeholder art when VW SKUs have no dedicated render yet. */
-const VW_MODEL_SOURCE: Record<string, string> = {
-  Teramont: 'vehicle-1-vw-teramont-grey.png',
-  'T-Roc': 'vehicle-1-vw-teramont-grey.png',
-  Tiguan: 'vehicle-1-vw-teramont-grey.png',
-  Amarok: 'vehicle-1-vw-teramont-grey.png',
-  Jetta: 'sedan.png',
-  Passat: 'sedan.png',
-  Caddy: 'sedan.png',
-};
-
 const LOCAL_BUCKET = 'listing-images';
 
 function mimeForExt(ext: string): string {
@@ -55,31 +44,29 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-function audiSourceName(listing: QautoListing): string | null {
+/**
+ * Every QAuto listing carries a dedicated catalog render in `listing.image`
+ * (e.g. "/vehicles/vw-tiguan.webp"). Audi SKUs have one render each; VW and
+ * Skoda SKUs share one render per model family (all Tiguan colours/trims use
+ * vw-tiguan.webp, Octavia RS has its own sport-fascia shot, etc.).
+ */
+function catalogSourceName(listing: QautoListing): string | null {
   if (!listing.image) return null;
   const base = path.basename(listing.image);
   return base || null;
 }
 
-function vwSourceName(listing: QautoListing): string | null {
-  return VW_MODEL_SOURCE[listing.model] ?? 'sedan.png';
-}
-
 export async function resolveQautoSourceFile(
   listing: QautoListing,
   sourceDir: string,
-): Promise<{ filePath: string; kind: 'catalog' | 'fallback' } | null> {
-  const fileName =
-    listing.make === 'Audi' ? audiSourceName(listing) : vwSourceName(listing);
+): Promise<{ filePath: string; kind: 'catalog' } | null> {
+  const fileName = catalogSourceName(listing);
   if (!fileName) return null;
 
   const filePath = path.join(sourceDir, fileName);
   if (!(await fileExists(filePath))) return null;
 
-  return {
-    filePath,
-    kind: listing.make === 'Audi' ? 'catalog' : 'fallback',
-  };
+  return { filePath, kind: 'catalog' };
 }
 
 function storageKey(productId: string, ext: string): string {
@@ -171,7 +158,7 @@ async function upsertCoverPath(
   });
 }
 
-/** Upload catalog/fallback images into listing storage and point product_images at served URLs. */
+/** Upload catalog images into listing storage and point product_images at served URLs. */
 export async function uploadQautoListingImages(
   prisma: PrismaClient,
   opts?: { sourceDir?: string },
@@ -187,7 +174,6 @@ export async function uploadQautoListingImages(
   const listings = loadQautoListings();
 
   let uploadedCatalog = 0;
-  let uploadedFallback = 0;
   let missingProduct = 0;
   let missingSource = 0;
 
@@ -209,16 +195,13 @@ export async function uploadQautoListingImages(
     const key = storageKey(listing.id, ext);
     const url = await storage.put(key, bytes, mimeForExt(ext));
     await upsertCoverPath(prisma, product.id, listing, url);
-
-    if (source.kind === 'catalog') uploadedCatalog += 1;
-    else uploadedFallback += 1;
+    uploadedCatalog += 1;
   }
 
   return {
     sourceDir,
     uploadedCatalog,
-    uploadedFallback,
-    uploadedTotal: uploadedCatalog + uploadedFallback,
+    uploadedTotal: uploadedCatalog,
     missingProduct,
     missingSource,
   };

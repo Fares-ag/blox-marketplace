@@ -11,6 +11,7 @@ import {
 import { seedFinancePartners } from '../../prisma/seed-finance-partners';
 import { seedBranches } from '../../prisma/seed-branches';
 import { seedCheryInventory } from '../../prisma/seed-chery';
+import { seedQatarMarketInventory } from '../../prisma/seed-qatar-market';
 import { seedQautoInventory } from '../../prisma/seed-qauto-inventory';
 import { uploadQautoListingImages } from '../../prisma/upload-qauto-listing-images';
 import { backfillListingImageUrls } from '../../prisma/backfill-listing-image-urls';
@@ -841,6 +842,14 @@ export class OpsController {
   async seedChery() {
     await seedFinancePartners(this.prisma);
     return seedCheryInventory(this.prisma);
+  }
+
+  @Roles(UserRole.super_admin)
+  @Post('seed-qatar-market')
+  async seedQatarMarket() {
+    await seedFinancePartners(this.prisma);
+    await seedCheryInventory(this.prisma);
+    return seedQatarMarketInventory(this.prisma);
   }
 
   @Roles(UserRole.super_admin)

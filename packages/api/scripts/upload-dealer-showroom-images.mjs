@@ -49,32 +49,32 @@ const VEHICLE_IMAGES = [
   {
     make: 'Toyota',
     model: 'Camry',
-    files: ['audi-a5-sedan.webp', 'audi-a6.webp'],
+    files: ['toyota-camry.webp'],
   },
   {
     make: 'Nissan',
     model: 'Patrol',
-    files: ['audi-q7-250-kw.webp', 'vehicle-1-vw-teramont-grey.png'],
+    files: ['nissan-patrol.webp'],
   },
   {
     make: 'Hyundai',
     model: 'Tucson',
-    files: ['audi-q5-suv.webp', 'vehicle-72-hyundai-accent-silver.png'],
+    files: ['hyundai-tucson.webp'],
   },
   {
     make: 'Kia',
     model: 'Sportage',
-    files: ['audi-q5-sportback.webp', 'audi-q3-sportback.webp'],
+    files: ['kia-sportage.webp'],
   },
   {
     make: 'MG',
     model: 'HS',
-    files: ['vehicle-70-mg-zs-white.png', 'vehicle-71-mg-zs-red.png'],
+    files: ['mg-hs.webp'],
   },
   {
     make: 'Chery',
     model: 'Tiggo 4 Pro',
-    files: ['vehicle-67-chery-tiggo4-blue.png', 'vehicle-65-chery-tiggo4-white.png'],
+    files: ['chery-tiggo-4-pro.webp', 'vehicle-65-chery-tiggo4-white.png'],
   },
 ];
 

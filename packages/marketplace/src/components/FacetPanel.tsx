@@ -22,7 +22,7 @@ export type VehicleFilters = {
   companyId: string;
 };
 
-export type BrowseSort = 'newest' | 'price_asc' | 'price_desc' | 'year_desc' | 'mileage_asc';
+export type BrowseSort = 'mixed' | 'newest' | 'price_asc' | 'price_desc' | 'year_desc' | 'mileage_asc';
 
 const FILTER_KEYS: (keyof VehicleFilters)[] = [
   'q', 'make', 'model', 'yearMin', 'yearMax', 'priceMin', 'priceMax',
@@ -53,7 +53,7 @@ export function parseFilters(params: URLSearchParams): VehicleFilters {
 export function parseBrowseParams(params: URLSearchParams) {
   return {
     filters: parseFilters(params),
-    sort: (params.get('sort') as BrowseSort) || 'newest',
+    sort: (params.get('sort') as BrowseSort) || 'mixed',
     offset: Math.max(Number(params.get('offset') ?? 0) || 0, 0),
     limit: Math.min(Math.max(Number(params.get('limit') ?? 24) || 24, 1), 100),
   };
@@ -76,7 +76,7 @@ export function buildProductsQuery(
   opts?: { sort?: BrowseSort; offset?: number; limit?: number },
 ): string {
   const params = filtersToSearchParams(filters);
-  if (opts?.sort && opts.sort !== 'newest') params.set('sort', opts.sort);
+  if (opts?.sort && opts.sort !== 'mixed') params.set('sort', opts.sort);
   if (opts?.offset && opts.offset > 0) params.set('offset', String(opts.offset));
   if (opts?.limit && opts.limit !== 24) params.set('limit', String(opts.limit));
   const qs = params.toString();

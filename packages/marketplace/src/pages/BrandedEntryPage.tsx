@@ -34,7 +34,7 @@ export function BrandedEntryPage() {
 
   const products = useQuery({
     queryKey: ['products', 'branded-entry', brand.company?.id],
-    queryFn: () => apiFetch<ProductListResponse>(`/api/products?companyId=${encodeURIComponent(brand.company!.id)}&limit=100&sort=newest`),
+    queryFn: () => apiFetch<ProductListResponse>(`/api/products?companyId=${encodeURIComponent(brand.company!.id)}&limit=100`),
     enabled: !!brand.company?.id,
   });
 

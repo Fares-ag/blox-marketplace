@@ -119,7 +119,7 @@ export class ProductsController {
     @Query('q') q?: string,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
-    @Query('sort') sort?: 'newest' | 'price_asc' | 'price_desc' | 'year_desc' | 'mileage_asc',
+    @Query('sort') sort?: 'mixed' | 'newest' | 'price_asc' | 'price_desc' | 'year_desc' | 'mileage_asc',
   ) {
     return this.products.listPublished({
       make,

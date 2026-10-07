@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { seedFinancePartners } from './seed-finance-partners';
 import { seedCheryInventory } from './seed-chery';
+import { seedQatarMarketInventory } from './seed-qatar-market';
 import { seedBranches } from './seed-branches';
 import { seedTakafulProviders } from './seed-takaful-providers';
 
@@ -15,6 +16,11 @@ async function main() {
   const chery = await seedCheryInventory(prisma);
   console.log(
     `Published ${chery.listingsPublished} Chery Elite Motors listings (${chery.companyName}).`,
+  );
+
+  const qatar = await seedQatarMarketInventory(prisma);
+  console.log(
+    `Published ${qatar.listingsPublished} Qatar-market listings on ${qatar.companyName} (dealer@drivemarket.local).`,
   );
 
   // One MAIN branch per seeded dealership; dealer agents without a home branch get it.

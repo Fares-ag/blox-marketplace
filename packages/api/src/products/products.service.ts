@@ -18,6 +18,7 @@ import {
 import slugify from 'slugify';
 import { estimateMonthlyPayment, roundMoney } from '@drivemarket/shared/pricing';
 import { PrismaService } from '../prisma/prisma.service';
+import { interleaveByMake } from './interleave-by-make';
 import { ActivityService } from '../common/activity.service';
 import { PaginationQueryDto, resolvePagination, toPaginatedResponse } from '../common/pagination.dto';
 import { StorageService } from '../storage/storage.service';
@@ -77,7 +78,7 @@ export class ProductsService {
     q?: string;
     limit?: number;
     offset?: number;
-    sort?: 'newest' | 'price_asc' | 'price_desc' | 'year_desc' | 'mileage_asc';
+    sort?: 'mixed' | 'newest' | 'price_asc' | 'price_desc' | 'year_desc' | 'mileage_asc';
   }) {
     const where: Prisma.ProductWhereInput = {
       listingStatus: ListingStatus.published,
@@ -124,6 +125,25 @@ export class ProductsService {
       { defaultLimit: 24, maxLimit: 100 },
     );
 
+    const include = {
+      company: { select: { id: true, name: true, code: true, logoUrl: true } },
+      images: { orderBy: { sortOrder: 'asc' as const }, take: 1 },
+      defaultOffer: true,
+    };
+
+    const mixed = !query.sort || query.sort === 'mixed';
+    if (mixed) {
+      const all = await this.prisma.product.findMany({ where, include });
+      const ordered = interleaveByMake(all);
+      const page = ordered.slice(offset, offset + limit);
+      return toPaginatedResponse(
+        page.map((p) => this.toPublicCard(p)),
+        ordered.length,
+        limit,
+        offset,
+      );
+    }
+
     const orderBy: Prisma.ProductOrderByWithRelationInput[] = (() => {
       switch (query.sort) {
         case 'price_asc':
@@ -143,11 +163,7 @@ export class ProductsService {
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        include: {
-          company: { select: { id: true, name: true, code: true, logoUrl: true } },
-          images: { orderBy: { sortOrder: 'asc' }, take: 1 },
-          defaultOffer: true,
-        },
+        include,
         orderBy,
         take: limit,
         skip: offset,
