@@ -447,8 +447,14 @@ export function MarketplaceTopNav({
           .dm-topnav { max-width: min(100%, 2800px); }
         }
 
-        /* Phone: icon-only search button */
+        /* Phone: search sits on its own row, in the document flow so it
+           does not cover the page title or the vehicle photo. */
         @media (max-width: 900px) {
+          .dm-topnav {
+            position: relative;
+            inset: auto;
+            top: auto;
+          }
           .dm-topnav__search-label { display: none; }
           .dm-topnav__search-icon { display: block; }
           .dm-topnav__search-btn { padding: 9px 12px; }

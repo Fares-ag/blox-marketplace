@@ -753,6 +753,34 @@ textarea:focus-visible {
   box-sizing: border-box;
 }
 
+/* Clears the absolutely positioned nav on wide screens. On a phone the
+   nav is in normal flow, so this offset would leave a hole under the search. */
+.dm-nav-clearance {
+  padding-top: 56px;
+}
+
+@media (max-width: 900px) {
+  .dm-nav-clearance {
+    padding-top: 8px;
+  }
+
+  .dm-overlay-hero {
+    padding-top: 4px !important;
+  }
+
+  .dm-overlay-hero .dm-topnav {
+    padding-inline: 0;
+  }
+
+  .dm-band-brandable {
+    padding-bottom: 12px;
+  }
+
+  .dm-brand-strip {
+    padding-top: 8px;
+  }
+}
+
 .dm-band h1 {
   margin: 0 0 8px;
   font-family: var(--dm-font-display);
@@ -1225,6 +1253,9 @@ textarea:focus-visible {
 
 .dm-input:disabled {
   background: var(--dm-surface-muted);
+  color: var(--dm-slate-600);
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .dm-select {
@@ -2192,6 +2223,12 @@ textarea:focus-visible {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+.dm-apply__card.is-plan-target {
+  outline: 2px solid var(--dm-cta, #0f172a);
+  outline-offset: 3px;
+  scroll-margin: 24px;
 }
 
 .dm-elig__result {

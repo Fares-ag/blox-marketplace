@@ -68,6 +68,9 @@ const BRANDABLE_BAND_CSS = `
     color: var(--dm-brand-on-primary, #fff);
   }
   .dm-brand-strip { padding: 72px 24px 16px; }
+  @media (max-width: 900px) {
+    .dm-brand-strip { padding: 8px 16px 12px; }
+  }
   .dm-brand-strip .dm-brand-badge__powered { opacity: 0.85; }
 `;
 
@@ -147,9 +150,9 @@ function VehiclesPage() {
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
       <DocumentMeta title={t('meta.vehiclesTitle')} />
-      <div style={{ background: 'var(--dm-graphite-900)', color: '#fff', padding: '20px 24px' }}>
+      <div className="dm-overlay-hero" style={{ background: 'var(--dm-graphite-900)', color: '#fff', padding: '20px 24px' }}>
         <MarketplaceNav />
-        <div style={{ paddingTop: 56 }}>
+        <div className="dm-nav-clearance">
           <h1 style={{ fontFamily: 'var(--dm-font-display)', margin: '0 0 8px' }}>{t('vehicles.title')}</h1>
           <p style={{ margin: 0, color: 'rgba(255,255,255,0.75)' }}>{t('vehicles.subtitle')}</p>
         </div>
@@ -424,9 +427,9 @@ function DealersDirectoryPage() {
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
       <DocumentMeta title={t('meta.dealersTitle')} />
-      <div style={{ background: 'var(--dm-graphite-900)', color: '#fff', padding: '20px 24px' }}>
+      <div className="dm-overlay-hero" style={{ background: 'var(--dm-graphite-900)', color: '#fff', padding: '20px 24px' }}>
         <MarketplaceNav />
-        <div style={{ paddingTop: 56 }}>
+        <div className="dm-nav-clearance">
           <h1 style={{ fontFamily: 'var(--dm-font-display)', margin: '0 0 8px' }}>{t('dealers.title')}</h1>
           <p style={{ margin: 0, color: 'rgba(255,255,255,0.75)' }}>{t('dealers.subtitle')}</p>
         </div>
@@ -497,9 +500,9 @@ function DealerShowroomPage() {
   return (
     <div style={{ background: 'var(--dm-canvas)', minHeight: '100vh' }}>
       <DocumentMeta title={metaTitle} />
-      <div className={`dm-band-brandable${branded ? ' is-branded' : ''}`} style={{ padding: '20px 24px' }}>
+      <div className={`dm-overlay-hero dm-band-brandable${branded ? ' is-branded' : ''}`} style={{ padding: '20px 24px' }}>
         <MarketplaceNav />
-        <div style={{ paddingTop: 56, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
+        <div className="dm-nav-clearance" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
           {branded ? (
             <BrandBadge size="lg" />
           ) : (

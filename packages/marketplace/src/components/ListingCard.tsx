@@ -572,10 +572,24 @@ export function ListingCard({
           .dm-listing-card__specs {
             grid-template-columns: 1fr 1fr;
             padding: 2px 10px 8px;
-            gap: 2px 8px;
+            gap: 6px 12px;
             border-top: none;
           }
-          .dm-listing-card__specs > div { font-size: 11px; }
+          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__specs > div {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1px;
+            min-width: 0;
+            font-size: 11px;
+          }
+          .dm-listing-card:not(.dm-listing-card--showroom) .dm-listing-card__specs dd {
+            white-space: nowrap;
+            word-break: normal;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+          }
           .dm-listing-card__aside {
             flex-direction: column;
             align-items: flex-end;
