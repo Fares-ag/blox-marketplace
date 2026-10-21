@@ -125,6 +125,8 @@ export function emptyApplyForm(): ApplyForm {
 
 export type AccountPrefill = {
   fullName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   phone?: string | null;
   email?: string | null;
   qid?: string | null;
@@ -134,6 +136,10 @@ export type AccountPrefill = {
 export function prefillFromAccount(form: ApplyForm, account: AccountPrefill | null | undefined): ApplyForm {
   if (!account) return form;
   const next = { ...form };
+  const profileFirst = (account.firstName ?? '').trim();
+  const profileLast = (account.lastName ?? '').trim();
+  if (!next.firstName && profileFirst) next.firstName = profileFirst;
+  if (!next.lastName && profileLast) next.lastName = profileLast;
   const name = (account.fullName ?? '').trim();
   if (name && !next.firstName && !next.lastName) {
     const parts = name.split(/\s+/).filter(Boolean);

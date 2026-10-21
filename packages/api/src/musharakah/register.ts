@@ -39,6 +39,11 @@ export async function findRegister(db: RegisterDb, applicationId: string): Promi
   return db.ownershipRegister.findUnique({ where: { applicationId } });
 }
 
+/** Conventional in-house credit is a loan — no Musharakah unit register. */
+export function shouldOpenOwnershipRegister(financingType?: string | null): boolean {
+  return financingType !== 'conventional_interest';
+}
+
 export async function openRegister(
   db: RegisterDb,
   input: {

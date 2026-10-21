@@ -23,6 +23,7 @@ import {
 import { isLockoutRequiredRole, isMfaRequiredRole } from './privileged-roles';
 import { emitProductEvent } from '../analytics/emit-product-event';
 import { resolveSessionPolicy } from './session-policy';
+import { splitDisplayName } from '../customers/customer-profile';
 
 function normalizeEmail(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -188,6 +189,17 @@ export function createAuth(prisma: PrismaService, config: ConfigService, mail: M
               ? await prisma.user.findUnique({ where: { email } })
               : null;
           if (!user) return;
+          const signupName = typeof ctx.body?.name === 'string' ? ctx.body.name : user.name;
+          const { firstName, lastName } = splitDisplayName(signupName);
+          if ((!user.firstName || !user.lastName) && (firstName || lastName)) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                firstName: user.firstName || firstName || null,
+                lastName: user.lastName || lastName || null,
+              },
+            });
+          }
           if (user.preferredLanguage !== 'en' && user.preferredLanguage !== 'ar') {
             await prisma.user.update({
               where: { id: user.id },

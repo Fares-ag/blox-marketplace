@@ -17,8 +17,8 @@ import { finalizeText, isolateLtr } from './notification-texts';
  *   - `reminders.{payments,documents,takaful}` switch off every outbound nudge
  *     for that category;
  *   - `channels.*` switch individual outbound channels on or off;
- *   - `security` ignores the email switch: security notices always go by email
- *     (and in-app) when an address is on file.
+ *   - `security` and `forceEmail` ignore the email switch: those notices always
+ *     go by email (and in-app) when an address is on file.
  */
 
 export type OutboundChannel = Exclude<NotificationChannelName, 'in_app'>;
@@ -44,6 +44,8 @@ export type RoutingInput = {
   providers: Record<OutboundChannel, boolean>;
   /** Deactivated accounts keep their inbox but receive no outbound messages. */
   active?: boolean;
+  /** Credit/ops queue notices always email when an address and provider are available. */
+  forceEmail?: boolean;
 };
 
 function hasContact(channel: OutboundChannel, contact: RoutingInput['contact']): boolean {
@@ -70,7 +72,7 @@ export function selectNotificationChannels(input: RoutingInput): Record<Outbound
   const security = input.category === 'security';
 
   for (const channel of OUTBOUND_CHANNELS) {
-    const forced = security && channel === 'email';
+    const forced = channel === 'email' && (security || input.forceEmail === true);
     if (input.active === false) {
       decisions[channel] = { send: false, reason: 'user_inactive' };
     } else if (reminderOff) {

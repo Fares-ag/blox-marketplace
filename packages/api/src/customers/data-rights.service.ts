@@ -21,6 +21,7 @@ import { financingFromPricing } from '../partner/partner-logic';
 import { PrismaService } from '../prisma/prisma.service';
 import { CustomerDocumentsService } from './customer-documents.service';
 import { toCustomerProfileDto } from './customer-profile';
+import { claimPendingDataRightsRequest } from './data-rights-claim';
 import {
   anonymisationPatch,
   canTransitionDataRights,
@@ -28,7 +29,6 @@ import {
   DATA_RIGHTS_SLA_DAYS,
   DELETION_BLOCKING_STATUSES,
   isTerminalDataRightsStatus,
-  PENDING_DATA_RIGHTS_STATUSES,
   toDataRightsRequestDto,
 } from './data-rights-logic';
 
@@ -135,19 +135,18 @@ export class DataRightsService {
       }
     }
 
-    const pending = await this.prisma.dataRightsRequest.findFirst({
-      where: {
-        userId: user.id,
-        kind: input.kind,
-        ...(consentCode ? { consentCode } : {}),
-        status: { in: PENDING_DATA_RIGHTS_STATUSES },
-      },
-      select: { id: true },
+    const claimed = await claimPendingDataRightsRequest(this.prisma, {
+      userId: user.id,
+      kind: input.kind,
+      consentCode,
+      details,
+      dueAt: dataRightsDueAt(),
     });
-    if (pending) throw new ConflictException({ message: 'data_rights_request_pending', request_id: pending.id });
-
-    const created = await this.prisma.dataRightsRequest.create({
-      data: { userId: user.id, kind: input.kind, details, consentCode, dueAt: dataRightsDueAt() },
+    if (!claimed.created) {
+      throw new ConflictException({ message: 'data_rights_request_pending', request_id: claimed.row.id });
+    }
+    const created = await this.prisma.dataRightsRequest.findUniqueOrThrow({
+      where: { id: claimed.row.id },
       include: REQUEST_INCLUDE,
     });
     await this.activity.log({

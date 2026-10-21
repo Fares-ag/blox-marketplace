@@ -97,6 +97,10 @@ export {
   calculateOwnershipTimeline,
   overlayRegisterOnTimeline,
   filterKeyMilestones,
+  ownershipPlanAnchorDate,
+  customerFacingApplicationDate,
+  rebaseScheduleToAnchor,
+  projectOwnershipSchedule,
   type OwnershipMilestone,
   type OwnershipMilestoneKind,
   type OwnershipScheduleInput,
@@ -255,6 +259,7 @@ export { ScrollToTop } from './components/ScrollToTop';
 export { BloxShell, OpsAppFrame } from './components/BloxShell';
 export type { BloxNavItem } from './components/BloxShell';
 export { DocumentMeta } from './components/DocumentMeta';
+export { FileDropzone } from './components/FileDropzone';
 export {
   getAppLocale,
   setAppLocale,
@@ -264,6 +269,8 @@ export {
 export { default as i18n } from './i18n';
 export { useOpsLabels } from './i18n/use-ops-labels';
 export {
+  CREDIT_REVIEW_STATUSES,
+  CREDIT_CONFIRMED_STATUSES,
   CREDIT_PIPELINE_STATUSES,
   CREDIT_QUEUE_STATUSES,
   FINANCE_ACTIVATION_QUEUE_STATUSES,

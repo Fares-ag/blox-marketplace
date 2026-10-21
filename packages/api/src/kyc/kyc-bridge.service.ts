@@ -267,4 +267,12 @@ export class KycBridgeService {
     const kase = await this.kyc.getCaseDetail(kycCaseId);
     return buildKycVerificationSummary(kase, kycStatus);
   }
+
+  async liftHoldIfTerminal(applicationId: string, status: string): Promise<void> {
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { kycCaseId: true },
+    });
+    await this.kyc.syncLegalHoldForStatus(app?.kycCaseId, status);
+  }
 }

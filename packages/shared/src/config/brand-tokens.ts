@@ -30,7 +30,7 @@ export const brandMeta = {
   logo: {
     wordmarkOnDark: '/brand/blox-logo-nav.png',
     wordmarkOnLight: '/brand/blox-logo.png',
-    mark: '/brand/blox-logo-nav.png',
+    mark: '/brand/blox-favicon.png',
   },
 } as const;
 

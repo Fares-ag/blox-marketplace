@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   assertCompanyScope,
   assertCompanyScopeForRead,
+  customerSearchCompanyIds,
   opsCompanyFilter,
 } from './company-scope';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -177,6 +178,22 @@ describe('company-scope', () => {
       await expect(
         opsCompanyFilter(prisma, { role: UserRole.group_admin, companyId: 'qauto' } as User),
       ).resolves.toEqual(['qauto', 'audi', 'vw']);
+    });
+  });
+
+  describe('customerSearchCompanyIds', () => {
+    it('limits dealer agents to their own company', async () => {
+      const prisma = mockPrisma([]);
+      await expect(
+        customerSearchCompanyIds(prisma, { role: UserRole.dealer_agent, companyId: 'dealer-a' } as User),
+      ).resolves.toEqual(['dealer-a']);
+    });
+
+    it('returns an empty list when a dealer has no company', async () => {
+      const prisma = mockPrisma([]);
+      await expect(
+        customerSearchCompanyIds(prisma, { role: UserRole.dealer_agent, companyId: null } as User),
+      ).resolves.toEqual([]);
     });
   });
 

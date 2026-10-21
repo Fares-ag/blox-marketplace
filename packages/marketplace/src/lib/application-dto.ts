@@ -261,10 +261,16 @@ export function normalizeCustomerApplicationList(res: { total: number; items: Ra
 }
 
 /** Vehicle label used by the dashboard hero, attention strip and detail facts. */
-export function customerApplicationVehicleLabel(app: {
-  product?: { make?: string; model?: string; modelYear?: number };
-}): string {
+export function customerApplicationVehicleLabel(
+  app: { product?: { make?: string; model?: string; modelYear?: number } },
+  /** When 'ar', the model year is shown with Arabic-Indic digits. */
+  locale?: string,
+): string {
   const p = app.product;
   if (!p) return '';
-  return [p.make, p.model, p.modelYear].filter((part) => part != null && part !== '').join(' ');
+  const year =
+    p.modelYear != null && locale === 'ar'
+      ? new Intl.NumberFormat('ar-QA', { useGrouping: false }).format(p.modelYear)
+      : p.modelYear;
+  return [p.make, p.model, year].filter((part) => part != null && part !== '').join(' ');
 }

@@ -66,7 +66,16 @@ export const ACTIVATE_FROM_STATUSES: ApplicationStatus[] = [
 /** Admin-only override before approval (vercel "Activate (Admin)" / "Activate draft"). */
 export const ADMIN_ACTIVATE_FROM_STATUSES: ApplicationStatus[] = ['draft', 'under_review'];
 
-export function visibleWorkspaceActions(status: ApplicationStatus, role?: UserRole | null) {
+export type WorkspaceActionContext = {
+  /** Down payment ledger already covers the required amount — hide re-collection actions. */
+  downPaymentCollected?: boolean;
+};
+
+export function visibleWorkspaceActions(
+  status: ApplicationStatus,
+  role?: UserRole | null,
+  ctx: WorkspaceActionContext = {},
+) {
   const dealer = role === 'dealer_agent';
   const admin = isFullAdminRole(role);
   const decide = canCreditDecide(role);
@@ -84,13 +93,19 @@ export function visibleWorkspaceActions(status: ApplicationStatus, role?: UserRo
     startContractReview: decide && status === 'contracts_submitted',
     approveSignedContract: decide && (status === 'contracts_submitted' || status === 'contract_under_review'),
     requireDownPayment: decide && status === 'contract_under_review',
-    recoverDownPayment: decide && status === 'pending_finance_activation',
-    recordDownPayment: decide && (status === 'down_payment_required' || status === 'down_payment_submitted'),
+    recoverDownPayment:
+      decide && status === 'pending_finance_activation' && !ctx.downPaymentCollected,
+    recordDownPayment:
+      decide &&
+      !ctx.downPaymentCollected &&
+      (status === 'down_payment_required' || status === 'down_payment_submitted'),
     issueLpo: finance && status === 'pending_finance_activation',
     confirmLpoSettlement: finance && status === 'lpo_issued',
     openHardship: decide && status === 'active',
     resolveHardship: decide && status === 'hardship',
     startRepossession: decide && status === 'hardship',
+    returnFromRecovery: decide && status === 'repossession_in_progress',
+    completeRecovery: admin && status === 'repossession_in_progress',
     fileTotalLoss: decide && status === 'active',
     reopen: decide && (status === 'rejected' || (admin && status === 'submission_cancelled')),
     cancel:
@@ -113,7 +128,15 @@ export function visibleWorkspaceActions(status: ApplicationStatus, role?: UserRo
     comment: decide || dealer,
     uploadDocs:
       (dealer || decide) &&
-      ['draft', 'under_review', 'resubmission_required', 'contract_signing_required'].includes(status),
+      [
+        'draft',
+        'under_review',
+        'resubmission_required',
+        'rejected',
+        'contract_signing_required',
+        'contracts_submitted',
+        'contract_under_review',
+      ].includes(status),
 
     // admin config
     edit: admin,

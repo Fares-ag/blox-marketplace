@@ -20,6 +20,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { JobHealthService } from './job-health.service';
 import { MusharakahService } from '../musharakah/musharakah.service';
+import { BureauReportingService } from '../bureau/bureau-reporting.service';
 import {
   DOCUMENT_REMINDER_THRESHOLDS,
   reminderKindFor,
@@ -99,6 +100,7 @@ export class JobsService implements OnModuleInit {
     private readonly appConfig: AppConfigService,
     private readonly router: NotificationRouterService,
     private readonly musharakah: MusharakahService,
+    private readonly bureau: BureauReportingService,
   ) {}
 
   onModuleInit(): void {
@@ -121,6 +123,8 @@ export class JobsService implements OnModuleInit {
       this.runHealthCheck();
     });
     this.registerCron('unit-offers', cronEveryNMinutes(60), () => this.runUnitOffers());
+    const bureauCron = this.appConfig.bureauMonthEndCron;
+    this.registerCron('bureau-month-end', bureauCron, () => this.runBureauMonthEnd());
 
     this.health.registerJob('overdue-sweep', DAY_MS);
     this.health.registerJob('payment-reminders', DAY_MS);
@@ -130,6 +134,7 @@ export class JobsService implements OnModuleInit {
     this.health.registerJob('zoho-retry', zohoMinutes * 60 * 1000);
     this.health.registerJob('email-outbox', outboxMinutes * 60 * 1000);
     this.health.registerJob('unit-offers', 60 * 60 * 1000);
+    this.health.registerJob('bureau-month-end', 32 * DAY_MS);
   }
 
   private registerCron(name: string, expression: string, handler: () => Promise<unknown>): void {
@@ -548,6 +553,14 @@ export class JobsService implements OnModuleInit {
     this.logger.log(`Unit offers — issued=${issued.issued} expired=${expired.expired}`);
     this.health.recordSuccess('unit-offers');
     return { ...issued, ...expired };
+  }
+
+  async runBureauMonthEnd() {
+    const result = await this.bureau.runMonthEndJob();
+    if (result.status === 'sent' || result.status === 'generated') {
+      this.health.recordSuccess('bureau-month-end');
+    }
+    return result;
   }
 
   runHealthCheck(): void {

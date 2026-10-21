@@ -33,6 +33,17 @@ function parseOrigins(raw: string | undefined, fallback: string): string[] {
     .filter(Boolean);
 }
 
+function parseIdList(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function parseBureauTransport(raw: string | undefined): 'local' | 'sftp' {
+  return raw?.trim().toLowerCase() === 'sftp' ? 'sftp' : 'local';
+}
+
 function resolvePortalBase(
   config: ConfigService,
   envKey: string,
@@ -94,6 +105,19 @@ export class AppConfigService {
   readonly kycWebhookDrivesStatus: boolean;
   /** Optional post-activate hook to provision a vehicle-care agreement. Never blocks LPO/activate. */
   readonly vehicleCareWebhookUrl: string | null;
+  /** Cron may generate the month-end Bureau file. Manual dry-run ignores this. */
+  readonly bureauReportingEnabled: boolean;
+  /** Production population is this allowlist. Empty + include-all off = zero records. */
+  readonly bureauCompanyIds: readonly string[];
+  readonly bureauIncludeAllCompanies: boolean;
+  readonly bureauIncludeCorporate: boolean;
+  readonly bureauTransport: 'local' | 'sftp';
+  readonly bureauSftpEnabled: boolean;
+  /** Test-only: fire the month-end job on days that are not month-end. */
+  readonly bureauCronAnyDay: boolean;
+  readonly bureauMonthEndCron: string;
+  /** When true, skip Finance approval and call transport immediately after generate (dev/tests only). */
+  readonly bureauAutoSend: boolean;
 
   constructor(config: ConfigService) {
     this.nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
@@ -128,6 +152,24 @@ export class AppConfigService {
     this.preDisbursalGateEnabled = parseBool(config.get<string>('PRE_DISBURSAL_GATE_ENABLED'), false);
     this.kycWebhookDrivesStatus = parseBool(config.get<string>('KYC_WEBHOOK_DRIVES_STATUS'), false);
     this.vehicleCareWebhookUrl = config.get<string>('VEHICLE_CARE_WEBHOOK_URL')?.trim() || null;
+    this.bureauReportingEnabled = parseBool(config.get<string>('BUREAU_REPORTING_ENABLED'), false);
+    this.bureauCompanyIds = parseIdList(config.get<string>('BUREAU_REPORTING_COMPANY_IDS'));
+    this.bureauIncludeAllCompanies = parseBool(config.get<string>('BUREAU_INCLUDE_ALL_COMPANIES'), false);
+    this.bureauIncludeCorporate = parseBool(config.get<string>('BUREAU_INCLUDE_CORPORATE'), false);
+    this.bureauTransport = parseBureauTransport(config.get<string>('BUREAU_TRANSPORT'));
+    this.bureauSftpEnabled = parseBool(config.get<string>('BUREAU_SFTP_ENABLED'), false);
+    this.bureauCronAnyDay = parseBool(config.get<string>('BUREAU_CRON_ANY_DAY'), false);
+    this.bureauMonthEndCron = config.get<string>('BUREAU_MONTH_END_CRON')?.trim() || '0 22 * * *';
+    this.bureauAutoSend = parseBool(config.get<string>('BUREAU_AUTO_SEND'), false);
+    if (this.nodeEnv === 'production' && this.bureauAutoSend) {
+      throw new Error('BUREAU_AUTO_SEND is not permitted in production');
+    }
+    if (this.nodeEnv === 'production' && this.bureauIncludeAllCompanies) {
+      throw new Error('BUREAU_INCLUDE_ALL_COMPANIES is not permitted in production');
+    }
+    if (this.bureauTransport === 'sftp' && !this.bureauSftpEnabled) {
+      throw new Error('BUREAU_TRANSPORT=sftp requires BUREAU_SFTP_ENABLED=true');
+    }
     if (kycConfigured && !this.kycEkycRequired) {
       this.logger.warn('KYC_EKYC_REQUIRED=false: customers may satisfy the identity slot with a manual QID upload');
     }

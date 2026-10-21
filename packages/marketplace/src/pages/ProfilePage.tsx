@@ -109,9 +109,14 @@ function toPatchBody(form: ProfileForm, baseline: CustomerProfileDto): Record<st
   const baselineDob = baseline.date_of_birth ? baseline.date_of_birth.slice(0, 10) : '';
   const baselinePhone = baseline.phone ?? '';
 
+  const nameLocked = Boolean(baseline.first_name?.trim() && baseline.last_name?.trim());
   return {
-    first_name: trimmedOrUndefined(form.firstName),
-    last_name: trimmedOrUndefined(form.lastName),
+    ...(nameLocked
+      ? {}
+      : {
+          first_name: trimmedOrUndefined(form.firstName),
+          last_name: trimmedOrUndefined(form.lastName),
+        }),
     ...(form.phone.trim() !== baselinePhone.trim() ? { phone: trimmedOrUndefined(form.phone) } : {}),
     gender: form.gender || undefined,
     ...(form.dateOfBirth !== baselineDob ? { date_of_birth: form.dateOfBirth || undefined } : {}),
@@ -378,6 +383,8 @@ export function ProfilePage() {
                       <input
                         value={form.firstName}
                         autoComplete="given-name"
+                        readOnly={Boolean(profile.data.first_name?.trim() && profile.data.last_name?.trim())}
+                        aria-describedby={profile.data.first_name && profile.data.last_name ? 'dm-profile-name-hint' : undefined}
                         onChange={(e) => patch((p) => ({ ...p, firstName: e.target.value }))}
                       />
                     </label>
@@ -386,8 +393,12 @@ export function ProfilePage() {
                       <input
                         value={form.lastName}
                         autoComplete="family-name"
+                        readOnly={Boolean(profile.data.first_name?.trim() && profile.data.last_name?.trim())}
                         onChange={(e) => patch((p) => ({ ...p, lastName: e.target.value }))}
                       />
+                      {profile.data.first_name?.trim() && profile.data.last_name?.trim() ? (
+                        <small id="dm-profile-name-hint">{t('customerProfile.contact.nameLocked')}</small>
+                      ) : null}
                     </label>
                     <label className="dm-profile__field">
                       <span>{t('customerProfile.contact.phone')}</span>

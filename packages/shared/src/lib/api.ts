@@ -127,6 +127,10 @@ export async function apiFetch<T = unknown>(
     throw new ApiError(message, res.status, code, details);
   }
 
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('blox:api-activity'));
+  }
+
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }

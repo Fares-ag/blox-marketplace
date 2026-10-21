@@ -8,6 +8,12 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   internal_error: 'An unexpected error occurred.',
   bad_request: 'The request could not be processed.',
   documents_incomplete: 'Please upload all required documents before submitting.',
+  contracts_incomplete: 'Sign every agreement before submitting the package.',
+  compliance_check_required:
+    'A compliance check must pass before you can approve and send the contract. Run the compliance check, then approve again.',
+  policy_number_invalid: 'Enter the policy number exactly as printed. It needs both letters and digits.',
+  effective_from_required: 'Cover start date is required.',
+  expires_at_required: 'Cover end date is required.',
   blocking_application_exists:
     'You already have an active financing application for this vehicle. Open it or wait until it is closed.',
   listing_not_available: 'This vehicle listing is not available for financing.',
@@ -68,6 +74,10 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   assist_session_closed: 'This session is no longer open.',
   assist_proof_invalid: 'Please verify your phone again to continue.',
   takaful_declaration_required: 'Please confirm the takaful declaration.',
+  effective_from_invalid: 'Enter a valid cover start date (year between 2000 and 15 years from now).',
+  expires_at_invalid: 'Enter a valid cover end date (year between 2000 and 15 years from now).',
+  expires_before_effective: 'Cover end must be on or after the cover start.',
+  policy_year_invalid: 'Policy dates must use a realistic year.',
   takaful_policy_locked: 'This policy has been verified and can no longer be edited.',
   application_completed: 'This application is complete and can no longer be changed.',
   session_absolute_timeout: 'Your session reached its maximum length. Please sign in again.',

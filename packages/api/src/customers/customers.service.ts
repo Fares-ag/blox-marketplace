@@ -42,11 +42,12 @@ export class CustomersService {
     const data: Prisma.UserUpdateInput = {};
     const changed: string[] = [];
 
-    if (input.first_name !== undefined) {
+    const legalNameSet = Boolean(user.firstName?.trim() && user.lastName?.trim());
+    if (!legalNameSet && input.first_name !== undefined) {
       data.firstName = cleanOrNull(input.first_name);
       changed.push('first_name');
     }
-    if (input.last_name !== undefined) {
+    if (!legalNameSet && input.last_name !== undefined) {
       data.lastName = cleanOrNull(input.last_name);
       changed.push('last_name');
     }
@@ -102,7 +103,7 @@ export class CustomersService {
     }
 
     // Display name follows the structured name once both halves are known.
-    if (input.first_name !== undefined || input.last_name !== undefined) {
+    if (!legalNameSet && (input.first_name !== undefined || input.last_name !== undefined)) {
       const first = input.first_name !== undefined ? cleanOrNull(input.first_name) : user.firstName;
       const last = input.last_name !== undefined ? cleanOrNull(input.last_name) : user.lastName;
       const name = composeName(first, last);

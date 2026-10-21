@@ -23,4 +23,20 @@ describe('buildScheduleDrafts', () => {
   it('throws on invalid pricing', () => {
     expect(() => buildScheduleDrafts({ monthly: 0, tenor: 12 })).toThrow('invalid_pricing_snapshot');
   });
+
+  it('honours an explicit first installment date on the pricing snapshot', () => {
+    const snapshot = {
+      ...buildPricingSnapshot({
+        listPrice: 100_000,
+        annualRatePercent: 12.5,
+        minDownPaymentPct: 10,
+        tenureMonths: 12,
+        downPaymentPct: 10,
+      }),
+      first_installment_date: '2026-11-05',
+    };
+    const drafts = buildScheduleDrafts(snapshot, new Date('2026-01-15T12:00:00.000Z'));
+    expect(drafts[0].dueDate.toISOString().slice(0, 10)).toBe('2026-11-05');
+    expect(drafts[1].dueDate.toISOString().slice(0, 10)).toBe('2026-12-05');
+  });
 });

@@ -73,6 +73,7 @@ import { decideDuplicateApplication, summarizeBlocking } from './application-ded
 import { assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
 import {
   normalizeCustomerSnapshot,
+  pinAccountLegalName,
   readCustomerSnapshot,
   stripUndefinedDeep,
   type CustomerSnapshotInput,
@@ -178,6 +179,7 @@ export class ApplicationsService {
     // Residency/nationality are re-derived from the QID; a DOB that disagrees
     // with the QID birth year is refused (400 dob_qid_mismatch).
     const normalized = normalizeCustomerSnapshot(dto.customerSnapshot);
+    pinAccountLegalName(normalized, user);
 
     // Duplicate handling: customers may always apply again, even with a pending
     // or active application. A draft for the same vehicle is resumed instead of
@@ -349,7 +351,11 @@ export class ApplicationsService {
       include: { product: true, offer: true },
     });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
-    if (app.status !== ApplicationStatus.draft) {
+    if (
+      app.status !== ApplicationStatus.draft &&
+      app.status !== ApplicationStatus.resubmission_required &&
+      app.status !== ApplicationStatus.rejected
+    ) {
       throw new BadRequestException('invalid_status_transition');
     }
 
@@ -375,6 +381,7 @@ export class ApplicationsService {
       ...currentSnapshot,
       ...stripUndefinedDeep(body.customerSnapshot ?? {}),
     });
+    pinAccountLegalName(normalized, user);
 
     const currentPricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
     // The stored list price is kept: it may be a dealer-quote negotiated price.
@@ -520,7 +527,11 @@ export class ApplicationsService {
       include: { documents: true, product: true, financePartner: true },
     });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
-    if (app.status !== 'draft' && app.status !== 'resubmission_required') {
+    if (
+      app.status !== 'draft' &&
+      app.status !== 'resubmission_required' &&
+      app.status !== 'rejected'
+    ) {
       throw new BadRequestException('invalid_status_transition');
     }
     const documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
@@ -605,7 +616,7 @@ export class ApplicationsService {
     }
 
     if (nextStatus === ApplicationStatus.under_review) {
-      await this.notifyOpsOnSubmit(app.companyId, id);
+      await this.intake.notifyOpsOnSubmit(app.companyId, id);
     }
     await this.syncToCrmIfNeeded(id, nextStatus, user.id);
 
@@ -1229,6 +1240,7 @@ export class ApplicationsService {
       action: 'status_transition',
       toValue: 'submission_cancelled',
     });
+    await this.kycBridge.liftHoldIfTerminal(id, 'submission_cancelled');
     return toApplicationDto(updated);
   }
 
@@ -1304,27 +1316,6 @@ export class ApplicationsService {
     const ext = path.extname(doc.storagePath) || '.pdf';
     const filename = doc.originalName?.trim() || `${doc.category}${ext}`;
     return { ...file, filename };
-  }
-
-  /**
-   * Staff who should hear about a new submission: credit/finance officers who
-   * can see the company, the dealer's agents, and admins (see
-   * ApplicationIntakeService.notifyOps for the scoping rules).
-   */
-  private async notifyOpsOnSubmit(companyId: string, appId: string) {
-    await this.intake.notifyOps(
-      companyId,
-      [
-        UserRole.credit_officer,
-        UserRole.finance_officer,
-        UserRole.dealer_agent,
-        UserRole.admin,
-        UserRole.super_admin,
-      ],
-      (role) => (role === UserRole.dealer_agent ? 'New lead on your stock' : 'New financing application'),
-      'A customer submitted a financing application.',
-      `/applications/${appId}`,
-    );
   }
 
   /** Mirrors dealer/staff CRM sync — awaited, not fire-and-forget. */

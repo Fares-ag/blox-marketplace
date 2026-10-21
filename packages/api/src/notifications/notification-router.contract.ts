@@ -46,6 +46,8 @@ export type NotificationDispatchInput = {
   data?: NotificationData;
   /** Static override, or a renderer called with the recipient's locale. */
   email?: NotificationEmailOverride | ((locale: NotificationLocale) => NotificationEmailOverride);
+  /** Credit/ops queue notices always email when mail is configured. */
+  forceEmail?: boolean;
 };
 
 export type ChannelOutcome = 'sent' | 'logged' | 'skipped' | 'failed';

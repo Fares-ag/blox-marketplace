@@ -91,6 +91,8 @@
   border-radius: var(--blox-radius-card, 16px);
   padding: 20px 22px;
   box-shadow: var(--blox-shadow-rest, var(--card-shadow));
+  min-width: 0;
+  overflow-wrap: anywhere;
 
   &__title {
     margin: 0 0 16px;

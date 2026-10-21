@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import type { UserRole } from '../types/domain';
 import { roleAllowed, useAuthStore } from './auth-store';
+import { SessionTimeoutGuard } from './SessionTimeoutGuard';
 
 interface AuthGuardProps {
   allowedRole: UserRole | UserRole[];
@@ -46,7 +47,7 @@ export function AuthGuard({
     return <Navigate to={`/auth/verify-email?returnUrl=${returnUrl}`} replace />;
   }
 
-  return <>{children}</>;
+  return <SessionTimeoutGuard>{children}</SessionTimeoutGuard>;
 }
 
 export function GuestGuard({ children }: { children: ReactNode }) {

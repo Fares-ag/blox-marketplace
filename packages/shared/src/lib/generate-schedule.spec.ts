@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, startOfMonth } from './date-utils';
-import { generateInstallmentSchedule } from './generate-schedule';
+import { addMonths, firstInstallmentDueFrom, formatDateYmd, startOfMonth } from './date-utils';
+import { generateInstallmentSchedule, buildPlanFromPricingSnapshot } from './generate-schedule';
 import { sumInstallmentAmounts } from './pricing';
 
 describe('generateInstallmentSchedule (amortized_fixed)', () => {
@@ -74,5 +74,25 @@ describe('generateInstallmentSchedule (amortized_fixed)', () => {
     const monthlyTotal = sumInstallmentAmounts(monthly.map((r) => r.amount));
     const dailyTotal = sumInstallmentAmounts(daily.map((r) => r.amount));
     expect(dailyTotal).toBe(monthlyTotal);
+  });
+});
+
+describe('buildPlanFromPricingSnapshot dates', () => {
+  it('starts the plan from asOf (submit), not the current clock', () => {
+    const snap = {
+      tenor: 3,
+      list_price: 100_000,
+      down_payment: 10_000,
+      rate: 0,
+      monthly: 30_000,
+    };
+    const asOf = new Date('2026-04-18T12:00:00.000Z');
+    const first = firstInstallmentDueFrom(asOf);
+    const plan = buildPlanFromPricingSnapshot({
+      pricingSnapshot: snap,
+      asOf,
+    });
+    expect(plan.schedule[0]?.dueDate).toBe(formatDateYmd(first));
+    expect(plan.schedule[2]?.dueDate).toBe(formatDateYmd(addMonths(first, 2)));
   });
 });

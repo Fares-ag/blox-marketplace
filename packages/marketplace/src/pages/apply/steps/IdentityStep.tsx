@@ -10,9 +10,10 @@ type Props = {
   onChange: (patch: Partial<ApplyForm>) => void;
   onBlur: (field: string) => void;
   prefilled: boolean;
+  nameLocked?: boolean;
 };
 
-export function IdentityStep({ form, derived, errors, onChange, onBlur, prefilled }: Props) {
+export function IdentityStep({ form, derived, errors, onChange, onBlur, prefilled, nameLocked = false }: Props) {
   const { t } = useTranslation();
   const err = (field: string) => (errors[field] ? t(errors[field]) : null);
   const residency = derived.residency;
@@ -22,16 +23,17 @@ export function IdentityStep({ form, derived, errors, onChange, onBlur, prefille
     <div className="dm-step">
       <p className="dm-step__intro">{t('applyFlow.identity.intro')}</p>
       {prefilled ? <Notice tone="info">{t('applyFlow.identity.prefilled')}</Notice> : null}
+      {nameLocked ? <Notice tone="info">{t('applyFlow.identity.nameLocked')}</Notice> : null}
 
       <div className="dm-grid dm-grid--2">
         <Field id="apply-first-name" label={t('applyFlow.identity.firstName')} error={err('firstName')} required>
           {(a11y) => (
-            <TextInput {...a11y} value={form.firstName} autoComplete="given-name" onChange={(e) => onChange({ firstName: e.target.value })} onBlur={() => onBlur('firstName')} />
+            <TextInput {...a11y} value={form.firstName} autoComplete="given-name" readOnly={nameLocked} onChange={(e) => onChange({ firstName: e.target.value })} onBlur={() => onBlur('firstName')} />
           )}
         </Field>
         <Field id="apply-last-name" label={t('applyFlow.identity.lastName')} error={err('lastName')} required>
           {(a11y) => (
-            <TextInput {...a11y} value={form.lastName} autoComplete="family-name" onChange={(e) => onChange({ lastName: e.target.value })} onBlur={() => onBlur('lastName')} />
+            <TextInput {...a11y} value={form.lastName} autoComplete="family-name" readOnly={nameLocked} onChange={(e) => onChange({ lastName: e.target.value })} onBlur={() => onBlur('lastName')} />
           )}
         </Field>
       </div>
@@ -93,7 +95,7 @@ export function IdentityStep({ form, derived, errors, onChange, onBlur, prefille
           required
         >
           {(a11y) => (
-            <TextInput {...a11y} type="date" numeric value={form.dateOfBirth} autoComplete="bday" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} onChange={(e) => onChange({ dateOfBirth: e.target.value })} onBlur={() => onBlur('dateOfBirth')} />
+            <TextInput {...a11y} type="date" lang="en-GB" numeric value={form.dateOfBirth} autoComplete="bday" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} onChange={(e) => onChange({ dateOfBirth: e.target.value })} onBlur={() => onBlur('dateOfBirth')} />
           )}
         </Field>
       </div>

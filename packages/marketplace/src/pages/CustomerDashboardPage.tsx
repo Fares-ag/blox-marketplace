@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
   MoneyText,
   apiFetch,
+  customerFacingApplicationDate,
   formatQar,
   getAppLocale,
   useAuthStore,
@@ -31,6 +32,7 @@ type MyApplication = {
   id: string;
   status: string;
   createdAt: string;
+  submittedAt?: string | null;
   pricingSnapshot?: Record<string, unknown> | null;
   product: {
     make: string;
@@ -42,12 +44,15 @@ type MyApplication = {
 };
 
 type AppDetail = MyApplication & {
+  completedAt?: string | null;
   paymentSchedules?: Array<{
     id: string;
     sequence: number;
     dueDate: string;
     amount: string | number;
     status: string;
+    paidAmount?: number | null;
+    paidAt?: string | null;
   }>;
 };
 
@@ -141,6 +146,7 @@ export function CustomerDashboardPage() {
 
   const spotlightMonthly = Number(spotlight?.pricingSnapshot?.monthly ?? 0);
   const spotlightDown = Number(spotlight?.pricingSnapshot?.down_payment ?? 0);
+  const spotlightDate = spotlight ? customerFacingApplicationDate(spotlight) : null;
 
   const ownershipDetail = useQuery({
     queryKey: ['app', ownershipApp?.id, 'ownership'],
@@ -296,13 +302,15 @@ export function CustomerDashboardPage() {
                     <span className={`dm-status-pill dm-status-pill--${applicationMarketplacePillVariant(spotlight.status)}`}>
                       {t(`application.status.${spotlight.status}`, { defaultValue: spotlight.status })}
                     </span>
-                    <time dateTime={spotlight.createdAt}>
-                      {spotlight.status === 'draft'
-                        ? t('application.created')
-                        : t('application.submitted')}
-                      :{' '}
-                      {new Date(spotlight.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-QA' : 'en-QA')}
-                    </time>
+                    {spotlightDate && (
+                      <time dateTime={String(spotlightDate)}>
+                        {spotlight.status === 'draft'
+                          ? t('application.created')
+                          : t('application.submitted')}
+                        :{' '}
+                        {new Date(spotlightDate).toLocaleDateString(locale === 'ar' ? 'ar-QA' : 'en-QA')}
+                      </time>
+                    )}
                   </div>
                   <h3>
                     {spotlight.product.make} {spotlight.product.model}
@@ -333,6 +341,7 @@ export function CustomerDashboardPage() {
                       compact
                       pricingSnapshot={spotlightDetail.data?.pricingSnapshot ?? spotlight.pricingSnapshot}
                       paymentSchedules={spotlightDetail.data?.paymentSchedules}
+                      completedAt={spotlightDetail.data?.completedAt}
                       onRecoveryContribute={() => navigate(`/app/applications/${spotlight!.id}`)}
                       onRecoveryViewTimeline={() => navigate(`/app/applications/${spotlight!.id}`)}
                     />

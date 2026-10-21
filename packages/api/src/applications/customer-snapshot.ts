@@ -103,6 +103,24 @@ export type NormalizedCustomerSnapshot = {
   profile: CustomerProfileFields;
 };
 
+/**
+ * The account legal name wins over whatever the customer types later.
+ * A dealer-captured name stays the name on the application and the profile.
+ */
+export function pinAccountLegalName(
+  normalized: NormalizedCustomerSnapshot,
+  user: { firstName?: string | null; lastName?: string | null },
+): void {
+  const first = user.firstName?.trim() ?? '';
+  const last = user.lastName?.trim() ?? '';
+  if (!first || !last) return;
+  normalized.snapshot.firstName = first;
+  normalized.snapshot.lastName = last;
+  normalized.snapshot.full_name = `${first} ${last}`;
+  normalized.profile.firstName = first;
+  normalized.profile.lastName = last;
+}
+
 function str(value: unknown): string | undefined {
   if (value == null) return undefined;
   const s = String(value).trim();

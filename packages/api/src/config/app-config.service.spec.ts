@@ -35,6 +35,41 @@ describe('AppConfigService', () => {
     expect(service.lpoGateEnabled).toBe(false);
     expect(service.preDisbursalGateEnabled).toBe(false);
     expect(service.kycWebhookDrivesStatus).toBe(false);
+    expect(service.bureauReportingEnabled).toBe(false);
+    expect(service.bureauIncludeAllCompanies).toBe(false);
+    expect(service.bureauSftpEnabled).toBe(false);
+    expect(service.bureauTransport).toBe('local');
+    expect(service.bureauCompanyIds).toEqual([]);
+  });
+
+  it('refuses auto-send in production', () => {
+    expect(
+      () =>
+        new AppConfigService(
+          mockConfig({
+            NODE_ENV: 'production',
+            DATABASE_URL: 'postgresql://localhost:5432/test',
+            BETTER_AUTH_SECRET: 'integration-test-secret-with-sufficient-entropy-abcdef123456',
+            MARKETPLACE_URL: 'https://blox.market',
+            BUREAU_AUTO_SEND: 'true',
+          }) as never,
+        ),
+    ).toThrow('BUREAU_AUTO_SEND is not permitted in production');
+  });
+
+  it('refuses include-all companies in production', () => {
+    expect(
+      () =>
+        new AppConfigService(
+          mockConfig({
+            NODE_ENV: 'production',
+            DATABASE_URL: 'postgresql://localhost:5432/test',
+            BETTER_AUTH_SECRET: 'integration-test-secret-with-sufficient-entropy-abcdef123456',
+            MARKETPLACE_URL: 'https://blox.market',
+            BUREAU_INCLUDE_ALL_COMPANIES: 'true',
+          }) as never,
+        ),
+    ).toThrow('BUREAU_INCLUDE_ALL_COMPANIES is not permitted in production');
   });
 
   it('throws when MARKETPLACE_URL is missing in production', () => {

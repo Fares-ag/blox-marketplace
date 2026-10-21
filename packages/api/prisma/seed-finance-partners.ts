@@ -13,6 +13,13 @@ export const DEFAULT_LENDER_CODE = DEFAULT_MARKETPLACE_OFFER_CODE;
  */
 export const DEFAULT_LENDER_OF_RECORD_CODE = 'blox-finance';
 
+/** Dealer in-house conventional book — stays on BLOX LOS (`crmAdapter: none`). */
+export const IN_HOUSE_FINANCE_CODE = 'in-house-finance';
+export const IN_HOUSE_ANNUAL_INTEREST_RATE = 11.9;
+
+/** Blox Musharakah rent is an offer field, not the in-house interest rate. */
+export const BLOX_DEFAULT_ANNUAL_RENT_RATE = 11.9;
+
 /** Sample provider branch attached to the default lender of record. */
 export const SAMPLE_PROVIDER_BRANCH = {
   code: 'HQ',
@@ -29,7 +36,7 @@ export const SAMPLE_PROVIDER_BRANCH = {
 export async function seedFinancePartners(prisma: PrismaClient) {
   const partners = [
     {
-      code: DEFAULT_LENDER_CODE,
+      code: 'al-jazeera-finance',
       name: 'Al Jazeera Finance',
       crmAdapter: 'zoho' as const,
       engagementMode: FinancePartnerEngagementMode.credit_file_handoff,
@@ -43,6 +50,7 @@ export async function seedFinancePartners(prisma: PrismaClient) {
         annualRentRate: 12.5,
         minDownPaymentPct: 10,
         tenureOptions: [12, 24, 36, 48, 60],
+        financingType: 'diminishing_musharakah' as const,
       },
     },
     {
@@ -57,9 +65,28 @@ export async function seedFinancePartners(prisma: PrismaClient) {
       offer: {
         id: 'seed-blox-finance-offer',
         name: 'Blox Standard',
-        annualRentRate: 11.9,
+        annualRentRate: BLOX_DEFAULT_ANNUAL_RENT_RATE,
         minDownPaymentPct: 10,
         tenureOptions: [12, 24, 36, 48, 60],
+        financingType: 'diminishing_musharakah' as const,
+      },
+    },
+    {
+      code: IN_HOUSE_FINANCE_CODE,
+      name: 'In-house finance',
+      crmAdapter: 'none' as const,
+      engagementMode: FinancePartnerEngagementMode.full_los_underwriting,
+      breOwnership: BreOwnership.blox_bre_only,
+      contactName: 'Dealer credit desk',
+      contactEmail: 'credit@dealer.example',
+      contactPhone: '+974 4400 0002',
+      offer: {
+        id: 'seed-in-house-offer',
+        name: 'In-house Standard',
+        annualRentRate: IN_HOUSE_ANNUAL_INTEREST_RATE,
+        minDownPaymentPct: 10,
+        tenureOptions: [12, 24, 36, 48, 60],
+        financingType: 'conventional_interest' as const,
       },
     },
   ];
@@ -91,6 +118,7 @@ export async function seedFinancePartners(prisma: PrismaClient) {
         annualRentRate: p.offer.annualRentRate,
         minDownPaymentPct: p.offer.minDownPaymentPct,
         tenureOptions: p.offer.tenureOptions,
+        financingType: p.offer.financingType,
         isDefault: p.code === DEFAULT_MARKETPLACE_OFFER_CODE,
         status: 'active',
         financePartnerId: partner.id,
@@ -100,6 +128,7 @@ export async function seedFinancePartners(prisma: PrismaClient) {
         annualRentRate: p.offer.annualRentRate,
         minDownPaymentPct: p.offer.minDownPaymentPct,
         tenureOptions: p.offer.tenureOptions,
+        financingType: p.offer.financingType,
         isDefault: p.code === DEFAULT_MARKETPLACE_OFFER_CODE,
         financePartnerId: partner.id,
         status: 'active',

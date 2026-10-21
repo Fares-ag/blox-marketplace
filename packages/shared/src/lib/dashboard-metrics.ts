@@ -38,3 +38,14 @@ export const IN_REVIEW_METRIC_STATUSES = [
   'contract_under_review',
   'contract_signing_required',
 ] as const;
+
+export const CREDIT_CONFIRMED_METRIC_STATUSES = [
+  'contract_signing_required',
+  'contracts_submitted',
+  'contract_under_review',
+  'down_payment_required',
+  'down_payment_submitted',
+  'pending_finance_activation',
+  'lpo_issued',
+  'acquisition_pending',
+] as const;

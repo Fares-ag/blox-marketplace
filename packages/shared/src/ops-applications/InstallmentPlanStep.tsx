@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { addMonths, startOfMonth } from '../lib/date-utils';
+import { addMonths, formatDateYmd, parseYmd, startOfMonth } from '../lib/date-utils';
+import { OpsField, OpsSelect } from '../ops-ui-v2/OpsField';
 import { formatMonthsToTenure } from '../lib/tenure';
 import { generateInstallmentSchedule } from '../lib/generate-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
@@ -7,7 +8,6 @@ import { buildPricingSnapshot, sumInstallmentAmounts } from '../lib/pricing';
 import { downPaymentBounds } from '../lib/product-rules';
 import { formatQar, formatPercent } from '../lib/format';
 import { useOpsLabels } from '../i18n/use-ops-labels';
-import { OpsSelect } from '../ops-ui-v2/OpsField';
 import { InstallmentScheduleTable } from './InstallmentScheduleTable';
 
 export type InstallmentPlanStepProps = {
@@ -31,6 +31,9 @@ export function InstallmentPlanStep({
 }: InstallmentPlanStepProps) {
   const { t } = useOpsLabels();
   const [interval, setInterval] = useState<'Monthly' | 'Daily'>('Monthly');
+  const [firstInstallmentDate, setFirstInstallmentDate] = useState(() =>
+    formatDateYmd(addMonths(startOfMonth(new Date()), 1)),
+  );
 
   const plan = useMemo(() => {
     const snapshot = buildPricingSnapshot({
@@ -41,7 +44,7 @@ export function InstallmentPlanStep({
       downPaymentPct,
     });
     const downPayment = snapshot.down_payment;
-    const startDate = addMonths(startOfMonth(new Date()), 1);
+    const startDate = parseYmd(firstInstallmentDate);
 
     const schedule = generateInstallmentSchedule({
       startDate,
@@ -71,10 +74,11 @@ export function InstallmentPlanStep({
       monthly: built.monthlyAmount,
       financed_total: financedTotal,
       hide_interest: hideInterest,
+      first_installment_date: firstInstallmentDate,
     };
 
     return { plan: built, pricingSnapshot };
-  }, [vehiclePrice, offerRate, minDownPct, downPaymentPct, tenureMonths, interval, hideInterest]);
+  }, [vehiclePrice, offerRate, minDownPct, downPaymentPct, tenureMonths, interval, hideInterest, firstInstallmentDate]);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -85,6 +89,15 @@ export function InstallmentPlanStep({
 
   return (
     <div className="blox-wizard-plan blox-form-grid__full">
+      <OpsField
+        label={t('ops.wizard.firstInstallmentDate')}
+        type="date"
+        lang="en-GB"
+        value={firstInstallmentDate}
+        min={formatDateYmd(new Date())}
+        onChange={(e) => setFirstInstallmentDate(e.target.value)}
+      />
+
       <OpsSelect
         label={t('ops.wizard.paymentInterval')}
         value={interval}

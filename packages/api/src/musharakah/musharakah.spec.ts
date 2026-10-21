@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Prisma } from '@prisma/client';
 import { evaluateAcquisitionGate, evaluatePreDisbursal } from './gates';
-import { splitFromPricing } from './register';
+import { shouldOpenOwnershipRegister, splitFromPricing } from './register';
 
 describe('musharakah gates', () => {
   it('requires every pre-disbursal item before complete', () => {
@@ -40,5 +40,12 @@ describe('musharakah gates', () => {
     const split = splitFromPricing({ list_price: 80_000, down_payment: 16_000 });
     expect(split.customerUnits).toBe(20);
     expect(split.bloxUnits).toBe(80);
+  });
+
+  it('does not open the ownership register for conventional in-house finance', () => {
+    expect(shouldOpenOwnershipRegister('diminishing_musharakah')).toBe(true);
+    expect(shouldOpenOwnershipRegister('ijarah')).toBe(true);
+    expect(shouldOpenOwnershipRegister(null)).toBe(true);
+    expect(shouldOpenOwnershipRegister('conventional_interest')).toBe(false);
   });
 });

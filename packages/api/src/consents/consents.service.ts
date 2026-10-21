@@ -11,7 +11,8 @@ import { CONSENT_CATALOG_VERSION, isConsentCode } from '@drivemarket/shared/doma
 import type { ConsentStatusDto } from '../../../shared/src/types/customer-platform';
 import { assertApplicationCanView, BLOCKING_APPLICATION_STATUSES } from '../applications/application-access';
 import { ActivityService } from '../common/activity.service';
-import { dataRightsDueAt, PENDING_DATA_RIGHTS_STATUSES } from '../customers/data-rights-logic';
+import { claimPendingDataRightsRequest } from '../customers/data-rights-claim';
+import { dataRightsDueAt } from '../customers/data-rights-logic';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   buildConsentStatus,
@@ -207,34 +208,23 @@ export class ConsentsService {
 
   /** One pending consent-withdrawal request per consent; the privacy team completes it (see DataRightsService). */
   private async openWithdrawalRequest(userId: string, code: ConsentCode, reason: string | null) {
-    const pending = await this.prisma.dataRightsRequest.findFirst({
-      where: {
-        userId,
-        kind: DataRightsRequestKind.consent_withdrawal,
-        consentCode: code,
-        status: { in: PENDING_DATA_RIGHTS_STATUSES },
-      },
-      orderBy: { createdAt: 'desc' },
+    const { row, created } = await claimPendingDataRightsRequest(this.prisma, {
+      userId,
+      kind: DataRightsRequestKind.consent_withdrawal,
+      consentCode: code,
+      details: reason,
+      dueAt: dataRightsDueAt(),
     });
-    if (pending) return pending;
-    const created = await this.prisma.dataRightsRequest.create({
-      data: {
-        userId,
-        kind: DataRightsRequestKind.consent_withdrawal,
-        consentCode: code,
-        details: reason,
-        dueAt: dataRightsDueAt(),
-      },
-    });
+    if (!created) return row;
     await this.activity.log({
       actorUserId: userId,
       entityType: 'data_rights_request',
-      entityId: created.id,
+      entityId: row.id,
       action: 'data_rights_requested',
       toValue: DataRightsRequestKind.consent_withdrawal,
-      metadata: { consent_code: code, origin: 'consent_withdrawal_blocked', due_at: created.dueAt?.toISOString() },
+      metadata: { consent_code: code, origin: 'consent_withdrawal_blocked', due_at: row.dueAt?.toISOString() },
     });
-    return created;
+    return row;
   }
 
   /** Ops read: the applicant's account-level consent status, scoped exactly like the application. */

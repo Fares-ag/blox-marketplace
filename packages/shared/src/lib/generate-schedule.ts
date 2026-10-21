@@ -3,6 +3,7 @@ import {
   addDays,
   addMonths,
   daysInMonth,
+  firstInstallmentDueFrom,
   formatDateYmd,
   isBeforeDay,
   isBeforeMonth,
@@ -150,6 +151,7 @@ export function generateInstallmentSchedule(args: {
 export function generatePaymentScheduleFallback(args: {
   installmentPlan: InstallmentPlan;
   vehiclePrice?: number;
+  asOf?: Date;
 }): PaymentScheduleRow[] {
   const plan = args.installmentPlan;
   if (plan.schedule?.length) return plan.schedule;
@@ -163,7 +165,7 @@ export function generatePaymentScheduleFallback(args: {
         ? plan.annualRentalRate * 100
         : plan.annualRentalRate
       : 0;
-  const startDate = addMonths(startOfMonth(new Date()), 1);
+  const startDate = firstInstallmentDueFrom(args.asOf ?? new Date());
 
   return generateInstallmentSchedule({
     startDate,
@@ -241,6 +243,7 @@ export function buildPlanFromPricingSnapshot(args: {
   tenureLabel?: string;
   interval?: string;
   vehiclePrice?: number;
+  asOf?: Date;
 }): InstallmentPlan {
   const snap = args.pricingSnapshot;
   const tenor = Number(snap.tenor ?? snap.tenure ?? 12);
@@ -249,7 +252,7 @@ export function buildPlanFromPricingSnapshot(args: {
   const rate = Number(snap.rate ?? 0);
   const monthly = Number(snap.monthly ?? 0);
 
-  const startDate = addMonths(startOfMonth(new Date()), 1);
+  const startDate = firstInstallmentDueFrom(args.asOf ?? new Date());
   const schedule = generateInstallmentSchedule({
     startDate,
     totalMonths: tenor,

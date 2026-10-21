@@ -28,9 +28,17 @@ const TRACK: CSSProperties = {
   borderRadius: 999,
   background: 'var(--blox-slate-soft)',
   marginBlock: 10,
+  overflow: 'visible',
 };
 
+function markerAlign(pct: number): 'start' | 'center' | 'end' {
+  if (pct <= 18) return 'start';
+  if (pct >= 82) return 'end';
+  return 'center';
+}
+
 function Marker({ pct, label, dashed }: { pct: number; label: string; dashed?: boolean }) {
+  const align = markerAlign(pct);
   const tick: CSSProperties = {
     position: 'absolute',
     insetInlineStart: `${pct}%`,
@@ -39,15 +47,16 @@ function Marker({ pct, label, dashed }: { pct: number; label: string; dashed?: b
     width: 0,
     borderInlineStart: `2px ${dashed ? 'dashed' : 'solid'} var(--blox-ink)`,
   };
-  // Zero-width flex box centred on the tick: the label overflows equally on both
-  // sides, so it stays centred in LTR and RTL without a direction-aware transform.
   const labelBox: CSSProperties = {
     position: 'absolute',
-    insetInlineStart: `${pct}%`,
     top: 12,
     width: 0,
     display: 'flex',
-    justifyContent: 'center',
+    ...(align === 'start'
+      ? { insetInlineStart: 0, justifyContent: 'flex-start' }
+      : align === 'end'
+        ? { insetInlineStart: '100%', justifyContent: 'flex-end' }
+        : { insetInlineStart: `${pct}%`, justifyContent: 'center' }),
   };
   return (
     <>
@@ -70,7 +79,11 @@ export function DbrGauge({ affordability }: { affordability: AffordabilityDto })
   const model = dbrGaugeModel(affordability);
   const dbrLabel = formatDbrPct(affordability.dbr);
   return (
-    <div role="img" aria-label={`${t('dealerOps.creditAssessment.dbr')}: ${t('dealerOps.creditAssessment.dbrValue', { dbr: dbrLabel })}`}>
+    <div
+      role="img"
+      aria-label={`${t('dealerOps.creditAssessment.dbr')}: ${t('dealerOps.creditAssessment.dbrValue', { dbr: dbrLabel })}`}
+      style={{ minWidth: 0 }}
+    >
       <div className="blox-cell-row blox-cell-row--wrap" style={{ justifyContent: 'space-between' }}>
         <span>
           <strong>{t('dealerOps.creditAssessment.dbr')}</strong>{' '}

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
 import { useAuthStore } from '../../auth/auth-store';
 import { Alert, OpsTextarea } from '../../ops-ui-v2';
 import { OpsDangerButton, OpsGhostButton, OpsPrimaryButton, OpsSecondaryButton, OpsStatusPill } from '../../components/ops-ui';
 import { HARD_CAP_PERCENT } from '../../lib/credit-assessment';
+import { apiErrorCodeOf } from '../submit-gate';
 import {
   approveBlockReason,
   creditPathVariant,
@@ -31,12 +32,52 @@ type Action = { key: string; label: string; onClick: () => void; disabled?: bool
  * exception tier for the signed-in role, hard cap for everyone but a super admin) and a
  * `dbr_above_hard_cap` refusal opens the override-reason dialog for credit/super admin.
  */
-export function DecisionPanel({ data, actions, mutations, label, setConfirm, setError, reason, onReasonChange, platform }: Props) {
+export function DecisionPanel({ data, actions, mutations, label, setConfirm, reason, onReasonChange, platform }: Props) {
   const { t } = useOpsLabels();
   const role = useAuthStore((s) => s.user?.role ?? null);
   const busy = mutations.busy;
   const nextKey = `ops.workspace.next.${data.status}`;
   const [override, setOverride] = useState<{ retry: (overrideReason: string) => void } | null>(null);
+  const [reasonError, setReasonError] = useState<string | null>(null);
+  const [complianceError, setComplianceError] = useState<string | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const reasonFieldId = 'blox-decision-reason';
+  const reasonWrapRef = useRef<HTMLDivElement>(null);
+
+  function clearReasonError() {
+    setReasonError(null);
+  }
+
+  function requireReason(): boolean {
+    if (reason.trim()) {
+      setReasonError(null);
+      return true;
+    }
+    const message = t('ops.credit.reasonRequired', {
+      defaultValue: 'Enter a reason before rejecting this application.',
+    });
+    setReasonError(message);
+    requestAnimationFrame(() => {
+      const field =
+        reasonWrapRef.current?.querySelector<HTMLTextAreaElement>('textarea') ??
+        document.getElementById(reasonFieldId);
+      field?.focus();
+      reasonWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return false;
+  }
+
+  /** Non-destructive actions should dismiss a stale “reason required” banner. */
+  function bindAction(action: Action, dismissReasonError = true): Action {
+    if (!dismissReasonError) return action;
+    return {
+      ...action,
+      onClick: () => {
+        clearReasonError();
+        action.onClick();
+      },
+    };
+  }
 
   const assessment = platform?.creditAssessment ?? data.credit_assessment ?? null;
   const approvalStage = data.status === 'under_review';
@@ -51,13 +92,36 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, set
     }
   }
   function runApprove(overrideReason?: string) {
+    setComplianceError(null);
     mutations.approve.mutate(overrideReason ? { override_reason: overrideReason } : undefined, {
-      onError: (e) => maybeOverride(e, runApprove),
+      onError: (e) => {
+        maybeOverride(e, runApprove);
+        if (apiErrorCodeOf(e) === 'compliance_check_required') {
+          setComplianceError(
+            t('ops.credit.complianceRequired', {
+              defaultValue:
+                'A compliance check has to pass before you can approve and send the contract. Run the compliance check, then approve again.',
+            }),
+          );
+          requestAnimationFrame(() => {
+            sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+        }
+      },
     });
   }
+  function surfaceTransitionReasonError(error: unknown) {
+    if (apiErrorCodeOf(error) === 'validation_failed') {
+      requireReason();
+    }
+  }
+
   function runTransition(toStatus: string, overrideReason?: string) {
     mutations.transition.mutate(overrideReason ? { toStatus, override_reason: overrideReason } : toStatus, {
-      onError: (e) => maybeOverride(e, (next) => runTransition(toStatus, next)),
+      onError: (e) => {
+        surfaceTransitionReasonError(e);
+        maybeOverride(e, (next) => runTransition(toStatus, next));
+      },
     });
   }
 
@@ -67,99 +131,197 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, set
   const destructive: Action[] = [];
   const gated = block ? { disabled: true, title: block.message } : {};
 
-  if (actions.submitToCredit) primary.push({ key: 'submit', label: t('ops.dealer.submitToCredit'), onClick: () => mutations.submit.mutate() });
+  if (actions.submitToCredit)
+    primary.push(
+      bindAction({ key: 'submit', label: t('ops.dealer.submitToCredit'), onClick: () => mutations.submit.mutate() }),
+    );
   if (actions.approveContract)
-    primary.push({ key: 'approve', label: t('ops.credit.approveSendContract'), onClick: () => runApprove(), ...gated });
+    primary.push(
+      bindAction({ key: 'approve', label: t('ops.credit.approveSendContract'), onClick: () => runApprove(), ...gated }),
+    );
   if (actions.approveForFinance)
-    (primary.length ? secondary : primary).push({
-      key: 'approveForFinance',
-      label: t('ops.credit.approveForFinance'),
-      onClick: () =>
-        setConfirm({
-          title: t('ops.credit.approveForFinance'),
-          message: t('ops.credit.approveForFinanceConfirm', { label }),
-          onConfirm: () => runTransition('pending_finance_activation'),
-        }),
-      ...gated,
-    });
-  if (actions.startContractReview) primary.push({ key: 'startReview', label: t('ops.credit.startContractReview'), onClick: () => runTransition('contract_under_review') });
-  if (actions.approveSignedContract) primary.push({ key: 'approveSigned', label: t('ops.credit.approveContract'), onClick: () => runTransition('pending_finance_activation') });
+    (primary.length ? secondary : primary).push(
+      bindAction({
+        key: 'approveForFinance',
+        label: t('ops.credit.approveForFinance'),
+        onClick: () =>
+          setConfirm({
+            title: t('ops.credit.approveForFinance'),
+            message: t('ops.credit.approveForFinanceConfirm', { label }),
+            onConfirm: () => runTransition('pending_finance_activation'),
+          }),
+        ...gated,
+      }),
+    );
+  if (actions.startContractReview)
+    primary.push(
+      bindAction({
+        key: 'startReview',
+        label: t('ops.credit.startContractReview'),
+        onClick: () => runTransition('contract_under_review'),
+      }),
+    );
+  if (actions.approveSignedContract)
+    primary.push(
+      bindAction({
+        key: 'approveSigned',
+        label: t('ops.credit.approveContract'),
+        onClick: () => runTransition('pending_finance_activation'),
+      }),
+    );
   if (actions.activate)
-    primary.push({
-      key: 'activate',
-      label: t('ops.credit.activateFinancing'),
-      onClick: () =>
-        setConfirm({
-          title: t('ops.credit.activateFinancing'),
-          message: t('ops.credit.activateConfirm', { label }),
-          onConfirm: () => mutations.activate.mutate(false),
-        }),
-      ...(approvalStage ? gated : {}),
-    });
+    primary.push(
+      bindAction({
+        key: 'activate',
+        label: t('ops.credit.activateFinancing'),
+        onClick: () =>
+          setConfirm({
+            title: t('ops.credit.activateFinancing'),
+            message: t('ops.credit.activateConfirm', { label }),
+            onConfirm: () => mutations.activate.mutate(false),
+          }),
+        ...(approvalStage ? gated : {}),
+      }),
+    );
   if (actions.recordDownPayment && data.status === 'down_payment_required')
-    primary.push({ key: 'recordDp', label: t('ops.finance.recordDownPayment'), onClick: () => mutations.downPay.mutate() });
+    primary.push(
+      bindAction({ key: 'recordDp', label: t('ops.finance.recordDownPayment'), onClick: () => mutations.downPay.mutate() }),
+    );
   if (actions.recordDownPayment && data.status === 'down_payment_submitted')
-    primary.push({ key: 'confirmDp', label: t('ops.finance.confirmDownPayment'), onClick: () => runTransition('pending_finance_activation') });
+    primary.push(
+      bindAction({
+        key: 'confirmDp',
+        label: t('ops.finance.confirmDownPayment'),
+        onClick: () => runTransition('pending_finance_activation'),
+      }),
+    );
   if (actions.issueLpo)
-    primary.push({ key: 'issueLpo', label: t('ops.finance.nav.lpo'), onClick: () => mutations.issueLpo.mutate() });
+    primary.push(
+      bindAction({ key: 'issueLpo', label: t('ops.finance.nav.lpo'), onClick: () => mutations.issueLpo.mutate() }),
+    );
   if (actions.confirmLpoSettlement)
-    primary.push({ key: 'settleLpo', label: t('ops.finance.nav.lpo'), onClick: () => mutations.settleLpo.mutate() });
+    primary.push(
+      bindAction({ key: 'settleLpo', label: t('ops.finance.nav.lpo'), onClick: () => mutations.settleLpo.mutate() }),
+    );
   if (actions.openHardship)
-    secondary.push({ key: 'hardship', label: t('ops.credit.nav.hardship'), onClick: () => mutations.openHardship.mutate() });
+    secondary.push(
+      bindAction({ key: 'hardship', label: t('ops.credit.nav.hardship'), onClick: () => mutations.openHardship.mutate() }),
+    );
   if (actions.resolveHardship)
-    primary.push({ key: 'resolveHardship', label: t('ops.credit.reopen'), onClick: () => mutations.decideHardship.mutate('resolve') });
+    primary.push(
+      bindAction({
+        key: 'resolveHardship',
+        label: t('ops.credit.reopen'),
+        onClick: () => mutations.decideHardship.mutate('resolve'),
+      }),
+    );
   if (actions.startRepossession)
     destructive.push({
       key: 'repo',
       label: t('ops.status.repossession_in_progress'),
       onClick: () => mutations.decideHardship.mutate('fail'),
     });
-  if (actions.reopen) primary.push({ key: 'reopen', label: t('ops.credit.reopen'), onClick: () => runTransition('under_review') });
+  if (actions.returnFromRecovery)
+    primary.push({
+      key: 'returnFromRecovery',
+      label: t('ops.credit.returnFromRecovery', { defaultValue: 'Return to hardship' }),
+      onClick: () => {
+        if (!requireReason()) return;
+        runTransition('hardship');
+      },
+    });
+  if (actions.completeRecovery)
+    secondary.push(
+      bindAction({
+        key: 'completeRecovery',
+        label: t('ops.credit.completeRecovery', { defaultValue: 'Complete asset recovery' }),
+        onClick: () => runTransition('completed'),
+      }),
+    );
+  if (actions.reopen)
+    primary.push(
+      bindAction({ key: 'reopen', label: t('ops.credit.reopen'), onClick: () => runTransition('under_review') }),
+    );
 
-  if (actions.requestResubmission) secondary.push({ key: 'resubmission', label: t('ops.credit.requestResubmission'), onClick: () => runTransition('resubmission_required') });
-  if (actions.requireDownPayment) secondary.push({ key: 'requireDp', label: t('ops.credit.requireDownPayment'), onClick: () => runTransition('down_payment_required') });
-  if (actions.recoverDownPayment) secondary.push({ key: 'recoverDp', label: t('ops.credit.collectDownPayment'), onClick: () => runTransition('down_payment_required') });
+  if (actions.requestResubmission)
+    secondary.push({
+      key: 'resubmission',
+      label: t('ops.credit.requestResubmission'),
+      onClick: () => {
+        if (!requireReason()) return;
+        runTransition('resubmission_required');
+      },
+    });
+  if (actions.requireDownPayment)
+    secondary.push(
+      bindAction({
+        key: 'requireDp',
+        label: t('ops.credit.requireDownPayment'),
+        onClick: () => runTransition('down_payment_required'),
+      }),
+    );
+  if (actions.recoverDownPayment)
+    secondary.push(
+      bindAction({
+        key: 'recoverDp',
+        label: t('ops.credit.collectDownPayment'),
+        onClick: () => runTransition('down_payment_required'),
+      }),
+    );
 
   if (actions.activateAdmin)
-    tertiary.push({
-      key: 'activateAdmin',
-      label: t('ops.credit.activateAdmin'),
-      onClick: () =>
-        setConfirm({
-          title: t('ops.credit.activateAdmin'),
-          message: t('ops.credit.activateAdminConfirm', { label }),
-          onConfirm: () => mutations.activate.mutate(false),
-        }),
-      ...(approvalStage ? gated : {}),
-    });
+    tertiary.push(
+      bindAction({
+        key: 'activateAdmin',
+        label: t('ops.credit.activateAdmin'),
+        onClick: () =>
+          setConfirm({
+            title: t('ops.credit.activateAdmin'),
+            message: t('ops.credit.activateAdminConfirm', { label }),
+            onConfirm: () => mutations.activate.mutate(false),
+          }),
+        ...(approvalStage ? gated : {}),
+      }),
+    );
   if (actions.directActivate && data.allow_direct_activate)
-    tertiary.push({
-      key: 'directActivate',
-      label: t('ops.credit.directActivate'),
-      onClick: () =>
-        setConfirm({
-          title: t('ops.credit.directActivate'),
-          message: t('ops.credit.directActivateConfirm', { label }),
-          onConfirm: () => mutations.activate.mutate(true),
-        }),
-      ...(approvalStage ? gated : {}),
-    });
-  if (actions.complianceCheck) tertiary.push({ key: 'compliance', label: t('ops.credit.complianceCheck'), onClick: () => mutations.compliance.mutate() });
+    tertiary.push(
+      bindAction({
+        key: 'directActivate',
+        label: t('ops.credit.directActivate'),
+        onClick: () =>
+          setConfirm({
+            title: t('ops.credit.directActivate'),
+            message: t('ops.credit.directActivateConfirm', { label }),
+            onConfirm: () => mutations.activate.mutate(true),
+          }),
+        ...(approvalStage ? gated : {}),
+      }),
+    );
+  if (actions.complianceCheck)
+    (complianceError ? primary : tertiary).push(
+      bindAction({
+        key: 'compliance',
+        label: t('ops.credit.complianceCheck'),
+        onClick: () => {
+          setComplianceError(null);
+          mutations.compliance.mutate();
+        },
+      }),
+    );
 
   if (actions.reject)
     destructive.push({
       key: 'reject',
       label: t('ops.common.reject'),
       onClick: () => {
-        if (!reason.trim()) {
-          setError(t('ops.credit.reasonRequired', { defaultValue: 'Enter a reason before rejecting this application.' }));
-          return;
-        }
-        setError(null);
+        if (!requireReason()) return;
         setConfirm({
           title: t('ops.common.reject'),
           message: t('ops.credit.rejectConfirm', { label }),
-          onConfirm: () => runTransition('rejected'),
+          onConfirm: () => {
+            if (!requireReason()) return false;
+            runTransition('rejected');
+          },
           danger: true,
         });
       },
@@ -168,21 +330,30 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, set
     destructive.push({
       key: 'cancel',
       label: t('ops.common.cancelApplication'),
-      onClick: () =>
+      onClick: () => {
+        if (!requireReason()) return;
         setConfirm({
           title: t('ops.common.cancelApplication'),
           message: t('ops.common.cancelApplicationConfirm', { label }),
-          onConfirm: () => runTransition('submission_cancelled'),
+          onConfirm: () => {
+            if (!requireReason()) return false;
+            runTransition('submission_cancelled');
+          },
           danger: true,
-        }),
+        });
+      },
     });
 
   const anyAction = primary.length + secondary.length + tertiary.length + destructive.length > 0;
-  const needsReason = actions.reject || actions.requestResubmission || actions.cancel;
+  const needsReason = actions.reject || actions.requestResubmission || actions.cancel || actions.returnFromRecovery;
   const showSummary = approvalStage && (actions.approveContract || actions.approveForFinance);
 
   return (
-    <section className="blox-detail-section blox-decision" aria-labelledby="blox-decision-title">
+    <section
+      ref={sectionRef}
+      className={`blox-detail-section blox-decision${reasonError ? ' blox-decision--reason-error' : ''}`}
+      aria-labelledby="blox-decision-title"
+    >
       <p className="blox-decision__eyebrow">{t('ops.workspace.nextDecision')}</p>
       <h2 id="blox-decision-title" className="blox-decision__title">
         {t(nextKey, { defaultValue: t('ops.workspace.next.default') })}
@@ -225,15 +396,36 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, set
         </Alert>
       )}
 
+      {complianceError && (
+        <Alert variant="error" title={t('ops.credit.complianceCheck')}>
+          {complianceError}
+        </Alert>
+      )}
+
       {needsReason && (
-        <OpsTextarea
-          label={t('ops.credit.reasonForReject')}
-          required
-          value={reason}
-          onChange={(e) => onReasonChange(e.target.value)}
-          rows={3}
-          placeholder={t('ops.workspace.reasonPlaceholder')}
-        />
+        <>
+          <div ref={reasonWrapRef}>
+            <OpsTextarea
+              id={reasonFieldId}
+              label={t('ops.credit.reasonForReject')}
+              required
+              value={reason}
+              onChange={(e) => {
+                onReasonChange(e.target.value);
+                if (reasonError) setReasonError(null);
+              }}
+              rows={3}
+              placeholder={t('ops.workspace.reasonPlaceholder')}
+              error={reasonError ?? undefined}
+              fullWidth
+            />
+          </div>
+          {reasonError && (
+            <Alert variant="error" title={t('ops.credit.reasonRequiredTitle')} className="blox-decision__reason-alert">
+              {reasonError}
+            </Alert>
+          )}
+        </>
       )}
       {anyAction ? (
         <div className="blox-decision__actions">
@@ -243,18 +435,20 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, set
             </OpsPrimaryButton>
           ))}
           {(secondary.length > 0 || destructive.length > 0) && (
-            <div className="blox-decision__row">
-              {secondary.map((a) => (
-                <OpsSecondaryButton key={a.key} type="button" disabled={busy || a.disabled} title={a.title} onClick={a.onClick}>
-                  {a.label}
-                </OpsSecondaryButton>
-              ))}
-              {destructive.map((a) => (
-                <OpsDangerButton key={a.key} type="button" disabled={busy} onClick={a.onClick}>
-                  {a.label}
-                </OpsDangerButton>
-              ))}
-            </div>
+            <>
+              <div className="blox-decision__row">
+                {secondary.map((a) => (
+                  <OpsSecondaryButton key={a.key} type="button" disabled={busy || a.disabled} title={a.title} onClick={a.onClick}>
+                    {a.label}
+                  </OpsSecondaryButton>
+                ))}
+                {destructive.map((a) => (
+                  <OpsDangerButton key={a.key} type="button" disabled={busy} onClick={a.onClick}>
+                    {a.label}
+                  </OpsDangerButton>
+                ))}
+              </div>
+            </>
           )}
           {tertiary.length > 0 && (
             <div className="blox-decision__row blox-decision__row--tertiary">

@@ -18,6 +18,7 @@ export type NotifyOptions = {
   category?: NotificationCategory;
   data?: NotificationData;
   email?: NotificationDispatchInput['email'];
+  forceEmail?: boolean;
 };
 
 @Injectable()
@@ -77,6 +78,7 @@ export class ActivityService {
         linkPath: linkPath ?? null,
         data: opts?.data,
         email: opts?.email,
+        forceEmail: opts?.forceEmail,
       });
     }
     const row = await this.prisma.notification.create({

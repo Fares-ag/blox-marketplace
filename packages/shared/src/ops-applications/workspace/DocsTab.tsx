@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
 import { apiFetch, apiFileUrl } from '../../lib/api';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
+import { FileDropzone } from '../../components/FileDropzone';
 import { OpsPrimaryButton, OpsStatusPill } from '../../components/ops-ui';
 import { KycVerificationPanel } from '../KycVerificationPanel';
 import {
@@ -176,20 +177,21 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                     </a>
                   )}
                   {actions.uploadDocs && (
-                    <label className="blox-btn blox-btn--secondary blox-btn--sm">
+                    <FileDropzone
+                      className="blox-btn blox-btn--secondary blox-btn--sm"
+                      accept={KYC_UPLOAD_ACCEPT}
+                      disabled={mutations.uploadDoc.isPending}
+                      onFile={(file) => {
+                        const fake = { target: { files: [file], value: '' } } as unknown as ChangeEvent<HTMLInputElement>;
+                        onPick(fake, slot.category);
+                      }}
+                    >
                       {isQuotation && !satisfied
                         ? t('inventoryRules.attachQuotation')
                         : satisfied
                           ? t('dealerOps.docs.replace')
                           : t('dealerOps.docs.upload')}
-                      <input
-                        type="file"
-                        accept={KYC_UPLOAD_ACCEPT}
-                        hidden
-                        disabled={mutations.uploadDoc.isPending}
-                        onChange={(e) => onPick(e, slot.category)}
-                      />
-                    </label>
+                    </FileDropzone>
                   )}
                 </li>
               );
@@ -368,25 +370,20 @@ function ContractDocumentsBlock({ id, canUpload }: { id: string; canUpload: bool
                 </a>
               </div>
               {canUpload && doc.audience === 'customer' && !signed && (
-                <label className="blox-upload-dropzone">
-                  <input
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    hidden
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        setFiles((current) => ({ ...current, [doc.id]: file }));
-                        void signDoc(doc.id, file);
-                      }
-                    }}
-                  />
+                <FileDropzone
+                  className="blox-upload-dropzone"
+                  accept=".pdf,application/pdf"
+                  onFile={(file) => {
+                    setFiles((current) => ({ ...current, [doc.id]: file }));
+                    void signDoc(doc.id, file);
+                  }}
+                >
                   <p>
                     {pendingId === doc.id
                       ? t('ops.common.saving')
                       : files[doc.id]?.name ?? t('ops.workspace.uploadSignedDocument')}
                   </p>
-                </label>
+                </FileDropzone>
               )}
             </li>
           );

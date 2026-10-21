@@ -1,9 +1,13 @@
 import { CompanyKind } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import { expandCompanyIds, resolveDescendantCompanyIds } from './company-hierarchy';
+import {
+  expandCompanyIds,
+  resolveDescendantCompanyIds,
+  resolveSelfAndAncestorCompanyIds,
+} from './company-hierarchy';
 
 function mockPrisma(opts: {
-  companies?: Array<{ id: string; kind: CompanyKind }>;
+  companies?: Array<{ id: string; kind: CompanyKind; parentCompanyId?: string | null }>;
   children?: Array<{ id: string }>;
 }) {
   return {
@@ -40,6 +44,25 @@ describe('company-hierarchy', () => {
       'audi',
       'vw',
       'skoda',
+    ]);
+  });
+
+  it('includes the holding parent when resolving a child dealership', async () => {
+    const prisma = mockPrisma({
+      companies: [{ id: 'audi', kind: CompanyKind.dealership, parentCompanyId: 'qauto' }],
+    });
+    await expect(resolveSelfAndAncestorCompanyIds(prisma as never, 'audi')).resolves.toEqual([
+      'audi',
+      'qauto',
+    ]);
+  });
+
+  it('returns only the company when it has no parent', async () => {
+    const prisma = mockPrisma({
+      companies: [{ id: 'standalone', kind: CompanyKind.dealership, parentCompanyId: null }],
+    });
+    await expect(resolveSelfAndAncestorCompanyIds(prisma as never, 'standalone')).resolves.toEqual([
+      'standalone',
     ]);
   });
 

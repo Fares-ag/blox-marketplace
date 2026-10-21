@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { DOCUMENT_UPLOAD_ACCEPT, apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel, getAppLocale, type DocumentSlot } from '@drivemarket/shared';
+import { DOCUMENT_UPLOAD_ACCEPT, FileDropzone, apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel, getAppLocale, type DocumentSlot } from '@drivemarket/shared';
 import { ApplicationStatusView } from './ApplicationStatusView';
 import { OwnershipProgress } from './OwnershipProgress';
 import { TakafulSection, takafulSectionVisible } from './TakafulSection';
@@ -135,14 +135,13 @@ function DocumentUploadCard({
   return (
     <div className="dm-app-detail__upload">
       <p className="dm-app-detail__upload-title">{label}</p>
-      <label className={`dm-app-detail__file${uploading ? ' is-uploading' : ''}`}>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          disabled={uploading}
-          onChange={(e) => void handleFileChange(e.target.files?.[0])}
-        />
+      <FileDropzone
+        accept={accept}
+        disabled={uploading}
+        hiddenInput={false}
+        className={`dm-app-detail__file${uploading ? ' is-uploading' : ''}`}
+        onFile={(file) => void handleFileChange(file)}
+      >
         <span className="dm-app-detail__file-btn">
           {uploading
             ? t('application.uploading', { defaultValue: 'Uploading…' })
@@ -151,7 +150,7 @@ function DocumentUploadCard({
         <span className={`dm-app-detail__file-name${fileName ? ' is-selected' : ''}`}>
           {fileName ?? t('application.noFileChosen')}
         </span>
-      </label>
+      </FileDropzone>
     </div>
   );
 }
@@ -218,22 +217,14 @@ function SlotRow({
         </p>
       </div>
       <div className="dm-docs__action">
-        <input
-          ref={inputRef}
-          id={inputId}
-          type="file"
-          className="dm-sr-only"
+        <FileDropzone
           accept={DOCUMENT_UPLOAD_ACCEPT}
           disabled={uploading}
-          onChange={(e) => void handleFile(e.target.files?.[0])}
-        />
-        <label
-          htmlFor={inputId}
           className={`dm-btn-ghost dm-btn-ghost--on-light dm-docs__btn${uploading ? ' is-disabled' : ''}`}
-          aria-label={`${stale ? t('applyFlow.docs.reupload') : uploaded ? t('applyFlow.docs.replace') : t('applyFlow.docs.upload')}: ${t(slot.labelKey)}`}
+          onFile={(file) => void handleFile(file)}
         >
           {uploading ? t('applyFlow.docs.uploading') : stale ? t('applyFlow.docs.reupload') : uploaded ? t('applyFlow.docs.replace') : t('applyFlow.docs.upload')}
-        </label>
+        </FileDropzone>
       </div>
     </li>
   );
@@ -250,9 +241,9 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const scheduleRef = useRef<HTMLElement>(null);
   const settlementRef = useRef<HTMLElement>(null);
 
-  const canUpload = ['resubmission_required', 'draft'].includes(app.status);
+  const canUpload = ['resubmission_required', 'draft', 'rejected'].includes(app.status);
   const canSubmitDraft = app.status === 'draft';
-  const canResubmit = app.status === 'resubmission_required';
+  const canResubmit = app.status === 'resubmission_required' || app.status === 'rejected';
   const canCancel = ['under_review', 'resubmission_required', 'draft'].includes(app.status);
   const canSignContract = app.status === 'contract_signing_required';
   const canDownloadContract =
@@ -532,7 +523,15 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     await postSignedUpload(`/api/applications/${app.id}/contract-documents/${docId}/sign`, file);
   }
 
+  const signedContractCount = contractDocsQuery.data?.signed_count ?? 0;
+  const requiredContractCount = contractDocsQuery.data?.required_count ?? contractDocs.length;
+  const contractsComplete = requiredContractCount > 0 && signedContractCount >= requiredContractCount;
+
   async function submitContractPackage() {
+    if (!contractsComplete) {
+      setContractError(t('application.contractIncomplete'));
+      return;
+    }
     setContractError(null);
     setContractSubmitting(true);
     try {
@@ -607,6 +606,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           <OwnershipProgress
             pricingSnapshot={app.pricingSnapshot ?? undefined}
             paymentSchedules={app.paymentSchedules}
+            completedAt={app.completedAt}
             showTimeline
           />
         </section>
@@ -811,17 +811,11 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
             </>
           )}
           {contractError && <p className="dm-app-detail__error">{contractError}</p>}
-          {canSignContract && contractDocs.length > 0 && (
-            <div className="dm-app-detail__contract-submit">
-              <button
-                type="button"
-                className="dm-btn-cta"
-                disabled={contractSubmitting}
-                onClick={() => void submitContractPackage()}
-              >
-                {contractSubmitting ? t('application.contractSubmitting') : t('application.submitSignedContract')}
-              </button>
-            </div>
+          {canSignContract && contractDocs.length > 0 && !contractsComplete && (
+            <p className="dm-app-detail__hint">{t('application.contractIncomplete')}</p>
+          )}
+          {canSignContract && contractDocs.length > 0 && contractsComplete && contractSubmitting && (
+            <p className="dm-app-detail__hint">{t('application.contractSubmitting')}</p>
           )}
         </section>
       )}

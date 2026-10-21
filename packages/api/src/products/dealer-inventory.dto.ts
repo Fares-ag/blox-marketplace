@@ -1,12 +1,13 @@
 import type { Product, ProductImage } from '@prisma/client';
 import { vehicleIdentityComplete } from './vehicle-identity';
 
-type ProductWithImages = Product & { images?: ProductImage[] };
+type ProductWithImages = Product & { images?: ProductImage[]; company?: { name: string } | null };
 
 export function toDealerInventoryDto(product: ProductWithImages) {
   return {
     id: product.id,
     company_id: product.companyId,
+    company_name: product.company?.name ?? null,
     slug: product.slug,
     make: product.make,
     model: product.model,

@@ -39,6 +39,8 @@ function buildService(deps: BuildDeps = {}) {
       (deps.prisma ?? {}) as never,
       { marketplacePath: (path: string) => `https://blox.market${path}` } as never,
       router as never,
+      {} as never,
+      {} as never,
     ),
     health,
     router,

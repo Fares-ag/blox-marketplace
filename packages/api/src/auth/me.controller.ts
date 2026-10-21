@@ -71,6 +71,12 @@ export class MeController {
           select: { id: true, name: true },
         })
       : null;
+    const company = user.companyId
+      ? await this.prisma.company.findUnique({
+          where: { id: user.companyId },
+          select: { name: true },
+        })
+      : null;
     const sessionPolicy = resolveSessionPolicy(this.config);
     return {
       id: user.id,
@@ -80,6 +86,7 @@ export class MeController {
       last_name: user.lastName ?? null,
       role: user.role,
       company_id: user.companyId,
+      company_name: company?.name ?? null,
       credit_scope: user.creditScope,
       finance_scope: user.financeScope,
       phone: user.phone,

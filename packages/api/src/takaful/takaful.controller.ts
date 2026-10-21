@@ -33,6 +33,9 @@ import { TakafulService, type TakafulFile } from './takaful.service';
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_DATE_MESSAGE = 'dates must be YYYY-MM-DD';
+/** Letters and digits together, as printed on a policy (for example QIC-2026-000123). */
+const POLICY_NUMBER_PATTERN = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9][A-Za-z0-9/-]{5,39}$/;
+const POLICY_NUMBER_MESSAGE = 'policy_number_invalid';
 
 /**
  * Policy fields that are optional on both routes.
@@ -47,22 +50,24 @@ const ISO_DATE_MESSAGE = 'dates must be YYYY-MM-DD';
 class TakafulPolicyFieldsDto {
   @IsOptional() @IsNumber() @Min(0) coverage_amount?: number | null;
   @IsOptional() @IsNumber() @Min(0) premium_amount?: number | null;
-  @IsOptional() @Matches(ISO_DATE_PATTERN, { message: ISO_DATE_MESSAGE }) effective_from?: string | null;
-  @IsOptional() @Matches(ISO_DATE_PATTERN, { message: ISO_DATE_MESSAGE }) expires_at?: string | null;
   @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(80, { each: true }) riders?: string[];
 }
 
 class UpdateTakafulDto extends TakafulPolicyFieldsDto {
   @IsOptional() @IsString() @Length(1, 120) provider?: string;
-  @IsOptional() @IsString() @Length(1, 80) policy_number?: string;
+  @IsOptional() @Matches(POLICY_NUMBER_PATTERN, { message: POLICY_NUMBER_MESSAGE }) policy_number?: string;
   @IsOptional() @IsIn(TAKAFUL_COVERAGE_TYPES) coverage_type?: TakafulCoverageType;
+  @IsOptional() @Matches(ISO_DATE_PATTERN, { message: ISO_DATE_MESSAGE }) effective_from?: string | null;
+  @IsOptional() @Matches(ISO_DATE_PATTERN, { message: ISO_DATE_MESSAGE }) expires_at?: string | null;
 }
 
 class DeclareTakafulDto extends TakafulPolicyFieldsDto {
   @IsString() @Length(1, 120) provider!: string;
-  @IsString() @Length(1, 80) policy_number!: string;
+  @Matches(POLICY_NUMBER_PATTERN, { message: POLICY_NUMBER_MESSAGE }) policy_number!: string;
   @IsIn(TAKAFUL_COVERAGE_TYPES) coverage_type!: TakafulCoverageType;
   @IsBoolean() declaration_accepted!: boolean;
+  @Matches(ISO_DATE_PATTERN, { message: ISO_DATE_MESSAGE }) effective_from!: string;
+  @Matches(ISO_DATE_PATTERN, { message: ISO_DATE_MESSAGE }) expires_at!: string;
 }
 
 const OPS_READ_ROLES = [

@@ -77,6 +77,7 @@ enum OfferStatus {
 enum FinancingType {
   diminishing_musharakah
   ijarah
+  conventional_interest
 }
 
 enum ContractDocumentType {
@@ -84,6 +85,10 @@ enum ContractDocumentType {
   musharakah_agreement
   ownership_rental_schedule
   credit_appraisal_memorandum
+  conventional_loan_agreement
+  amortization_schedule
+  qauto_retail_credit_application
+  qauto_fleet_credit_application
 }
 
 enum ContractDocumentAudience {
@@ -698,11 +703,13 @@ model Application {
   totalLossClaims   TotalLossClaim[]
   rentPoolEntries    RentPoolLedgerEntry[]
   contractDocuments  ContractDocument[]
+  bureauSubmissionRows BureauSubmissionRow[]
 
   @@index([customerUserId, status])
   @@index([companyId, status])
   @@index([productId, status])
   @@index([status, createdAt])
+  @@index([activatedAt, status], map: "applications_activatedAt_status_idx")
   @@index([kycCaseId])
   @@index([qidHash])
   @@index([branchId])
@@ -1656,4 +1663,61 @@ model TotalLossClaim {
 
   @@index([applicationId, status])
   @@map("total_loss_claims")
+}
+
+enum BureauSubmissionStatus {
+  generated
+  sent
+  failed
+}
+
+/// Month-end Qatar Credit Bureau file run. The book stays on Application; this is the artefact + audit.
+model BureauSubmission {
+  id              String                 @id @default(cuid())
+  period          String
+  asOf            DateTime               @map("as_of")
+  mapVersion      String                 @map("map_version")
+  unsigned        Boolean                @default(true)
+  status          BureauSubmissionStatus
+  transport       String
+  filename        String?
+  checksum        String?
+  recordCount     Int                    @default(0) @map("record_count")
+  excludedCount   Int                    @default(0) @map("excluded_count")
+  outstandingSum  Decimal                @default(0) @map("outstanding_sum") @db.Decimal(14, 2)
+  fileBody        String?                @map("file_body") @db.Text
+  error           String?
+  actorUserId     String?                @map("actor_user_id")
+  triggeredBy     String                 @default("cron") @map("triggered_by")
+  approvedAt      DateTime?              @map("approved_at")
+  approvedByUserId String?               @map("approved_by_user_id")
+  sendAcknowledgement String?            @map("send_acknowledgement")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  rows BureauSubmissionRow[]
+
+  @@index([period, createdAt])
+  @@index([status, createdAt])
+  @@map("bureau_submissions")
+}
+
+model BureauSubmissionRow {
+  id                String           @id @default(cuid())
+  submissionId      String           @map("submission_id")
+  submission        BureauSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  applicationId     String           @map("application_id")
+  application       Application      @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  referenceSeq      Int              @map("reference_seq")
+  included          Boolean
+  excludeReason     String?          @map("exclude_reason")
+  outstandingSource String?          @map("outstanding_source")
+  outstanding       Decimal?         @db.Decimal(12, 2)
+  statusCode        String?          @map("status_code")
+  ibraAmount        Decimal?         @map("ibra_amount") @db.Decimal(12, 2)
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  @@index([submissionId, included])
+  @@index([applicationId])
+  @@map("bureau_submission_rows")
 }

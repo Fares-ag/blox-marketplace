@@ -8,7 +8,7 @@ import {
   sumInstallmentAmounts,
 } from '@drivemarket/shared/pricing';
 import { buildScheduleDrafts } from './payment-schedules';
-import { QATAR_FINANCING_DISCLOSURES } from './contract-disclosures';
+import { CONVENTIONAL_INTEREST_DISCLOSURES, QATAR_FINANCING_DISCLOSURES } from './contract-disclosures';
 
 /**
  * One installment of the contract schedule. `interest` is the historical key
@@ -42,6 +42,7 @@ export type ContractPdfInput = {
   financedTotal: number;
   lenderName: string;
   schedule: ContractScheduleRow[];
+  financingType?: string | null;
 };
 
 export type ContractPdfResult = {
@@ -238,10 +239,16 @@ export function buildContractLines(input: ContractPdfInput): ContractLine[] {
   const totalPayable = roundMoney(input.downPayment + input.financedTotal);
   const totalRentPayable = roundMoney(Math.max(input.financedTotal - amountFinanced, 0));
   const approvedDate = input.approvedAt.slice(0, 10);
+  const conventional = input.financingType === 'conventional_interest';
   const lines: ContractLine[] = [];
   const line = (text: string, opts?: Omit<ContractLine, 'text'>) => lines.push({ text, ...(opts ?? {}) });
 
-  line('Vehicle Co-Ownership Financing Agreement (Diminishing Musharakah)', { size: 16, bold: true });
+  line(
+    conventional
+      ? 'Vehicle Sale Credit Agreement (conventional in-house finance)'
+      : 'Vehicle Co-Ownership Financing Agreement (Diminishing Musharakah)',
+    { size: 16, bold: true },
+  );
   line('');
   line(`Application ID: ${input.applicationId}`);
   line(`Approval date: ${approvedDate}`);
@@ -260,22 +267,38 @@ export function buildContractLines(input: ContractPdfInput): ContractLine[] {
   line('');
   line('3. Financing summary (locked at approval)', { bold: true });
   line(`Down payment (${input.downPaymentPct.toFixed(2)}%): ${qar(input.downPayment)}`);
-  line(`Initial co-ownership: 100 nominal units. The customer's initial contribution buys units at the cash price; Blox holds the remainder.`);
-  line(`Amount financed (co-owner share purchased over the term): ${qar(amountFinanced)}`);
-  line(`Annual profit rate: ${input.annualRate.toFixed(2)}%`);
-  line(`Tenure: ${input.tenor} months`);
-  line(`Monthly installment (principal + rent): ${qar(input.monthly)}`);
-  line(`Total installments payable: ${qar(input.financedTotal)}`);
-  line(`Total amount payable (down payment + installments): ${qar(totalPayable)}`);
-  line(`Total rent payable (profit over the term): ${qar(totalRentPayable)}`);
+  if (conventional) {
+    line('This is an interest-bearing credit sale. Title is security for the debt until the loan is repaid.');
+    line(`Amount financed (principal): ${qar(amountFinanced)}`);
+    line(`Annual interest rate: ${input.annualRate.toFixed(2)}%`);
+    line(`Tenure: ${input.tenor} months`);
+    line(`Monthly installment (principal + interest): ${qar(input.monthly)}`);
+    line(`Total installments payable: ${qar(input.financedTotal)}`);
+    line(`Total amount payable (down payment + installments): ${qar(totalPayable)}`);
+    line(`Total interest payable: ${qar(totalRentPayable)}`);
+  } else {
+    line(`Initial co-ownership: 100 nominal units. The customer's initial contribution buys units at the cash price; Blox holds the remainder.`);
+    line(`Amount financed (co-owner share purchased over the term): ${qar(amountFinanced)}`);
+    line(`Annual profit rate: ${input.annualRate.toFixed(2)}%`);
+    line(`Tenure: ${input.tenor} months`);
+    line(`Monthly installment (principal + rent): ${qar(input.monthly)}`);
+    line(`Total installments payable: ${qar(input.financedTotal)}`);
+    line(`Total amount payable (down payment + installments): ${qar(totalPayable)}`);
+    line(`Total rent payable (profit over the term): ${qar(totalRentPayable)}`);
+  }
   line('');
   line('4. Disclosures', { bold: true });
-  for (const paragraph of QATAR_FINANCING_DISCLOSURES) {
+  for (const paragraph of conventional ? CONVENTIONAL_INTEREST_DISCLOSURES : QATAR_FINANCING_DISCLOSURES) {
     line(paragraph);
   }
   line('');
   line('5. Payment schedule', { bold: true });
-  line('#   Due date     Payment       Principal     Monthly rent (profit)  Balance', { size: 9, bold: true });
+  line(
+    conventional
+      ? '#   Due date     Payment       Principal     Monthly interest         Balance'
+      : '#   Due date     Payment       Principal     Monthly rent (profit)  Balance',
+    { size: 9, bold: true },
+  );
 
   for (const row of input.schedule) {
     line(

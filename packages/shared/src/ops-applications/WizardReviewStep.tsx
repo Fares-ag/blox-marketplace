@@ -16,6 +16,7 @@ import {
 import { CustomerInfoOverview, InfoItem } from './CustomerInfoOverview';
 import { InstallmentScheduleTable } from './InstallmentScheduleTable';
 import type { VehicleCardOption } from './VehicleSelectionCards';
+import { financeProductKind, financeProductLabelKey } from './finance-product';
 
 export type WizardReviewData = {
   customerInfo: CustomerInfoFormValue;
@@ -70,8 +71,7 @@ export function WizardReviewStep({
     data.sellingPrice || data.listPrice || Number(selectedVehicles[0]?.price ?? 0);
   const slots = wizardDocumentSlots(data.customerInfo);
   const isCorporateMulti = data.customerInfo.applicantType === 'corporate' && selectedVehicles.length > 1;
-  const financeLabel =
-    offer?.crm_adapter === 'zoho' ? t('ops.common.partnerFinance') : t('ops.common.bloxFinance');
+  const financeLabel = t(financeProductLabelKey(financeProductKind(offer)));
   const snapshot = data.planPricingSnapshot;
   const plan = data.installmentPlan;
 

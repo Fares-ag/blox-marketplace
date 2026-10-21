@@ -30,6 +30,22 @@ export type DeclareTakafulInput = TakafulPolicyInput & {
 
 export type TakafulFile = { buffer: Buffer; contentType: string; filename: string };
 
+export const TAKAFUL_POLICY_MIN_YEAR = 2000;
+export const TAKAFUL_POLICY_MAX_YEAR_AHEAD = 15;
+
+export function assertTakafulPolicyDateRange(effectiveFrom: Date | null, expiresAt: Date | null) {
+  const maxYear = new Date().getUTCFullYear() + TAKAFUL_POLICY_MAX_YEAR_AHEAD;
+  if (effectiveFrom && (effectiveFrom.getUTCFullYear() < TAKAFUL_POLICY_MIN_YEAR || effectiveFrom.getUTCFullYear() > maxYear)) {
+    throw new BadRequestException('effective_from_invalid');
+  }
+  if (expiresAt && (expiresAt.getUTCFullYear() < TAKAFUL_POLICY_MIN_YEAR || expiresAt.getUTCFullYear() > maxYear)) {
+    throw new BadRequestException('expires_at_invalid');
+  }
+  if (effectiveFrom && expiresAt && expiresAt.getTime() < effectiveFrom.getTime()) {
+    throw new BadRequestException('expires_before_effective');
+  }
+}
+
 type ApplicationRef = { id: string; customerUserId: string | null; companyId: string; status: ApplicationStatus };
 
 /** Policies the customer can no longer edit: verified cover and closed records. */
@@ -63,6 +79,8 @@ export class TakafulService {
     if (app.status === ApplicationStatus.completed) throw new ConflictException('application_completed');
     if (!input.declaration_accepted) throw new BadRequestException('takaful_declaration_required');
     const dates = this.parseDates(input);
+    if (!dates.effectiveFrom) throw new BadRequestException('effective_from_required');
+    if (!dates.expiresAt) throw new BadRequestException('expires_at_required');
 
     const policy = await this.prisma.takafulPolicy.create({
       data: {
@@ -287,9 +305,7 @@ export class TakafulService {
     if (input.effective_from && !effectiveFrom) throw new BadRequestException('effective_from_invalid');
     const expiresAt = input.expires_at ? parseIsoDate(input.expires_at) : null;
     if (input.expires_at && !expiresAt) throw new BadRequestException('expires_at_invalid');
-    if (effectiveFrom && expiresAt && expiresAt.getTime() < effectiveFrom.getTime()) {
-      throw new BadRequestException('expires_before_effective');
-    }
+    assertTakafulPolicyDateRange(effectiveFrom, expiresAt);
     return { effectiveFrom, expiresAt };
   }
 

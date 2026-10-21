@@ -279,12 +279,12 @@
 
 .blox-detail-grid {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: var(--blox-space-xl);
   align-items: start;
 
   @media (max-width: 960px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   &__main,
@@ -292,6 +292,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--blox-space-lg, 20px);
+    min-width: 0;
   }
 }
 

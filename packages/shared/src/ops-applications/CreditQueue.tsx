@@ -8,7 +8,12 @@ import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsStatusPill } from '../components/ops-ui';
 import { OpsListPage, OpsTab, OpsTabs, OpsToolbar, SearchBar, Table, type Column } from '../ops-ui-v2';
 import type { PaginatedResponse } from '../types/domain';
-import { CREDIT_PIPELINE_STATUSES, CREDIT_HARDSHIP_QUEUE_STATUSES } from './constants';
+import {
+  CREDIT_CONFIRMED_STATUSES,
+  CREDIT_HARDSHIP_QUEUE_STATUSES,
+  CREDIT_PIPELINE_STATUSES,
+  CREDIT_REVIEW_STATUSES,
+} from './constants';
 import type { OpsQueueItem } from './types';
 
 function queueAge(iso?: string | null) {
@@ -31,20 +36,22 @@ export function CreditQueue({
   initialTab = 'pipeline',
 }: {
   detailBase?: string;
-  initialTab?: 'pipeline' | 'rejected' | 'hardship';
+  initialTab?: 'pipeline' | 'confirmed' | 'rejected' | 'hardship';
 }) {
   const portalBase = usePortalBasePath();
   const detailBase = detailBaseProp ?? withPortalBase('/applications', portalBase);
   const { t, applicationStatus } = useOpsLabels();
   const [page, setPage] = useState(0);
   const [q, setQ] = useState('');
-  const [tab, setTab] = useState<'pipeline' | 'rejected' | 'hardship'>(initialTab);
+  const [tab, setTab] = useState<'pipeline' | 'confirmed' | 'rejected' | 'hardship'>(initialTab);
   const statusIn =
     tab === 'rejected'
       ? 'rejected'
       : tab === 'hardship'
         ? CREDIT_HARDSHIP_QUEUE_STATUSES.join(',')
-        : CREDIT_PIPELINE_STATUSES.join(',');
+        : tab === 'confirmed'
+          ? CREDIT_CONFIRMED_STATUSES.join(',')
+          : CREDIT_PIPELINE_STATUSES.join(',');
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['credit-queue', page, q, tab],
@@ -58,7 +65,15 @@ export function CreditQueue({
     queryKey: ['credit-queue-metrics-review'],
     queryFn: () =>
       apiFetch<PaginatedResponse<OpsQueueItem>>(
-        '/api/ops/applications?limit=1&offset=0&statusIn=under_review,contract_under_review',
+        `/api/ops/applications?limit=1&offset=0&statusIn=${CREDIT_REVIEW_STATUSES.join(',')}`,
+      ),
+  });
+
+  const confirmedCount = useQuery({
+    queryKey: ['credit-queue-metrics-confirmed'],
+    queryFn: () =>
+      apiFetch<PaginatedResponse<OpsQueueItem>>(
+        `/api/ops/applications?limit=1&offset=0&statusIn=${CREDIT_CONFIRMED_STATUSES.join(',')}`,
       ),
   });
 
@@ -82,6 +97,7 @@ export function CreditQueue({
 
   const queueMetrics = [
     { label: t('ops.credit.inReview'), value: String(reviewCount.data?.total ?? '—') },
+    { label: t('ops.credit.confirmed'), value: String(confirmedCount.data?.total ?? '—') },
     { label: t('ops.credit.resubmission'), value: String(resubCount.data?.total ?? '—') },
     { label: t('ops.credit.avgAge'), value: items.length ? avgAgeLabel : '—' },
     { label: t('ops.credit.queueTotal'), value: String(total) },
@@ -191,6 +207,7 @@ export function CreditQueue({
               }}
             >
               <OpsTab value="pipeline" label={t('ops.credit.tabPipeline')} />
+              <OpsTab value="confirmed" label={t('ops.credit.tabConfirmed')} />
               <OpsTab value="rejected" label={t('ops.credit.tabRejected')} />
               <OpsTab value="hardship" label={t('ops.credit.nav.hardship')} />
             </OpsTabs>

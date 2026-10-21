@@ -9,6 +9,21 @@ import {
 } from './mail.service';
 
 describe('renderNotificationEmail', () => {
+  it('renders the credit-queue notice the officer receives on submit', () => {
+    const rendered = renderNotificationEmail({
+      name: 'Credit Reviewer',
+      title: 'New financing application',
+      body: 'A customer submitted a financing application.',
+      url: 'https://credit.blox.market/applications/app-1',
+      category: 'application',
+    });
+    expect(rendered.subject).toBe('New financing application');
+    expect(rendered.text).toContain('Hi Credit Reviewer,');
+    expect(rendered.text).toContain('A customer submitted a financing application.');
+    expect(rendered.text).toContain('Open in Blox: https://credit.blox.market/applications/app-1');
+    expect(rendered.html).toContain('href="https://credit.blox.market/applications/app-1"');
+  });
+
   it('uses the title as subject and escapes HTML in the body', () => {
     const rendered = renderNotificationEmail({
       name: 'Sara <Ali>',

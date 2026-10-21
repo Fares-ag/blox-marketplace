@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { OfferStatus, UserRole } from '@prisma/client';
+import { FinancingType, OfferStatus, UserRole } from '@prisma/client';
 import { IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Public, Roles } from '../auth/guards';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +17,7 @@ class UpsertOfferDto {
   @IsOptional() @IsString() companyId?: string;
   @IsOptional() @IsString() financePartnerId?: string;
   @IsOptional() @IsString() insuranceRateId?: string;
+  @IsOptional() @IsEnum(FinancingType) financingType?: FinancingType;
 }
 
 function toStaffOfferDto(offer: {
@@ -30,6 +31,7 @@ function toStaffOfferDto(offer: {
   status: string;
   companyId: string | null;
   financePartnerId: string | null;
+  financingType?: string | null;
 }) {
   return {
     ...toPublicOfferDto(offer),
@@ -63,6 +65,7 @@ export class OffersController {
           minDownPaymentPct: true,
           isDefault: true,
           financePartnerId: true,
+          financingType: true,
           financePartner: { select: { name: true, crmAdapter: true } },
         },
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
@@ -115,6 +118,7 @@ export class OffersController {
         companyId: dto.companyId,
         financePartnerId: dto.financePartnerId,
         insuranceRateId: dto.insuranceRateId,
+        financingType: dto.financingType ?? 'diminishing_musharakah',
       },
     });
     return toStaffOfferDto(offer);
@@ -146,6 +150,7 @@ export class OffersController {
         ...(dto.companyId !== undefined ? { companyId: dto.companyId } : {}),
         ...(dto.financePartnerId !== undefined ? { financePartnerId: dto.financePartnerId } : {}),
         ...(dto.insuranceRateId !== undefined ? { insuranceRateId: dto.insuranceRateId } : {}),
+        ...(dto.financingType !== undefined ? { financingType: dto.financingType } : {}),
       },
     });
     return toStaffOfferDto(offer);

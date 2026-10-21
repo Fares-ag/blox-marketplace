@@ -313,6 +313,9 @@ export class ApplicationsStaffService {
         });
       }
       createdIds.push(app.id);
+      if (initialStatus === ApplicationStatus.under_review) {
+        await this.intake.notifyOpsOnSubmit(app.companyId, app.id);
+      }
       if (initialStatus !== ApplicationStatus.draft && shouldSyncStatusToCrm(initialStatus)) {
         void this.zoho.syncApplicationToZoho(app.id, actor.id);
       }
@@ -342,7 +345,11 @@ export class ApplicationsStaffService {
     });
     if (!app) throw new NotFoundException();
     if (isDealer && app.companyId !== actor.companyId) throw new ForbiddenException('forbidden_role');
-    if (app.status !== ApplicationStatus.draft && app.status !== ApplicationStatus.resubmission_required) {
+    if (
+      app.status !== ApplicationStatus.draft &&
+      app.status !== ApplicationStatus.resubmission_required &&
+      app.status !== ApplicationStatus.rejected
+    ) {
       throw new BadRequestException('invalid_status_transition');
     }
     const fromStatus = app.status;
@@ -422,6 +429,9 @@ export class ApplicationsStaffService {
         toValue: lenderId,
         metadata: { source: 'default_lender' },
       });
+    }
+    if (nextStatus === ApplicationStatus.under_review) {
+      await this.intake.notifyOpsOnSubmit(app.companyId, id);
     }
     if (shouldSyncStatusToCrm(nextStatus)) {
       void this.zoho.syncApplicationToZoho(id, actor.id);

@@ -102,6 +102,8 @@ export function EligibilityPage() {
   const [checked, setChecked] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const resultRef = useRef<HTMLDivElement>(null);
+  const planRef = useRef<HTMLElement>(null);
+  const [planAttention, setPlanAttention] = useState(false);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
   const residency = form.residency || null;
@@ -382,8 +384,14 @@ export function EligibilityPage() {
             </div>
           </section>
 
-          <section className="dm-apply__card" aria-labelledby="elig-plan">
-            <h2 id="elig-plan" className="dm-apply__step-title">
+          <section
+            ref={planRef}
+            id="elig-plan"
+            tabIndex={-1}
+            className={`dm-apply__card${planAttention ? ' is-plan-target' : ''}`}
+            aria-labelledby="elig-plan-title"
+          >
+            <h2 id="elig-plan-title" className="dm-apply__step-title">
               {t('eligibilityCheck.form.plan')}
             </h2>
             <div className="dm-step">
@@ -501,7 +509,11 @@ export function EligibilityPage() {
                   type="button"
                   className="dm-btn-ghost dm-btn-ghost--on-light"
                   onClick={() => {
-                    document.getElementById('elig-plan')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                    const plan = planRef.current;
+                    plan?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    plan?.focus({ preventScroll: true });
+                    setPlanAttention(true);
+                    window.setTimeout(() => setPlanAttention(false), 1600);
                   }}
                 >
                   {t('eligibilityCheck.cta.adjust')}

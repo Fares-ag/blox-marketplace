@@ -296,7 +296,10 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
 
     const prisma = companyScopePrisma({
       application: {
-        findUnique: vi.fn().mockResolvedValue(baseApp),
+        findUnique: vi.fn().mockResolvedValue({ ...baseApp, pricingSnapshot: { down_payment: 10_000 } }),
+      },
+      paymentEvent: {
+        findMany: vi.fn().mockResolvedValue([]),
       },
       $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
@@ -329,6 +332,26 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
       }),
     });
     expect(result.status).toBe(ApplicationStatus.down_payment_submitted);
+  });
+
+  it('rejects a second recording when the required down payment is already satisfied', async () => {
+    const prisma = companyScopePrisma({
+      application: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...baseApp,
+          pricingSnapshot: { down_payment: 10_000 },
+        }),
+      },
+      paymentEvent: {
+        findMany: vi.fn().mockResolvedValue([{ amount: new Prisma.Decimal(10_000) }]),
+      },
+      $transaction: vi.fn(),
+    });
+    const service = buildService(prisma);
+
+    await expect(
+      service.recordDownPayment(financeUser, 'app-1', { amount: 10_000 }),
+    ).rejects.toMatchObject({ message: 'down_payment_already_satisfied' });
   });
 
   it('rejects recording when the application is not awaiting down payment', async () => {

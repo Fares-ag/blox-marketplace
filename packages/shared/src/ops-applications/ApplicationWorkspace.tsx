@@ -11,6 +11,7 @@ import { resolveDisplaySchedule } from '../lib/resolve-display-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
 import type { ConsentStatusDto, CreditAssessmentDto } from '../types/customer-platform';
 import type { OpsAudience, OpsUnmaskField, OpsWorkspace } from './types';
+import { downPaymentCollectedForOps } from './down-payment-ui';
 import { canCreditDecide, isFullAdminRole, visibleWorkspaceActions } from './useApplicationActions';
 import { submitGateMessage } from './submit-gate';
 import { decisionErrorMessage } from './credit-decision';
@@ -109,7 +110,11 @@ export function ApplicationWorkspace({
   );
   const guarantorSession = useGuarantorSession(id, !!data && hasGuarantor);
 
-  const actions = visibleWorkspaceActions(data?.status ?? 'draft', role);
+  const downPaymentCollected = useMemo(
+    () => (data ? downPaymentCollectedForOps(data) : false),
+    [data],
+  );
+  const actions = visibleWorkspaceActions(data?.status ?? 'draft', role, { downPaymentCollected });
 
   const mutations = useWorkspaceMutations(id, {
     backHref,
@@ -171,6 +176,7 @@ export function ApplicationWorkspace({
           dueDate: row.due_date,
           amount: row.amount ?? 0,
           paid_amount: row.paid_amount ?? 0,
+          paid_at: row.paid_at ?? null,
           status: row.status,
         }))
       : displaySchedules.map((row, index) => ({
@@ -406,7 +412,7 @@ export function ApplicationWorkspace({
         variant={confirm?.danger ? 'danger' : 'info'}
         onCancel={() => setConfirm(null)}
         onConfirm={() => {
-          confirm?.onConfirm();
+          if (confirm?.onConfirm() === false) return;
           setConfirm(null);
         }}
       />

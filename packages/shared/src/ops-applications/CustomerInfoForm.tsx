@@ -13,6 +13,7 @@ import {
   EMPLOYMENT_TYPE_OPTIONS,
   GENDER_OPTIONS,
   GUARANTOR_RELATIONSHIP_OPTIONS,
+  accountNameFromCustomerSearchHit,
   customerInfoFromSnapshot,
   emptyCustomerInfo,
   residencyForInfo,
@@ -26,8 +27,14 @@ type CustomerSearchHit = {
   id: string;
   email: string;
   name: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   phone: string | null;
   qid: string | null;
+  gender?: string | null;
+  date_of_birth?: string | null;
+  nationality?: string | null;
+  address?: Record<string, unknown> | null;
   latest_snapshot?: Record<string, unknown> | null;
 };
 
@@ -172,21 +179,49 @@ export function CustomerInfoForm({
   }
 
   function applyExisting(hit: CustomerSearchHit) {
+    const fromProfile = customerInfoFromSnapshot({
+      gender: hit.gender ?? undefined,
+      dateOfBirth: hit.date_of_birth ?? undefined,
+      nationality: hit.nationality ?? undefined,
+      address: hit.address ?? undefined,
+    });
     const fromSnapshot = customerInfoFromSnapshot(hit.latest_snapshot ?? {});
-    const nameParts = (hit.name ?? '').split(/\s+/).filter(Boolean);
-    const qid = hit.qid && /^\d{11}$/.test(hit.qid) ? hit.qid : fromSnapshot.qid;
+    const account = accountNameFromCustomerSearchHit(hit);
+    const qid = hit.qid && /^\d{11}$/.test(hit.qid) ? hit.qid : fromSnapshot.qid || fromProfile.qid;
+    const address = {
+      line1: fromSnapshot.address.line1 || fromProfile.address.line1,
+      area: fromSnapshot.address.area || fromProfile.address.area,
+      city: fromSnapshot.address.city || fromProfile.address.city,
+      zone: fromSnapshot.address.zone || fromProfile.address.zone,
+      poBox: fromSnapshot.address.poBox || fromProfile.address.poBox,
+      country: fromSnapshot.address.country || fromProfile.address.country,
+    };
+    const employment = {
+      company: fromSnapshot.employment.company || fromProfile.employment.company,
+      position: fromSnapshot.employment.position || fromProfile.employment.position,
+      employmentType: fromSnapshot.employment.employmentType || fromProfile.employment.employmentType,
+      employmentDuration: fromSnapshot.employment.employmentDuration || fromProfile.employment.employmentDuration,
+      salary: fromSnapshot.employment.salary || fromProfile.employment.salary,
+    };
 
     if (value.applicantType === 'corporate') {
       const sig = fromSnapshot.corporate?.authorizedSignatory ?? {};
       onChange({
+        ...fromProfile,
         ...fromSnapshot,
+        gender: fromSnapshot.gender || fromProfile.gender,
+        dateOfBirth: fromSnapshot.dateOfBirth || fromProfile.dateOfBirth,
+        nationality: fromSnapshot.nationality || fromProfile.nationality,
+        residenceDuration: fromSnapshot.residenceDuration || fromProfile.residenceDuration,
+        address,
+        employment,
         applicantType: 'corporate',
         corporate: {
           ...fromSnapshot.corporate,
           authorizedSignatory: {
             ...(fromSnapshot.corporate?.authorizedSignatory ?? {}),
-            firstName: sig.firstName?.trim() || nameParts[0] || '',
-            lastName: sig.lastName?.trim() || nameParts.slice(1).join(' '),
+            firstName: account.firstName || sig.firstName?.trim() || '',
+            lastName: account.lastName || sig.lastName?.trim() || '',
             email: hit.email || sig.email || '',
             phone: hit.phone ?? sig.phone ?? '',
             qid: qid || sig.qid || '',
@@ -199,13 +234,21 @@ export function CustomerInfoForm({
     }
 
     onChange({
+      ...fromProfile,
       ...fromSnapshot,
-      firstName: fromSnapshot.firstName || nameParts[0] || '',
-      lastName: fromSnapshot.lastName || nameParts.slice(1).join(' '),
+      firstName: account.firstName || fromSnapshot.firstName || fromProfile.firstName || '',
+      lastName: account.lastName || fromSnapshot.lastName || fromProfile.lastName || '',
       email: hit.email || fromSnapshot.email,
       phone: hit.phone ?? fromSnapshot.phone,
       qid,
-      residency: residencyForInfo({ residency: fromSnapshot.residency, qid }) ?? '',
+      gender: fromSnapshot.gender || fromProfile.gender,
+      dateOfBirth: fromSnapshot.dateOfBirth || fromProfile.dateOfBirth,
+      nationality: fromSnapshot.nationality || fromProfile.nationality,
+      residenceDuration: fromSnapshot.residenceDuration || fromProfile.residenceDuration,
+      address,
+      employment,
+      monthlyIncome: fromSnapshot.monthlyIncome || fromProfile.monthlyIncome,
+      residency: residencyForInfo({ residency: fromSnapshot.residency || fromProfile.residency, qid }) ?? '',
       existingCustomerLinked: true,
     });
   }
@@ -528,6 +571,7 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.customer.dateOfBirth')}
                 type="date"
+                lang="en-GB"
                 required
                 value={value.dateOfBirth}
                 onChange={(e) => patch({ dateOfBirth: e.target.value })}

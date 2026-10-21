@@ -225,6 +225,14 @@ describe('snapshot round trip', () => {
 
 describe('prefill and resume', () => {
   it('prefills identity from the account without overwriting typed values', () => {
+    const fromProfile = prefillFromAccount(emptyApplyForm(), {
+      fullName: 'Wrong Name',
+      firstName: 'Fatima',
+      lastName: 'Al-Naimi',
+    });
+    expect(fromProfile.firstName).toBe('Fatima');
+    expect(fromProfile.lastName).toBe('Al-Naimi');
+
     const seeded = prefillFromAccount(emptyApplyForm(), { fullName: 'Amal Rahman', phone: '5555', email: 'a@x.io', qid: '290 356 00123' });
     expect(seeded).toMatchObject({ firstName: 'Amal', lastName: 'Rahman', phone: '5555', email: 'a@x.io', qid: EXPAT_QID });
     const kept = prefillFromAccount({ ...emptyApplyForm(), firstName: 'Zed' }, { fullName: 'Amal Rahman' });

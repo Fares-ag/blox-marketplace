@@ -73,4 +73,37 @@ describe('contract document field maps', () => {
     ]);
     expect(ijarah.find((doc) => doc.documentType === 'credit_appraisal_memorandum')?.audience).toBe('ops');
   });
+
+  it('uses a conventional loan pack without Musharakah or Ijarah agreements', () => {
+    const conventional = documentsForFinancingType('conventional_interest');
+    expect(conventional.map((doc) => doc.documentType)).toEqual([
+      'conventional_loan_agreement',
+      'amortization_schedule',
+      'credit_appraisal_memorandum',
+    ]);
+    expect(conventional.some((doc) => doc.documentType === 'musharakah_agreement')).toBe(false);
+    expect(conventional.some((doc) => doc.documentType === 'ownership_rental_schedule')).toBe(false);
+  });
+
+  it('prepends the official QAuto credit application for QAuto companies', () => {
+    const retail = documentsForFinancingType('conventional_interest', {
+      companyCode: 'qauto-audi',
+      applicantType: 'individual',
+    });
+    expect(retail[0].documentType).toBe('qauto_retail_credit_application');
+    const fleet = documentsForFinancingType('diminishing_musharakah', {
+      companyCode: 'qauto',
+      applicantType: 'corporate',
+    });
+    expect(fleet[0].documentType).toBe('qauto_fleet_credit_application');
+  });
+
+  it('labels interest only on the conventional field map', () => {
+    const sharia = commonDealFields(ctx());
+    expect(sharia['Deal.RentalRate']).toBe('6.00% per annum');
+    expect(sharia['Deal.RentalRate']).not.toMatch(/interest/i);
+    const conventional = commonDealFields(ctx({ financingType: 'conventional_interest' }));
+    expect(conventional['Deal.RentalRate']).toBe('6.00% annual interest');
+    expect(fieldsForDocument('amortization_schedule', ctx())['Sch.1.Interest']).toContain('666.67');
+  });
 });

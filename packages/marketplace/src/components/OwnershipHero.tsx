@@ -11,6 +11,9 @@ import {
   overlayRegisterOnTimeline,
   formatQar,
   getAppLocale,
+  ownershipPlanAnchorDate,
+  projectOwnershipSchedule,
+  rebaseScheduleToAnchor,
   resolveDisplaySchedule,
   type OwnershipScheduleInput,
 } from '@drivemarket/shared';
@@ -70,6 +73,7 @@ function scheduleInputs(app: CustomerApplication): Array<OwnershipScheduleInput 
       dueDate: s.dueDate,
       amount: s.amount,
       paidAmount: s.paidAmount ?? undefined,
+      paidAt: s.paidAt ?? undefined,
       status: s.status,
     }));
   }
@@ -82,23 +86,22 @@ function scheduleInputs(app: CustomerApplication): Array<OwnershipScheduleInput 
       isActiveOrLater: false,
     });
     if (rows.length) {
-      return rows.map((row, index) => ({
+      const projected = rows.map((row, index) => ({
         id: row.id,
         sequence: row.sequence ?? index + 1,
         dueDate: row.dueDate,
         amount: row.amount,
         status: row.status === 'paid' ? 'paid' : 'pending',
       }));
+      return rebaseScheduleToAnchor(projected, ownershipPlanAnchorDate(app));
     }
   }
   const tenor = Number(pricing.tenor ?? pricing.tenure ?? 0);
   const monthly = Number(pricing.monthly ?? 0);
-  if (!(tenor > 0)) return [];
-  const start = parseDate(app.activatedAt) ?? parseDate(app.createdAt) ?? new Date();
-  return Array.from({ length: tenor }, (_, i) => {
-    const due = new Date(start);
-    due.setMonth(due.getMonth() + i + 1);
-    return { sequence: i + 1, dueDate: due.toISOString(), amount: monthly, status: 'pending' };
+  return projectOwnershipSchedule({
+    tenor,
+    monthly,
+    anchor: ownershipPlanAnchorDate(app),
   });
 }
 
@@ -117,7 +120,7 @@ function buildModel(
   const bloxPct = Math.max(0, round1(100 - customerPct));
   const downPct = vehiclePrice > 0 ? round1((timeline.downPayment / vehiclePrice) * 100) : 0;
   const sorted = [...timeline.milestones].sort((a, b) => a.sequence - b.sequence);
-  const nextUnpaid = sorted.find((m) => m.paymentStatus !== 'paid') ?? null;
+  const nextUnpaid = sorted.find((m) => m.paymentStatus === 'scheduled' || m.paymentStatus === 'missed') ?? null;
 
   let perInstallmentPct = 0;
   if (vehiclePrice > 0) {
@@ -137,7 +140,10 @@ function buildModel(
     } else {
       const crossing = sorted.find((m) => m.ownershipPercentage >= threshold) ?? null;
       // Reached ahead of the schedule (extra contributions): no exact date to show.
-      date = crossing && (!reached || crossing.paymentStatus === 'paid') ? crossing.date : null;
+      date =
+        crossing && (!reached || crossing.paymentStatus === 'paid' || crossing.paymentStatus === 'waived')
+          ? crossing.date
+          : null;
     }
     if (threshold === 100 && app.status === 'completed') date = app.completedAt ?? date;
     return { threshold, labelKey: `ownershipHero.milestone${threshold}`, date, reached };
@@ -259,6 +265,8 @@ export function OwnershipHero({ app, loading = false }: Props) {
     [locale],
   );
   const fmtPct = (value: number) => pctFormatter.format(value);
+  /** Arabic copy uses the Arabic percent sign (٪) next to Arabic-Indic digits. */
+  const pctSign = locale === 'ar' ? '٪' : '%';
 
   const payNow = useMutation({
     mutationFn: (scheduleId: string) =>
@@ -333,7 +341,7 @@ export function OwnershipHero({ app, loading = false }: Props) {
     );
   }
 
-  const vehicle = customerApplicationVehicleLabel(app);
+  const vehicle = customerApplicationVehicleLabel(app, locale);
   const ringLabel = t('ownershipHero.ringLabel', { customer: fmtPct(model.customerPct), blox: fmtPct(model.bloxPct) });
   const isActive = app.status === 'active';
   const nextMilestoneMonths = model.nextMilestone?.date ? monthsUntil(model.nextMilestone.date) : null;
@@ -351,7 +359,7 @@ export function OwnershipHero({ app, loading = false }: Props) {
         <OwnershipRing
           pct={model.customerPct}
           label={ringLabel}
-          valueText={`${fmtPct(model.customerPct)}%`}
+          valueText={`${fmtPct(model.customerPct)}${pctSign}`}
           caption={t('ownershipHero.ringYours')}
         />
         <div className="dm-ohero__copy">
@@ -359,7 +367,7 @@ export function OwnershipHero({ app, loading = false }: Props) {
           {vehicle && <p className="dm-ohero__vehicle">{vehicle}</p>}
           <ul className="dm-ohero__facts">
             <li>{t('ownershipHero.bloxOwns', { pct: fmtPct(model.bloxPct) })}</li>
-            {model.total > 0 && <li>{t('ownershipHero.installmentsPaid', { paid: model.paid, total: model.total })}</li>}
+            {model.total > 0 && <li>{t('ownershipHero.installmentsPaid', { paid: fmtPct(model.paid), total: fmtPct(model.total) })}</li>}
             {!model.done && model.perInstallmentPct > 0 && (
               <li>{t('ownershipHero.perInstallment', { pct: fmtPct(model.perInstallmentPct) })}</li>
             )}
@@ -381,7 +389,7 @@ export function OwnershipHero({ app, loading = false }: Props) {
             <span className="dm-ohero__node-dot" aria-hidden>
               {m.reached ? '✓' : ''}
             </span>
-            <span className="dm-ohero__node-pct">{m.threshold}%</span>
+            <span className="dm-ohero__node-pct">{fmtPct(m.threshold)}{pctSign}</span>
             <span className="dm-ohero__node-label">{t(m.labelKey)}</span>
             <span className="dm-ohero__node-date">
               {m.reached
@@ -425,7 +433,7 @@ export function OwnershipHero({ app, loading = false }: Props) {
                   ? '—'
                   : model.monthsToGo === 0
                     ? t('ownershipHero.titleTransferThisMonth')
-                    : t('ownershipHero.titleTransferIn', { months: model.monthsToGo })}
+                    : t('ownershipHero.titleTransferIn', { months: fmtPct(model.monthsToGo) })}
               </dd>
               {model.completionDate && (
                 <small>{t('ownershipHero.titleTransferDate', { date: formatMonthYear(model.completionDate, locale) })}</small>
@@ -440,10 +448,10 @@ export function OwnershipHero({ app, loading = false }: Props) {
               <dd>{t(model.nextMilestone.labelKey)}</dd>
               <small>
                 {nextMilestoneMonths != null && nextMilestoneMonths > 0
-                  ? t('ownershipHero.milestoneIn', { months: nextMilestoneMonths })
+                  ? t('ownershipHero.milestoneIn', { months: fmtPct(nextMilestoneMonths) })
                   : model.nextMilestone.date
                     ? formatMonthYear(model.nextMilestone.date, locale)
-                    : `${model.nextMilestone.threshold}%`}
+                    : `${fmtPct(model.nextMilestone.threshold)}${pctSign}`}
               </small>
             </>
           ) : (

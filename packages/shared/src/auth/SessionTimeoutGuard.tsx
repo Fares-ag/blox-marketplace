@@ -7,6 +7,7 @@ const ACTIVITY_EVENTS = [
   'mousemove',
   'mousedown',
   'keydown',
+  'keyup',
   'touchstart',
   'scroll',
   'focus',
@@ -14,6 +15,8 @@ const ACTIVITY_EVENTS = [
   'change',
   'click',
   'pointerdown',
+  'pointermove',
+  'wheel',
 ] as const;
 
 /**
@@ -58,16 +61,20 @@ export function SessionTimeoutGuard({ children }: { children: ReactNode }) {
     // Refresh well inside the idle window so the server sees the same activity
     // the browser does. Cookie-cache or a long gap between pings used to let
     // the API expire the session while the user was still typing.
-    const pingMs = Math.min(60_000, Math.max(20_000, Math.floor(idleMs / 6)));
+    const pingMs = Math.min(15_000, Math.max(10_000, Math.floor(idleMs / 12)));
     lastPing.current = Date.now();
     activeSincePing.current = false;
 
     const onActivity = () => {
-      if (warningOpen.current) return;
       lastActivity.current = Date.now();
       activeSincePing.current = true;
+      if (warningOpen.current) {
+        warningOpen.current = false;
+        setSecondsLeft(null);
+      }
     };
-    ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, onActivity, { capture: true, passive: true }));
+    window.addEventListener('blox:api-activity', onActivity);
 
     const timer = window.setInterval(() => {
       const now = Date.now();
@@ -96,7 +103,8 @@ export function SessionTimeoutGuard({ children }: { children: ReactNode }) {
     }, 1000);
 
     return () => {
-      ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, onActivity));
+      ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, onActivity, { capture: true }));
+      window.removeEventListener('blox:api-activity', onActivity);
       window.clearInterval(timer);
     };
   }, [policy, user, signOutForIdle]);

@@ -186,6 +186,27 @@ describe('NotificationRouterService.dispatch', () => {
     expect(result.channels.push).toEqual({ outcome: 'failed', reason: 'tokens_pruned' });
   });
 
+  it('forces email for credit-queue notices even when the officer switched email off', async () => {
+    const { service, mail } = build({
+      user: {
+        ...baseUser,
+        email: 'credit@qauto.local',
+        role: 'credit_officer',
+        notificationPreferences: { channels: { email: false, sms: false, push: false } },
+      },
+    });
+    const result = await service.dispatch({
+      userId: 'u1',
+      category: 'application',
+      title: 'New financing application',
+      forceEmail: true,
+    });
+    expect(result.channels.email).toEqual({ outcome: 'sent' });
+    expect(mail.sendNotificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'credit@qauto.local', title: 'New financing application' }),
+    );
+  });
+
   it('forces email for security notices even when the customer switched email off', async () => {
     const { service, mail } = build({
       user: { ...baseUser, notificationPreferences: { channels: { email: false, sms: false, push: false } } },
@@ -206,6 +227,38 @@ describe('NotificationRouterService.dispatch', () => {
     });
     expect(mail.sendNotificationEmail.mock.calls[0]![0].url).toBe('https://dealer.blox.market/applications/a1');
     expect(result.channels.push).toEqual({ outcome: 'skipped', reason: 'no_contact' });
+  });
+
+  it('emails a credit officer the queue notice with a credit-portal link', async () => {
+    const { service, mail } = build({
+      user: {
+        ...baseUser,
+        name: 'Credit Reviewer',
+        email: 'credit@qauto.local',
+        role: 'credit_officer',
+        _count: { deviceTokens: 0 },
+      },
+    });
+
+    const result = await service.dispatch({
+      userId: 'u1',
+      category: 'application',
+      title: 'New financing application',
+      body: 'A customer submitted a financing application.',
+      linkPath: '/applications/app-1',
+      forceEmail: true,
+    });
+
+    expect(result.channels.email).toEqual({ outcome: 'sent' });
+    expect(mail.sendNotificationEmail).toHaveBeenCalledWith({
+      to: 'credit@qauto.local',
+      name: 'Credit Reviewer',
+      title: 'New financing application',
+      body: 'A customer submitted a financing application.',
+      url: 'https://credit.blox.market/applications/app-1',
+      category: 'application',
+      locale: 'en',
+    });
   });
 
   it('renders in Arabic for recipients whose preferred language is ar, falling back to English text', async () => {

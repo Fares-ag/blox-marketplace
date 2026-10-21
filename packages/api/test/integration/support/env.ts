@@ -13,6 +13,9 @@ export function applyIntegrationEnv(overrides: Record<string, string | undefined
   // Isolate integration tests from local .env feature flags (e.g. LPO gate).
   process.env.LPO_GATE_ENABLED = 'false';
   process.env.PRE_DISBURSAL_GATE_ENABLED = 'false';
+  process.env.BUREAU_REPORTING_ENABLED = 'false';
+  process.env.BUREAU_INCLUDE_ALL_COMPANIES = 'false';
+  process.env.BUREAU_SFTP_ENABLED = 'false';
 
   for (const [key, value] of Object.entries(overrides)) {
     if (value === undefined) delete process.env[key];

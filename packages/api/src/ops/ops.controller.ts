@@ -2,7 +2,7 @@ import { Controller, Get, Post, Query } from '@nestjs/common';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
 import { IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Roles } from '../auth/guards';
-import { opsCompanyFilter } from '../applications/company-scope';
+import { customerSearchCompanyIds, opsCompanyFilter } from '../applications/company-scope';
 import {
   PaginationQueryDto,
   resolvePagination,
@@ -398,6 +398,12 @@ export class OpsController {
       ApplicationStatus.resubmission_required,
       ApplicationStatus.contracts_submitted,
       ApplicationStatus.contract_under_review,
+      ApplicationStatus.contract_signing_required,
+      ApplicationStatus.down_payment_required,
+      ApplicationStatus.down_payment_submitted,
+      ApplicationStatus.pending_finance_activation,
+      ApplicationStatus.lpo_issued,
+      ApplicationStatus.acquisition_pending,
     ];
 
     const [
@@ -444,12 +450,24 @@ export class OpsController {
       }),
     ]);
 
+    const countStatus = (status: ApplicationStatus) =>
+      appsByStatus.find((r) => r.status === status)?._count._all ?? 0;
+
     const in_review =
-      (appsByStatus.find((r) => r.status === ApplicationStatus.under_review)?._count._all ?? 0) +
-      (appsByStatus.find((r) => r.status === ApplicationStatus.contract_under_review)?._count._all ?? 0);
+      countStatus(ApplicationStatus.under_review) + countStatus(ApplicationStatus.contract_under_review);
+    const confirmed =
+      countStatus(ApplicationStatus.contract_signing_required) +
+      countStatus(ApplicationStatus.contracts_submitted) +
+      countStatus(ApplicationStatus.contract_under_review) +
+      countStatus(ApplicationStatus.down_payment_required) +
+      countStatus(ApplicationStatus.down_payment_submitted) +
+      countStatus(ApplicationStatus.pending_finance_activation) +
+      countStatus(ApplicationStatus.lpo_issued) +
+      countStatus(ApplicationStatus.acquisition_pending);
 
     return {
       in_review,
+      confirmed,
       resubmissions_pending: resubmissions,
       approved_today: approvedToday,
       rejected_30d: rejected30d,
@@ -487,7 +505,10 @@ export class OpsController {
         ).map((a) => a.id)
       : null;
 
-    const scheduleWhere = appIds ? { applicationId: { in: appIds } } : {};
+    const scheduleWhere = {
+      ...(appIds ? { applicationId: { in: appIds } } : {}),
+      application: { status: { not: ApplicationStatus.repossession_in_progress } },
+    };
 
     const [
       pending,
@@ -503,7 +524,11 @@ export class OpsController {
       this.prisma.paymentSchedule.count({ where: { ...scheduleWhere, status: 'overdue' } }),
       this.prisma.paymentSchedule.count({ where: { ...scheduleWhere, status: 'paid' } }),
       this.prisma.paymentTransaction.count({
-        where: { gateway: 'bank_transfer', status: 'pending' },
+        where: {
+          gateway: 'bank_transfer',
+          status: 'pending',
+          application: { status: { not: ApplicationStatus.repossession_in_progress } },
+        },
       }),
       this.prisma.application.count({
         where: { ...appWhere, status: ApplicationStatus.active },
@@ -779,12 +804,23 @@ export class OpsController {
     UserRole.finance_officer,
   )
   @Get('customers/search')
-  async searchCustomers(@Query('q') q?: string, @Query('limit') limitRaw?: string) {
+  async searchCustomers(
+    @CurrentUser() user: User,
+    @Query('q') q?: string,
+    @Query('limit') limitRaw?: string,
+  ) {
     const limit = Math.min(Math.max(Number(limitRaw) || 30, 1), 100);
     const term = q?.trim();
+    const companyIds = await customerSearchCompanyIds(this.prisma, user);
+    if (companyIds && companyIds.length === 0) {
+      return { items: [], total: 0, limit, offset: 0 };
+    }
     const users = await this.prisma.user.findMany({
       where: {
         role: UserRole.customer,
+        ...(companyIds
+          ? { applications: { some: { companyId: { in: companyIds } } } }
+          : {}),
         ...(term
           ? {
               OR: [
@@ -795,7 +831,19 @@ export class OpsController {
             }
           : {}),
       },
-      select: { id: true, email: true, name: true, firstName: true, lastName: true, phone: true, qid: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        qid: true,
+        gender: true,
+        dateOfBirth: true,
+        nationality: true,
+        address: true,
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
@@ -803,8 +851,14 @@ export class OpsController {
     const items = await Promise.all(
       users.map(async (user) => {
         const latest = await this.prisma.application.findFirst({
-          where: { customerUserId: user.id },
-          orderBy: { createdAt: 'desc' },
+          where: {
+            ...(companyIds ? { companyId: { in: companyIds } } : {}),
+            OR: [
+              { customerUserId: user.id },
+              { customerEmail: { equals: user.email, mode: 'insensitive' } },
+            ],
+          },
+          orderBy: { updatedAt: 'desc' },
           select: { customerSnapshot: true },
         });
         const derived = splitDisplayName(user.name);
@@ -816,6 +870,10 @@ export class OpsController {
           last_name: user.lastName ?? (derived.lastName || null),
           phone: user.phone,
           qid: user.qid,
+          gender: user.gender,
+          date_of_birth: user.dateOfBirth ? user.dateOfBirth.toISOString().slice(0, 10) : null,
+          nationality: user.nationality,
+          address: user.address,
           latest_snapshot: latest?.customerSnapshot ?? null,
         };
       }),

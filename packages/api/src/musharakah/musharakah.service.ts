@@ -25,6 +25,7 @@ import {
 import { customerPhaseFor } from '@drivemarket/shared/application-status-map';
 import { isMature, proRataAllocation, splitRentAndUnits } from '@drivemarket/shared/units';
 import { PrismaService } from '../prisma/prisma.service';
+import { liftMarketplaceKycHold } from '../kyc/kyc-legal-hold';
 import { ActivityService } from '../common/activity.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AppConfigService } from '../config/app-config.service';
@@ -37,6 +38,7 @@ import {
   appendRegisterEntry,
   findRegister,
   openRegister,
+  shouldOpenOwnershipRegister,
   recordRentPool,
   registerDto,
   zeroRemainingUnits,
@@ -75,6 +77,7 @@ export class MusharakahService {
     paymentEventId?: string | null,
   ) {
     if (!this.appConfig.musharakahRegisterEnabled) return null;
+    if (!(await this.isMusharakahDeal(tx, applicationId))) return null;
     return openRegister(tx, { applicationId, pricing, actorUserId, paymentEventId });
   }
 
@@ -384,8 +387,17 @@ export class MusharakahService {
     };
   }
 
+  private async isMusharakahDeal(tx: Prisma.TransactionClient, applicationId: string): Promise<boolean> {
+    const app = await tx.application.findUnique({
+      where: { id: applicationId },
+      select: { offer: { select: { financingType: true } } },
+    });
+    return shouldOpenOwnershipRegister(app?.offer?.financingType);
+  }
+
   async maybeCreateFirstUnitOffer(tx: Prisma.TransactionClient, applicationId: string, companyUnitOffers?: boolean) {
     if (!this.unitOffersOn({ unitOffersEnabled: companyUnitOffers })) return;
+    if (!(await this.isMusharakahDeal(tx, applicationId))) return;
     const existing = await tx.unitOffer.findUnique({
       where: { applicationId_period: { applicationId, period: 1 } },
     });
@@ -709,6 +721,7 @@ export class MusharakahService {
       });
       return tx.application.findUniqueOrThrow({ where: { id: applicationId } });
     });
+    await liftMarketplaceKycHold(updated.kycCaseId, 'completed', 'repossession_sale');
     return toOpsApplicationDto(updated);
   }
 

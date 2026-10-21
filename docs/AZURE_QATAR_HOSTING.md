@@ -258,7 +258,7 @@ Some tools are **not** Azure, but customers still use them:
 | Email | Postmark | Prefer a provider that can keep processing in an approved place, **or** get written QCB/outsourcing approval and document the data that leaves Qatar |
 | SMS / WhatsApp | Twilio | Same as email — treat as outsourced service |
 | Payments | SkipCash | Qatar-facing payment partner; still document in the outsourcing register |
-| KYC / AML | blox-kyc-module / Didit | Same — contracts, audit rights, residency map |
+| KYC / AML | blox-kyc-module (Blox-operated) on Railway until Azure Qatar; Regula + FaceTec as licensed engines; Didit interim then off | File e-KYC as Blox-operated with Railway as interim hosting. Do not list “blox-kyc-module / Didit” as one vendor. Residency stays open (REG-031) until Azure Qatar. |
 | DNS | Cloudflare DNS only (no overseas workers that see body data) | DNS pointing to Azure Qatar is usually fine; avoid Cloudflare Workers that process PII abroad |
 
 **Rule of thumb:** if a third party outside Qatar can read customer data, it needs a **written risk decision and (where required) QCB outsourcing approval**. Prefer replacing overseas SaaS with Qatar-hosted or approved alternatives over time.

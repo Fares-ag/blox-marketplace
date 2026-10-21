@@ -4,9 +4,11 @@ import type { ApplicationStatus } from '../types/domain';
  * Queue status sets — mirror blox-vercel `application-status-transitions.ts`
  * and the API's `application-transitions.ts`. Keep the two in step.
  */
-export const CREDIT_PIPELINE_STATUSES: ApplicationStatus[] = [
-  'under_review',
-  'resubmission_required',
+/** Awaiting a first credit decision. */
+export const CREDIT_REVIEW_STATUSES: ApplicationStatus[] = ['under_review', 'resubmission_required'];
+
+/** Credit already accepted — stay visible on the credit portal. */
+export const CREDIT_CONFIRMED_STATUSES: ApplicationStatus[] = [
   'contract_signing_required',
   'contracts_submitted',
   'contract_under_review',
@@ -15,6 +17,11 @@ export const CREDIT_PIPELINE_STATUSES: ApplicationStatus[] = [
   'pending_finance_activation',
   'lpo_issued',
   'acquisition_pending',
+];
+
+export const CREDIT_PIPELINE_STATUSES: ApplicationStatus[] = [
+  ...CREDIT_REVIEW_STATUSES,
+  ...CREDIT_CONFIRMED_STATUSES,
 ];
 
 export const CREDIT_QUEUE_STATUSES: ApplicationStatus[] = [...CREDIT_PIPELINE_STATUSES, 'rejected'];

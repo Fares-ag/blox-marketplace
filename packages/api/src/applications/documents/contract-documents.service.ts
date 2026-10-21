@@ -14,6 +14,7 @@ import { assertApplicationCanView } from '../application-access';
 import { assertCompanyScope } from '../company-scope';
 import { verifySignedContractReferencesOriginal } from '../contract-pdf';
 import { toApplicationDto, toOpsApplicationDto } from '../application-response.dto';
+import { readCustomerSnapshot } from '../customer-snapshot';
 import { normalizeContractContext } from './contract-terms';
 import { fieldsForDocument, type ContractFieldContext } from './field-maps';
 import { embedPdfFingerprint } from './pdf-converter';
@@ -22,13 +23,14 @@ import {
   documentsForFinancingType,
   filenameFor,
   type ContractDocumentAudience,
+  type ContractDocumentType,
   type FinancingType,
 } from './template-catalog';
 
 type ContractDocumentRow = {
   id: string;
   applicationId: string;
-  documentType: 'ijarah_agreement' | 'musharakah_agreement' | 'ownership_rental_schedule' | 'credit_appraisal_memorandum';
+  documentType: ContractDocumentType;
   audience: ContractDocumentAudience;
   label: string;
   generatedPath: string | null;
@@ -79,7 +81,10 @@ export class ContractDocumentsService {
     financingType?: FinancingType | null;
     ctx: ContractFieldContext;
   }): Promise<Array<{ id: string; documentType: string; audience: ContractDocumentAudience; label: string }>> {
-    const specs = documentsForFinancingType(input.financingType ?? 'diminishing_musharakah');
+    const specs = documentsForFinancingType(input.financingType ?? 'diminishing_musharakah', {
+      companyCode: input.ctx.companyCode,
+      applicantType: readCustomerSnapshot(input.ctx.customerSnapshot).applicantType,
+    });
     const ctx = normalizeContractContext(input.ctx);
     const created: Array<{ id: string; documentType: string; audience: ContractDocumentAudience; label: string }> = [];
 
@@ -263,7 +268,7 @@ export class ContractDocumentsService {
     return updated;
   }
 
-  /** Customer explicitly submits the agreement package for review (even if not every slot is signed). */
+  /** Customer submits the agreement package once every customer document is signed. */
   async submitContractsForUser(user: User, applicationId: string) {
     const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
     if (!app) throw new NotFoundException();
@@ -273,26 +278,9 @@ export class ContractDocumentsService {
     if (app.status !== 'contract_signing_required') {
       throw new BadRequestException('invalid_status_transition');
     }
-    const latestSigned = await contractDocumentsDb(this.prisma).findFirst({
-      where: { applicationId, audience: 'customer', signedPath: { not: null } },
-      orderBy: { updatedAt: 'desc' },
-    });
-    const updated = await this.prisma.application.update({
-      where: { id: applicationId },
-      data: {
-        status: 'contracts_submitted',
-        signedContractPath: latestSigned?.signedPath ?? app.signedContractPath,
-      },
-    });
-    await this.activity.log({
-      actorUserId: user.id,
-      entityType: 'application',
-      entityId: applicationId,
-      action: 'status_transition',
-      fromValue: 'contract_signing_required',
-      toValue: 'contracts_submitted',
-      metadata: { submittedBy: 'customer', manualSubmit: true },
-    });
+    const remaining = await this.remainingCustomerDocuments(applicationId);
+    if (remaining > 0) throw new BadRequestException('contracts_incomplete');
+    const updated = await this.maybeSubmitAllSigned(user, applicationId, false);
     return toApplicationDto(updated);
   }
 }

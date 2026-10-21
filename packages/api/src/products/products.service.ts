@@ -313,7 +313,10 @@ export class ProductsService {
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 } },
+        include: {
+          images: { orderBy: { sortOrder: 'asc' }, take: 1 },
+          company: { select: { name: true } },
+        },
         orderBy: { updatedAt: 'desc' },
         take: limit,
         skip: offset,
@@ -603,7 +606,10 @@ export class ProductsService {
   }
 
   private async requireDealerProduct(user: User, id: string) {
-    const product = await this.prisma.product.findUnique({ where: { id } });
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: { company: { select: { name: true } } },
+    });
     if (!product) throw new NotFoundException('listing_not_available');
     const ok =
       user.role === UserRole.admin ||

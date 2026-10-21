@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   MoneyText,
+  ApiError,
   apiFetch,
   documentUploadRejection,
   formatQar,
@@ -44,6 +45,8 @@ const RIDER_OPTIONS = [
 ] as const;
 
 const RENEWAL_NUDGE_DAYS = 30;
+/** Letters and digits together, as printed on the policy (for example QIC-2026-000123). */
+const POLICY_NUMBER_PATTERN = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9][A-Za-z0-9/-]{5,39}$/;
 
 type PolicyForm = {
   provider: string;
@@ -189,10 +192,25 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
       invalidate();
     },
     onError: (error: unknown) => {
-      const code = (error as { code?: string } | null)?.code ?? '';
-      setFormError(
-        code === 'takaful_declaration_required' ? t('takaful.declarationRequired') : t('takaful.saveError'),
-      );
+      const apiError = error instanceof ApiError ? error : null;
+      const code = apiError?.code ?? '';
+      if (code === 'takaful_declaration_required') {
+        setFormError(t('takaful.declarationRequired'));
+        return;
+      }
+      if (code === 'effective_from_invalid' || code === 'expires_at_invalid' || code === 'policy_year_invalid') {
+        setFormError(t('takaful.yearInvalid', { max: new Date().getFullYear() + 15 }));
+        return;
+      }
+      if (code === 'expires_before_effective') {
+        setFormError(t('takaful.expiresBeforeStart'));
+        return;
+      }
+      if (code === 'policy_number_invalid') {
+        setFormError(t('takaful.policyNumberInvalid'));
+        return;
+      }
+      setFormError(apiError?.message || t('takaful.saveError'));
     },
   });
 
@@ -232,8 +250,34 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
       setFormError(t('takaful.providerRequired'));
       return;
     }
-    if (!form.policyNumber.trim()) {
-      setFormError(t('takaful.policyNumberRequired'));
+    if (!POLICY_NUMBER_PATTERN.test(form.policyNumber.trim())) {
+      setFormError(t('takaful.policyNumberInvalid'));
+      return;
+    }
+    if (!form.effectiveFrom) {
+      setFormError(t('takaful.effectiveFromRequired'));
+      return;
+    }
+    if (!form.expiresAt) {
+      setFormError(t('takaful.expiresAtRequired'));
+      return;
+    }
+    if (form.expiresAt < form.effectiveFrom) {
+      setFormError(t('takaful.expiresBeforeStart'));
+      return;
+    }
+    const maxYear = new Date().getFullYear() + 15;
+    const startYear = Number(form.effectiveFrom.slice(0, 4));
+    const endYear = Number(form.expiresAt.slice(0, 4));
+    if (
+      !Number.isFinite(startYear) ||
+      !Number.isFinite(endYear) ||
+      startYear < 2000 ||
+      endYear < 2000 ||
+      startYear > maxYear ||
+      endYear > maxYear
+    ) {
+      setFormError(t('takaful.yearInvalid', { max: maxYear }));
       return;
     }
     if (mode.kind === 'create' && !form.declarationAccepted) {
@@ -520,8 +564,11 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
               <input
                 value={form.policyNumber}
                 required
+                pattern="(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9][A-Za-z0-9/-]{5,39}"
+                title={t('takaful.policyNumberHint')}
                 onChange={(e) => setForm((prev) => ({ ...prev, policyNumber: e.target.value }))}
               />
+              <small className="dm-takaful__hint">{t('takaful.policyNumberHint')}</small>
             </label>
             <fieldset className="dm-takaful__field dm-takaful__fieldset">
               <legend>{t('takaful.coverageType')}</legend>
@@ -576,6 +623,7 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
               <span>{t('takaful.effectiveFrom')}</span>
               <input
                 type="date"
+                required
                 value={form.effectiveFrom}
                 onChange={(e) => setForm((prev) => ({ ...prev, effectiveFrom: e.target.value }))}
               />
@@ -584,6 +632,7 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
               <span>{t('takaful.expiresAt')}</span>
               <input
                 type="date"
+                required
                 value={form.expiresAt}
                 min={form.effectiveFrom || undefined}
                 onChange={(e) => setForm((prev) => ({ ...prev, expiresAt: e.target.value }))}

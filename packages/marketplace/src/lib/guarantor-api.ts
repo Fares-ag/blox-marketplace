@@ -49,3 +49,8 @@ export function guarantorConsentSatisfied(session: GuarantorSessionDto | null | 
 export function guarantorSessionIsOpen(session: GuarantorSessionDto | null | undefined): boolean {
   return !!session && GUARANTOR_OPEN_STATUSES.includes(session.status);
 }
+
+/** Name, QID and phone must stay frozen while a live or completed request is bound to them. */
+export function guarantorDetailsLocked(session: GuarantorSessionDto | null | undefined): boolean {
+  return guarantorSessionIsOpen(session) || guarantorConsentSatisfied(session);
+}

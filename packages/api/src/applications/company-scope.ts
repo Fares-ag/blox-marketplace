@@ -42,6 +42,20 @@ export async function opsCompanyFilter(
 }
 
 /**
+ * Company ids the actor may search customers against, or null when unrestricted.
+ * Dealers are limited to their own company; officers reuse assignment scope.
+ */
+export async function customerSearchCompanyIds(
+  prisma: PrismaService,
+  user: User,
+): Promise<string[] | null> {
+  if (user.role === UserRole.dealer_agent) {
+    return user.companyId ? [user.companyId] : [];
+  }
+  return opsCompanyFilter(prisma, user);
+}
+
+/**
  * Ensures credit/finance/group officers may act on a single company-scoped record.
  */
 export async function assertCompanyScope(

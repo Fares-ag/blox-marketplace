@@ -105,7 +105,9 @@ const RULES: TransitionRule[] = [
   // terminal / reopen
   { from: 'active', to: 'completed', actors: ['admin'] },
   { from: 'active', to: 'submission_cancelled', actors: ['admin'], reasonRequired: true },
-  { from: 'rejected', to: 'under_review', actors: DECISION },
+  { from: 'rejected', to: 'under_review', actors: [...DECISION, 'dealer', 'customer'] },
+  { from: 'rejected', to: 'partner_processing', actors: ['admin', 'dealer', 'customer'] },
+  { from: 'rejected', to: 'resubmission_required', actors: [...DECISION, 'dealer'] },
   { from: 'submission_cancelled', to: 'under_review', actors: ['admin'] },
 ];
 

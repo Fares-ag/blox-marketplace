@@ -196,6 +196,7 @@ export type OpsWorkspace = {
     amount: number | null;
     paid_amount?: number | null;
     remaining_amount?: number | null;
+    paid_at?: string | null;
     status: string;
     pending_waive_reason?: string | null;
     pending_waive_requested_by_id?: string | null;

@@ -37,6 +37,7 @@ import { PartnerModule } from './partner/partner.module';
 import { PushModule } from './push/push.module';
 import { HealthController } from './health.controller';
 import { MusharakahModule } from './musharakah/musharakah.module';
+import { BureauReportingModule } from './bureau/bureau-reporting.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { MusharakahModule } from './musharakah/musharakah.module';
     ApplicationsModule,
     PaymentsModule,
     MusharakahModule,
+    BureauReportingModule,
     OpsModule,
     QuotesModule,
     FinancePartnersModule,

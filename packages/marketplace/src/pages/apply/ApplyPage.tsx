@@ -81,6 +81,8 @@ import {
   cancelGuarantorSession,
   createGuarantorSession,
   fetchGuarantorSessionForApplication,
+  guarantorConsentSatisfied,
+  guarantorDetailsLocked,
   guarantorSessionIsOpen,
   resendGuarantorSessionLink,
 } from '../../lib/guarantor-api';
@@ -184,7 +186,14 @@ export function ApplyPage() {
 
   // ---- form state -------------------------------------------------------
   const [form, setForm] = useState<ApplyForm>(() =>
-    prefillFromAccount(emptyApplyForm(), { fullName: user?.full_name, phone: user?.phone, email: user?.email, qid: user?.qid }),
+    prefillFromAccount(emptyApplyForm(), {
+      fullName: user?.full_name,
+      firstName: user?.first_name,
+      lastName: user?.last_name,
+      phone: user?.phone,
+      email: user?.email,
+      qid: user?.qid,
+    }),
   );
   const [prefilled] = useState(() => Boolean(user?.full_name || user?.phone || user?.qid));
   const [plan, setPlan] = useState<ApplyPlan>({
@@ -894,7 +903,15 @@ export function ApplyPage() {
                 />
               ) : null}
               {step === 'identity' ? (
-                <IdentityStep form={form} derived={derived} errors={visibleErrors} onChange={updateForm} onBlur={markTouched} prefilled={prefilled} />
+                <IdentityStep
+                  form={form}
+                  derived={derived}
+                  errors={visibleErrors}
+                  onChange={updateForm}
+                  onBlur={markTouched}
+                  prefilled={prefilled}
+                  nameLocked={Boolean(user?.first_name?.trim() && user?.last_name?.trim())}
+                />
               ) : null}
               {step === 'employment' ? (
                 <EmploymentStep
@@ -914,6 +931,10 @@ export function ApplyPage() {
                   onChange={updateForm}
                   onGuarantorChange={updateGuarantor}
                   onBlur={markTouched}
+                  detailsLocked={guarantorDetailsLocked(guarantorSession)}
+                  detailsLockedDone={
+                    guarantorConsentSatisfied(guarantorSession) && !guarantorSessionIsOpen(guarantorSession)
+                  }
                   consentPanel={
                     <GuarantorConsentPanel
                       session={guarantorSession}

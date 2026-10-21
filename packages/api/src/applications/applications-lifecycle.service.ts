@@ -218,7 +218,9 @@ export class ApplicationsLifecycleService {
             bodyType: true,
           },
         },
-        company: { select: { name: true } },
+        company: { select: { name: true, code: true } },
+        agent: { select: { name: true, email: true } },
+        documents: { select: { category: true } },
         financePartner: { select: { name: true } },
         offer: { include: { financePartner: { select: { name: true } } } },
       },
@@ -258,9 +260,14 @@ export class ApplicationsLifecycleService {
       }
     }
     const financingType =
-      (app.offer as { financingType?: 'ijarah' | 'diminishing_musharakah' } | null)?.financingType ??
-      'diminishing_musharakah';
-    const agreementType = financingType === 'ijarah' ? 'ijarah_agreement' : 'musharakah_agreement';
+      (app.offer as { financingType?: 'ijarah' | 'diminishing_musharakah' | 'conventional_interest' } | null)
+        ?.financingType ?? 'diminishing_musharakah';
+    const agreementType =
+      financingType === 'conventional_interest'
+        ? 'conventional_loan_agreement'
+        : financingType === 'ijarah'
+          ? 'ijarah_agreement'
+          : 'musharakah_agreement';
 
     const fieldCtx: ContractFieldContext = normalizeContractContext({
       applicationId: app.id,
@@ -287,6 +294,10 @@ export class ApplicationsLifecycleService {
         bodyType: app.product.bodyType,
       },
       dealerName: app.company.name,
+      companyCode: app.company.code,
+      salesmanName: app.agent?.name ?? app.agent?.email ?? null,
+      intakeSource: app.agentUserId ? 'walk_in' : 'web_lead',
+      uploadedCategories: (app.documents ?? []).map((doc) => doc.category),
       listPrice: Number(pricing.list_price ?? 0),
       downPayment: Number(pricing.down_payment ?? 0),
       downPaymentPct: Number(pricing.down_payment_pct ?? 0),
@@ -295,6 +306,7 @@ export class ApplicationsLifecycleService {
       annualRate: Number(pricing.rate ?? 0),
       financedTotal: Number(pricing.financed_total ?? 0),
       schedule: [],
+      financingType,
       credit: credit.assessed,
       approverName: user.name ?? user.email,
       approverRole: user.role,
@@ -334,7 +346,9 @@ export class ApplicationsLifecycleService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await this.musharakah.maybeOpenRegister(tx, id, pricing, user.id);
+      if (financingType !== 'conventional_interest') {
+        await this.musharakah.maybeOpenRegister(tx, id, pricing, user.id);
+      }
       return tx.application.update({
         where: { id },
         data: {
@@ -343,7 +357,8 @@ export class ApplicationsLifecycleService {
           contractData: asJson({
             ...contractData,
             generatedContentSha256: contentSha256,
-            musharakahUnits: 100,
+            financingType,
+            ...(financingType === 'conventional_interest' ? {} : { musharakahUnits: 100 }),
           }),
           contractPdfPath,
           ...credit.columns,
@@ -533,6 +548,20 @@ export class ApplicationsLifecycleService {
       throw new BadRequestException('validation_failed');
     }
 
+    if (toStatus === ApplicationStatus.down_payment_required) {
+      if (app.status === ApplicationStatus.down_payment_required) {
+        return toOpsApplicationDto(app);
+      }
+      const pricingSnapshot = (app.pricingSnapshot ?? {}) as Record<string, unknown>;
+      const requiredDown = requiredDownPaymentAmount(pricingSnapshot);
+      if (requiredDown.gt(0)) {
+        const recorded = await sumDownPaymentRecorded(this.prisma, id);
+        if (recorded.gte(requiredDown)) {
+          throw new BadRequestException('down_payment_already_satisfied');
+        }
+      }
+    }
+
     // "Approve for Finance" straight from review is an approval: the same
     // compliance gate as approve-contract applies, then the approval matrix.
     let credit: CreditApproval | null = null;
@@ -547,6 +576,18 @@ export class ApplicationsLifecycleService {
     if (
       app.status === ApplicationStatus.contract_under_review &&
       toStatus === ApplicationStatus.pending_finance_activation
+    ) {
+      await assertDownPaymentRecordedForDirectActivation(
+        this.prisma,
+        id,
+        app.pricingSnapshot as Record<string, unknown>,
+      );
+    }
+
+    if (
+      toStatus === ApplicationStatus.pending_finance_activation &&
+      (app.status === ApplicationStatus.down_payment_required ||
+        app.status === ApplicationStatus.down_payment_submitted)
     ) {
       await assertDownPaymentRecordedForDirectActivation(
         this.prisma,
@@ -613,6 +654,7 @@ export class ApplicationsLifecycleService {
       metadata: { reason },
     });
     if (credit) await this.logCreditDecision(user, id, credit, overrideReason);
+    await this.kyc?.syncLegalHoldForStatus(app.kycCaseId, toStatus, reason);
 
     const notifyTitle =
       toStatus === 'rejected'
@@ -667,13 +709,20 @@ export class ApplicationsLifecycleService {
 
     const app = await this.prisma.application.findUnique({
       where: { id },
-      select: { id: true, status: true, companyId: true, customerUserId: true },
+      select: { id: true, status: true, companyId: true, customerUserId: true, pricingSnapshot: true },
     });
     if (!app) throw new NotFoundException();
     await assertCompanyScope(this.prisma, user, app.companyId);
 
     if (app.status !== ApplicationStatus.down_payment_required) {
       throw new BadRequestException('invalid_status_transition');
+    }
+
+    const pricingSnapshot = (app.pricingSnapshot ?? {}) as Record<string, unknown>;
+    const requiredDown = requiredDownPaymentAmount(pricingSnapshot);
+    const alreadyRecorded = await sumDownPaymentRecorded(this.prisma, id);
+    if (requiredDown.gt(0) && alreadyRecorded.gte(requiredDown)) {
+      throw new BadRequestException('down_payment_already_satisfied');
     }
 
     const amount = new Prisma.Decimal(String(body.amount));

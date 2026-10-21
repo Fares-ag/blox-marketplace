@@ -29,6 +29,7 @@ import { FinancePaymentsPage } from './pages/FinancePaymentsPage';
 import { FinanceSettlementsPage } from './pages/FinanceSettlementsPage';
 import { FinanceCreditsPage } from './pages/FinanceCreditsPage';
 import { FinanceExportsPage } from './pages/FinanceExportsPage';
+import { FinanceBureauPage } from './pages/FinanceBureauPage';
 import { PartnerDetailPage, PartnerListPage } from './pages/PartnerPages';
 
 function ApplicationsPage() {
@@ -77,6 +78,7 @@ function App() {
       { to: '/lpo', label: t('ops.finance.nav.lpo'), icon: 'offers', group: work },
       { to: '/credits', label: t('ops.finance.nav.credits'), icon: 'packages', group: reference },
       { to: '/exports', label: t('ops.finance.nav.exports'), icon: 'logs', group: reference },
+      { to: '/bureau', label: t('ops.finance.nav.bureau'), icon: 'logs', group: reference },
       { to: '/applications', label: t('ops.finance.nav.applications'), icon: 'apps', group: reference },
     ];
   }, [t, counts, partner, partnerReviewCount]);
@@ -117,6 +119,7 @@ function App() {
                     <Route path="/lpo" element={<LpoInboxPage detailBase="/applications" titleKey="ops.finance.nav.lpo" />} />
                     <Route path="/credits" element={<FinanceCreditsPage />} />
                     <Route path="/exports" element={<FinanceExportsPage />} />
+                    <Route path="/bureau" element={<FinanceBureauPage />} />
                     <Route path="/applications" element={<ApplicationsPage />} />
                     <Route path="/applications/:id" element={<FinanceWorkspace />} />
                     {/* vercel-style deep links and legacy marketplace routes */}

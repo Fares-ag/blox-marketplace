@@ -13,4 +13,10 @@ describe('partner-finance', () => {
     expect(submittedStatusForPartner(null)).toBe(ApplicationStatus.under_review);
     expect(financingSource('none')).toBe('blox');
   });
+
+  it('keeps in-house conventional (crmAdapter none) on the blox book', () => {
+    expect(submittedStatusForPartner('none')).toBe(ApplicationStatus.under_review);
+    expect(financingSource('none')).toBe('blox');
+    expect(financingSource('zoho')).not.toBe('blox');
+  });
 });

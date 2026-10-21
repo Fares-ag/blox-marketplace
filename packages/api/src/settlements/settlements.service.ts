@@ -17,6 +17,7 @@ import {
   type SettlementQuoteDto,
 } from './settlement-quote';
 import { MusharakahService } from '../musharakah/musharakah.service';
+import { liftMarketplaceKycHold } from '../kyc/kyc-legal-hold';
 
 /** Settlements are a finance/admin money op (blox-vercel FINANCE_PORTAL.md); credit is read-only elsewhere. */
 export const SETTLEMENT_DECISION_ROLES: UserRole[] = [
@@ -289,6 +290,13 @@ export class SettlementsService {
       reason,
       `/app/applications/${row.applicationId}`,
     );
+    if (decision === 'approved') {
+      const app = await this.prisma.application.findUnique({
+        where: { id: row.applicationId },
+        select: { kycCaseId: true },
+      });
+      await liftMarketplaceKycHold(app?.kycCaseId, 'completed', 'settlement_approved');
+    }
     const fresh = await this.prisma.applicationSettlement.findUniqueOrThrow({
       where: { id },
       include: APP_INCLUDE,

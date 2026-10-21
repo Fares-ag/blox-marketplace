@@ -66,7 +66,7 @@ export function ApplicationStatusView({
   const tenor = Number(pricing.tenor ?? pricing.tenure ?? 0);
   const vehiclePrice = Number(pricing.vehicle_price ?? app.product?.price ?? 0);
   const declined = app.status === 'rejected';
-  const submittedLabel = app.submittedAt ?? app.createdAt;
+  const planDate = app.status === 'draft' ? app.createdAt : (app.submittedAt ?? app.createdAt);
   const journeyComplete = currentStep >= JOURNEY_STEPS.length;
   const settlementApproved = app.status === 'completed' && app.settlementRequest?.status === 'approved';
   const showPricing = !declined && !settlementApproved && (monthly > 0 || down > 0 || vehiclePrice > 0);
@@ -83,10 +83,10 @@ export function ApplicationStatusView({
             <span className={`dm-status-pill dm-status-pill--${applicationMarketplacePillVariant(app.status)}`}>
               {t(`application.status.${app.status}`, { defaultValue: applicationStatusLabel(app.status) })}
             </span>
-            {submittedLabel && (
+            {planDate && (
               <span className="dm-app-status__date">
-                {t('application.submitted')}:{' '}
-                {new Date(submittedLabel).toLocaleDateString(dateFmt, {
+                {t(app.status === 'draft' ? 'application.created' : 'application.submitted')}:{' '}
+                {new Date(planDate).toLocaleDateString(dateFmt, {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',

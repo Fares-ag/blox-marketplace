@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { OwnershipBlocksCanvas } from './ownership-blocks/OwnershipBlocksCanvas';
 import {
   calculateOwnershipTimeline,
   filterKeyMilestones,
@@ -21,6 +22,7 @@ type Props = {
   paymentSchedules?: OwnershipScheduleRow[];
   compact?: boolean;
   showTimeline?: boolean;
+  completedAt?: string | null;
   onRecoveryContribute?: () => void;
   onRecoveryViewTimeline?: () => void;
 };
@@ -61,8 +63,13 @@ function statusLabel(
   t: (key: string) => string,
 ): string {
   if (status === 'paid') return t('ownership.paid');
+  if (status === 'waived') return t('ownership.waived');
   if (status === 'missed') return t('ownership.catchUpShare');
   return t('ownership.scheduled');
+}
+
+function isClosedMilestone(status: OwnershipMilestone['paymentStatus']): boolean {
+  return status === 'paid' || status === 'waived';
 }
 
 function MilestoneIcon({ milestone }: { milestone: OwnershipMilestone }) {
@@ -72,7 +79,7 @@ function MilestoneIcon({ milestone }: { milestone: OwnershipMilestone }) {
   if (milestone.milestone === 'halfway' || milestone.milestone === 'quarter') {
     return <span aria-hidden>★</span>;
   }
-  if (milestone.paymentStatus === 'paid') {
+  if (milestone.paymentStatus === 'paid' || milestone.paymentStatus === 'waived') {
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
         <path
@@ -98,6 +105,7 @@ export function OwnershipProgress({
   paymentSchedules,
   compact = false,
   showTimeline = false,
+  completedAt,
   onRecoveryContribute,
   onRecoveryViewTimeline,
 }: Props) {
@@ -109,7 +117,11 @@ export function OwnershipProgress({
     () =>
       calculateOwnershipTimeline(
         pricingSnapshot,
-        paymentSchedules?.map((row) => ({ ...row, paidAmount: row.paidAmount ?? undefined })),
+        paymentSchedules?.map((row) => ({
+          ...row,
+          paidAmount: row.paidAmount ?? undefined,
+          paidAt: row.paidAt ?? undefined,
+        })),
       ),
     [paymentSchedules, pricingSnapshot],
   );
@@ -124,9 +136,13 @@ export function OwnershipProgress({
     : timeline.currentOwnership;
   const bloxPct = Math.max(0, Math.round((100 - customerPct) * 100) / 100);
 
+  const fullyYoursDateSource =
+    timeline.remainingPayments === 0
+      ? (completedAt ?? timeline.estimatedCompletionDate)
+      : timeline.estimatedCompletionDate;
   const fullyYoursDate =
-    timeline.estimatedCompletionDate &&
-    new Date(timeline.estimatedCompletionDate).toLocaleDateString(dateFmt, {
+    fullyYoursDateSource &&
+    new Date(fullyYoursDateSource).toLocaleDateString(dateFmt, {
       month: 'short',
       year: 'numeric',
     });
@@ -146,6 +162,10 @@ export function OwnershipProgress({
             <span>{t('ownership.currentOwnership')}</span>
           </div>
         </header>
+      )}
+
+      {!compact && (
+        <OwnershipBlocksCanvas ownershipPct={timeline.currentOwnership} embedded />
       )}
 
       {compact && (
@@ -222,19 +242,23 @@ export function OwnershipProgress({
             <span>{t('ownership.paymentsCompleted')}</span>
           </div>
           <div className="dm-ownership__stat">
-            <strong>{timeline.totalPayments - timeline.completedPayments}</strong>
+            <strong>{timeline.remainingPayments}</strong>
             <span>{t('ownership.paymentsRemaining')}</span>
           </div>
           {fullyYoursDate && (
             <div className="dm-ownership__stat">
               <strong>{fullyYoursDate}</strong>
-              <span>{t('ownership.estCompletion')}</span>
+              <span>
+                {timeline.remainingPayments === 0
+                  ? t('ownership.completedOn', { defaultValue: 'Completed' })
+                  : t('ownership.estCompletion')}
+              </span>
             </div>
           )}
         </div>
       )}
 
-      {fullyYoursDate && compact && (
+      {fullyYoursDate && compact && timeline.remainingPayments > 0 && (
         <p className="dm-ownership__trajectory">
           {t('ownership.fullyYoursBy', { date: fullyYoursDate })}
           {timeline.projected && ' *'}
@@ -269,7 +293,7 @@ export function OwnershipProgress({
           {!compact && <h5 className="dm-ownership__stepper-title">{t('ownership.timelineTitle')}</h5>}
           <ol className={`dm-ownership__steps${compact ? ' dm-ownership__steps--compact' : ''}`}>
             {keyMilestones.map((milestone) => {
-              const paid = milestone.paymentStatus === 'paid';
+              const paid = isClosedMilestone(milestone.paymentStatus);
               const missed = milestone.paymentStatus === 'missed';
               const variant = milestoneCardVariant(milestone);
               return (
@@ -342,7 +366,7 @@ export function OwnershipProgress({
                 <tr
                   key={`sched-${m.sequence}`}
                   className={
-                    m.paymentStatus === 'paid'
+                    isClosedMilestone(m.paymentStatus)
                       ? 'is-paid'
                       : m.paymentStatus === 'missed'
                         ? 'is-missed'

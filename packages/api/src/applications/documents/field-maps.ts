@@ -5,6 +5,7 @@ import { buildKycVerificationSummary } from '../../kyc/kyc-verification-summary'
 import type { ContractScheduleRow } from '../contract-pdf';
 import { birthYearOf, readCustomerSnapshot } from '../customer-snapshot';
 import { monthlyIncomeOf, monthlyLiabilitiesOf, type AssessedApplicationCredit } from '../credit-assessment';
+import type { ContractDocumentType } from './template-catalog';
 
 export type ContractFieldContext = {
   applicationId: string;
@@ -39,6 +40,11 @@ export type ContractFieldContext = {
   annualRate: number;
   financedTotal: number;
   schedule: ContractScheduleRow[];
+  financingType?: string | null;
+  companyCode?: string | null;
+  salesmanName?: string | null;
+  intakeSource?: 'walk_in' | 'web_lead' | null;
+  uploadedCategories?: string[];
   credit?: AssessedApplicationCredit;
   approverName?: string;
   approverRole?: string;
@@ -113,6 +119,7 @@ export function commonDealFields(ctx: ContractFieldContext): Record<string, stri
   const guarantor = snap.guarantor && typeof snap.guarantor === 'object' ? snap.guarantor : {};
   const employment = employmentOf(snap);
   const qid = parseQid(snap.qid);
+  const conventional = ctx.financingType === 'conventional_interest';
 
   return {
     'Application.Number': ctx.referenceNo ?? ctx.applicationId,
@@ -121,8 +128,12 @@ export function commonDealFields(ctx: ContractFieldContext): Record<string, stri
     'Deal.CommencementDate': iso(ctx.approvedAt),
     'Deal.PaymentFrequency': 'Monthly',
     'Deal.DueDayDescription': 'the same calendar day of each month as the commencement date',
-    'Deal.RentalRate': `${ctx.annualRate.toFixed(2)}% per annum`,
-    'Deal.RentalBasis': 'annual rental rate on BloX remaining share',
+    'Deal.RentalRate': conventional
+      ? `${ctx.annualRate.toFixed(2)}% annual interest`
+      : `${ctx.annualRate.toFixed(2)}% per annum`,
+    'Deal.RentalBasis': conventional
+      ? 'annual interest on outstanding principal'
+      : 'annual rental rate on BloX remaining share',
     'Deal.PeriodicPayment': money(ctx.monthly),
     'Deal.NumberOfPayments': String(ctx.tenor),
     'Deal.TotalUnits': String(units.totalUnits),
@@ -150,6 +161,9 @@ export function commonDealFields(ctx: ContractFieldContext): Record<string, stri
     'Customer.YearsInQatar': str(snap.residenceDuration),
     'Customer.HousingStatus': '',
     'Customer.Age': ageOf(snap, ctx.approvedAt),
+    'Customer.DateOfBirth': snap.dateOfBirth
+      ? snap.dateOfBirth.replace(/^(\d{4})-(\d{2})-(\d{2}).*/, '$3/$2/$1')
+      : '',
     'CoApplicant.FullNameEN': str(guarantor.fullName),
     'CoApplicant.QID': str(guarantor.qid),
     'Vehicle.Make': ctx.vehicle.make,
@@ -205,6 +219,8 @@ export function scheduleRowFields(ctx: ContractFieldContext): Record<string, str
     fields[`${prefix}.Units`] = String(bought);
     fields[`${prefix}.UnitCost`] = money(row.principal);
     fields[`${prefix}.Rental`] = money(row.interest);
+    fields[`${prefix}.Interest`] = money(row.interest);
+    fields[`${prefix}.Principal`] = money(row.principal);
     fields[`${prefix}.Total`] = money(row.payment);
     fields[`${prefix}.CustomerPct`] = customerPct;
     fields[`${prefix}.BloXValue`] = money(row.balance);
@@ -387,11 +403,11 @@ export function camFields(ctx: ContractFieldContext): Record<string, string> {
 }
 
 export function fieldsForDocument(
-  documentType: 'ijarah_agreement' | 'musharakah_agreement' | 'ownership_rental_schedule' | 'credit_appraisal_memorandum',
+  documentType: ContractDocumentType,
   ctx: ContractFieldContext,
 ): Record<string, string> {
   const base = commonDealFields(ctx);
-  if (documentType === 'ownership_rental_schedule') {
+  if (documentType === 'ownership_rental_schedule' || documentType === 'amortization_schedule') {
     return { ...base, ...scheduleRowFields(ctx) };
   }
   if (documentType === 'credit_appraisal_memorandum') {

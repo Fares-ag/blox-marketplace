@@ -43,6 +43,7 @@ export type CustomerAddress = {
   state?: string;
   country?: string;
   postalCode?: string;
+  po_box?: string;
 };
 
 export type CustomerEmployment = {
@@ -144,7 +145,17 @@ export const INDIVIDUAL_DOC_CATEGORIES = [
   'bank',
   'other',
 ] as const;
-export const CORPORATE_DOC_CATEGORIES = ['cr', 'computer_card', 'rental_agreement', 'signatory_id'] as const;
+export const CORPORATE_DOC_CATEGORIES = [
+  'qid',
+  'signatory_id',
+  'salary',
+  'bank',
+  'cr',
+  'computer_card',
+  'rental_agreement',
+  'vehicle_quotation',
+  'other',
+] as const;
 
 /**
  * Must stay in step with StorageService.assertKycFile in the API, which accepts
@@ -259,10 +270,29 @@ function str(value: unknown): string {
   return value === undefined || value === null ? '' : String(value);
 }
 
+function asDateInput(value: unknown): string {
+  const match = str(value).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : '';
+}
+
 /** Residency for a form value: the explicit field first, else read from the QID. */
 export function residencyForInfo(info: Pick<CustomerInfoFormValue, 'residency' | 'qid'>): ResidencyClass | null {
   if (info.residency) return info.residency;
   return parseQid(info.qid).residency;
+}
+
+/** Map ops customer search rows onto first/last — account profile beats display name split. */
+export function accountNameFromCustomerSearchHit(hit: {
+  name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+}): { firstName: string; lastName: string } {
+  const first = hit.first_name?.trim();
+  const last = hit.last_name?.trim();
+  if (first && last) return { firstName: first, lastName: last };
+  if (first) return { firstName: first, lastName: last ?? '' };
+  const parts = (hit.name ?? '').split(/\s+/).filter(Boolean);
+  return { firstName: parts[0] ?? '', lastName: parts.slice(1).join(' ') };
 }
 
 export function customerInfoFromSnapshot(raw: Record<string, unknown> | undefined | null): CustomerInfoFormValue {
@@ -294,7 +324,7 @@ export function customerInfoFromSnapshot(raw: Record<string, unknown> | undefine
     email: str(raw.email),
     phone: str(raw.phone),
     gender: asGender(raw.gender),
-    dateOfBirth: str(raw.dateOfBirth),
+    dateOfBirth: asDateInput(raw.dateOfBirth),
     nationality: str(raw.nationality),
     residency,
     residenceDuration: asResidenceDuration(raw.residenceDuration),
@@ -304,7 +334,7 @@ export function customerInfoFromSnapshot(raw: Record<string, unknown> | undefine
       area: str(address.area ?? address.state ?? ''),
       city: str(address.city ?? raw.city ?? ''),
       zone: str(address.zone ?? ''),
-      poBox: str(address.poBox ?? address.postalCode ?? raw.postalCode ?? ''),
+      poBox: str(address.poBox ?? address.po_box ?? address.postalCode ?? raw.postalCode ?? ''),
       country: str(address.country ?? raw.country ?? ''),
     },
     employment: {
@@ -569,6 +599,19 @@ export type WizardDocumentSlot = {
   maxAgeDays?: number;
 };
 
+/** Same checklist the API uses for corporate submit (`application-documents.ts`). */
+export const CORPORATE_WIZARD_SLOTS: WizardDocumentSlot[] = [
+  { category: 'qid', required: true, group: 'identity', labelKey: 'applyFlow.docs.qid' },
+  { category: 'signatory_id', required: false, group: 'identity', labelKey: 'ops.wizard.doc.signatory_id' },
+  { category: 'salary', required: true, group: 'income', labelKey: 'applyFlow.docs.salary', maxAgeDays: 30 },
+  { category: 'bank', required: true, group: 'income', labelKey: 'applyFlow.docs.bank', maxAgeDays: 30 },
+  { category: 'cr', required: false, group: 'business', labelKey: 'applyFlow.docs.cr' },
+  { category: 'computer_card', required: false, group: 'business', labelKey: 'ops.wizard.doc.computer_card' },
+  { category: 'rental_agreement', required: false, group: 'business', labelKey: 'ops.wizard.doc.rental_agreement' },
+  { category: 'vehicle_quotation', required: false, group: 'supporting', labelKey: 'applyFlow.docs.vehicleQuotation' },
+  { category: 'other', required: false, group: 'supporting', labelKey: 'applyFlow.docs.other' },
+];
+
 export const DOCUMENT_SLOT_GROUP_ORDER: DocumentSlotGroup[] = ['identity', 'income', 'business', 'guarantor', 'supporting'];
 
 export const DOCUMENT_SLOT_GROUP_LABEL_KEYS: Record<DocumentSlotGroup, string> = {
@@ -592,12 +635,7 @@ export function documentSlotProfileFor(info: CustomerInfoFormValue): DocumentSlo
 /** Ordered checklist for the applicant; corporate applicants keep their fixed document set. */
 export function wizardDocumentSlots(info: CustomerInfoFormValue): WizardDocumentSlot[] {
   if (info.applicantType === 'corporate') {
-    return CORPORATE_DOC_CATEGORIES.map((category) => ({
-      category,
-      required: true,
-      group: 'business',
-      labelKey: `ops.wizard.doc.${category}`,
-    }));
+    return CORPORATE_WIZARD_SLOTS.map((slot) => ({ ...slot }));
   }
   return documentSlotsFor(documentSlotProfileFor(info)).map((slot: DocumentSlot) => ({ ...slot }));
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accountNameFromCustomerSearchHit,
   buildCustomerSnapshot,
   customerInfoFromSnapshot,
   emptyCustomerInfo,
@@ -108,6 +109,17 @@ describe('buildCustomerSnapshot / customerInfoFromSnapshot', () => {
     expect(legacy.monthlyIncome).toBe(9_000);
     expect(legacy.residency).toBe('expat');
     expect(legacy.hasGuarantor).toBe(false);
+  });
+
+  it('prefers account first/last over snapshot when linking an existing customer', () => {
+    const fromSearch = accountNameFromCustomerSearchHit({
+      name: 'Wrong Split Name',
+      first_name: 'Fatima',
+      last_name: 'Al-Naimi',
+    });
+    expect(fromSearch).toEqual({ firstName: 'Fatima', lastName: 'Al-Naimi' });
+    const fromDisplay = accountNameFromCustomerSearchHit({ name: 'Omar Khan' });
+    expect(fromDisplay).toEqual({ firstName: 'Omar', lastName: 'Khan' });
   });
 
   it('leaves corporate applicants unchanged', () => {
@@ -256,8 +268,18 @@ describe('document slots in the wizard', () => {
 
   it('keeps the corporate document set', () => {
     const slots = wizardDocumentSlots({ ...emptyCustomerInfo(), applicantType: 'corporate' });
-    expect(slots.map((s) => s.category)).toEqual(['cr', 'computer_card', 'rental_agreement', 'signatory_id']);
-    expect(slots.every((s) => s.required)).toBe(true);
+    expect(slots.map((s) => s.category)).toEqual([
+      'qid',
+      'signatory_id',
+      'salary',
+      'bank',
+      'cr',
+      'computer_card',
+      'rental_agreement',
+      'vehicle_quotation',
+      'other',
+    ]);
+    expect(slots.filter((s) => s.required).map((s) => s.category)).toEqual(['qid', 'salary', 'bank']);
   });
 
   it('reports missing required files, treating `id` as a Qatar ID', () => {

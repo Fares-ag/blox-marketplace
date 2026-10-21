@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
+import { FileDropzone } from '../components/FileDropzone';
 import { apiFetch } from '../lib/api';
 import { buildPricingSnapshot } from '../lib/pricing';
 import { assessAffordability } from '../lib/affordability';
@@ -35,6 +36,7 @@ import { WizardAgentInvite } from './WizardAgentInvite';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { InstallmentPlanStep } from './InstallmentPlanStep';
 import { WizardReviewStep } from './WizardReviewStep';
+import { financeProductKind, financeProductLabelKey } from './finance-product';
 import { submitGateMessage, apiErrorCodeOf } from './submit-gate';
 import {
   isListingSelectableForFinancing,
@@ -243,7 +245,7 @@ function DealSetupFields({
  */
 const DRAFT_STORAGE_KEY = 'blox.ops.application-wizard.draft';
 
-/** Chosen files cannot be serialised, so they are re-picked after a restore. */
+/** File bytes live in IndexedDB, not in the JSON draft. */
 const DRAFT_OMIT_KEYS = ['files'];
 
 export function AddApplicationWizard({
@@ -474,7 +476,7 @@ export function AddApplicationWizard({
             <option value="">{t('ops.wizard.selectOffer')}</option>
             {(offers.data?.items ?? []).map((o) => (
               <option key={o.id} value={o.id}>
-                {o.name} · {o.annual_rent_rate}% · {o.crm_adapter === 'zoho' ? t('ops.common.partnerFinance') : t('ops.common.bloxFinance')}
+                {o.name} · {o.annual_rent_rate}% · {t(financeProductLabelKey(financeProductKind(o)))}
               </option>
             ))}
           </OpsSelect>
@@ -604,15 +606,11 @@ export function AddApplicationWizard({
                   const freshness = slot.maxAgeDays ? t('applyFlow.docs.freshness', { days: slot.maxAgeDays }) : '';
                   const file = data.files[slot.category];
                   return (
-                    <label key={slot.category} className="blox-upload-dropzone">
-                      <input
-                        type="file"
-                        accept={KYC_UPLOAD_ACCEPT}
-                        hidden
-                        onChange={(e) => {
-                          const picked = e.target.files?.[0];
-                          e.target.value = '';
-                          if (!picked) return;
+                    <FileDropzone
+                      key={slot.category}
+                      className="blox-upload-dropzone"
+                      accept={KYC_UPLOAD_ACCEPT}
+                      onFile={(picked) => {
                           // Rejected at selection rather than at submit: the wizard
                           // uploads these only after the application has been
                           // created, so an unsupported file otherwise fails once the
@@ -626,7 +624,7 @@ export function AddApplicationWizard({
                           setError(null);
                           updateData({ files: { ...data.files, [slot.category]: picked } });
                         }}
-                      />
+                    >
                       <p className="blox-upload-dropzone__title">
                         {t(slot.labelKey, { defaultValue: slot.category.replace(/_/g, ' ') })}{' '}
                         <OpsStatusPill
@@ -652,7 +650,7 @@ export function AddApplicationWizard({
                       ) : (
                         <p className="blox-upload-dropzone__hint">{t('dealerOps.intake.chooseFile')}</p>
                       )}
-                    </label>
+                    </FileDropzone>
                   );
                 })}
               </div>
@@ -689,7 +687,13 @@ export function AddApplicationWizard({
             data={data}
             selectedVehicles={ctx.selectedVehicles}
             offer={ctx.offer}
-            companyName={isAdmin ? companyName : undefined}
+            companyName={
+              isAdmin
+                ? companyName
+                : (vehicles.data?.items ?? []).find((v) => v.id === data.productIds[0])?.company_name ??
+                  user?.company_name ??
+                  undefined
+            }
             agentCompanyId={isAdmin ? data.companyId : user?.company_id ?? ''}
             isAdmin={isAdmin}
             ruleViolations={ctx.violations}

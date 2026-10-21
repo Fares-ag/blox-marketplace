@@ -180,6 +180,26 @@ export class KycPlatformClient {
     };
   }
 
+  async setLegalHold(caseId: string, hold: boolean, reason?: string): Promise<void> {
+    if (!this.configured()) return;
+    await this.kycFetch(`/api/v1/cases/${encodeURIComponent(caseId)}/legal-hold`, {
+      method: 'POST',
+      body: JSON.stringify({ hold, reason }),
+    });
+  }
+
+  /** Lift hold once marketplace financing is terminal; keep hold otherwise. */
+  async syncLegalHoldForStatus(kycCaseId: string | null | undefined, status: string, reason?: string): Promise<void> {
+    if (!kycCaseId) return;
+    const terminal = status === 'completed' || status === 'rejected' || status === 'submission_cancelled';
+    if (!terminal) return;
+    try {
+      await this.setLegalHold(kycCaseId, false, reason ?? `marketplace:${status}`);
+    } catch (err) {
+      this.logger.warn(`KYC legal-hold lift failed for ${kycCaseId}: ${String(err)}`);
+    }
+  }
+
   buildSlotSummary(kase: KycCaseDetail) {
     const latestByType = new Map<string, KycDocument>();
     for (const doc of kase.documents) latestByType.set(doc.type, doc);

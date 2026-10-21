@@ -147,7 +147,11 @@ These are **not** hosted on BLOX Azure but may process data. Each requires contr
 | **SkipCash** | Payment collection | Payment metadata, customer references |
 | **Postmark** (or approved alternative) | Transactional email | Email address, notification content |
 | **Twilio** (optional) | SMS / WhatsApp | Phone number, OTP / link content |
-| **blox-kyc-module / Didit** | e-KYC / AML | QID, biometrics, identity documents |
+| **Railway** (interim KYC host) | Hosting for blox-kyc-module until Azure Qatar | QID, biometrics, identity documents — **REG-031 open** |
+| **Regula** | Licensed Document Reader software on Blox infra (not SaaS SoR) | Copies of ID images processed on Blox-owned service |
+| **FaceTec** | Licensed Server/Device SDK on Blox infra (not SaaS SoR) | Liveness session blobs processed on Blox-owned service |
+| **World-Check / list vendor** | Screening list feed; matching stays in Blox | Watchlist data (not customer originals) |
+| **Didit** | Interim hosted e-KYC until native cutover | QID, biometrics — **remove after cutover** |
 | **DNS provider** | DNS only | Must not process request bodies (no Workers on PII) |
 
 Primary platform data **does not** depend on these vendors for storage — only for delivery or specialised processing.

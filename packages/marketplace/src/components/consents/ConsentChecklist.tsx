@@ -70,9 +70,11 @@ type Props = {
   onWithdraw?: (code: ConsentCodeValue, record: ConsentRecordDto) => void;
   /** Code whose withdrawal is in flight (disables its control). */
   withdrawingCode?: ConsentCodeValue | null;
+  /** Consents that already have an open withdrawal request. */
+  withdrawLockedCodes?: ReadonlySet<ConsentCodeValue>;
 };
 
-export function ConsentChecklist({ applicationId, onStatusChange, hideIntro, outstandingOnly, onWithdraw, withdrawingCode }: Props) {
+export function ConsentChecklist({ applicationId, onStatusChange, hideIntro, outstandingOnly, onWithdraw, withdrawingCode, withdrawLockedCodes }: Props) {
   const { t } = useTranslation();
   const locale = getAppLocale();
   const qc = useQueryClient();
@@ -175,8 +177,8 @@ export function ConsentChecklist({ applicationId, onStatusChange, hideIntro, out
             disabled={mutation.isPending}
             onToggle={(checked) => toggle(code, checked)}
             onToggleExpanded={() => toggleExpanded(code)}
-            onWithdraw={onWithdraw && record ? () => onWithdraw(code, record) : undefined}
-            withdrawing={withdrawingCode === code}
+            onWithdraw={onWithdraw && record && !withdrawLockedCodes?.has(code) ? () => onWithdraw(code, record) : undefined}
+            withdrawing={withdrawingCode === code || Boolean(withdrawLockedCodes?.has(code))}
           />
         ))}
       </ul>

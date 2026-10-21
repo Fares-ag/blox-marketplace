@@ -315,6 +315,20 @@ describe('early settlement (integration)', () => {
     const completed = await ctx.prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
     expect(completed.status).toBe('completed');
 
+    const schedulesAfter = await ctx.prisma.paymentSchedule.findMany({
+      where: { applicationId },
+      orderBy: { sequence: 'asc' },
+    });
+    expect(schedulesAfter.length).toBeGreaterThan(0);
+    expect(schedulesAfter.every((s) => s.status === 'paid' || s.status === 'waived')).toBe(true);
+    expect(schedulesAfter.some((s) => s.status === 'pending' || s.status === 'overdue')).toBe(false);
+
+    const customerView = await authed(customer.agent).get(`/api/v1/applications/${applicationId}`);
+    expect(customerView.status).toBe(200);
+    expect(customerView.body.status).toBe('completed');
+    expect(customerView.body.completed_at).toBeTruthy();
+    expect(customerView.body.payment_schedules.every((s: { status: string }) => s.status === 'paid' || s.status === 'waived')).toBe(true);
+
     // Ownership transfer is done; a second request is refused.
     expectApiError(
       await authed(customer.agent).post(`/api/v1/applications/${applicationId}/settlement-request`),

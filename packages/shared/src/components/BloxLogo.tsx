@@ -41,5 +41,8 @@ export const BLOX_LOGO_NAV_PATH = '/brand/blox-logo-nav.png';
 /** Full wordmark for light surfaces (deep green + emerald). */
 export const BLOX_LOGO_PATH = '/brand/blox-logo.png';
 
+/** Tab favicon — green mark (matches mobile app icon). */
+export const BLOX_FAVICON_PATH = '/brand/blox-favicon.png';
+
 /** @deprecated use BLOX_LOGO_NAV_PATH */
 export const BLOX_LOGO_PUBLIC_PATH = BLOX_LOGO_NAV_PATH;

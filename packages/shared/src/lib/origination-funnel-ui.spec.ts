@@ -8,9 +8,9 @@ describe('originationFunnelChartStages', () => {
       { submitted: 'Submitted', approved: 'Approved', activated: 'Activated' },
     );
     expect(stages).toEqual([
-      { label: 'Submitted', value: 10, percentage: 100 },
-      { label: 'Approved', value: 1, percentage: 10 },
-      { label: 'Activated', value: 1, percentage: 10 },
+      { label: 'Submitted', value: 10, percentage: 100, color: '#00CFA2' },
+      { label: 'Approved', value: 1, percentage: 10, color: '#16535B' },
+      { label: 'Activated', value: 1, percentage: 10, color: '#0B7A63' },
     ]);
   });
 

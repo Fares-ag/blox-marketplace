@@ -4,6 +4,7 @@ import { ZohoModule } from '../integrations/zoho/zoho.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { QuotesModule } from '../quotes/quotes.module';
 import { MusharakahModule } from '../musharakah/musharakah.module';
+import { BureauReportingModule } from '../bureau/bureau-reporting.module';
 import { JobHealthService } from './job-health.service';
 import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
@@ -15,6 +16,7 @@ import { JobsService } from './jobs.service';
     QuotesModule,
     ZohoModule,
     MusharakahModule,
+    BureauReportingModule,
   ],
   controllers: [JobsController],
   providers: [JobsService, JobHealthService],

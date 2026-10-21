@@ -80,6 +80,13 @@ describe('selectNotificationChannels', () => {
     expect(sent(route({ category: 'takaful', preferences: prefs }))).toEqual([]);
   });
 
+  it('always emails when forceEmail is set, even if the recipient switched email off', () => {
+    const prefs = { ...allOn, channels: { email: false, sms: false, push: false, whatsapp: false } };
+    const decisions = route({ forceEmail: true, preferences: prefs });
+    expect(decisions.email).toEqual({ send: true, forced: true });
+    expect(decisions.sms).toEqual({ send: false, reason: 'preference_off' });
+  });
+
   it('always emails security notices even when the customer switched email off', () => {
     const prefs = { ...allOn, channels: { email: false, sms: false, push: false, whatsapp: false } };
     const decisions = route({ category: 'security', preferences: prefs });

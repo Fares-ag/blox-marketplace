@@ -51,5 +51,6 @@ export const bloxMeta = {
   logo: {
     nav: '/brand/blox-logo-nav.png',
     light: '/brand/blox-logo.png',
+    favicon: '/brand/blox-favicon.png',
   },
 } as const;

@@ -154,9 +154,12 @@ export interface DmUser {
   email: string;
   role: UserRole;
   company_id: string | null;
+  company_name?: string | null;
   credit_scope: OfficerScope;
   finance_scope: OfficerScope;
   full_name: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   phone: string | null;
   qid: string | null;
   is_active: boolean;
@@ -191,6 +194,7 @@ export interface PublicOffer {
   finance_partner_id?: string | null;
   finance_partner_name?: string | null;
   crm_adapter?: string | null;
+  financing_type?: string | null;
   is_default?: boolean;
 }
 

@@ -21,6 +21,7 @@ import {
   principalCollectedFromInstallment,
 } from '@drivemarket/shared/pricing';
 import { PrismaService } from '../prisma/prisma.service';
+import { liftMarketplaceKycHold } from '../kyc/kyc-legal-hold';
 import { isUniqueConstraintError } from '../common/prisma-errors';
 import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
 import { AppConfigService } from '../config/app-config.service';
@@ -372,7 +373,10 @@ export class PaymentsService {
     const companyFilter = await opsCompanyFilter(this.prisma, user);
     const baseWhere: Prisma.PaymentScheduleWhereInput = {
       ...(query.applicationId ? { applicationId: query.applicationId } : {}),
-      ...(companyFilter ? { application: { companyId: { in: companyFilter } } } : {}),
+      application: {
+        status: { not: ApplicationStatus.repossession_in_progress },
+        ...(companyFilter ? { companyId: { in: companyFilter } } : {}),
+      },
     };
     const where: Prisma.PaymentScheduleWhereInput = {
       ...baseWhere,
@@ -522,6 +526,11 @@ export class PaymentsService {
         toValue: 'completed',
         metadata: { trigger: 'final_installment_paid' },
       });
+      const completed = await this.prisma.application.findUnique({
+        where: { id: result.applicationId },
+        select: { kycCaseId: true },
+      });
+      await liftMarketplaceKycHold(completed?.kycCaseId, 'completed', 'final_installment_paid');
       if (result.customerUserId) {
         await this.activity.notify(
           result.customerUserId,
@@ -552,7 +561,10 @@ export class PaymentsService {
     const where: Prisma.PaymentTransactionWhereInput = {
       gateway: 'bank_transfer',
       status: { in: ['pending', 'failed'] },
-      ...(companyFilter ? { application: { companyId: { in: companyFilter } } } : {}),
+      application: {
+        status: { not: ApplicationStatus.repossession_in_progress },
+        ...(companyFilter ? { companyId: { in: companyFilter } } : {}),
+      },
     };
     const [items, total] = await Promise.all([
       this.prisma.paymentTransaction.findMany({
@@ -1393,6 +1405,11 @@ export class PaymentsService {
         toValue: 'completed',
         metadata: { trigger: 'final_installment_paid', skipcash: true },
       });
+      const completed = await this.prisma.application.findUnique({
+        where: { id: result.applicationId },
+        select: { kycCaseId: true },
+      });
+      await liftMarketplaceKycHold(completed?.kycCaseId, 'completed', 'final_installment_paid');
       if (result.customerUserId) {
         await this.activity.notify(
           result.customerUserId,

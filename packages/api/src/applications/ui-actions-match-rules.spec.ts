@@ -36,6 +36,8 @@ const TRANSITION_ACTIONS: Partial<Record<keyof WorkspaceActions, ApplicationStat
   reopen: 'under_review',
   cancel: 'submission_cancelled',
   submitToCredit: 'under_review',
+  returnFromRecovery: 'hardship',
+  completeRecovery: 'completed',
 };
 
 function ruleAllows(from: ApplicationStatus, to: ApplicationStatus, role: UserRole) {
@@ -84,6 +86,24 @@ describe('workspace actions ⊆ API transition rules', () => {
       }
     }
   }
+
+  it('hides recover down payment when the ledger already satisfies the requirement', () => {
+    const withRecovery = visibleWorkspaceActions('pending_finance_activation', UserRole.credit_officer);
+    expect(withRecovery.recoverDownPayment).toBe(true);
+    const collected = visibleWorkspaceActions('pending_finance_activation', UserRole.credit_officer, {
+      downPaymentCollected: true,
+    });
+    expect(collected.recoverDownPayment).toBe(false);
+  });
+
+  it('hides record down payment when the ledger already satisfies the requirement', () => {
+    const open = visibleWorkspaceActions('down_payment_required', UserRole.finance_officer);
+    expect(open.recordDownPayment).toBe(true);
+    const collected = visibleWorkspaceActions('down_payment_required', UserRole.finance_officer, {
+      downPaymentCollected: true,
+    });
+    expect(collected.recordDownPayment).toBe(false);
+  });
 
   it('finance never sees an Activate control', () => {
     for (const status of STATUSES) {

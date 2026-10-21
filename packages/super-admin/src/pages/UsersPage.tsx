@@ -172,6 +172,7 @@ export function UsersPage() {
               )}
               {showsCreditFields(role) && (
                 <>
+                  <p className="blox-form-hint">{t('ops.superAdmin.dealerCreditHint')}</p>
                   <label>
                     {t('ops.superAdmin.creditScopeLabel')}
                     <select value={creditScope} onChange={(e) => setCreditScope(e.target.value)}>

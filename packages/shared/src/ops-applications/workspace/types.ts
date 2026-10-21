@@ -5,7 +5,8 @@ import type { WorkspaceMutations } from './useWorkspaceMutations';
 
 export type WorkspaceActions = ReturnType<typeof visibleWorkspaceActions>;
 
-export type ConfirmRequest = { title: string; message: string; onConfirm: () => void; danger?: boolean };
+/** Return `false` to keep the confirm dialog open (e.g. reason failed re-validation). */
+export type ConfirmRequest = { title: string; message: string; onConfirm: () => void | false; danger?: boolean };
 
 /** Guarantor consent state the workspace shares with the facts strip and the guarantor card. */
 export type WorkspaceGuarantorProps = {

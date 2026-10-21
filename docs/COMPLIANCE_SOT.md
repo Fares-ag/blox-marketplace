@@ -38,6 +38,7 @@ on the partner path until those exits are used in production.
 ## Retention
 
 KYC retention purge (`RETENTION_YEARS`, default 10) must not erase a case whose
-`external_ref` is an **active** marketplace financing. Operators place a
-**legal hold** on those cases. After `completed` / `rejected`, the KYC window
-applies as usual.
+`external_ref` is an **active** marketplace financing. Cases created with an
+`external_ref` start on **legal hold**. Marketplace lifts the hold when the
+application reaches `completed` / `rejected` / `submission_cancelled`. After
+that, the KYC retention window applies as usual.

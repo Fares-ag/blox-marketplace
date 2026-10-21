@@ -21,6 +21,22 @@ export async function resolveDescendantCompanyIds(
   return [company.id, ...children.map((c) => c.id)];
 }
 
+/**
+ * The dealership plus its holding parent. Officers assigned at group level
+ * must match on the parent id when an application is filed on a child.
+ */
+export async function resolveSelfAndAncestorCompanyIds(
+  prisma: CompanyClient,
+  companyId: string,
+): Promise<string[]> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true, parentCompanyId: true },
+  });
+  if (!company) return [companyId];
+  return company.parentCompanyId ? [company.id, company.parentCompanyId] : [company.id];
+}
+
 export async function expandCompanyIds(
   prisma: CompanyClient,
   ids: string[],

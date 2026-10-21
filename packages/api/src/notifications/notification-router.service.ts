@@ -107,6 +107,7 @@ export class NotificationRouterService implements NotificationRouter {
         push: this.outboundEnabled.has('push'),
       },
       active: recipient.isActive,
+      forceEmail: input.forceEmail,
     });
 
     const outcomes = await Promise.all(

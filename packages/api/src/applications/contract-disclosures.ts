@@ -24,3 +24,14 @@ export const QATAR_FINANCING_DISCLOSURES: readonly string[] = [
 
 /** @deprecated Kept for older imports; the disclosures are financing disclosures, not consumer-credit ones. */
 export const QATAR_CONSUMER_CREDIT_DISCLOSURES = QATAR_FINANCING_DISCLOSURES;
+
+/**
+ * Conventional in-house credit disclosures. Interest / APR language is allowed
+ * only on this product — Musharakah copy stays on `QATAR_FINANCING_DISCLOSURES`.
+ */
+export const CONVENTIONAL_INTEREST_DISCLOSURES: readonly string[] = [
+  'This agreement is a conventional sale-credit (loan) arrangement. The lender advances the amount financed and the customer repays that principal plus interest at the stated annual rate. The vehicle is security for the debt; the customer does not buy ownership units from the lender.',
+  'Each installment combines principal and interest on the outstanding balance. Interest does not compound beyond the disclosed annual rate. The total interest payable and the total amount payable are shown on the first page.',
+  'You may request a full amortization schedule and account statement at any time. Early settlement is the outstanding principal plus interest accrued to the settlement date; unearned interest for periods that have not elapsed is not charged.',
+  'If you believe an error exists in these terms, contact the lender of record before signing. The amortization schedule is binding once signed — do not alter amounts or dates; add your signature only.',
+];

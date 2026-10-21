@@ -10,6 +10,7 @@ import {
   type IdentityCandidate,
   type IdentityHoldDecision,
 } from './application-dedup';
+import { resolveSelfAndAncestorCompanyIds } from '../companies/company-hierarchy';
 import { productRuleEnforcementFrom, type ProductRuleEnforcement } from './application-rules';
 import {
   birthYearOf,
@@ -198,11 +199,31 @@ export class ApplicationIntakeService {
   }
 
   /**
+   * Credit/finance/dealers/admins who should hear about a new under-review
+   * application. Used by both the customer submit path and the dealer wizard.
+   */
+  async notifyOpsOnSubmit(companyId: string, appId: string): Promise<void> {
+    await this.notifyOps(
+      companyId,
+      [
+        UserRole.credit_officer,
+        UserRole.finance_officer,
+        UserRole.dealer_agent,
+        UserRole.admin,
+        UserRole.super_admin,
+      ],
+      (role) => (role === UserRole.dealer_agent ? 'New lead on your stock' : 'New financing application'),
+      'A customer submitted a financing application.',
+      `/applications/${appId}`,
+    );
+  }
+
+  /**
    * Staff who should hear about an event on a company's application: every
    * credit/finance officer who can see the company (global scope or assigned,
-   * holdings included via the assignment rows), the dealer's agents when asked
-   * for, and admins. The link is portal-relative; BloxShell prefixes the portal
-   * base path when rendering.
+   * including officers assigned to the holding parent), the dealer's agents
+   * when asked for, and admins. The link is portal-relative; BloxShell prefixes
+   * the portal base path when rendering.
    */
   async notifyOps(
     companyId: string,
@@ -211,14 +232,15 @@ export class ApplicationIntakeService {
     body: string,
     linkPath: string,
   ): Promise<void> {
+    const scopeIds = await resolveSelfAndAncestorCompanyIds(this.prisma, companyId);
     const or: Prisma.UserWhereInput[] = [];
     if (roles.includes(UserRole.credit_officer)) {
       or.push({ role: UserRole.credit_officer, creditScope: 'all' });
-      or.push({ role: UserRole.credit_officer, creditCompanies: { some: { companyId } } });
+      or.push({ role: UserRole.credit_officer, creditCompanies: { some: { companyId: { in: scopeIds } } } });
     }
     if (roles.includes(UserRole.finance_officer)) {
       or.push({ role: UserRole.finance_officer, financeScope: 'all' });
-      or.push({ role: UserRole.finance_officer, financeCompanies: { some: { companyId } } });
+      or.push({ role: UserRole.finance_officer, financeCompanies: { some: { companyId: { in: scopeIds } } } });
     }
     if (roles.includes(UserRole.dealer_agent)) {
       or.push({ role: UserRole.dealer_agent, companyId });
@@ -237,6 +259,7 @@ export class ApplicationIntakeService {
         typeof title === 'function' ? title(target.role) : title,
         body,
         linkPath,
+        { forceEmail: true },
       );
     }
   }

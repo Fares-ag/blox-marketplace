@@ -4,7 +4,7 @@
  * withdrawal (with the data-rights fallback when an application in progress
  * relies on it), and the full acceptance and withdrawal history.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +37,8 @@ export function ConsentsPage() {
   const [reason, setReason] = useState('');
   const [withdrawNotice, setWithdrawNotice] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
   const [blocked, setBlocked] = useState<Blocked | null>(null);
+  const [lockedCodes, setLockedCodes] = useState<Set<ConsentCodeValue>>(() => new Set());
+  const withdrawLock = useRef(false);
 
   const history = useMemo(
     () => [...(status.data?.accepted ?? [])].sort((a, b) => b.accepted_at.localeCompare(a.accepted_at)),
@@ -67,6 +69,7 @@ export function ConsentsPage() {
       if (hasErrorCode(error, PRIVACY_ERROR_CODES.withdrawalBlocked)) {
         // The API opened a consent_withdrawal data-rights request on our behalf.
         const requestId = withdrawalBlockedRequestId(error);
+        setLockedCodes((prev) => new Set(prev).add(input.code));
         setBlocked({ title: CONSENT_CATALOG[input.code].title[locale], requestRef: requestId ? requestId.slice(0, 8).toUpperCase() : null });
         setWithdrawNotice(null);
         void qc.invalidateQueries({ queryKey: DATA_RIGHTS_QUERY_KEY });
@@ -137,11 +140,13 @@ export function ConsentsPage() {
           <ConsentChecklist
             hideIntro
             onWithdraw={(code, record) => {
+              if (lockedCodes.has(code) || withdraw.isPending) return;
               setWithdrawNotice(null);
               setBlocked(null);
               setTarget({ code, record, title: CONSENT_CATALOG[code].title[locale] });
             }}
             withdrawingCode={withdraw.isPending ? (withdraw.variables?.code ?? null) : null}
+            withdrawLockedCodes={lockedCodes}
           />
         </section>
 
@@ -262,9 +267,16 @@ export function ConsentsPage() {
             <button
               type="button"
               className="dm-modal__danger-btn"
-              disabled={withdraw.isPending}
+              disabled={withdraw.isPending || (target ? lockedCodes.has(target.code) : false)}
               aria-busy={withdraw.isPending || undefined}
-              onClick={() => target && withdraw.mutate({ code: target.code, reason })}
+              onClick={() => {
+                if (!target || withdraw.isPending || withdrawLock.current || lockedCodes.has(target.code)) return;
+                withdrawLock.current = true;
+                withdraw.mutate(
+                  { code: target.code, reason },
+                  { onSettled: () => { withdrawLock.current = false; } },
+                );
+              }}
             >
               {withdraw.isPending ? t('consentCentre.withdrawing') : t('consentCentre.withdrawConfirm')}
             </button>

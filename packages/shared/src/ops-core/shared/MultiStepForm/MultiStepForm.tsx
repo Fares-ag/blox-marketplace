@@ -1,8 +1,81 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button as CustomButton } from '../../core/Button/Button';
 
-/** Chosen files cannot be serialised; keep them in memory for the tab session. */
+/** Chosen files cannot be serialised into sessionStorage. Memory covers the open tab; IndexedDB covers a sign-in after timeout. */
 const fileHold = new Map<string, Partial<Record<string, File>>>();
+const FILE_DB = 'blox-wizard-files';
+const FILE_STORE = 'files';
+
+type StoredWizardFile = { name: string; type: string; lastModified: number; blob: Blob };
+
+function openFileDb(): Promise<IDBDatabase | null> {
+  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const req = indexedDB.open(FILE_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(FILE_STORE)) req.result.createObjectStore(FILE_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+}
+
+function persistWizardFiles(storageKey: string | undefined, files: Partial<Record<string, File>>) {
+  if (!storageKey) return;
+  const entries: Record<string, StoredWizardFile> = {};
+  for (const [category, file] of Object.entries(files)) {
+    if (file instanceof File) {
+      entries[category] = { name: file.name, type: file.type, lastModified: file.lastModified, blob: file };
+    }
+  }
+  if (!Object.keys(entries).length) return;
+  void openFileDb().then((db) => {
+    if (!db) return;
+    const tx = db.transaction(FILE_STORE, 'readwrite');
+    tx.objectStore(FILE_STORE).put(entries, storageKey);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+  });
+}
+
+function loadWizardFiles(storageKey: string): Promise<Partial<Record<string, File>>> {
+  return openFileDb().then(
+    (db) =>
+      new Promise((resolve) => {
+        if (!db) {
+          resolve({});
+          return;
+        }
+        const tx = db.transaction(FILE_STORE, 'readonly');
+        const req = tx.objectStore(FILE_STORE).get(storageKey);
+        req.onsuccess = () => {
+          const stored = req.result as Record<string, StoredWizardFile> | undefined;
+          const files: Partial<Record<string, File>> = {};
+          if (stored && typeof stored === 'object') {
+            for (const [category, row] of Object.entries(stored)) {
+              if (row?.blob) files[category] = new File([row.blob], row.name, { type: row.type, lastModified: row.lastModified });
+            }
+          }
+          resolve(files);
+          db.close();
+        };
+        req.onerror = () => {
+          resolve({});
+          db.close();
+        };
+      }),
+  );
+}
+
+function forgetWizardFiles(storageKey: string) {
+  void openFileDb().then((db) => {
+    if (!db) return;
+    const tx = db.transaction(FILE_STORE, 'readwrite');
+    tx.objectStore(FILE_STORE).delete(storageKey);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+  });
+}
 
 function stashFiles(storageKey: string | undefined, files: unknown) {
   if (!storageKey || !files || typeof files !== 'object') return;
@@ -50,6 +123,7 @@ function omitKeys(data: any, keys: string[] | undefined): any {
 
 export function clearMultiStepDraft(storageKey: string): void {
   fileHold.delete(storageKey);
+  forgetWizardFiles(storageKey);
   if (typeof window === 'undefined') return;
   try {
     window.sessionStorage.removeItem(storageKey);
@@ -130,9 +204,32 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   omitRef.current = storageOmitKeys;
 
   useEffect(() => {
-    if (formData?.files) stashFiles(storageKey, formData.files);
+    if (formData?.files) {
+      stashFiles(storageKey, formData.files);
+      persistWizardFiles(storageKey, formData.files);
+    }
     writeDraft(storageKey, { step: activeStep, data: omitKeys(formData, omitRef.current) });
   }, [storageKey, activeStep, formData]);
+
+  useEffect(() => {
+    if (!storageKey) return undefined;
+    let cancelled = false;
+    void loadWizardFiles(storageKey).then((files) => {
+      if (cancelled || !Object.keys(files).length) return;
+      stashFiles(storageKey, files);
+      setFormData((prev: any) => {
+        const current = (prev?.files ?? {}) as Partial<Record<string, File>>;
+        const merged: Partial<Record<string, File>> = { ...files };
+        for (const [category, file] of Object.entries(current)) {
+          if (file instanceof File) merged[category] = file;
+        }
+        return { ...(prev || {}), files: merged };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey]);
 
   // Every step opens at its own top. Without this the next step inherits the
   // scroll position of the last one and appears to open halfway down. The page

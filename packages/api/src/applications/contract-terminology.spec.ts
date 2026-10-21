@@ -78,6 +78,15 @@ describe('contract terminology', () => {
     expect(findForbiddenTerms(NO_LATE_CHARGES_LINE)).toEqual([]);
   });
 
+  it('allows interest language only on the conventional in-house path', () => {
+    const text = contractTextFor({ ...input, financingType: 'conventional_interest' });
+    expect(text).toContain('Annual interest rate: 12.50%');
+    expect(text).toContain('Total interest payable');
+    expect(text).toContain('Monthly interest');
+    expect(text).not.toContain('Diminishing Musharakah');
+    expect(findForbiddenTerms(text).length).toBeGreaterThan(0);
+  });
+
   it('prints every body line into the PDF and keeps the fingerprint deterministic', async () => {
     const lines = buildContractLines(input);
     expect(lines.filter((line) => line.text).length).toBeGreaterThan(20);

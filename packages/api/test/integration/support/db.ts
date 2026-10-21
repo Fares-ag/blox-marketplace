@@ -2,6 +2,8 @@ import type { PrismaService } from '../../../src/prisma/prisma.service';
 import { ensureSystemUser } from '../../../src/common/ensure-system-user';
 
 const TRUNCATE_TABLES = [
+  'bureau_submission_rows',
+  'bureau_submissions',
   'payment_events',
   'payment_transactions',
   'payment_schedules',

@@ -63,10 +63,17 @@ export function buildScheduleDrafts(
     throw new Error('invalid_pricing_snapshot');
   }
 
+  const explicitRaw = pricingSnapshot.first_installment_date;
+  const explicit =
+    typeof explicitRaw === 'string' && explicitRaw.trim()
+      ? new Date(`${explicitRaw.trim()}T00:00:00.000Z`)
+      : null;
+  const firstDue = explicit && !Number.isNaN(explicit.getTime()) ? explicit : null;
+
   const drafts: ScheduleDraft[] = [];
   for (let sequence = 1; sequence <= tenor; sequence += 1) {
-    const dueDate = new Date(start);
-    dueDate.setUTCMonth(dueDate.getUTCMonth() + sequence);
+    const dueDate = new Date(firstDue ?? start);
+    dueDate.setUTCMonth(dueDate.getUTCMonth() + (firstDue ? sequence - 1 : sequence));
     drafts.push({ sequence, dueDate, amount: amounts[sequence - 1]! });
   }
   return drafts;
