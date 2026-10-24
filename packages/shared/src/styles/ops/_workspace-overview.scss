@@ -485,19 +485,10 @@
     margin: 0;
   }
 
-  &__title {
-    font-weight: 600;
-  }
-
   &__hint {
-    margin-top: 4px !important;
+    margin-top: 0 !important;
     color: var(--blox-slate);
     font-size: 0.8125rem;
-
-    &--required {
-      color: var(--blox-warning, #b45309);
-      font-weight: 600;
-    }
   }
 }
 

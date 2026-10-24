@@ -40,7 +40,7 @@ describe('pricing contract (shared vs API)', () => {
         },
         pricingSnapshot: { tenor: sample.tenor, down_payment_pct: sample.downPct },
       });
-      expect(serverSnap).toEqual(shared);
+      expect(serverSnap).toMatchObject({ ...shared, offer_rate: sample.rate, rate_source: 'offer' });
 
       const drafts = buildScheduleDrafts(serverSnap);
       expect(drafts).toHaveLength(sample.tenor);

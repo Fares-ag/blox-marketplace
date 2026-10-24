@@ -19,6 +19,8 @@ import {
   seedPendingFinanceActivationApplication,
   seedProduct,
   seedRequiredDocuments,
+  seedApplicationDocument,
+  seedVerifiedEkycIdentity,
   setUserRole,
 } from './support/fixtures';
 
@@ -401,5 +403,101 @@ describe('ops role journeys', () => {
       });
     expect(adminPay.status).toBe(200);
     expect(adminPay.body.schedule.status).toBe('paid');
+  });
+
+  it('honors a custom rate and tenure on dealer create and credit rebuild', async () => {
+    const company = await seedCompany(ctx.prisma, 'Custom Rate Co');
+    const offer = await seedOffer(ctx.prisma, company.id);
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id, price: 80_000 });
+    const dealer = await staffUser('custom-rate-dealer', 'dealer_agent', { companyId: company.id });
+    const credit = await staffUser('custom-rate-credit', 'credit_officer', { creditScope: 'assigned' });
+    await assignCreditOfficer(ctx.prisma, credit.user.id, company.id);
+
+    const created = await authed(dealer.agent)
+      .post('/api/v1/ops/applications')
+      .send({
+        productId: product.id,
+        offerId: offer.id,
+        customerSnapshot: {
+          full_name: 'Custom Rate Buyer',
+          phone: '+97451116666',
+          qid: '28012345682',
+          email: `custom-rate-${Date.now()}@integration.test`,
+          applicantType: 'individual',
+        },
+        pricingSnapshot: { ...buildPricingSnapshot(80_000, { tenureMonths: 18 }), rate: 10.5 },
+        agentUserId: dealer.user.id,
+        listPrice: 80_000,
+        sellingPrice: 80_000,
+      });
+    expect(created.status).toBeLessThan(300);
+    expect(created.body.pricing_snapshot.tenor).toBe(18);
+    expect(created.body.pricing_snapshot.rate).toBe(10.5);
+    expect(created.body.pricing_snapshot.rate_source).toBe('override');
+    expect(created.body.installment_plan.annualRentalRate).toBeCloseTo(0.105);
+
+    const rebuilt = await authed(credit.agent)
+      .post(`/api/v1/ops/applications/${created.body.id}/rebuild-schedule`)
+      .send({ tenureMonths: 24, downPaymentPct: 20, annualRatePercent: 9.9 });
+    expect(rebuilt.status).toBe(200);
+    expect(rebuilt.body.pricing_snapshot.tenor).toBe(24);
+    expect(rebuilt.body.pricing_snapshot.rate).toBe(9.9);
+    expect(rebuilt.body.pricing_snapshot.rate_source).toBe('override');
+  });
+
+  it('lets a dealer upload documents and submit a rejected application without reopen', async () => {
+    const company = await seedCompany(ctx.prisma, 'Reject Resubmit Co');
+    const offer = await seedOffer(ctx.prisma, company.id);
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id, price: 60_000 });
+    const dealer = await staffUser('reject-resubmit-dealer', 'dealer_agent', { companyId: company.id });
+    const credit = await staffUser('reject-resubmit-credit', 'credit_officer', { creditScope: 'assigned' });
+    await assignCreditOfficer(ctx.prisma, credit.user.id, company.id);
+
+    const created = await authed(dealer.agent)
+      .post('/api/v1/ops/applications')
+      .send({
+        productId: product.id,
+        offerId: offer.id,
+        customerSnapshot: {
+          full_name: 'Rejected Buyer',
+          phone: '+97451117777',
+          qid: '28012345683',
+          email: `reject-resubmit-${Date.now()}@integration.test`,
+          applicantType: 'individual',
+        },
+        pricingSnapshot: buildPricingSnapshot(60_000),
+        agentUserId: dealer.user.id,
+      });
+    expect(created.status).toBeLessThan(300);
+
+    const reject = await authed(credit.agent)
+      .post(`/api/v1/ops/applications/${created.body.id}/transition`)
+      .send({ toStatus: 'rejected', reason: 'Need updated salary certificate' });
+    expect(reject.status).toBe(200);
+    expect(reject.body.status).toBe('rejected');
+
+    const upload = await authed(dealer.agent)
+      .post(`/api/v1/ops/applications/${created.body.id}/documents`)
+      .field('category', 'salary')
+      .attach('file', Buffer.from('%PDF salary'), {
+        filename: 'salary.pdf',
+        contentType: 'application/pdf',
+      });
+    expect(upload.status).toBeLessThan(300);
+
+    await seedVerifiedEkycIdentity(ctx.prisma, created.body.id);
+    await seedApplicationDocument(ctx.prisma, {
+      applicationId: created.body.id,
+      category: 'bank',
+      uploadedById: dealer.user.id,
+    });
+    const walkIn = await ctx.prisma.user.findUniqueOrThrow({
+      where: { email: created.body.customer_email },
+    });
+    await seedConsentRecords(ctx.prisma, { userId: walkIn.id, applicationId: created.body.id });
+
+    const resubmit = await authed(dealer.agent).post(`/api/v1/ops/applications/${created.body.id}/submit`);
+    expect(resubmit.status).toBe(200);
+    expect(resubmit.body.status).toBe('under_review');
   });
 });

@@ -261,7 +261,9 @@ export function ApplyPage() {
     enabled: !!product && !resumeDecided && !draftId,
   });
   const existingDraftId = useMemo(
-    () => myApps.data?.find((a) => a.status === 'draft' && a.product?.slug === productSlug)?.id ?? null,
+    () =>
+      myApps.data?.find((a) => (a.status === 'draft' || a.status === 'rejected') && a.product?.slug === productSlug)?.id ??
+      null,
     [myApps.data, productSlug],
   );
   const existingDraft = useQuery({

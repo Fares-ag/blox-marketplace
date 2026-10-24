@@ -282,9 +282,13 @@
 
 .blox-document-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+  margin-top: 8px;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Dashed upload area */
@@ -309,6 +313,33 @@
     box-shadow: 0 0 0 4px rgba(0, 207, 162, 0.15);
   }
 
+  &--slot {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    min-height: 132px;
+    padding: 14px 16px;
+    text-align: left;
+
+    &.is-filled {
+      border-color: rgba(0, 207, 162, 0.45);
+      background: var(--blox-emerald-soft, #f4fdfa);
+    }
+
+    &.is-missing:not(.is-over) {
+      border-color: rgba(180, 83, 9, 0.35);
+    }
+  }
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 10px;
+  }
+
   &__icon {
     display: grid;
     place-items: center;
@@ -325,13 +356,51 @@
     font-weight: 600;
     font-size: 0.9375rem;
     color: var(--blox-deep-green);
-    margin: 0 0 4px;
+    margin: 0;
+    line-height: 1.35;
+  }
+
+  &--slot &__title {
+    font-size: 0.875rem;
   }
 
   &__hint {
     font-size: 0.8125rem;
     color: var(--blox-slate);
     margin: 0;
+    line-height: 1.45;
+  }
+
+  &__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+    margin: auto 0 0;
+    padding-top: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+
+  &__filename {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    color: var(--blox-ink);
+    font-weight: 500;
+  }
+
+  &__missing {
+    color: var(--blox-warning, #b45309);
+    font-weight: 600;
+  }
+
+  &__action {
+    color: var(--blox-emerald-ink, var(--primary-color));
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 }
 

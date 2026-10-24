@@ -186,4 +186,48 @@ describe('down payment (integration)', () => {
     expect(escapeRes.status).toBe(200);
     expect(escapeRes.body.status).toBe('down_payment_required');
   });
+
+  it('rejects require-down-payment when the ledger already covers the amount', async () => {
+    const company = await seedCompany(ctx.prisma, 'Dp Spam Co');
+    const offer = await seedOffer(ctx.prisma, company.id);
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
+    const customerEmail = await signUpFresh(createAgent(ctx), 'dp-spam-customer');
+    const customer = await ctx.prisma.user.findUniqueOrThrow({ where: { email: customerEmail } });
+    const pricingSnapshot = buildPricingSnapshot(Number(product.price));
+    const requiredDown = Number(pricingSnapshot.down_payment);
+
+    const app = await ctx.prisma.application.create({
+      data: {
+        customerUserId: customer.id,
+        customerEmail: customer.email,
+        customerSnapshot: { full_name: customer.name, phone: '+97450000000', qid: '28012345678' },
+        productId: product.id,
+        companyId: company.id,
+        offerId: offer.id,
+        pricingSnapshot,
+        status: 'contract_under_review',
+      },
+    });
+    await ctx.prisma.paymentEvent.create({
+      data: {
+        applicationId: app.id,
+        type: 'down_payment',
+        amount: requiredDown,
+        actorUserId: customer.id,
+      },
+    });
+
+    const creditEmail = await signUpFresh(createAgent(ctx), 'dp-spam-credit');
+    const creditUser = await ctx.prisma.user.findUniqueOrThrow({ where: { email: creditEmail } });
+    await setUserRole(ctx.prisma, creditUser.id, 'credit_officer', { creditScope: 'assigned' });
+    await assignCreditOfficer(ctx.prisma, creditUser.id, company.id);
+    const creditAgent = createAgent(ctx);
+    await signIn(creditAgent, creditEmail);
+
+    const res = await authed(creditAgent)
+      .post(`/api/v1/ops/applications/${app.id}/transition`)
+      .send({ toStatus: 'down_payment_required' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('down_payment_already_satisfied');
+  });
 });

@@ -96,6 +96,20 @@ describe('workspace actions ⊆ API transition rules', () => {
     expect(collected.recoverDownPayment).toBe(false);
   });
 
+  it('hides require down payment when the ledger already satisfies the requirement', () => {
+    const open = visibleWorkspaceActions('contract_under_review', UserRole.credit_officer);
+    expect(open.requireDownPayment).toBe(true);
+    const collected = visibleWorkspaceActions('contract_under_review', UserRole.credit_officer, {
+      downPaymentCollected: true,
+    });
+    expect(collected.requireDownPayment).toBe(false);
+  });
+
+  it('lets a dealer submit a rejected application back to credit', () => {
+    const actions = visibleWorkspaceActions('rejected', UserRole.dealer_agent);
+    expect(actions.submitToCredit).toBe(true);
+  });
+
   it('hides record down payment when the ledger already satisfies the requirement', () => {
     const open = visibleWorkspaceActions('down_payment_required', UserRole.finance_officer);
     expect(open.recordDownPayment).toBe(true);

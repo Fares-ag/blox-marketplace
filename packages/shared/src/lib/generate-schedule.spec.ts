@@ -95,4 +95,18 @@ describe('buildPlanFromPricingSnapshot dates', () => {
     expect(plan.schedule[0]?.dueDate).toBe(formatDateYmd(first));
     expect(plan.schedule[2]?.dueDate).toBe(formatDateYmd(addMonths(first, 2)));
   });
+
+  it('honors first_installment_date on the pricing snapshot', () => {
+    const plan = buildPlanFromPricingSnapshot({
+      pricingSnapshot: {
+        tenor: 3,
+        list_price: 100_000,
+        down_payment: 10_000,
+        rate: 10.5,
+        first_installment_date: '2026-08-01',
+      },
+    });
+    expect(plan.schedule[0]?.dueDate).toBe('2026-08-01');
+    expect(plan.annualRentalRate).toBe(0.105);
+  });
 });

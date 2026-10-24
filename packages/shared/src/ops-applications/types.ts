@@ -229,6 +229,9 @@ export type OpsWorkspace = {
   resubmission_comment?: string | null;
   /** True when the current user is the credit approver and SoD blocks them from payments. */
   separation_of_duties_blocked?: boolean;
+  down_payment_required?: number | null;
+  down_payment_recorded?: number | null;
+  down_payment_collected?: boolean;
 };
 
 export type StaffCreatePayload = {

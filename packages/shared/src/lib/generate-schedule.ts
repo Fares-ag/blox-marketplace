@@ -5,6 +5,7 @@ import {
   daysInMonth,
   firstInstallmentDueFrom,
   formatDateYmd,
+  parseYmd,
   isBeforeDay,
   isBeforeMonth,
   isSameDay,
@@ -252,7 +253,11 @@ export function buildPlanFromPricingSnapshot(args: {
   const rate = Number(snap.rate ?? 0);
   const monthly = Number(snap.monthly ?? 0);
 
-  const startDate = firstInstallmentDueFrom(args.asOf ?? new Date());
+  const firstDateRaw = snap.first_installment_date;
+  const startDate =
+    typeof firstDateRaw === 'string' && firstDateRaw
+      ? parseYmd(firstDateRaw)
+      : firstInstallmentDueFrom(args.asOf ?? new Date());
   const schedule = generateInstallmentSchedule({
     startDate,
     totalMonths: tenor,

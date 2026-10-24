@@ -107,6 +107,7 @@ export type CustomerApplication = {
     slug?: string;
     modelYear?: number;
     price?: number;
+    company_name?: string | null;
   };
   documents?: CustomerApplicationDocument[];
   paymentSchedules?: CustomerApplicationSchedule[];
@@ -206,7 +207,12 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
     lenderId: pick<string | null>(raw, 'financePartnerId', 'finance_partner_id') ?? null,
     lenderName: pick<string | null>(raw, 'financePartnerName', 'finance_partner_name') ?? null,
     financingSource: financingSource === 'partner' ? 'partner' : financingSource === 'blox' ? 'blox' : null,
-    dealerName: company && typeof company.name === 'string' ? company.name : null,
+    dealerName:
+      (company && typeof company.name === 'string' ? company.name : null) ||
+      (product && typeof product.company_name === 'string' ? product.company_name : null) ||
+      (typeof pick<string | null>(raw, 'dealerName', 'dealer_name') === 'string'
+        ? pick<string>(raw, 'dealerName', 'dealer_name')
+        : null),
     branchName: pick<string | null>(raw, 'branchName', 'branch_name') ?? null,
     customerPhase: pick<string | null>(raw, 'customerPhase', 'customer_phase') ?? null,
     customerOwnershipPct: asNumberOrNull(pick(raw, 'customerOwnershipPct', 'customer_ownership_pct')),
@@ -230,6 +236,7 @@ export function normalizeCustomerApplication(raw: Raw): CustomerApplication {
           slug: product.slug as string | undefined,
           modelYear: pick<number>(product, 'modelYear', 'model_year'),
           price: price == null ? undefined : Number(price),
+          company_name: pick<string | null>(product, 'companyName', 'company_name') ?? null,
         }
       : undefined,
     documents: documents?.map((doc) => ({

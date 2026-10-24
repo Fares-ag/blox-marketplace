@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import type { Offer, Product } from '@prisma/client';
 import {
   assertTenureAllowed,
@@ -5,9 +6,32 @@ import {
   clampDownPaymentPct,
 } from '../quotes/quote-pricing';
 
+export const MIN_ANNUAL_RATE_PERCENT = 0;
+export const MAX_ANNUAL_RATE_PERCENT = 30;
+
 export function resolveTenureMonths(pricingSnapshot: Record<string, unknown>, fallback = 36): number {
   const raw = pricingSnapshot.tenor ?? pricingSnapshot.tenure ?? fallback;
   return Number(raw);
+}
+
+export function resolveAnnualRatePercent(
+  pricingSnapshot: Record<string, unknown>,
+  offer: Pick<Offer, 'annualRentRate'>,
+): { rate: number; offerRate: number; rateSource: 'override' | 'offer' } {
+  const offerRate = Number(offer.annualRentRate);
+  const raw = pricingSnapshot.rate;
+  if (raw === undefined || raw === null || raw === '') {
+    return { rate: offerRate, offerRate, rateSource: 'offer' };
+  }
+  const requested = Number(raw);
+  if (!Number.isFinite(requested) || requested < MIN_ANNUAL_RATE_PERCENT || requested > MAX_ANNUAL_RATE_PERCENT) {
+    throw new BadRequestException('invalid_rate');
+  }
+  return {
+    rate: requested,
+    offerRate,
+    rateSource: requested === offerRate ? 'offer' : 'override',
+  };
 }
 
 export function buildApplicationPricingSnapshot(opts: {
@@ -21,13 +45,23 @@ export function buildApplicationPricingSnapshot(opts: {
     Number(opts.pricingSnapshot.down_payment_pct ?? opts.offer.minDownPaymentPct),
     Number(opts.offer.minDownPaymentPct),
   );
-  return buildPricingSnapshot({
+  const resolved = resolveAnnualRatePercent(opts.pricingSnapshot, opts.offer);
+  const snapshot = buildPricingSnapshot({
     listPrice: opts.listPrice,
-    annualRatePercent: Number(opts.offer.annualRentRate),
+    annualRatePercent: resolved.rate,
     minDownPaymentPct: Number(opts.offer.minDownPaymentPct),
     tenureMonths,
     downPaymentPct: downPct,
   });
+  const firstInstallmentDate = opts.pricingSnapshot.first_installment_date;
+  return {
+    ...snapshot,
+    offer_rate: resolved.offerRate,
+    rate_source: resolved.rateSource,
+    ...(typeof firstInstallmentDate === 'string' && firstInstallmentDate
+      ? { first_installment_date: firstInstallmentDate }
+      : {}),
+  };
 }
 
 /** Reject client offer shopping — offer must match product default or platform default. */

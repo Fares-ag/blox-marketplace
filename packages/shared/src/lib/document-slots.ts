@@ -127,6 +127,36 @@ export function documentSlotsFor(profile: DocumentSlotProfile): DocumentSlot[] {
   return slots;
 }
 
+const CORPORATE_FALLBACK_SLOTS: DocumentSlot[] = [
+  { category: 'qid', required: true, group: 'identity', labelKey: 'applyFlow.docs.qid' },
+  { category: 'salary', required: true, group: 'income', labelKey: 'applyFlow.docs.salary', maxAgeDays: 30 },
+  { category: 'bank', required: true, group: 'income', labelKey: 'applyFlow.docs.bank', maxAgeDays: 30 },
+  { category: 'cr', required: false, group: 'business', labelKey: 'applyFlow.docs.cr' },
+  { category: 'other', required: false, group: 'supporting', labelKey: 'applyFlow.docs.other' },
+];
+
+export function documentSlotProfileFromSnapshot(snapshot: unknown): DocumentSlotProfile {
+  const raw = snapshot && typeof snapshot === 'object' ? (snapshot as Record<string, unknown>) : {};
+  const employment =
+    raw.employment && typeof raw.employment === 'object' ? (raw.employment as Record<string, unknown>) : {};
+  const residencyRaw = String(raw.residency ?? '').toLowerCase();
+  const residency: ResidencyClass | null =
+    residencyRaw === 'expat' || residencyRaw === 'gcc' || residencyRaw === 'qatari' ? residencyRaw : null;
+  return {
+    applicantType: raw.applicantType === 'corporate' ? 'corporate' : 'individual',
+    residency,
+    employmentType: String(employment.employmentType ?? employment.employment_type ?? raw.employmentType ?? '') || null,
+    hasGuarantor: Boolean(raw.hasGuarantor ?? raw.has_guarantor ?? raw.guarantor),
+  };
+}
+
+/** Same checklist as the API slots endpoint, for customer/dealer fallbacks. */
+export function documentSlotsFromCustomerSnapshot(snapshot: unknown): DocumentSlot[] {
+  const profile = documentSlotProfileFromSnapshot(snapshot);
+  if (profile.applicantType === 'corporate') return CORPORATE_FALLBACK_SLOTS.map((slot) => ({ ...slot }));
+  return documentSlotsFor(profile);
+}
+
 export function requiredDocumentCategoriesFor(profile: DocumentSlotProfile): DocumentSlotCategory[] {
   return documentSlotsFor(profile)
     .filter((s) => s.required)

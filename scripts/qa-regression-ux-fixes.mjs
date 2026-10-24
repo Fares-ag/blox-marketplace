@@ -81,6 +81,51 @@ if (!meController.includes('first_name: user.firstName')) {
   pass('me-first-last', '/api/me exposes structured names');
 }
 
+const actions = fs.readFileSync(
+  path.join(root, 'packages/shared/src/ops-applications/useApplicationActions.ts'),
+  'utf8',
+);
+if (!actions.includes('requireDownPayment') || !actions.includes('downPaymentCollected')) {
+  fail('require-down-payment-gate', 'requireDownPayment is not gated on downPaymentCollected');
+} else {
+  pass('require-down-payment-gate', 'Require DP hidden when collected');
+}
+if (!actions.includes("status === 'rejected'") || !actions.includes('submitToCredit')) {
+  fail('submit-after-reject', 'submitToCredit does not include rejected');
+} else {
+  pass('submit-after-reject', 'Dealer can submit rejected apps');
+}
+
+const pricing = fs.readFileSync(
+  path.join(root, 'packages/api/src/applications/application-pricing.ts'),
+  'utf8',
+);
+if (!pricing.includes('resolveAnnualRatePercent') || !pricing.includes('rate_source')) {
+  fail('custom-rate', 'application-pricing missing resolveAnnualRatePercent');
+} else {
+  pass('custom-rate', 'Server honors pricingSnapshot.rate override');
+}
+
+const wizard = fs.readFileSync(
+  path.join(root, 'packages/shared/src/ops-applications/AddApplicationWizard.tsx'),
+  'utf8',
+);
+if (!wizard.includes('ops.wizard.tenureCustom') || !wizard.includes('ops.wizard.annualRate')) {
+  fail('wizard-custom-plan', 'Wizard missing custom tenure or rate fields');
+} else {
+  pass('wizard-custom-plan', 'Wizard has custom tenure and rate');
+}
+
+const contracts = fs.readFileSync(
+  path.join(root, 'packages/api/src/applications/documents/contract-documents.service.ts'),
+  'utf8',
+);
+if (!contracts.includes('maybeSubmitAllSigned')) {
+  fail('auto-submit-contracts', 'Contract pack is not auto-submitted on last signed upload');
+} else {
+  pass('auto-submit-contracts', 'Last signed upload submits the pack');
+}
+
 const failed = checks.filter((c) => !c.ok);
 console.log('\nQA regression (UX fixes)\n');
 for (const c of checks) {

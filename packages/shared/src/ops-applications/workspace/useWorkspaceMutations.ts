@@ -179,7 +179,7 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     onError: (e: Error) => toast.error(e.message),
   });
   const rebuild = useMutation({
-    mutationFn: (body: { tenureMonths?: number; downPaymentPct?: number }) =>
+    mutationFn: (body: { tenureMonths?: number; downPaymentPct?: number; annualRatePercent?: number }) =>
       apiFetch(`/api/ops/applications/${id}/rebuild-schedule`, { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: () => {
       toast.success('Installments updated');

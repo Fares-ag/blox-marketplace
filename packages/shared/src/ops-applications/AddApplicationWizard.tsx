@@ -11,6 +11,7 @@ import {
   downPaymentBounds,
   employerCategoryFromEmploymentType,
   minDownPaymentPctFor,
+  tenureBounds,
   type ProductRuleViolation,
 } from '../lib/product-rules';
 import { useAuthStore } from '../auth/auth-store';
@@ -93,6 +94,7 @@ type WizardData = {
   submitOnCreate: boolean;
   offerId: string;
   tenure: number;
+  annualRate: number | null;
   downPct: number;
   files: Partial<Record<string, File>>;
   installmentPlan: InstallmentPlan | null;
@@ -275,6 +277,7 @@ export function AddApplicationWizard({
       submitOnCreate: false,
       offerId: '',
       tenure: 36,
+      annualRate: null,
       downPct: 20,
       files: {},
       installmentPlan: null,
@@ -339,7 +342,9 @@ export function AddApplicationWizard({
       const tenureOptions = offerTenureOptions(offer);
       const condition = primaryVehicle?.condition === 'used' ? 'used' : 'new';
       const minDown = minDownPaymentPctFor(condition, offer?.min_down_payment_pct ?? null);
-      const rate = Number(offer?.annual_rent_rate ?? 0);
+      const offerRate = Number(offer?.annual_rent_rate ?? 0);
+      const rate =
+        data.annualRate != null && Number.isFinite(data.annualRate) ? data.annualRate : offerRate;
       const priceForPlan = data.sellingPrice || data.listPrice || Number(primaryVehicle?.price ?? 0);
       const violations: ProductRuleViolation[] = offer
         ? wizardRuleViolations({
@@ -467,6 +472,7 @@ export function AddApplicationWizard({
               updateData({
                 offerId: e.target.value,
                 tenure: allowed.includes(36) ? 36 : allowed[0] ?? 36,
+                annualRate: Number(next?.annual_rent_rate ?? 0),
                 downPct: minDownPaymentPctFor(condition, next?.min_down_payment_pct ?? null),
               });
             }}
@@ -542,6 +548,35 @@ export function AddApplicationWizard({
               ))}
             </OpsSelect>
             <OpsNumberField
+              label={t('ops.wizard.tenureCustom')}
+              hint={t('ops.wizard.tenureCustomHint', { min: tenureBounds().min, max: tenureBounds().max })}
+              min={tenureBounds().min}
+              max={tenureBounds().max}
+              step={1}
+              emptyValue={data.tenure}
+              value={data.tenure}
+              onValueChange={(tenure) => {
+                const band = tenureBounds();
+                if (Number.isInteger(tenure) && tenure >= band.min && tenure <= band.max) {
+                  updateData({ tenure });
+                }
+              }}
+            />
+            <OpsNumberField
+              label={t('ops.wizard.annualRate')}
+              hint={t('ops.wizard.annualRateHint')}
+              min={0}
+              max={30}
+              step={0.1}
+              emptyValue={ctx.rate}
+              value={data.annualRate ?? ctx.rate}
+              onValueChange={(annualRate) => {
+                if (Number.isFinite(annualRate) && annualRate >= 0 && annualRate <= 30) {
+                  updateData({ annualRate });
+                }
+              }}
+            />
+            <OpsNumberField
               label={t('ops.wizard.downPaymentPct')}
               min={downPaymentBounds().min}
               max={downPaymentBounds().max}
@@ -599,8 +634,9 @@ export function AddApplicationWizard({
           <>
             <p className="blox-muted">{t('dealerOps.intake.docsIntro')}</p>
             {groups.map((group) => (
-              <div key={group.group} className="blox-form-block">
+              <div key={group.group} className="blox-form-block blox-form-block--wide">
                 <h3 className="blox-panel__subtitle">{t(DOCUMENT_SLOT_GROUP_LABEL_KEYS[group.group])}</h3>
+                <div className="blox-document-grid">
                 {group.slots.map((slot) => {
                   const hint = t(`${slot.labelKey}Hint`, { defaultValue: '' });
                   const freshness = slot.maxAgeDays ? t('applyFlow.docs.freshness', { days: slot.maxAgeDays }) : '';
@@ -608,7 +644,7 @@ export function AddApplicationWizard({
                   return (
                     <FileDropzone
                       key={slot.category}
-                      className="blox-upload-dropzone"
+                      className={`blox-upload-dropzone blox-upload-dropzone--slot${file ? ' is-filled' : ''}${!file && slot.required ? ' is-missing' : ''}`}
                       accept={KYC_UPLOAD_ACCEPT}
                       onFile={(picked) => {
                           // Rejected at selection rather than at submit: the wizard
@@ -625,13 +661,15 @@ export function AddApplicationWizard({
                           updateData({ files: { ...data.files, [slot.category]: picked } });
                         }}
                     >
-                      <p className="blox-upload-dropzone__title">
-                        {t(slot.labelKey, { defaultValue: slot.category.replace(/_/g, ' ') })}{' '}
+                      <div className="blox-upload-dropzone__head">
+                        <p className="blox-upload-dropzone__title">
+                          {t(slot.labelKey, { defaultValue: slot.category.replace(/_/g, ' ') })}
+                        </p>
                         <OpsStatusPill
                           label={slot.required ? t('dealerOps.intake.slotRequired') : t('dealerOps.intake.slotOptional')}
                           variant={slot.required ? 'ink' : 'outline'}
                         />
-                      </p>
+                      </div>
                       {(hint || freshness) && (
                         <p className="blox-upload-dropzone__hint">
                           {hint}
@@ -639,20 +677,25 @@ export function AddApplicationWizard({
                           {freshness}
                         </p>
                       )}
-                      {file ? (
-                        <p className="blox-upload-dropzone__hint">
-                          {file.name} · {t('dealerOps.intake.replaceFile')}
-                        </p>
-                      ) : slot.required ? (
-                        <p className="blox-upload-dropzone__hint blox-upload-dropzone__hint--required">
-                          {t('dealerOps.intake.slotMissing')} · {t('dealerOps.intake.chooseFile')}
-                        </p>
-                      ) : (
-                        <p className="blox-upload-dropzone__hint">{t('dealerOps.intake.chooseFile')}</p>
-                      )}
+                      <p className="blox-upload-dropzone__status">
+                        {file ? (
+                          <>
+                            <span className="blox-upload-dropzone__filename">{file.name}</span>
+                            <span className="blox-upload-dropzone__action">{t('dealerOps.intake.replaceFile')}</span>
+                          </>
+                        ) : slot.required ? (
+                          <>
+                            <span className="blox-upload-dropzone__missing">{t('dealerOps.intake.slotMissing')}</span>
+                            <span className="blox-upload-dropzone__action">{t('dealerOps.intake.chooseFile')}</span>
+                          </>
+                        ) : (
+                          <span className="blox-upload-dropzone__action">{t('dealerOps.intake.chooseFile')}</span>
+                        )}
+                      </p>
                     </FileDropzone>
                   );
                 })}
+                </div>
               </div>
             ))}
           </>

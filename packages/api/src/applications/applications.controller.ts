@@ -290,6 +290,7 @@ class RebuildScheduleDto {
   @IsOptional() @IsNumber() tenureMonths?: number;
   @IsOptional() @IsNumber() downPaymentPct?: number;
   @IsOptional() @IsNumber() sellingPrice?: number;
+  @IsOptional() @IsNumber() annualRatePercent?: number;
   @IsOptional() @IsObject() installmentPlan?: Record<string, unknown>;
 }
 
@@ -716,7 +717,7 @@ export class ApplicationsController {
     return this.apps.deleteOps(user, id);
   }
 
-  @Roles(UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
   @HttpCode(200)
   @Post('ops/applications/:id/rebuild-schedule')
   rebuildSchedule(

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { DOCUMENT_UPLOAD_ACCEPT, FileDropzone, apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel, getAppLocale, type DocumentSlot } from '@drivemarket/shared';
+import { DOCUMENT_UPLOAD_ACCEPT, FileDropzone, apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel, documentSlotsFromCustomerSnapshot, getAppLocale, type DocumentSlot } from '@drivemarket/shared';
 import { ApplicationStatusView } from './ApplicationStatusView';
 import { OwnershipProgress } from './OwnershipProgress';
 import { TakafulSection, takafulSectionVisible } from './TakafulSection';
@@ -17,16 +17,6 @@ import { Pill } from '../pages/apply/fields';
 
 /** The customer detail view model — the normalised `GET /api/applications/:id` DTO. */
 export type ApplicationDetailData = CustomerApplication;
-
-// Fallback slots when the document-slots endpoint is unavailable. Identity
-// documents are uploaded here like any other file, straight to S3.
-const UPLOAD_CATEGORIES = ['qid', 'passport', 'salary', 'bank', 'other'] as const;
-
-/**
- * Legacy submit gate mirror (REQUIRED_APPLICATION_DOC_CATEGORIES in the API),
- * used only when the slots endpoint does not answer.
- */
-const REQUIRED_UPLOAD_CATEGORIES = ['qid', 'salary', 'bank'] as const;
 
 /** Statuses where the customer can still act on outstanding consents. */
 const CONSENTS_ACTIONABLE_STATUSES = new Set(['draft', 'resubmission_required', 'under_review']);
@@ -253,7 +243,10 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
     );
   const [contractError, setContractError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<'submit' | 'resubmit' | 'contracts' | null>(null);
-  const [contractSubmitting, setContractSubmitting] = useState(false);
+  const fallbackSlots = useMemo(
+    () => documentSlotsFromCustomerSnapshot(app.customerSnapshot),
+    [app.customerSnapshot],
+  );
 
   // ---- document slots (required/optional + freshness) ---------------------
   const slotsQuery = useQuery({
@@ -293,7 +286,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   );
   const hasAllDocs = slotsData
     ? missingRequired.length === 0 && staleRequired.length === 0
-    : REQUIRED_UPLOAD_CATEGORIES.every((c) => uploadedCategories.has(c));
+    : fallbackSlots.filter((s) => s.required).every((s) => uploadedCategories.has(s.category));
 
   const identityHoldOpen = !!app.identityHold && !app.identityHold.clearedAt;
   const lenderLabel =
@@ -347,7 +340,10 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
 
   const resubmit = useMutation({
     mutationFn: () =>
-      apiFetch(`/api/applications/${app.id}/resubmit`, { method: 'POST' }),
+      apiFetch(
+        app.status === 'rejected' ? `/api/applications/${app.id}/submit` : `/api/applications/${app.id}/resubmit`,
+        { method: 'POST' },
+      ),
     onSuccess: () => {
       setSubmitSuccess('resubmit');
       setActionError(null);
@@ -527,25 +523,6 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const requiredContractCount = contractDocsQuery.data?.required_count ?? contractDocs.length;
   const contractsComplete = requiredContractCount > 0 && signedContractCount >= requiredContractCount;
 
-  async function submitContractPackage() {
-    if (!contractsComplete) {
-      setContractError(t('application.contractIncomplete'));
-      return;
-    }
-    setContractError(null);
-    setContractSubmitting(true);
-    try {
-      await apiFetch(`/api/applications/${app.id}/contract-documents/submit`, { method: 'POST' });
-      setSubmitSuccess('contracts');
-      invalidate();
-      void contractDocsQuery.refetch();
-    } catch (error) {
-      setContractError(error instanceof Error ? error.message : t('application.contractSubmitFailed'));
-    } finally {
-      setContractSubmitting(false);
-    }
-  }
-
   return (
     <div className="dm-app-detail">
       <SuccessDialog
@@ -712,15 +689,15 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           ) : (
             <>
               <div className="dm-app-detail__checklist" aria-label={t('application.documentsChecklist')}>
-                {UPLOAD_CATEGORIES.map((cat) => {
-                  const done = uploadedCategories.has(cat);
+                {fallbackSlots.map((slot) => {
+                  const done = uploadedCategories.has(slot.category);
                   return (
                     <div
-                      key={cat}
+                      key={slot.category}
                       className={`dm-app-detail__check${done ? ' is-done' : ' is-missing'}`}
                     >
                       <span className="dm-app-detail__check-label">
-                        {t(`application.docCategory.${cat}`, { defaultValue: cat })}
+                        {t(slot.labelKey, { defaultValue: slot.category })}
                       </span>
                       <span className="dm-app-detail__check-state">
                         {done ? t('application.docChecklistDone') : t('application.docChecklistMissing')}
@@ -730,11 +707,11 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
                 })}
               </div>
               <div className="dm-app-detail__upload-grid">
-                {UPLOAD_CATEGORIES.map((cat) => (
+                {fallbackSlots.map((slot) => (
                   <DocumentUploadCard
-                    key={cat}
-                    category={cat}
-                    onUpload={(file) => uploadDocument(file, cat)}
+                    key={slot.category}
+                    category={slot.category}
+                    onUpload={(file) => uploadDocument(file, slot.category)}
                   />
                 ))}
               </div>
@@ -813,9 +790,6 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           {contractError && <p className="dm-app-detail__error">{contractError}</p>}
           {canSignContract && contractDocs.length > 0 && !contractsComplete && (
             <p className="dm-app-detail__hint">{t('application.contractIncomplete')}</p>
-          )}
-          {canSignContract && contractDocs.length > 0 && contractsComplete && contractSubmitting && (
-            <p className="dm-app-detail__hint">{t('application.contractSubmitting')}</p>
           )}
         </section>
       )}

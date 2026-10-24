@@ -61,6 +61,7 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   invalid_logo_url: 'The logo URL must be a valid http(s) address.',
   invalid_date_range: 'The selected date range is not valid.',
   invalid_tenure: 'The selected tenure is not available for this offer.',
+  invalid_rate: 'Enter an annual rate between 0% and 30%.',
   consent_code_invalid: 'Unknown consent.',
   consent_version_outdated: 'The consent wording has changed. Please read and accept the current version.',
   phone_invalid: 'Enter a valid mobile number.',

@@ -31,6 +31,45 @@ describe('buildApplicationPricingSnapshot', () => {
     expect(snap.tenor).toBe(7);
   });
 
+  it('honors a custom annual rate in the 0–30% band', () => {
+    const snap = buildApplicationPricingSnapshot({
+      listPrice: 100_000,
+      offer: sampleOffer,
+      pricingSnapshot: { tenor: 36, down_payment_pct: 20, rate: 10.5 },
+    });
+    expect(snap.rate).toBe(10.5);
+    expect(snap.offer_rate).toBe(5);
+    expect(snap.rate_source).toBe('override');
+  });
+
+  it('uses the offer rate when no custom rate is sent', () => {
+    const snap = buildApplicationPricingSnapshot({
+      listPrice: 100_000,
+      offer: sampleOffer,
+      pricingSnapshot: { tenor: 36, down_payment_pct: 20 },
+    });
+    expect(snap.rate).toBe(5);
+    expect(snap.offer_rate).toBe(5);
+    expect(snap.rate_source).toBe('offer');
+  });
+
+  it('rejects an annual rate outside 0–30%', () => {
+    expect(() =>
+      buildApplicationPricingSnapshot({
+        listPrice: 100_000,
+        offer: sampleOffer,
+        pricingSnapshot: { tenor: 36, rate: 31 },
+      }),
+    ).toThrow('invalid_rate');
+    expect(() =>
+      buildApplicationPricingSnapshot({
+        listPrice: 100_000,
+        offer: sampleOffer,
+        pricingSnapshot: { tenor: 36, rate: -1 },
+      }),
+    ).toThrow('invalid_rate');
+  });
+
   it('rejects tenure outside platform range', () => {
     expect(() =>
       buildApplicationPricingSnapshot({

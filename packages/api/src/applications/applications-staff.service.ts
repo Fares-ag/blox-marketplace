@@ -23,7 +23,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { ApplicationDocCategory } from './application-documents';
 import { resolveStoredDocumentCategory } from './application-documents';
 import { buildApplicationPricingSnapshot } from './application-pricing';
-import { buildPlanFromPricingSnapshot, planForVehicle, resolveDownPaymentPercent } from '@drivemarket/shared/installment-plan';
+import { buildPlanFromPricingSnapshot } from '@drivemarket/shared/installment-plan';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
 import { mapApplicationDto, type ApplicationAudience } from './application-response.dto';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
@@ -160,14 +160,6 @@ export class ApplicationsStaffService {
     if (!firstProduct) throw new BadRequestException('listing_not_available');
     const templateSellingPrice = Number(dto.sellingPrice ?? dto.listPrice ?? firstProduct.price);
 
-    const templatePlan =
-      dto.installmentPlan ??
-      buildPlanFromPricingSnapshot({
-        pricingSnapshot: dto.pricingSnapshot,
-        vehiclePrice: templateSellingPrice,
-      });
-    const downPct = resolveDownPaymentPercent(templatePlan, templateSellingPrice);
-
     const createdIds: string[] = [];
     for (const productId of productIds) {
       const product = await this.prisma.product.findUnique({ where: { id: productId } });
@@ -219,8 +211,10 @@ export class ApplicationsStaffService {
       assertNoHardViolations(violations);
       const pricingWithFlags = withRuleFlags(pricingSnapshot, violations);
 
-      const installmentPlan =
-        planForVehicle(templatePlan, sellingPriceForProduct, downPct) ?? templatePlan;
+      const installmentPlan = buildPlanFromPricingSnapshot({
+        pricingSnapshot: pricingWithFlags,
+        vehiclePrice: sellingPriceForProduct,
+      });
 
       const customerSnapshot: Record<string, unknown> = {
         ...normalized.snapshot,
@@ -465,9 +459,16 @@ export class ApplicationsStaffService {
     // It is also the state in which the partner asks for more paperwork, which
     // is exactly when a dealer needs to attach it.
     if (
-      !['draft', 'under_review', 'partner_processing', 'resubmission_required', 'contract_signing_required'].includes(
-        app.status,
-      )
+      ![
+        'draft',
+        'under_review',
+        'partner_processing',
+        'resubmission_required',
+        'rejected',
+        'contract_signing_required',
+        'contracts_submitted',
+        'contract_under_review',
+      ].includes(app.status)
     ) {
       throw new BadRequestException('validation_failed');
     }

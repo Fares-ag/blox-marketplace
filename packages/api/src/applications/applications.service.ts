@@ -78,6 +78,7 @@ import {
   stripUndefinedDeep,
   type CustomerSnapshotInput,
 } from './customer-snapshot';
+import { requiredDownPaymentAmount, sumDownPaymentRecorded } from './down-payment';
 import { assertSubmitGates, identityHoldActive, VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE } from './submit-gates';
 import { AppConfigService } from '../config/app-config.service';
 import type { IdentityPolicy } from './application-documents';
@@ -751,6 +752,11 @@ export class ApplicationsService {
         overall_status: c.overallStatus,
         created_at: c.createdAt.toISOString(),
       }));
+      const requiredDown = requiredDownPaymentAmount((app.pricingSnapshot ?? {}) as Record<string, unknown>);
+      const recordedDown = await sumDownPaymentRecorded(this.prisma, id);
+      dto.down_payment_required = Number(requiredDown);
+      dto.down_payment_recorded = Number(recordedDown);
+      dto.down_payment_collected = requiredDown.gt(0) && recordedDown.gte(requiredDown);
     }
 
     if (audience === 'customer') {
@@ -1258,7 +1264,7 @@ export class ApplicationsService {
     // comes back asking for an updated payslip the customer has no way to send
     // it — the request fails with a bare 400 and only a dealer or admin can
     // attach it on their behalf.
-    if (!['draft', 'partner_processing', 'resubmission_required'].includes(app.status)) {
+    if (!['draft', 'partner_processing', 'resubmission_required', 'rejected'].includes(app.status)) {
       throw new BadRequestException('validation_failed');
     }
 
@@ -1358,9 +1364,19 @@ export class ApplicationsService {
   async rebuildSchedule(
     user: User,
     id: string,
-    dto: { tenureMonths?: number; downPaymentPct?: number; sellingPrice?: number; installmentPlan?: InstallmentPlan },
+    dto: {
+      tenureMonths?: number;
+      downPaymentPct?: number;
+      sellingPrice?: number;
+      annualRatePercent?: number;
+      installmentPlan?: InstallmentPlan;
+    },
   ) {
-    if (user.role !== UserRole.admin && user.role !== UserRole.super_admin) {
+    if (
+      user.role !== UserRole.admin &&
+      user.role !== UserRole.super_admin &&
+      user.role !== UserRole.credit_officer
+    ) {
       throw new ForbiddenException('forbidden_role');
     }
     const app = await this.prisma.application.findUnique({
@@ -1368,6 +1384,7 @@ export class ApplicationsService {
       include: { offer: true, paymentSchedules: true, product: true },
     });
     if (!app) throw new NotFoundException();
+    await assertApplicationCanView(this.prisma, user, app);
     if (app.status === ApplicationStatus.partner_processing) {
       throw new BadRequestException('partner_application_readonly');
     }
@@ -1383,6 +1400,7 @@ export class ApplicationsService {
         tenor: dto.tenureMonths ?? pricing.tenor ?? pricing.tenure,
         tenure: dto.tenureMonths ?? pricing.tenure ?? pricing.tenor,
         down_payment_pct: dto.downPaymentPct ?? pricing.down_payment_pct,
+        ...(dto.annualRatePercent !== undefined ? { rate: dto.annualRatePercent } : {}),
       },
     });
     const installmentPlan =
@@ -1403,6 +1421,20 @@ export class ApplicationsService {
       if (app.status === ApplicationStatus.active) {
         await syncPaymentSchedulesFromInstallmentPlan(tx, id, next, installmentPlan);
       }
+    });
+    await this.activity.log({
+      actorUserId: user.id,
+      entityType: 'application',
+      entityId: id,
+      action: 'pricing_rate_override',
+      fromValue: String(pricing.rate ?? ''),
+      toValue: String(next.rate ?? ''),
+      metadata: {
+        offer_rate: next.offer_rate,
+        rate_source: next.rate_source,
+        tenure: next.tenor,
+        down_payment_pct: next.down_payment_pct,
+      },
     });
     return this.getOne(user, id);
   }

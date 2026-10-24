@@ -549,9 +549,6 @@ export class ApplicationsLifecycleService {
     }
 
     if (toStatus === ApplicationStatus.down_payment_required) {
-      if (app.status === ApplicationStatus.down_payment_required) {
-        return toOpsApplicationDto(app);
-      }
       const pricingSnapshot = (app.pricingSnapshot ?? {}) as Record<string, unknown>;
       const requiredDown = requiredDownPaymentAmount(pricingSnapshot);
       if (requiredDown.gt(0)) {
@@ -559,6 +556,9 @@ export class ApplicationsLifecycleService {
         if (recorded.gte(requiredDown)) {
           throw new BadRequestException('down_payment_already_satisfied');
         }
+      }
+      if (app.status === ApplicationStatus.down_payment_required) {
+        return toOpsApplicationDto(app);
       }
     }
 

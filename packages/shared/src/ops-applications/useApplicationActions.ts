@@ -83,7 +83,9 @@ export function visibleWorkspaceActions(
   const finance = canFinanceAct(role);
   return {
     // dealer / admin intake
-    submitToCredit: (dealer || admin) && (status === 'draft' || status === 'resubmission_required'),
+    submitToCredit:
+      (dealer || admin) &&
+      (status === 'draft' || status === 'resubmission_required' || status === 'rejected'),
 
     // review decisions (credit ≡ finance ≡ admin)
     approveContract: decide && status === 'under_review',
@@ -92,7 +94,7 @@ export function visibleWorkspaceActions(
     requestResubmission: decide && RESUBMITTABLE.includes(status),
     startContractReview: decide && status === 'contracts_submitted',
     approveSignedContract: decide && (status === 'contracts_submitted' || status === 'contract_under_review'),
-    requireDownPayment: decide && status === 'contract_under_review',
+    requireDownPayment: decide && status === 'contract_under_review' && !ctx.downPaymentCollected,
     recoverDownPayment:
       decide && status === 'pending_finance_activation' && !ctx.downPaymentCollected,
     recordDownPayment:
@@ -142,7 +144,7 @@ export function visibleWorkspaceActions(
     edit: admin,
     deleteApp: admin && ['draft', 'rejected', 'submission_cancelled'].includes(status),
     assignCompany: admin,
-    editInstallments: admin,
+    editInstallments: admin || role === 'credit_officer',
     convertDaily: admin && status === 'active',
   };
 }

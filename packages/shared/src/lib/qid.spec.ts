@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from './qid';
 import { maskIban, maskPhone, maskQid } from './masking';
-import { documentMatchesSlot, documentSlotsFor, missingDocumentCategories } from './document-slots';
+import {
+  documentMatchesSlot,
+  documentSlotsFor,
+  documentSlotsFromCustomerSnapshot,
+  missingDocumentCategories,
+} from './document-slots';
 import { missingConsents } from './consents';
 
 const NOW = new Date('2026-09-07T00:00:00Z');
@@ -85,6 +90,25 @@ describe('document slots', () => {
     expect(documentMatchesSlot(combined, 'qid_back')).toBe(true);
     expect(documentMatchesSlot({ category: 'qid', kyc_document_type: 'qid_front' }, 'qid_back')).toBe(false);
     expect(documentMatchesSlot({ category: 'qid', kyc_document_type: 'qid_back' }, 'qid_back')).toBe(true);
+  });
+
+  it('builds fallback slots from a customer snapshot', () => {
+    const employed = documentSlotsFromCustomerSnapshot({
+      applicantType: 'individual',
+      residency: 'qatari',
+      employment: { employmentType: 'private' },
+    });
+    expect(employed.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'qid_back', 'salary', 'bank']);
+
+    const selfEmployed = documentSlotsFromCustomerSnapshot({
+      applicantType: 'individual',
+      residency: 'qatari',
+      employment: { employmentType: 'self-employed' },
+    });
+    expect(selfEmployed.some((s) => s.category === 'cr' && s.required)).toBe(true);
+
+    const corporate = documentSlotsFromCustomerSnapshot({ applicantType: 'corporate' });
+    expect(corporate.filter((s) => s.required).map((s) => s.category)).toEqual(['qid', 'salary', 'bank']);
   });
 });
 

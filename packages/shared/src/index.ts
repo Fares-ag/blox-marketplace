@@ -401,6 +401,8 @@ export {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_UPLOAD_MAX_BYTES,
   documentSlotsFor,
+  documentSlotsFromCustomerSnapshot,
+  documentSlotProfileFromSnapshot,
   documentUploadRejection,
   identityPresentSet,
   documentMatchesSlot,

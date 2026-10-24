@@ -371,3 +371,54 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
     ).rejects.toMatchObject({ message: 'invalid_status_transition' });
   });
 });
+
+describe('ApplicationsLifecycleService.opsTransition down payment', () => {
+  const creditUser = {
+    id: 'cr-1',
+    role: UserRole.credit_officer,
+    companyId: 'co-1',
+    creditScope: 'all',
+  } as never;
+
+  function buildService(prisma: Partial<PrismaService>) {
+    const config = { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService;
+    return new ApplicationsLifecycleService(
+      prisma as PrismaService,
+      { log: vi.fn(), notify: vi.fn() } as unknown as ActivityService,
+      { track: vi.fn() } as unknown as AnalyticsService,
+      {} as StorageService,
+      { assertPassedForApproval: vi.fn().mockResolvedValue(undefined) } as unknown as ComplianceService,
+      config,
+      {
+        maybeOpenRegister: vi.fn(),
+        assertActivationGates: vi.fn(),
+        maybeCreateFirstUnitOffer: vi.fn(),
+        notifyVehicleCareOnActivate: vi.fn(),
+      } as never,
+      { preDisbursalGateEnabled: false } as never,
+    );
+  }
+
+  it('rejects require-down-payment when the ledger already covers the amount', async () => {
+    const prisma = {
+      application: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'app-1',
+          status: ApplicationStatus.contract_under_review,
+          companyId: 'co-1',
+          pricingSnapshot: { down_payment: 10_000 },
+        }),
+      },
+      paymentEvent: {
+        findMany: vi.fn().mockResolvedValue([{ amount: new Prisma.Decimal(10_000) }]),
+      },
+      company: { findMany: vi.fn().mockResolvedValue([{ id: 'co-1', kind: 'dealership' }]) },
+      creditOfficerCompany: { findMany: vi.fn().mockResolvedValue([{ companyId: 'co-1' }]) },
+    };
+    const service = buildService(prisma);
+
+    await expect(
+      service.opsTransition(creditUser, 'app-1', ApplicationStatus.down_payment_required),
+    ).rejects.toMatchObject({ message: 'down_payment_already_satisfied' });
+  });
+});

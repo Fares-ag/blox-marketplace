@@ -5,7 +5,8 @@ import { apiFetch } from '../lib/api';
 import { applicationOpsPillVariant } from '../config/status-styles';
 import { useAuthStore } from '../auth/auth-store';
 import { useOpsLabels } from '../i18n/use-ops-labels';
-import { Alert, ConfirmDialog, OpsDetailPage, PageSkeleton } from '../ops-ui-v2';
+import { Alert, ConfirmDialog, OpsDetailPage, OpsNumberField, PageSkeleton } from '../ops-ui-v2';
+import { tenureBounds } from '../lib/product-rules';
 import { calculateOwnershipTimeline, overlayRegisterOnTimeline } from '../lib/ownership';
 import { resolveDisplaySchedule } from '../lib/resolve-display-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
@@ -71,6 +72,10 @@ export function ApplicationWorkspace({
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [reasonRequest, setReasonRequest] = useState<ReasonRequest | null>(null);
   const [lenderOpen, setLenderOpen] = useState(false);
+  const [rebuildOpen, setRebuildOpen] = useState(false);
+  const [rebuildTenure, setRebuildTenure] = useState(36);
+  const [rebuildDown, setRebuildDown] = useState(10);
+  const [rebuildRate, setRebuildRate] = useState(0);
   const [revealed, setRevealed] = useState<Partial<Record<OpsUnmaskField, string>>>({});
 
   const { data } = useQuery({
@@ -285,10 +290,11 @@ export function ApplicationWorkspace({
           type="button"
           className="blox-btn blox-btn--secondary blox-btn--sm"
           onClick={() => {
-            const tenure = Number(window.prompt('Tenure months', String((pricing as { tenor?: number }).tenor ?? 36)));
-            const down = Number(window.prompt('Down payment %', String((pricing as { down_payment_pct?: number }).down_payment_pct ?? 10)));
-            if (!tenure || !down) return;
-            mutations.rebuild.mutate({ tenureMonths: tenure, downPaymentPct: down });
+            const snap = pricing as { tenor?: number; down_payment_pct?: number; rate?: number };
+            setRebuildTenure(Number(snap.tenor ?? 36));
+            setRebuildDown(Number(snap.down_payment_pct ?? 10));
+            setRebuildRate(Number(snap.rate ?? 0));
+            setRebuildOpen(true);
           }}
         >
           {t('ops.workspace.editInstallments')}
@@ -416,6 +422,53 @@ export function ApplicationWorkspace({
           setConfirm(null);
         }}
       />
+      <ConfirmDialog
+        open={rebuildOpen}
+        title={t('ops.workspace.rebuildTitle')}
+        message={t('ops.workspace.rebuildMessage')}
+        confirmText={t('ops.workspace.editInstallments')}
+        cancelText={t('ops.common.cancel')}
+        variant="info"
+        busy={mutations.rebuild.isPending}
+        confirmDisabled={!rebuildTenure || rebuildDown < 0 || rebuildRate < 0 || rebuildRate > 30}
+        onCancel={() => setRebuildOpen(false)}
+        onConfirm={() => {
+          mutations.rebuild.mutate(
+            { tenureMonths: rebuildTenure, downPaymentPct: rebuildDown, annualRatePercent: rebuildRate },
+            { onSuccess: () => setRebuildOpen(false) },
+          );
+        }}
+      >
+        <OpsNumberField
+          label={t('ops.wizard.tenureCustom')}
+          min={tenureBounds().min}
+          max={tenureBounds().max}
+          step={1}
+          value={rebuildTenure}
+          emptyValue={36}
+          onValueChange={setRebuildTenure}
+          fullWidth
+        />
+        <OpsNumberField
+          label={t('ops.wizard.downPaymentPct')}
+          min={0}
+          max={90}
+          value={rebuildDown}
+          emptyValue={10}
+          onValueChange={setRebuildDown}
+          fullWidth
+        />
+        <OpsNumberField
+          label={t('ops.workspace.rebuildRate')}
+          min={0}
+          max={30}
+          step={0.1}
+          value={rebuildRate}
+          emptyValue={0}
+          onValueChange={setRebuildRate}
+          fullWidth
+        />
+      </ConfirmDialog>
       <ReasonDialog
         open={!!reasonDialog}
         title={reasonDialog?.title ?? ''}

@@ -846,6 +846,7 @@
 .blox-pre { white-space: pre-wrap; margin: 0; font-family: var(--blox-font-mono); font-size: 0.75rem; }
 .blox-form--narrow { max-width: 480px; }
 .blox-form-block { max-width: min(640px, 100%); min-width: 0; margin-bottom: 24px; }
+.blox-form-block--wide { max-width: none; }
 .blox-form-block--narrow { max-width: 480px; }
 .blox-detail-section--narrow { max-width: 520px; }
 .blox-inline-actions--wrap { flex-wrap: wrap; gap: 12px; }
