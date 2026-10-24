@@ -1,5 +1,14 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PRODUCT_RULES, QID_LENGTH, RESIDENCE_DURATION_OPTIONS, normalizePhoneTyping, normalizeQid } from '@drivemarket/shared';
+import {
+  PRODUCT_RULES,
+  QID_LENGTH,
+  RESIDENCE_DURATION_OPTIONS,
+  getAppLocale,
+  nationalityOptionsIncluding,
+  normalizePhoneTyping,
+  normalizeQid,
+} from '@drivemarket/shared';
 import { ChipRadioGroup, Field, Notice, Pill, SelectInput, TextInput } from '../fields';
 import { GENDER_OPTIONS, type ApplyForm, type DerivedIdentity, type FieldErrors, type GenderValue } from '../apply-model';
 
@@ -15,9 +24,15 @@ type Props = {
 
 export function IdentityStep({ form, derived, errors, onChange, onBlur, prefilled, nameLocked = false }: Props) {
   const { t } = useTranslation();
+  const locale = getAppLocale();
   const err = (field: string) => (errors[field] ? t(errors[field]) : null);
   const residency = derived.residency;
   const band = residency ? PRODUCT_RULES.applicant.ageAtContractEnd[residency] : null;
+  const nationalityValue = form.nationality || (derived.nationalityKnown ? derived.nationalityValue : '');
+  const nationalityChoices = useMemo(
+    () => nationalityOptionsIncluding(nationalityValue, locale),
+    [nationalityValue, locale],
+  );
 
   return (
     <div className="dm-step">
@@ -109,11 +124,12 @@ export function IdentityStep({ form, derived, errors, onChange, onBlur, prefille
           required={!derived.nationalityKnown}
         >
           {(a11y) => (
-            <TextInput
+            <SelectInput
               {...a11y}
-              value={form.nationality || (derived.nationalityKnown ? derived.nationalityValue : '')}
-              placeholder={t('applyFlow.identity.nationalityPlaceholder')}
+              value={nationalityValue}
               autoComplete="country-name"
+              placeholder={t('apply.selectPlaceholder')}
+              options={nationalityChoices}
               onChange={(e) => onChange({ nationality: e.target.value })}
               onBlur={() => onBlur('nationality')}
             />

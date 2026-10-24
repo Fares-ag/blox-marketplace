@@ -221,3 +221,31 @@ export function ageFromDateOfBirth(dateOfBirth: string | null | undefined, now: 
   if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
   return age;
 }
+
+export type NationalityOption = { value: string; label: string };
+
+/** Sorted country list for nationality dropdowns (English value stored on snapshots). */
+export function nationalityOptions(locale: 'en' | 'ar' = 'en'): NationalityOption[] {
+  const byEn = new Map<string, { en: string; ar: string }>();
+  for (const row of Object.values(ISO_NUMERIC_COUNTRIES)) {
+    byEn.set(row.en, row);
+  }
+  const collator = locale === 'ar' ? 'ar' : 'en';
+  return [...byEn.values()]
+    .map((row) => ({ value: row.en, label: locale === 'ar' ? row.ar : row.en }))
+    .sort((a, b) => a.label.localeCompare(b.label, collator));
+}
+
+/** Keeps legacy/free-text nationalities selectable when not in the QID table. */
+export function nationalityOptionsIncluding(
+  current: string | null | undefined,
+  locale: 'en' | 'ar' = 'en',
+): NationalityOption[] {
+  const opts = nationalityOptions(locale);
+  const cur = String(current ?? '').trim();
+  if (cur && !opts.some((o) => o.value === cur)) {
+    const collator = locale === 'ar' ? 'ar' : 'en';
+    return [...opts, { value: cur, label: cur }].sort((a, b) => a.label.localeCompare(b.label, collator));
+  }
+  return opts;
+}

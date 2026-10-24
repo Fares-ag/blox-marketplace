@@ -2,7 +2,14 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/api';
 import { isValidEmail, isValidQatarPhone, normalizeCrNumber, normalizePhoneTyping } from '../lib/contact';
-import { dateOfBirthMatchesQid, normalizeQid, parseIsoDateParts, parseQid } from '../lib/qid';
+import {
+  dateOfBirthMatchesQid,
+  nationalityOptionsIncluding,
+  normalizeQid,
+  parseIsoDateParts,
+  parseQid,
+} from '../lib/qid';
+import { getAppLocale } from '../i18n';
 import { RESIDENCE_DURATION_OPTIONS } from '../lib/product-rules';
 import { useOpsLabels } from '../i18n/use-ops-labels';
 import { OpsFormSection } from '../ops-ui-v2';
@@ -65,8 +72,18 @@ export function CustomerInfoForm({
   submitted?: boolean;
 }) {
   const { t } = useOpsLabels();
+  const locale = getAppLocale();
   const [useExisting, setUseExisting] = useState(false);
   const [search, setSearch] = useState('');
+  const nationalityChoices = useMemo(
+    () => nationalityOptionsIncluding(value.nationality, locale),
+    [value.nationality, locale],
+  );
+  const signatoryNationality = value.corporate.authorizedSignatory?.nationality ?? '';
+  const signatoryNationalityChoices = useMemo(
+    () => nationalityOptionsIncluding(signatoryNationality, locale),
+    [signatoryNationality, locale],
+  );
 
   const customers = useQuery({
     queryKey: ['ops-customer-search', search],
@@ -503,11 +520,11 @@ export function CustomerInfoForm({
                 hint={t('dealerOps.intake.qidHint')}
                 mono
               />
-              <OpsField
+              <OpsSelect
                 label={t('ops.customer.nationality')}
                 required
                 error={sigNationalityError}
-                value={value.corporate.authorizedSignatory?.nationality ?? ''}
+                value={signatoryNationality}
                 onBlur={() => markTouched('sigNationality')}
                 onChange={(e) =>
                   patch({
@@ -517,7 +534,14 @@ export function CustomerInfoForm({
                     },
                   })
                 }
-              />
+              >
+                <option value="">{t('ops.common.dash')}</option>
+                {signatoryNationalityChoices.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </OpsSelect>
               <OpsField
                 label={t('ops.customer.position')}
                 value={value.corporate.authorizedSignatory?.position ?? ''}
@@ -591,7 +615,7 @@ export function CustomerInfoForm({
                 hint={t('dealerOps.intake.qidHint')}
                 mono
               />
-              <OpsField
+              <OpsSelect
                 label={t('ops.customer.nationality')}
                 required
                 error={nationalityError}
@@ -605,7 +629,14 @@ export function CustomerInfoForm({
                       ? t('dealerOps.intake.nationalityUnknown')
                       : undefined
                 }
-              />
+              >
+                <option value="">{t('ops.common.dash')}</option>
+                {nationalityChoices.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </OpsSelect>
               <div className="blox-field">
                 <span className="blox-field__label">
                   <span>{t('dealerOps.intake.residency')}</span>

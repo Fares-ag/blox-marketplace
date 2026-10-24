@@ -365,9 +365,12 @@ export {
   QID_LENGTH,
   ageFromDateOfBirth,
   dateOfBirthMatchesQid,
+  nationalityOptions,
+  nationalityOptionsIncluding,
   normalizeQid,
   parseIsoDateParts,
   parseQid,
+  type NationalityOption,
   type ParsedQid,
 } from './lib/qid';
 export {
