@@ -141,7 +141,11 @@ export function documentSlotProfileFromSnapshot(snapshot: unknown): DocumentSlot
     raw.employment && typeof raw.employment === 'object' ? (raw.employment as Record<string, unknown>) : {};
   const residencyRaw = String(raw.residency ?? '').toLowerCase();
   const residency: ResidencyClass | null =
-    residencyRaw === 'expat' || residencyRaw === 'gcc' || residencyRaw === 'qatari' ? residencyRaw : null;
+    residencyRaw === 'qatari'
+      ? 'qatari'
+      : residencyRaw === 'expat' || residencyRaw === 'gcc'
+        ? 'expat'
+        : null;
   return {
     applicantType: raw.applicantType === 'corporate' ? 'corporate' : 'individual',
     residency,
