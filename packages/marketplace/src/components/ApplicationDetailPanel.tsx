@@ -2,7 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { DOCUMENT_UPLOAD_ACCEPT, FileDropzone, apiFetch, apiFileUrl, apiUrl, applicationDocumentLabel, documentSlotsFromCustomerSnapshot, getAppLocale, type DocumentSlot } from '@drivemarket/shared';
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  FileDropzone,
+  apiFetch,
+  apiFileUrl,
+  apiUrl,
+  applicationDocumentLabel,
+  documentSlotsFromCustomerSnapshot,
+  documentUploadRejection,
+  getAppLocale,
+  type DocumentSlot,
+} from '@drivemarket/shared';
 import { ApplicationStatusView } from './ApplicationStatusView';
 import { OwnershipProgress } from './OwnershipProgress';
 import { TakafulSection, takafulSectionVisible } from './TakafulSection';
@@ -152,21 +163,31 @@ function SlotRow({
   stale,
   uploadedAt,
   onUpload,
+  onUploadError,
 }: {
   slot: DocumentSlot;
   uploaded: boolean;
   stale: boolean;
   uploadedAt: string | null;
   onUpload: (file: File) => Promise<void>;
+  onUploadError: (message: string) => void;
 }) {
   const { t } = useTranslation();
   const locale = getAppLocale();
-  const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const inputId = `detail-doc-${slot.category}`;
+  const statusId = `detail-doc-${slot.category}-status`;
 
   async function handleFile(file: File | undefined) {
     if (!file || uploading) return;
+    const rejection = documentUploadRejection(file);
+    if (rejection) {
+      onUploadError(
+        rejection.code === 'type'
+          ? t('applyFlow.docs.rejectType', rejection.params)
+          : t('applyFlow.docs.rejectSize', rejection.params),
+      );
+      return;
+    }
     setUploading(true);
     try {
       await onUpload(file);
@@ -174,48 +195,58 @@ function SlotRow({
       /* parent shows the error */
     } finally {
       setUploading(false);
-      if (inputRef.current) inputRef.current.value = '';
     }
   }
 
+  const actionLabel = uploading
+    ? t('applyFlow.docs.uploading')
+    : stale
+      ? t('applyFlow.docs.reupload')
+      : uploaded
+        ? t('applyFlow.docs.replace')
+        : t('applyFlow.docs.upload');
+
   return (
-    <li className={`dm-docs__row${uploaded && !stale ? ' is-done' : ''}${stale ? ' is-stale' : ''}`}>
-      <div className="dm-docs__icon" aria-hidden>
-        {stale ? '!' : uploaded ? '✓' : ''}
-      </div>
-      <div className="dm-docs__body">
-        <div className="dm-docs__title-row">
-          <span className="dm-docs__title">{t(slot.labelKey)}</span>
-          <Pill tone={slot.required ? 'info' : 'neutral'}>{slot.required ? t('applyFlow.docs.required') : t('applyFlow.docs.optional')}</Pill>
-          {stale ? <Pill tone="danger">{t('applyFlow.docs.stale')}</Pill> : null}
+    <li>
+      <FileDropzone
+        accept={DOCUMENT_UPLOAD_ACCEPT}
+        disabled={uploading}
+        className={`dm-docs__row dm-docs__row--dropzone${uploaded && !stale ? ' is-done' : ''}${stale ? ' is-stale' : ''}${uploading ? ' is-disabled' : ''}`}
+        onFile={(file) => void handleFile(file)}
+      >
+        <div className="dm-docs__icon" aria-hidden>
+          {stale ? '!' : uploaded ? '✓' : ''}
         </div>
-        <p className="dm-docs__hint">
-          {stale && slot.maxAgeDays ? t('applyFlow.docs.staleHint', { days: slot.maxAgeDays }) : t(`${slot.labelKey}Hint`)}
-          {!stale && slot.maxAgeDays ? ` ${t('applyFlow.docs.freshness', { days: slot.maxAgeDays })}` : ''}
-        </p>
-        <p className="dm-docs__status">
-          {uploading ? (
-            t('applyFlow.docs.uploading')
-          ) : uploaded ? (
-            <>
-              <span className={stale ? 'dm-docs__stale' : 'dm-docs__done'}>{stale ? t('applyFlow.docs.reupload') : t('applyFlow.docs.uploaded')}</span>
-              {uploadedAt ? <span className="dm-docs__file"> · {t('applyFlow.docs.uploadedOn', { date: formatDate(uploadedAt, locale) })}</span> : null}
-            </>
-          ) : (
-            <span className="dm-muted">{t('applyFlow.docs.notUploaded')}</span>
-          )}
-        </p>
-      </div>
-      <div className="dm-docs__action">
-        <FileDropzone
-          accept={DOCUMENT_UPLOAD_ACCEPT}
-          disabled={uploading}
-          className={`dm-btn-ghost dm-btn-ghost--on-light dm-docs__btn${uploading ? ' is-disabled' : ''}`}
-          onFile={(file) => void handleFile(file)}
-        >
-          {uploading ? t('applyFlow.docs.uploading') : stale ? t('applyFlow.docs.reupload') : uploaded ? t('applyFlow.docs.replace') : t('applyFlow.docs.upload')}
-        </FileDropzone>
-      </div>
+        <div className="dm-docs__body">
+          <div className="dm-docs__title-row">
+            <span className="dm-docs__title">{t(slot.labelKey)}</span>
+            <Pill tone={slot.required ? 'info' : 'neutral'}>{slot.required ? t('applyFlow.docs.required') : t('applyFlow.docs.optional')}</Pill>
+            {stale ? <Pill tone="danger">{t('applyFlow.docs.stale')}</Pill> : null}
+          </div>
+          <p className="dm-docs__hint">
+            {stale && slot.maxAgeDays ? t('applyFlow.docs.staleHint', { days: slot.maxAgeDays }) : t(`${slot.labelKey}Hint`)}
+            {!stale && slot.maxAgeDays ? ` ${t('applyFlow.docs.freshness', { days: slot.maxAgeDays })}` : ''}
+          </p>
+          <p className="dm-docs__status" id={statusId} aria-live="polite">
+            {uploading ? (
+              t('applyFlow.docs.uploading')
+            ) : uploaded ? (
+              <>
+                <span className={stale ? 'dm-docs__stale' : 'dm-docs__done'}>{stale ? t('applyFlow.docs.reupload') : t('applyFlow.docs.uploaded')}</span>
+                {uploadedAt ? <span className="dm-docs__file"> · {t('applyFlow.docs.uploadedOn', { date: formatDate(uploadedAt, locale) })}</span> : null}
+              </>
+            ) : (
+              <span className="dm-muted">{t('applyFlow.docs.notUploaded')}</span>
+            )}
+          </p>
+        </div>
+        <div className="dm-docs__action">
+          <p className="dm-docs__drop-hint">{t('applyFlow.docs.dropHint')}</p>
+          <span className="dm-btn-ghost dm-btn-ghost--on-light dm-docs__btn" aria-hidden="true">
+            {actionLabel}
+          </span>
+        </div>
+      </FileDropzone>
     </li>
   );
 }
@@ -682,6 +713,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
                           stale={staleSet.has(slot.category)}
                           uploadedAt={uploadedAt[slot.category] ?? null}
                           onUpload={(file) => uploadDocument(file, slot.category)}
+                          onUploadError={setUploadError}
                         />
                       ))}
                     </ul>

@@ -1,6 +1,12 @@
-import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DOCUMENT_UPLOAD_ACCEPT, documentUploadRejection, getAppLocale, type DocumentSlot, type DocumentSlotGroup } from '@drivemarket/shared';
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  FileDropzone,
+  documentUploadRejection,
+  getAppLocale,
+  type DocumentSlot,
+  type DocumentSlotGroup,
+} from '@drivemarket/shared';
 import { Notice, Pill } from '../fields';
 import { formatDate } from '../format';
 
@@ -128,17 +134,18 @@ function SlotRow({
 }) {
   const { t } = useTranslation();
   const locale = getAppLocale();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const inputId = `doc-${slot.category}`;
-  const statusId = `${inputId}-status`;
+  const statusId = `doc-${slot.category}-status`;
   const uploading = state.status === 'uploading';
   const needsFresh = done && stale;
 
   function onFile(file: File | undefined) {
-    if (!file) return;
+    if (!file || disabled || uploading) return;
     const rejection = documentUploadRejection(file);
     if (rejection) {
-      onReject(slot, rejection.code === 'type' ? t('applyFlow.docs.rejectType', rejection.params) : t('applyFlow.docs.rejectSize', rejection.params));
+      onReject(
+        slot,
+        rejection.code === 'type' ? t('applyFlow.docs.rejectType', rejection.params) : t('applyFlow.docs.rejectSize', rejection.params),
+      );
       return;
     }
     onUpload(slot, file);
@@ -153,58 +160,49 @@ function SlotRow({
         : t('applyFlow.docs.upload');
 
   return (
-    <li className={`dm-docs__row${done && !needsFresh ? ' is-done' : ''}${needsFresh ? ' is-stale' : ''}${state.status === 'error' ? ' is-error' : ''}`}>
-      <div className="dm-docs__icon" aria-hidden>
-        {needsFresh ? '!' : done ? '✓' : ''}
-      </div>
-      <div className="dm-docs__body">
-        <div className="dm-docs__title-row">
-          <span className="dm-docs__title">{t(slot.labelKey)}</span>
-          <Pill tone={slot.required ? 'info' : 'neutral'}>{slot.required ? t('applyFlow.docs.required') : t('applyFlow.docs.optional')}</Pill>
-          {needsFresh ? <Pill tone="danger">{t('applyFlow.docs.stale')}</Pill> : null}
+    <li>
+      <FileDropzone
+        accept={DOCUMENT_UPLOAD_ACCEPT}
+        disabled={disabled || uploading}
+        className={`dm-docs__row dm-docs__row--dropzone${done && !needsFresh ? ' is-done' : ''}${needsFresh ? ' is-stale' : ''}${state.status === 'error' ? ' is-error' : ''}${disabled || uploading ? ' is-disabled' : ''}`}
+        onFile={onFile}
+      >
+        <div className="dm-docs__icon" aria-hidden>
+          {needsFresh ? '!' : done ? '✓' : ''}
         </div>
-        <p className="dm-docs__hint">
-          {needsFresh && slot.maxAgeDays ? t('applyFlow.docs.staleHint', { days: slot.maxAgeDays }) : t(`${slot.labelKey}Hint`)}
-          {!needsFresh && slot.maxAgeDays ? ` ${t('applyFlow.docs.freshness', { days: slot.maxAgeDays })}` : ''}
-        </p>
-        <p className="dm-docs__status" id={statusId} aria-live="polite">
-          {uploading ? (
-            t('applyFlow.docs.uploading')
-          ) : state.status === 'error' ? (
-            <span className="dm-docs__error">{state.error ?? t('applyFlow.docs.uploadFailed')}</span>
-          ) : done ? (
-            <>
-              <span className={needsFresh ? 'dm-docs__stale' : 'dm-docs__done'}>{needsFresh ? t('applyFlow.docs.reupload') : t('applyFlow.docs.uploaded')}</span>
-              {fileName ? <span className="dm-docs__file"> · {fileName}</span> : null}
-              {uploadedAt ? <span className="dm-docs__file"> · {t('applyFlow.docs.uploadedOn', { date: formatDate(uploadedAt, locale) })}</span> : null}
-            </>
-          ) : (
-            <span className="dm-muted">{t('applyFlow.docs.notUploaded')}</span>
-          )}
-        </p>
-      </div>
-      <div className="dm-docs__action">
-        <input
-          ref={inputRef}
-          id={inputId}
-          type="file"
-          className="dm-sr-only"
-          accept={DOCUMENT_UPLOAD_ACCEPT}
-          disabled={disabled || uploading}
-          aria-describedby={statusId}
-          onChange={(e) => {
-            onFile(e.target.files?.[0]);
-            e.target.value = '';
-          }}
-        />
-        <label
-          htmlFor={inputId}
-          className={`dm-btn-ghost dm-btn-ghost--on-light dm-docs__btn${disabled || uploading ? ' is-disabled' : ''}`}
-          aria-label={`${actionLabel}: ${t(slot.labelKey)}`}
-        >
-          {actionLabel}
-        </label>
-      </div>
+        <div className="dm-docs__body">
+          <div className="dm-docs__title-row">
+            <span className="dm-docs__title">{t(slot.labelKey)}</span>
+            <Pill tone={slot.required ? 'info' : 'neutral'}>{slot.required ? t('applyFlow.docs.required') : t('applyFlow.docs.optional')}</Pill>
+            {needsFresh ? <Pill tone="danger">{t('applyFlow.docs.stale')}</Pill> : null}
+          </div>
+          <p className="dm-docs__hint">
+            {needsFresh && slot.maxAgeDays ? t('applyFlow.docs.staleHint', { days: slot.maxAgeDays }) : t(`${slot.labelKey}Hint`)}
+            {!needsFresh && slot.maxAgeDays ? ` ${t('applyFlow.docs.freshness', { days: slot.maxAgeDays })}` : ''}
+          </p>
+          <p className="dm-docs__status" id={statusId} aria-live="polite">
+            {uploading ? (
+              t('applyFlow.docs.uploading')
+            ) : state.status === 'error' ? (
+              <span className="dm-docs__error">{state.error ?? t('applyFlow.docs.uploadFailed')}</span>
+            ) : done ? (
+              <>
+                <span className={needsFresh ? 'dm-docs__stale' : 'dm-docs__done'}>{needsFresh ? t('applyFlow.docs.reupload') : t('applyFlow.docs.uploaded')}</span>
+                {fileName ? <span className="dm-docs__file"> · {fileName}</span> : null}
+                {uploadedAt ? <span className="dm-docs__file"> · {t('applyFlow.docs.uploadedOn', { date: formatDate(uploadedAt, locale) })}</span> : null}
+              </>
+            ) : (
+              <span className="dm-muted">{t('applyFlow.docs.notUploaded')}</span>
+            )}
+          </p>
+        </div>
+        <div className="dm-docs__action">
+          <p className="dm-docs__drop-hint">{t('applyFlow.docs.dropHint')}</p>
+          <span className="dm-btn-ghost dm-btn-ghost--on-light dm-docs__btn" aria-hidden="true">
+            {actionLabel}
+          </span>
+        </div>
+      </FileDropzone>
     </li>
   );
 }

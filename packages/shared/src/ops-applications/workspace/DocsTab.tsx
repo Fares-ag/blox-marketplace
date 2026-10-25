@@ -177,7 +177,7 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                   )}
                   {actions.uploadDocs && (
                     <FileDropzone
-                      className="blox-btn blox-btn--secondary blox-btn--sm"
+                      className={`blox-upload-dropzone blox-upload-dropzone--inline${isStale ? ' is-missing' : ''}${satisfied && !isStale ? ' is-filled' : ''}`}
                       accept={KYC_UPLOAD_ACCEPT}
                       disabled={mutations.uploadDoc.isPending}
                       onFile={(file) => {
@@ -185,11 +185,16 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                         onPick(fake, slot.category);
                       }}
                     >
-                      {isQuotation && !satisfied
-                        ? t('inventoryRules.attachQuotation')
-                        : satisfied
-                          ? t('dealerOps.docs.replace')
-                          : t('dealerOps.docs.upload')}
+                      <span className="blox-upload-dropzone__action">
+                        {isQuotation && !satisfied
+                          ? t('inventoryRules.attachQuotation')
+                          : isStale
+                            ? t('applyFlow.docs.reupload')
+                            : satisfied
+                              ? t('dealerOps.docs.replace')
+                              : t('dealerOps.docs.upload')}
+                      </span>
+                      <small className="blox-upload-dropzone__hint">{t('dealerOps.docs.dropHint')}</small>
                     </FileDropzone>
                   )}
                 </li>
@@ -221,15 +226,14 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
       {actions.uploadSignedContract && (
         <div className="blox-upload-block">
           <p className="blox-upload-block__title">{t('ops.workspace.uploadSignedContract')}</p>
-          <label className="blox-upload-dropzone">
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              hidden
-              onChange={(e) => setSignedContractFile(e.target.files?.[0] ?? null)}
-            />
+          <FileDropzone
+            className="blox-upload-dropzone"
+            accept=".pdf,application/pdf"
+            onFile={(file) => setSignedContractFile(file)}
+          >
             <p>{signedContractFile?.name ?? t('ops.workspace.uploadSignedContract')}</p>
-          </label>
+            <small className="blox-upload-dropzone__hint">{t('dealerOps.docs.dropHint')}</small>
+          </FileDropzone>
           <OpsPrimaryButton
             type="button"
             disabled={!signedContractFile || mutations.uploadSignedContract.isPending}

@@ -47,7 +47,7 @@ export function FileDropzone({
 
   return (
     <label
-      className={`${className ?? ''} ${over ? 'is-drop-over' : ''}`.trim()}
+      className={`${className ?? ''} ${over ? 'is-drop-over is-over' : ''}`.trim()}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}

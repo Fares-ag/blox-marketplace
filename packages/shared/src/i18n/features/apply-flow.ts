@@ -300,6 +300,7 @@ export const en = {
     staleHint: 'This copy is older than {{days}} days. Upload a newer one before submitting.',
     uploadedOn: 'Uploaded {{date}}',
     reupload: 'Upload a newer copy',
+    dropHint: 'Drag and drop a file here, or click to browse',
     staleCount: '{{count}} document(s) need a fresh copy.',
   },
   consents: {
@@ -754,6 +755,7 @@ export const ar: typeof en = {
     staleHint: 'هذه النسخة أقدم من {{days}} يوماً. ارفع نسخة أحدث قبل الإرسال.',
     uploadedOn: 'رُفع في {{date}}',
     reupload: 'رفع نسخة أحدث',
+    dropHint: 'اسحب الملف وأفلته هنا، أو انقر للاختيار',
     staleCount: '{{count}} من المستندات بحاجة إلى نسخة حديثة.',
   },
   consents: {

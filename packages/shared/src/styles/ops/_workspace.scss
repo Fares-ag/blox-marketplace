@@ -313,6 +313,28 @@
     box-shadow: 0 0 0 4px rgba(0, 207, 162, 0.15);
   }
 
+  &--inline {
+    flex: none;
+    min-width: 128px;
+    max-width: 200px;
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 0.75rem;
+    line-height: 1.35;
+
+    .blox-upload-dropzone__action {
+      display: block;
+      font-weight: 600;
+      color: var(--blox-deep-green);
+    }
+
+    .blox-upload-dropzone__hint {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.6875rem;
+    }
+  }
+
   &--slot {
     display: flex;
     flex-direction: column;
