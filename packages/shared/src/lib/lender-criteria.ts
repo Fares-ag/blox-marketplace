@@ -6,6 +6,14 @@
 import type { EmployerCategory, ProductRuleViolation, ResidencyClass } from './product-rules';
 
 export const AL_JAZEERA_FINANCE_CODE = 'al-jazeera-finance';
+export const IN_HOUSE_FINANCE_CODE = 'in-house-finance';
+/** Dealer in-house conventional book: any whole month from 1 through 71. */
+export const IN_HOUSE_MIN_TENURE_MONTHS = 1;
+export const IN_HOUSE_MAX_TENURE_MONTHS = 71;
+
+export function isInHouseFinance(code?: string | null): boolean {
+  return code === IN_HOUSE_FINANCE_CODE;
+}
 
 export type AlJazeeraSegment = 'qatari' | 'expat_govt_listed' | 'expat_private';
 
@@ -121,6 +129,9 @@ export function lenderTenureBounds(
   lenderCode?: string | null,
   residency?: ResidencyClass | null,
 ): { min: number; max: number } | null {
+  if (isInHouseFinance(lenderCode)) {
+    return { min: IN_HOUSE_MIN_TENURE_MONTHS, max: IN_HOUSE_MAX_TENURE_MONTHS };
+  }
   if (!isAlJazeeraFinance(lenderCode)) return null;
   if (residency === 'expat') return { min: 3, max: EXPAT_GOVT_LISTED.maxTenureMonths };
   return { min: 3, max: QATARI.maxTenureMonths };

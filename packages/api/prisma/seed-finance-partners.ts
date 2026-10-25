@@ -85,7 +85,7 @@ export async function seedFinancePartners(prisma: PrismaClient) {
         name: 'In-house Standard',
         annualRentRate: IN_HOUSE_ANNUAL_INTEREST_RATE,
         minDownPaymentPct: 10,
-        tenureOptions: [12, 24, 36, 48, 60],
+        tenureOptions: [1, 12, 24, 36, 48, 60, 71],
         financingType: 'conventional_interest' as const,
       },
     },

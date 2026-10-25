@@ -214,6 +214,7 @@ export class ApplicationsService {
           const quotedPricing = buildApplicationPricingSnapshot({
             listPrice: negotiatedListPrice,
             offer,
+            financePartnerCode: offer.financePartner?.code,
             pricingSnapshot: { ...currentPricing, ...(dto.pricingSnapshot ?? {}) },
           });
           const now = new Date();
@@ -260,6 +261,7 @@ export class ApplicationsService {
     const pricingSnapshot = buildApplicationPricingSnapshot({
       listPrice,
       offer,
+      financePartnerCode: offer.financePartner?.code,
       pricingSnapshot: dto.pricingSnapshot,
     });
     const violations = evaluateProductRules({
@@ -408,6 +410,7 @@ export class ApplicationsService {
     const pricingSnapshot = buildApplicationPricingSnapshot({
       listPrice,
       offer,
+      financePartnerCode: offer.financePartner?.code,
       pricingSnapshot: { ...currentPricing, ...(body.pricingSnapshot ?? {}) },
     });
     if (currentPricing.hide_interest !== undefined) {
@@ -1441,7 +1444,7 @@ export class ApplicationsService {
     }
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { offer: true, paymentSchedules: true, product: true },
+      include: { offer: { include: { financePartner: { select: { code: true } } } }, paymentSchedules: true, product: true },
     });
     if (!app) throw new NotFoundException();
     await assertApplicationCanView(this.prisma, user, app);
@@ -1455,6 +1458,7 @@ export class ApplicationsService {
     const next = buildApplicationPricingSnapshot({
       listPrice: dto.sellingPrice ?? Number(pricing.list_price ?? pricing.selling_price ?? 0),
       offer: app.offer,
+      financePartnerCode: app.offer.financePartner?.code,
       pricingSnapshot: {
         ...pricing,
         tenor: dto.tenureMonths ?? pricing.tenor ?? pricing.tenure,

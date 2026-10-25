@@ -32,6 +32,7 @@ describe('product rules', () => {
     expect(allowedTenureOptions(null)).toEqual([12, 24, 36, 48, 60]);
     // Anything outside the hard band is dropped from the chips.
     expect(allowedTenureOptions('qatari', [1, 72])).toEqual([12, 24, 36, 48, 60]);
+    expect(allowedTenureOptions(null, null, 'in-house-finance')).toEqual([1, 12, 24, 36, 48, 60, 71]);
   });
 
   it('accepts any month and any contribution inside the flexible bands', () => {
@@ -194,6 +195,7 @@ describe('product rules', () => {
   });
 
   it('applies Al Jazeera tenure, down payment and financing limits', () => {
+    expect(tenureBounds({ lenderCode: 'in-house-finance' })).toEqual({ min: 1, max: 71 });
     expect(tenureBounds({ lenderCode: AL_JAZEERA_FINANCE_CODE, residency: 'expat' })).toEqual({ min: 3, max: 48 });
     expect(tenureBounds({ lenderCode: AL_JAZEERA_FINANCE_CODE, residency: 'qatari' })).toEqual({ min: 3, max: 71 });
     expect(allowedTenureOptions('qatari', null, AL_JAZEERA_FINANCE_CODE)).toContain(71);

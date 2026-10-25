@@ -12,6 +12,10 @@ export async function buildConventionalLoanAgreementPdf(ctx: ContractFieldContex
   const totalPayable = roundMoney(normalized.downPayment + normalized.financedTotal);
   const totalInterest = roundMoney(Math.max(normalized.financedTotal - amountFinanced, 0));
   const approvedDate = normalized.approvedAt.toISOString().slice(0, 10);
+  const balloonAmount = roundMoney(Number(normalized.pricing.balloon ?? 0));
+  const balloonPct = Number(normalized.pricing.balloon_pct ?? 0);
+  const balloonDue = String(normalized.pricing.balloon_due_date ?? '').trim();
+  const hasBalloon = balloonAmount > 0;
 
   const writer = await BrandedPdfWriter.create({
     title: 'Sale Credit Agreement',
@@ -47,8 +51,17 @@ export async function buildConventionalLoanAgreementPdf(ctx: ContractFieldContex
     ['Down payment', `QAR ${formatQar(normalized.downPayment)} (${normalized.downPaymentPct.toFixed(2)}%)`],
     ['Amount financed', `QAR ${formatQar(amountFinanced)}`],
     ['Annual interest rate', `${normalized.annualRate.toFixed(2)}%`],
-    ['Tenure', `${normalized.tenor} months`],
+    ['Tenure', hasBalloon ? `${normalized.tenor} monthly installments + final balloon` : `${normalized.tenor} months`],
     ['Monthly installment', `QAR ${formatQar(normalized.monthly)}`],
+    ...(hasBalloon
+      ? [
+          ['Balloon payment (principal)', `QAR ${formatQar(balloonAmount)} (${balloonPct.toFixed(0)}% of cash price)`] as [
+            string,
+            string,
+          ],
+          ['Balloon due date', balloonDue || '—'] as [string, string],
+        ]
+      : []),
     ['Total installments', `QAR ${formatQar(normalized.financedTotal)}`],
     ['Total interest payable', `QAR ${formatQar(totalInterest)}`],
     ['Total amount payable', `QAR ${formatQar(totalPayable)}`],

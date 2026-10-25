@@ -17,10 +17,7 @@ function parseDueDate(value: string): Date {
 
 function installmentRowsFromPlan(plan: InstallmentPlan) {
   return (plan.schedule ?? []).filter(
-    (row) =>
-      row.paymentType !== 'down_payment' &&
-      !row.isBalloon &&
-      (Number(row.amount) || 0) > 0,
+    (row) => row.paymentType !== 'down_payment' && (Number(row.amount) || 0) > 0,
   );
 }
 

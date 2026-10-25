@@ -45,6 +45,8 @@ export type ContractFieldContext = {
   salesmanName?: string | null;
   intakeSource?: 'walk_in' | 'web_lead' | null;
   uploadedCategories?: string[];
+  /** Persisted plan from approval; used for in-house balloon schedules. */
+  installmentPlan?: import('@drivemarket/shared/installment-plan').InstallmentPlan | null;
   credit?: AssessedApplicationCredit;
   approverName?: string;
   approverRole?: string;
@@ -120,6 +122,10 @@ export function commonDealFields(ctx: ContractFieldContext): Record<string, stri
   const employment = employmentOf(snap);
   const qid = parseQid(snap.qid);
   const conventional = ctx.financingType === 'conventional_interest';
+  const balloonAmount = roundMoney(Number(ctx.pricing.balloon ?? 0));
+  const balloonPct = Number(ctx.pricing.balloon_pct ?? 0);
+  const balloonDue = str(ctx.pricing.balloon_due_date);
+  const hasBalloon = conventional && balloonAmount > 0;
 
   return {
     'Application.Number': ctx.referenceNo ?? ctx.applicationId,
@@ -135,7 +141,16 @@ export function commonDealFields(ctx: ContractFieldContext): Record<string, stri
       ? 'annual interest on outstanding principal'
       : 'annual rental rate on BloX remaining share',
     'Deal.PeriodicPayment': money(ctx.monthly),
-    'Deal.NumberOfPayments': String(ctx.tenor),
+    'Deal.NumberOfPayments': hasBalloon
+      ? `${ctx.tenor} monthly + final balloon`
+      : String(ctx.tenor),
+    ...(hasBalloon
+      ? {
+          'Deal.BalloonPayment': money(balloonAmount),
+          'Deal.BalloonPct': pct(balloonPct),
+          'Deal.BalloonDueDate': balloonDue || '—',
+        }
+      : {}),
     'Deal.TotalUnits': String(units.totalUnits),
     'Deal.UnitPrice': money(units.unitPrice),
     'Deal.UnitPriceBasis': 'cash price of the asset divided by 100 units',
@@ -178,7 +193,11 @@ export function commonDealFields(ctx: ContractFieldContext): Record<string, stri
     'Vehicle.Condition': str(ctx.vehicle.condition),
     'Vehicle.ValuationAmount': money(ctx.listPrice),
     'Vehicle.ValuationSource': 'Dealer list price locked at approval',
-    'Product.Type': 'Diminishing Musharakah + Ijarah',
+    'Product.Type': conventional
+      ? hasBalloon
+        ? 'Conventional sale credit (balloon structure)'
+        : 'Conventional sale credit (loan)'
+      : 'Diminishing Musharakah + Ijarah',
     'Product.Condition': str(ctx.vehicle.condition) || 'New',
     'BloX.RegisteredAddress': ctx.lenderAddress,
     'BloX.SignatoryName': ctx.signatoryName,

@@ -7,6 +7,17 @@ export {
   buildPlanFromPricingSnapshot,
 } from './generate-schedule';
 export {
+  calculateBalloonPaymentSchedule,
+  validatePaymentStructure,
+  extractBalloonConfig,
+  DEFAULT_IN_HOUSE_BALLOON_PCT,
+  resolveBalloonStructure,
+  clampBalloonPercent,
+  isValidBalloonStructure,
+  buildBalloonInstallmentPlan,
+  balloonPricingOverlay,
+} from './balloon-payment';
+export {
   normalizeInstallmentInterval,
   isScheduleLikelyDaily,
   aggregateDailyScheduleToMonthly,

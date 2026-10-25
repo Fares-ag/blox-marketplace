@@ -60,8 +60,15 @@ export {
   validatePaymentStructure,
   calculateBalloonPaymentSchedule,
   extractBalloonConfig,
+  DEFAULT_IN_HOUSE_BALLOON_PCT,
+  resolveBalloonStructure,
+  clampBalloonPercent,
+  isValidBalloonStructure,
+  buildBalloonInstallmentPlan,
+  balloonPricingOverlay,
   type BalloonPaymentConfig,
   type BalloonPaymentCalculation,
+  type PaymentStructurePercents,
 } from './lib/balloon-payment';
 export {
   computeHideInterestDisplay,
@@ -360,10 +367,12 @@ export {
 } from './lib/product-rules';
 export {
   AL_JAZEERA_FINANCE_CODE,
+  IN_HOUSE_FINANCE_CODE,
   alJazeeraCriteriaFor,
   alJazeeraSegmentFor,
   employmentMonthsFromDuration,
   isAlJazeeraFinance,
+  isInHouseFinance,
   lenderCodeOf,
   lenderMinDownPaymentPct,
   lenderTenureBounds,

@@ -7,6 +7,7 @@ import {
   roundMoney,
   sumInstallmentAmounts,
 } from '@drivemarket/shared/pricing';
+import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
 import { buildScheduleDrafts } from './payment-schedules';
 import { CONVENTIONAL_INTEREST_DISCLOSURES, QATAR_FINANCING_DISCLOSURES } from './contract-disclosures';
 
@@ -122,6 +123,46 @@ export async function verifySignedContractReferencesOriginal(
   } catch {
     return false;
   }
+}
+
+/** Conventional in-house balloon plan: map persisted schedule rows to principal/interest columns. */
+export function buildContractScheduleFromInstallmentPlan(
+  plan: InstallmentPlan,
+  listPrice: number,
+  downPayment: number,
+): ContractScheduleRow[] {
+  const structure = plan.paymentStructure;
+  const installmentRows = (plan.schedule ?? []).filter((row) => row.paymentType === 'installment');
+  const payableRows = (plan.schedule ?? []).filter((row) => row.paymentType !== 'down_payment');
+  const installmentMonths = installmentRows.length;
+  const installmentPrincipalPool =
+    structure && structure.installmentPercent > 0
+      ? roundMoney((listPrice * structure.installmentPercent) / 100)
+      : roundMoney(Math.max(listPrice - downPayment - (plan.balloonPayment?.amount ?? 0), 0));
+  const principalPerInstallment =
+    installmentMonths > 0 ? roundMoney(installmentPrincipalPool / installmentMonths) : 0;
+  const balloonPrincipal = roundMoney(plan.balloonPayment?.amount ?? 0);
+
+  let balance = roundMoney(Math.max(listPrice - downPayment, 0));
+  let sequence = 0;
+
+  return payableRows.map((row) => {
+    sequence += 1;
+    const payment = roundMoney(Number(row.amount) || 0);
+    const principal = row.isBalloon
+      ? roundMoney(Math.min(balloonPrincipal, balance))
+      : roundMoney(Math.min(principalPerInstallment, balance));
+    const interest = roundMoney(Math.max(payment - principal, 0));
+    balance = roundMoney(Math.max(balance - principal, 0));
+    return {
+      sequence,
+      dueDate: row.dueDate,
+      payment,
+      principal,
+      interest,
+      balance,
+    };
+  });
 }
 
 export function buildContractAmortizationSchedule(

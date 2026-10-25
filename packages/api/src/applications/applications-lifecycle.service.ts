@@ -271,6 +271,8 @@ export class ApplicationsLifecycleService {
           ? 'ijarah_agreement'
           : 'musharakah_agreement';
 
+    const installmentPlan = app.installmentPlan as InstallmentPlan | null | undefined;
+
     const fieldCtx: ContractFieldContext = normalizeContractContext({
       applicationId: app.id,
       referenceNo: formatApplicationRef(app.referenceSeq),
@@ -283,6 +285,7 @@ export class ApplicationsLifecycleService {
       customerEmail: app.customerEmail,
       customerSnapshot: snap,
       pricing,
+      installmentPlan: installmentPlan ?? null,
       vehicle: {
         make: app.product.make,
         model: app.product.model,

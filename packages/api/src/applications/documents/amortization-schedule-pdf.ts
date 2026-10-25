@@ -11,6 +11,8 @@ export async function buildAmortizationSchedulePdf(ctx: ContractFieldContext): P
   const totalInterest = normalized.schedule.reduce((sum, row) => sum + row.interest, 0);
   const totalPayments = normalized.schedule.reduce((sum, row) => sum + row.payment, 0);
   const totalPrincipal = normalized.schedule.reduce((sum, row) => sum + row.principal, 0);
+  const balloonAmount = roundMoney(Number(normalized.pricing.balloon ?? 0));
+  const hasBalloon = balloonAmount > 0;
 
   const writer = await BrandedPdfWriter.create({
     title: 'Amortization Schedule',
@@ -35,7 +37,15 @@ export async function buildAmortizationSchedulePdf(ctx: ContractFieldContext): P
     ['Amount financed', `QAR ${formatQar(amountFinanced)}`],
     ['Annual interest rate', `${normalized.annualRate.toFixed(2)}%`],
     ['Payment frequency', 'Monthly'],
-    ['Number of periods', String(normalized.tenor)],
+    [
+      'Number of periods',
+      hasBalloon
+        ? `${normalized.tenor} monthly + 1 balloon (${normalized.schedule.length} lines)`
+        : String(normalized.tenor),
+    ],
+    ...(hasBalloon
+      ? [['Final balloon (principal)', `QAR ${formatQar(balloonAmount)}`] as [string, string]]
+      : []),
   ]);
 
   writer.section('Payment schedule');

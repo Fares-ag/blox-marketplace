@@ -204,6 +204,7 @@ export class ApplicationsStaffService {
           listPrice: sellingPriceForProduct,
           offer,
           pricingSnapshot: dto.pricingSnapshot,
+          financePartnerCode: offer.financePartner?.code,
         }),
         list_price: listPrice,
         selling_price: sellingPriceForProduct,

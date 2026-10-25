@@ -93,24 +93,75 @@ describe('buildApplicationPricingSnapshot', () => {
       }),
     ).toThrow('invalid_tenure');
   });
+
+  it('applies a 20/50/30 balloon overlay only for in-house finance', () => {
+    const snap = buildApplicationPricingSnapshot({
+      listPrice: 120_000,
+      offer: { ...sampleOffer, minDownPaymentPct: 0, tenureOptions: [12, 24, 36, 48, 60] },
+      financePartnerCode: 'in-house-finance',
+      pricingSnapshot: {
+        tenor: 48,
+        down_payment_pct: 20,
+        calculation_method: 'balloon_payment',
+        balloon_pct: 30,
+      },
+    });
+    expect(snap.calculation_method).toBe('balloon_payment');
+    expect(snap.balloon_pct).toBe(30);
+    expect(snap.installment_pct).toBe(50);
+    expect(snap.balloon).toBe(36_000);
+    expect(Number(snap.monthly)).toBeGreaterThan(1_250);
+    expect(Number(snap.monthly)).toBeLessThan(3_000);
+
+    const ignored = buildApplicationPricingSnapshot({
+      listPrice: 120_000,
+      offer: { ...sampleOffer, minDownPaymentPct: 0, tenureOptions: [12, 24, 36, 48, 60] },
+      financePartnerCode: 'al-jazeera-finance',
+      pricingSnapshot: {
+        tenor: 48,
+        down_payment_pct: 20,
+        calculation_method: 'balloon_payment',
+        balloon_pct: 30,
+      },
+    });
+    expect(ignored.calculation_method).toBeUndefined();
+    expect(ignored.balloon).toBeUndefined();
+  });
 });
 
 describe('assertTenureAllowed', () => {
-  // LMS product configuration §1: the shortest Diminishing Musharakah tenure is
-  // 3 months (shared MIN_TENURE_MONTHS), so 1 and 2 are now out of range.
-  it('accepts tenure values in the 3–71 platform band', () => {
+  it('accepts tenure values in the default product band (3–60 months)', () => {
     expect(() => assertTenureAllowed(3, [])).not.toThrow();
     expect(() => assertTenureAllowed(7, [])).not.toThrow();
     expect(() => assertTenureAllowed(36, [])).not.toThrow();
     expect(() => assertTenureAllowed(60, [])).not.toThrow();
-    expect(() => assertTenureAllowed(71, [])).not.toThrow();
   });
 
-  it('rejects tenure outside range', () => {
+  it('allows in-house finance from 1 through 71 months', () => {
+    const inHouse = { lenderCode: 'in-house-finance' as const };
+    expect(() => assertTenureAllowed(1, [], inHouse)).not.toThrow();
+    expect(() => assertTenureAllowed(2, [], inHouse)).not.toThrow();
+    expect(() => assertTenureAllowed(71, [], inHouse)).not.toThrow();
+    expect(() => assertTenureAllowed(0, [], inHouse)).toThrow('invalid_tenure');
+    expect(() => assertTenureAllowed(72, [], inHouse)).toThrow('invalid_tenure');
+  });
+
+  it('rejects tenure outside the default band', () => {
     expect(() => assertTenureAllowed(0, [])).toThrow('invalid_tenure');
     expect(() => assertTenureAllowed(1, [])).toThrow('invalid_tenure');
     expect(() => assertTenureAllowed(2, [])).toThrow('invalid_tenure');
+    expect(() => assertTenureAllowed(71, [])).toThrow('invalid_tenure');
     expect(() => assertTenureAllowed(72, [])).toThrow('invalid_tenure');
+  });
+
+  it('accepts a one-month in-house pricing snapshot', () => {
+    const snap = buildApplicationPricingSnapshot({
+      listPrice: 50_000,
+      offer: { ...sampleOffer, minDownPaymentPct: 0, tenureOptions: [1, 12, 24, 36, 48, 60, 71] },
+      financePartnerCode: 'in-house-finance',
+      pricingSnapshot: { tenor: 1, down_payment_pct: 20 },
+    });
+    expect(snap.tenor).toBe(1);
   });
 });
 

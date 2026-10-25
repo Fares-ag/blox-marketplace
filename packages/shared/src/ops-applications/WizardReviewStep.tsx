@@ -154,6 +154,18 @@ export function WizardReviewStep({
             />
             <InfoItem label={t('ops.wizard.paymentInterval')} value={plan.interval} />
             <InfoItem label={t('ops.wizard.firstPayment')} value={formatQar(Number(plan.monthlyAmount ?? 0))} />
+            {plan.calculationMethod === 'balloon_payment' && plan.paymentStructure ? (
+              <>
+                <InfoItem
+                  label={t('dealerOps.plan.installmentShare')}
+                  value={formatPercent(Number(plan.paymentStructure.installmentPercent ?? 0))}
+                />
+                <InfoItem
+                  label={t('dealerOps.plan.balloonAmount')}
+                  value={`${formatQar(Number(plan.balloonPayment?.amount ?? 0))} (${formatPercent(Number(plan.paymentStructure.balloonPercent ?? 0))})`}
+                />
+              </>
+            ) : null}
             <InfoItem label={t('ops.wizard.tenure')} value={plan.tenure} />
             <InfoItem label={t('ops.wizard.totalAmount')} value={formatQar(Number(plan.totalAmount ?? 0))} />
           </>

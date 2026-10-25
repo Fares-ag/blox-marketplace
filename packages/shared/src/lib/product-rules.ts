@@ -226,6 +226,7 @@ export function allowedTenureOptions(
 ): number[] {
   const { min, max } = tenureBounds({ residency, lenderCode });
   const merged = new Set<number>([...PRODUCT_RULES.tenure.options, ...(offerTenureOptions ?? [])]);
+  if (min < PRODUCT_RULES.tenure.minMonths) merged.add(min);
   if (max > PRODUCT_RULES.tenure.maxMonths) merged.add(max);
   return [...merged]
     .filter((m) => Number.isFinite(m) && Number.isInteger(m) && m >= min && m <= max)

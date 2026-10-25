@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPricingSnapshot, sumInstallmentAmounts } from '@drivemarket/shared/pricing';
+import { buildBalloonInstallmentPlan } from '@drivemarket/shared/installment-plan';
 import { buildScheduleDrafts } from './payment-schedules';
 
 describe('buildScheduleDrafts', () => {
@@ -38,5 +39,33 @@ describe('buildScheduleDrafts', () => {
     const drafts = buildScheduleDrafts(snapshot, new Date('2026-01-15T12:00:00.000Z'));
     expect(drafts[0].dueDate.toISOString().slice(0, 10)).toBe('2026-11-05');
     expect(drafts[1].dueDate.toISOString().slice(0, 10)).toBe('2026-12-05');
+  });
+
+  it('keeps the balloon row when building drafts from an in-house plan', () => {
+    const plan = buildBalloonInstallmentPlan({
+      vehiclePrice: 120_000,
+      downPaymentPercent: 20,
+      balloonPercent: 30,
+      termMonths: 48,
+      annualRatePercent: 11.9,
+      startDate: new Date('2026-02-01T00:00:00.000Z'),
+    });
+    const drafts = buildScheduleDrafts(
+      {
+        monthly: plan.monthlyAmount,
+        tenor: 48,
+        list_price: 120_000,
+        down_payment: 24_000,
+        rate: 11.9,
+        calculation_method: 'balloon_payment',
+        balloon_pct: 30,
+      },
+      new Date('2026-01-15T12:00:00.000Z'),
+      plan,
+    );
+    expect(drafts).toHaveLength(49);
+    const last = drafts[drafts.length - 1]!;
+    expect(last.amount).toBeGreaterThan(36_000);
+    expect(last.sequence).toBe(49);
   });
 });

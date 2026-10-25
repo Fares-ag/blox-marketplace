@@ -6,8 +6,15 @@ import { generateInstallmentSchedule } from '../lib/generate-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
 import { buildPricingSnapshot, sumInstallmentAmounts } from '../lib/pricing';
 import { downPaymentBounds } from '../lib/product-rules';
+import {
+  balloonPricingOverlay,
+  buildBalloonInstallmentPlan,
+  isValidBalloonStructure,
+  resolveBalloonStructure,
+} from '../lib/balloon-payment';
 import { formatQar, formatPercent } from '../lib/format';
 import { useOpsLabels } from '../i18n/use-ops-labels';
+import { Alert, OpsNumberField } from '../ops-ui-v2';
 import { InstallmentScheduleTable } from './InstallmentScheduleTable';
 
 export type InstallmentPlanStepProps = {
@@ -17,6 +24,11 @@ export type InstallmentPlanStepProps = {
   tenureMonths: number;
   downPaymentPct: number;
   hideInterest: boolean;
+  allowBalloon?: boolean;
+  balloonEnabled?: boolean;
+  balloonPct?: number;
+  onBalloonEnabledChange?: (enabled: boolean) => void;
+  onBalloonPctChange?: (pct: number) => void;
   onChange: (plan: InstallmentPlan, pricingSnapshot: Record<string, unknown>) => void;
 };
 
@@ -27,6 +39,11 @@ export function InstallmentPlanStep({
   tenureMonths,
   downPaymentPct,
   hideInterest,
+  allowBalloon = false,
+  balloonEnabled = false,
+  balloonPct = 0,
+  onBalloonEnabledChange,
+  onBalloonPctChange,
   onChange,
 }: InstallmentPlanStepProps) {
   const { t } = useOpsLabels();
@@ -34,6 +51,10 @@ export function InstallmentPlanStep({
   const [firstInstallmentDate, setFirstInstallmentDate] = useState(() =>
     formatDateYmd(addMonths(startOfMonth(new Date()), 1)),
   );
+
+  const useBalloon = allowBalloon && balloonEnabled;
+  const structure = resolveBalloonStructure(downPaymentPct, balloonPct);
+  const balloonOk = useBalloon && isValidBalloonStructure(structure);
 
   const plan = useMemo(() => {
     const snapshot = buildPricingSnapshot({
@@ -43,9 +64,28 @@ export function InstallmentPlanStep({
       tenureMonths,
       downPaymentPct,
     });
-    const downPayment = snapshot.down_payment;
     const startDate = parseYmd(firstInstallmentDate);
 
+    if (useBalloon && balloonOk) {
+      const built = buildBalloonInstallmentPlan({
+        vehiclePrice,
+        downPaymentPercent: structure.downPaymentPercent,
+        balloonPercent: structure.balloonPercent,
+        termMonths: tenureMonths,
+        annualRatePercent: offerRate,
+        startDate,
+        interval,
+      });
+      const pricingSnapshot = {
+        ...snapshot,
+        ...balloonPricingOverlay(built),
+        hide_interest: hideInterest,
+        first_installment_date: firstInstallmentDate,
+      };
+      return { plan: built, pricingSnapshot };
+    }
+
+    const downPayment = snapshot.down_payment;
     const schedule = generateInstallmentSchedule({
       startDate,
       totalMonths: tenureMonths,
@@ -78,7 +118,20 @@ export function InstallmentPlanStep({
     };
 
     return { plan: built, pricingSnapshot };
-  }, [vehiclePrice, offerRate, minDownPct, downPaymentPct, tenureMonths, interval, hideInterest, firstInstallmentDate]);
+  }, [
+    vehiclePrice,
+    offerRate,
+    minDownPct,
+    downPaymentPct,
+    tenureMonths,
+    interval,
+    hideInterest,
+    firstInstallmentDate,
+    useBalloon,
+    balloonOk,
+    structure.downPaymentPercent,
+    structure.balloonPercent,
+  ]);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -89,6 +142,41 @@ export function InstallmentPlanStep({
 
   return (
     <div className="blox-wizard-plan blox-form-grid__full">
+      {allowBalloon ? (
+        <>
+          <label className="blox-checkbox-row">
+            <input
+              type="checkbox"
+              checked={balloonEnabled}
+              onChange={(e) => onBalloonEnabledChange?.(e.target.checked)}
+            />
+            <span>{t('dealerOps.plan.balloonToggle')}</span>
+          </label>
+          {balloonEnabled ? (
+            <>
+              <Alert variant="info" title={t('dealerOps.plan.balloonTitle')}>
+                {t('dealerOps.plan.balloonBody')}
+              </Alert>
+              <OpsNumberField
+                label={t('dealerOps.plan.balloonPct')}
+                hint={t('dealerOps.plan.balloonPctHint')}
+                min={1}
+                max={Math.max(1, 99 - downPaymentPct)}
+                step={1}
+                emptyValue={30}
+                value={balloonPct}
+                onValueChange={(pct) => onBalloonPctChange?.(pct)}
+              />
+              {!balloonOk ? (
+                <Alert variant="error" title={t('dealerOps.plan.rulesBlock')}>
+                  {t('dealerOps.plan.balloonInvalid')}
+                </Alert>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      ) : null}
+
       <OpsField
         label={t('ops.wizard.firstInstallmentDate')}
         type="date"
@@ -113,6 +201,20 @@ export function InstallmentPlanStep({
           <small>{t('ops.wizard.downPayment')}</small>
           <div>{formatQar(plan.plan.downPayment ?? 0)} ({formatPercent(downPaymentPct)})</div>
         </div>
+        {useBalloon && balloonOk ? (
+          <>
+            <div className="blox-wizard-plan__metric">
+              <small>{t('dealerOps.plan.installmentShare')}</small>
+              <div>{formatPercent(structure.installmentPercent)}</div>
+            </div>
+            <div className="blox-wizard-plan__metric">
+              <small>{t('dealerOps.plan.balloonAmount')}</small>
+              <div>
+                {formatQar(plan.plan.balloonPayment?.amount ?? 0)} ({formatPercent(structure.balloonPercent)})
+              </div>
+            </div>
+          </>
+        ) : null}
         <div className="blox-wizard-plan__metric">
           <small>{t('ops.wizard.firstPayment')}</small>
           <div>{formatQar(plan.plan.monthlyAmount)}</div>

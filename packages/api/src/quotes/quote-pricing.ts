@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { tenureBounds, type LenderRuleContext } from '@drivemarket/shared/domain-rules';
 import {
   MAX_TENURE_MONTHS,
   MIN_TENURE_MONTHS,
@@ -27,13 +28,18 @@ export function parseTenureOptions(raw: unknown): number[] {
 }
 
 /**
- * Tenure must sit inside the platform band (3–71 months). A plain `Error` here
- * reached the exception filter as a 500, so a customer asking for an
- * out-of-band term got a server error instead of a validation message.
+ * Tenure must sit inside the band for this lender (platform default 3–60, Al Jazeera
+ * overlay, in-house 1–71). A plain `Error` here reached the exception filter as a
+ * 500, so an out-of-band term got a server error instead of a validation message.
  */
-export function assertTenureAllowed(tenureMonths: number, _tenureOptions?: unknown): void {
+export function assertTenureAllowed(
+  tenureMonths: number,
+  _tenureOptions?: unknown,
+  lenderCtx?: LenderRuleContext,
+): void {
   void _tenureOptions;
-  if (!isTenureInRange(tenureMonths)) {
+  const { min, max } = tenureBounds(lenderCtx);
+  if (!Number.isFinite(tenureMonths) || tenureMonths < min || tenureMonths > max) {
     throw new BadRequestException('invalid_tenure');
   }
 }

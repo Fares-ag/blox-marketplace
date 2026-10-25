@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildProgrammaticContractPdf } from '../src/applications/documents/programmatic-documents';
 import { normalizeContractContext } from '../src/applications/documents/contract-terms';
+import { buildPlanFromPricingSnapshot } from '@drivemarket/shared/installment-plan';
 import { documentsForFinancingType } from '../src/applications/documents/template-catalog';
 import type { ContractFieldContext } from '../src/applications/documents/field-maps';
 
@@ -114,6 +115,36 @@ const scenarios: Scenario[] = [
       lenderName: 'In-house finance',
       annualRate: 11.9,
     }),
+  },
+  {
+    folder: 'qauto-inhouse-balloon',
+    financingType: 'conventional_interest',
+    companyCode: 'qauto-audi',
+    applicantType: 'individual',
+    ctx: (() => {
+      const approvedAt = new Date('2026-10-22T10:00:00.000Z');
+      const pricing = {
+        list_price: 120_000,
+        down_payment: 24_000,
+        down_payment_pct: 20,
+        rate: 11.9,
+        tenor: 48,
+        calculation_method: 'balloon_payment',
+        balloon_pct: 30,
+        installment_pct: 50,
+        first_installment_date: '2026-11-01',
+      };
+      const installmentPlan = buildPlanFromPricingSnapshot({ pricingSnapshot: pricing, asOf: approvedAt });
+      return baseCtx({
+        financingType: 'conventional_interest',
+        lenderName: 'In-house finance',
+        approvedAt,
+        pricing,
+        installmentPlan,
+        annualRate: 11.9,
+        vehicle: { make: 'Audi', model: 'A6', year: 2026, vin: 'WAUZZZ98765432109' },
+      });
+    })(),
   },
   {
     folder: 'non-qauto-blox-only',

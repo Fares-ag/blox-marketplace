@@ -109,4 +109,23 @@ describe('buildPlanFromPricingSnapshot dates', () => {
     expect(plan.schedule[0]?.dueDate).toBe('2026-08-01');
     expect(plan.annualRentalRate).toBe(0.105);
   });
+
+  it('rebuilds an in-house balloon plan from the pricing snapshot', () => {
+    const plan = buildPlanFromPricingSnapshot({
+      pricingSnapshot: {
+        tenor: 48,
+        list_price: 120_000,
+        down_payment: 24_000,
+        down_payment_pct: 20,
+        rate: 11.9,
+        calculation_method: 'balloon_payment',
+        balloon_pct: 30,
+        first_installment_date: '2026-02-01',
+      },
+    });
+    expect(plan.calculationMethod).toBe('balloon_payment');
+    expect(plan.paymentStructure?.balloonPercent).toBe(30);
+    expect(plan.schedule.filter((row) => row.isBalloon)).toHaveLength(1);
+    expect(plan.schedule.filter((row) => row.paymentType === 'installment')).toHaveLength(48);
+  });
 });

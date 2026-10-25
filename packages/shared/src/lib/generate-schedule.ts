@@ -15,6 +15,7 @@ import {
 } from './date-utils';
 import { buildInstallmentAmounts, roundMoney, sumInstallmentAmounts } from './pricing';
 import { parseTenureToMonths } from './tenure';
+import { buildBalloonInstallmentPlan, isValidBalloonStructure, resolveBalloonStructure } from './balloon-payment';
 
 type PaymentStatus = PaymentScheduleRow['status'];
 
@@ -258,6 +259,28 @@ export function buildPlanFromPricingSnapshot(args: {
     typeof firstDateRaw === 'string' && firstDateRaw
       ? parseYmd(firstDateRaw)
       : firstInstallmentDueFrom(args.asOf ?? new Date());
+
+  if (snap.calculation_method === 'balloon_payment') {
+    const downPct = Number(snap.down_payment_pct ?? (listPrice > 0 ? (downPayment / listPrice) * 100 : 0));
+    const balloonPct = Number(snap.balloon_pct ?? 0);
+    const structure = resolveBalloonStructure(downPct, Number.isFinite(balloonPct) ? balloonPct : 0);
+    if (isValidBalloonStructure(structure) && rate >= 0) {
+      try {
+        return buildBalloonInstallmentPlan({
+          vehiclePrice: listPrice,
+          downPaymentPercent: structure.downPaymentPercent,
+          balloonPercent: structure.balloonPercent,
+          termMonths: tenor,
+          annualRatePercent: rate,
+          startDate,
+          interval: args.interval ?? 'Monthly',
+        });
+      } catch {
+        /* fall through to amortized */
+      }
+    }
+  }
+
   const schedule = generateInstallmentSchedule({
     startDate,
     totalMonths: tenor,

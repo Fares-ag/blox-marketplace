@@ -4,7 +4,11 @@ import {
   alJazeeraCriteriaFor,
   alJazeeraSegmentFor,
   employmentMonthsFromDuration,
+  IN_HOUSE_FINANCE_CODE,
+  IN_HOUSE_MAX_TENURE_MONTHS,
+  IN_HOUSE_MIN_TENURE_MONTHS,
   isAlJazeeraFinance,
+  isInHouseFinance,
   lenderApplicantIssues,
   lenderTenureBounds,
   privateSectorCarLimitViolation,
@@ -44,6 +48,10 @@ describe('Al Jazeera Finance criteria', () => {
     expect(isAlJazeeraFinance(AL_JAZEERA_FINANCE_CODE)).toBe(true);
     expect(resolveLenderCriteria('blox-finance', 'qatari')).toBeNull();
     expect(resolveLenderCriteria(AL_JAZEERA_FINANCE_CODE, 'qatari')?.maxTenureMonths).toBe(71);
+    expect(lenderTenureBounds(IN_HOUSE_FINANCE_CODE)).toEqual({
+      min: IN_HOUSE_MIN_TENURE_MONTHS,
+      max: IN_HOUSE_MAX_TENURE_MONTHS,
+    });
     expect(lenderTenureBounds(AL_JAZEERA_FINANCE_CODE, 'expat')).toEqual({ min: 3, max: 48 });
     expect(lenderTenureBounds(AL_JAZEERA_FINANCE_CODE, 'qatari')).toEqual({ min: 3, max: 71 });
     expect(lenderTenureBounds('blox-finance')).toBeNull();
@@ -76,5 +84,11 @@ describe('Al Jazeera Finance criteria', () => {
         now: new Date('2026-09-07T00:00:00Z'),
       }).map((i) => i.code),
     ).toEqual(['age_band', 'income_floor', 'employment_duration', 'car_limit']);
+  });
+
+  it('recognises only the in-house finance partner code', () => {
+    expect(isInHouseFinance(IN_HOUSE_FINANCE_CODE)).toBe(true);
+    expect(isInHouseFinance(AL_JAZEERA_FINANCE_CODE)).toBe(false);
+    expect(isInHouseFinance('blox-finance')).toBe(false);
   });
 });

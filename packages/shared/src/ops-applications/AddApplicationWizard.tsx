@@ -6,7 +6,8 @@ import { FileDropzone } from '../components/FileDropzone';
 import { apiFetch } from '../lib/api';
 import { buildPricingSnapshot } from '../lib/pricing';
 import { assessAffordability } from '../lib/affordability';
-import { isAlJazeeraFinance } from '../lib/lender-criteria';
+import { DEFAULT_IN_HOUSE_BALLOON_PCT, clampBalloonPercent, isValidBalloonStructure, resolveBalloonStructure } from '../lib/balloon-payment';
+import { isAlJazeeraFinance, isInHouseFinance } from '../lib/lender-criteria';
 import {
   allowedTenureOptions,
   downPaymentBounds,
@@ -110,6 +111,8 @@ type WizardData = {
   tenure: number;
   annualRate: number | null;
   downPct: number;
+  balloonEnabled: boolean;
+  balloonPct: number;
   files: Partial<Record<string, File>>;
   installmentPlan: InstallmentPlan | null;
   planPricingSnapshot: Record<string, unknown> | null;
@@ -199,6 +202,19 @@ function lenderApplicantError(
     data.existingFinancedCar,
     t,
   );
+}
+
+function balloonPlanError(
+  data: WizardData,
+  lenderCode: string | null | undefined,
+  offer: PublicOffer | undefined,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string | null {
+  const allowBalloon = isInHouseFinance(lenderCode) || financeProductKind(offer) === 'in_house';
+  if (!allowBalloon || !data.balloonEnabled) return null;
+  const structure = resolveBalloonStructure(data.downPct, data.balloonPct);
+  if (!isValidBalloonStructure(structure)) return t('dealerOps.plan.balloonInvalid');
+  return null;
 }
 
 function offerTenureOptions(offer: PublicOffer | undefined): number[] | null {
@@ -308,6 +324,8 @@ export function AddApplicationWizard({
       tenure: 36,
       annualRate: null,
       downPct: 20,
+      balloonEnabled: false,
+      balloonPct: DEFAULT_IN_HOUSE_BALLOON_PCT,
       files: {},
       installmentPlan: null,
       planPricingSnapshot: null,
@@ -523,11 +541,15 @@ export function AddApplicationWizard({
                 offerTenureOptions(next),
                 next?.finance_partner_code,
               );
+              const inHouse = isInHouseFinance(next?.finance_partner_code) || financeProductKind(next) === 'in_house';
+              const nextDown = minDownPaymentPctFor(condition, next?.min_down_payment_pct ?? null, next?.finance_partner_code);
               updateData({
                 offerId: e.target.value,
                 tenure: allowed.includes(36) ? 36 : allowed[0] ?? 36,
                 annualRate: Number(next?.annual_rent_rate ?? 0),
-                downPct: minDownPaymentPctFor(condition, next?.min_down_payment_pct ?? null, next?.finance_partner_code),
+                downPct: nextDown,
+                balloonEnabled: inHouse ? data.balloonEnabled : false,
+                balloonPct: inHouse ? clampBalloonPercent(nextDown, data.balloonPct || DEFAULT_IN_HOUSE_BALLOON_PCT) : DEFAULT_IN_HOUSE_BALLOON_PCT,
               });
             }}
             required
@@ -547,6 +569,7 @@ export function AddApplicationWizard({
       label: t('ops.wizard.step.plan'),
       validate: (data) =>
         lenderApplicantError(data, planContext(data).lenderCode, t) ??
+        balloonPlanError(data, planContext(data).lenderCode, planContext(data).offer, t) ??
         (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null),
       component: ({ data, updateData }: StepProps<WizardData>) => {
         const ctx = planContext(data);
@@ -566,12 +589,13 @@ export function AddApplicationWizard({
         const tenureOptions = allowedTenureOptions(residency, ctx.tenureOptions, ctx.lenderCode);
         const income = data.customerInfo.monthlyIncome;
         const employerCategory = employerCategoryFromEmploymentType(data.customerInfo.employment.employmentType);
+        const monthlyForDbr = Number(data.planPricingSnapshot?.monthly ?? preview.monthly);
         const affordability =
           data.customerInfo.applicantType !== 'corporate' && income > 0 && residency
             ? assessAffordability({
                 monthlyIncome: income,
                 monthlyLiabilities: data.customerInfo.monthlyLiabilities,
-                proposedInstallment: preview.monthly,
+                proposedInstallment: monthlyForDbr,
                 residency,
                 employerCategory,
                 financedAmount: ctx.priceForPlan - preview.down_payment,
@@ -586,6 +610,7 @@ export function AddApplicationWizard({
           employerCategory !== 'government' &&
           employerCategory !== 'private_approved';
         const tenureBand = tenureBounds({ lenderCode: ctx.lenderCode, residency });
+        const allowBalloon = isInHouseFinance(ctx.lenderCode) || financeProductKind(ctx.offer) === 'in_house';
         const dbrVariant =
           affordability?.status === 'within_cap' ? 'success' : affordability?.status === 'above_hard_cap' ? 'error' : 'warning';
         const dbrStatusText = !affordability
@@ -665,7 +690,12 @@ export function AddApplicationWizard({
               max={downPaymentBounds().max}
               emptyValue={ctx.minDown}
               value={data.downPct}
-              onValueChange={(downPct) => updateData({ downPct })}
+              onValueChange={(downPct) =>
+                updateData({
+                  downPct,
+                  balloonPct: allowBalloon ? clampBalloonPercent(downPct, data.balloonPct) : data.balloonPct,
+                })
+              }
               hint={t('applyFlow.rule.down_payment_below_recommended', { min: ctx.minDown, condition: ctx.primaryVehicle?.condition ?? 'new' })}
             />
             <InstallmentPlanStep
@@ -675,6 +705,16 @@ export function AddApplicationWizard({
               tenureMonths={data.tenure}
               downPaymentPct={data.downPct}
               hideInterest={data.hideInterest}
+              allowBalloon={allowBalloon}
+              balloonEnabled={allowBalloon && data.balloonEnabled}
+              balloonPct={data.balloonPct}
+              onBalloonEnabledChange={(balloonEnabled) =>
+                updateData({
+                  balloonEnabled,
+                  balloonPct: clampBalloonPercent(data.downPct, data.balloonPct || DEFAULT_IN_HOUSE_BALLOON_PCT),
+                })
+              }
+              onBalloonPctChange={(balloonPct) => updateData({ balloonPct: clampBalloonPercent(data.downPct, balloonPct) })}
               onChange={(plan, snap) => updateData({ installmentPlan: plan, planPricingSnapshot: snap })}
             />
             <div className="blox-form-grid__full blox-stack">
@@ -811,6 +851,8 @@ export function AddApplicationWizard({
         if (!data.offerId) return t('ops.wizard.selectOffer');
         const lenderError = lenderApplicantError(data, planContext(data).lenderCode, t);
         if (lenderError) return lenderError;
+        const balloonError = balloonPlanError(data, planContext(data).lenderCode, planContext(data).offer, t);
+        if (balloonError) return balloonError;
         if (planContext(data).hard.length) return t('dealerOps.validation.rulesBlocking');
         if (!data.planPricingSnapshot || !data.installmentPlan) return t('ops.wizard.completePlan');
         return null;
@@ -849,6 +891,7 @@ export function AddApplicationWizard({
       validateCustomerInfo(data.customerInfo, t) ??
       validateRequiredWizardDocuments(data.files, data.customerInfo, t, slotCtx(data.companyId)) ??
       lenderApplicantError(data, planContext(data).lenderCode, t) ??
+      balloonPlanError(data, planContext(data).lenderCode, planContext(data).offer, t) ??
       (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null);
     if (validationError) {
       setError(validationError);
