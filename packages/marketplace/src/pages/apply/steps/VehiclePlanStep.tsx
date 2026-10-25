@@ -47,7 +47,7 @@ export function VehiclePlanStep({
   const soft = violations.filter((v) => v.severity === 'soft');
   const conditionWord = ctx.condition === 'new' ? t('applyFlow.vehicle.conditionNew') : t('applyFlow.vehicle.conditionUsed');
   const financed = Math.max(ctx.price - pricing.down_payment, 0);
-  const tenureBand = tenureBounds();
+  const tenureBand = tenureBounds({ lenderCode: ctx.lenderCode, residency });
   const downBand = downPaymentBounds();
 
   // Local draft for the free-text "choose your own length" input so partially

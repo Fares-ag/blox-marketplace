@@ -137,6 +137,8 @@ enum DocumentCategory {
   cr
   computer_card
   rental_agreement
+  national_address
+  bank_liability
   signatory_id
   credit_bureau
   residence_proof

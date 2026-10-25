@@ -10,17 +10,26 @@
  */
 import {
   documentSlotsFor,
+  type DocumentSlotContext,
   identityPresentSet,
+  usesQautoDocumentPack,
   type DocumentSlot,
   type DocumentSlotGroup,
   type DocumentSlotProfile,
 } from '../lib/document-slots';
 import { isValidCrNumber, isValidEmail, isValidQatarPhone } from '../lib/contact';
+import {
+  isAlJazeeraFinance,
+  lenderApplicantIssues,
+  resolveLenderCriteria,
+} from '../lib/lender-criteria';
 import { ageFromDateOfBirth, dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from '../lib/qid';
 import {
   PRODUCT_RULES,
   RESIDENCE_DURATION_OPTIONS,
+  employerCategoryFromEmploymentType,
   validateFinancingRequest,
+  type EmployerCategory,
   type ProductRuleViolation,
   type ResidencyClass,
   type ResidenceDurationValue,
@@ -509,6 +518,11 @@ const VALIDATION_DEFAULTS = {
   corpSignatoryNationality: 'Authorized signatory nationality is required.',
   documentsMissing: 'Please upload all required documents ({{labels}}).',
   rulesBlocking: 'The plan breaks a product rule. Fix the highlighted items before continuing.',
+  lenderAge: 'This applicant is outside Al Jazeera Finance’s age band ({{min}}–{{max}} at maturity).',
+  lenderIncome: 'Al Jazeera Finance requires a monthly income of at least QAR {{floor}} for this applicant.',
+  lenderEmployment: 'Al Jazeera Finance requires at least {{min}} months with the current employer.',
+  lenderCarLimit: 'Al Jazeera Finance allows one financed car for private-sector residents.',
+  lenderCarLimitRequired: 'Say whether this applicant already has a financed car.',
 } as const;
 
 export type CustomerInfoValidationKey = keyof typeof VALIDATION_DEFAULTS;
@@ -585,6 +599,41 @@ export function validateCustomerInfo(value: CustomerInfoFormValue, t: IntakeTran
   return null;
 }
 
+export type ExistingFinancedCarAnswer = '' | 'yes' | 'no';
+
+/** Al Jazeera applicant gates for the dealer / admin wizard (age, salary, work period, 1-car). */
+export function validateApplicantAgainstLender(
+  value: CustomerInfoFormValue,
+  tenureMonths: number,
+  lenderCode: string | null | undefined,
+  existingFinancedCar: ExistingFinancedCarAnswer,
+  t: IntakeTranslate = passthroughTranslate,
+): string | null {
+  if (!isAlJazeeraFinance(lenderCode) || value.applicantType === 'corporate') return null;
+  const residency = residencyForInfo(value);
+  const employerCategory = employerCategoryFromEmploymentType(value.employment.employmentType);
+  const criteria = resolveLenderCriteria(lenderCode, residency, employerCategory);
+  if (criteria?.maxPrivateSectorCars != null && !existingFinancedCar) {
+    return message(t, 'lenderCarLimitRequired');
+  }
+  const issues = lenderApplicantIssues({
+    lenderCode,
+    residency,
+    employerCategory,
+    dateOfBirth: value.dateOfBirth,
+    monthlyIncome: value.monthlyIncome,
+    employmentDuration: value.employment.employmentDuration,
+    tenureMonths,
+    existingActiveCarCount: existingFinancedCar === 'yes' ? 1 : existingFinancedCar === 'no' ? 0 : null,
+  });
+  const first = issues[0];
+  if (!first) return null;
+  if (first.code === 'age_band') return message(t, 'lenderAge', first.params);
+  if (first.code === 'income_floor') return message(t, 'lenderIncome', first.params);
+  if (first.code === 'employment_duration') return message(t, 'lenderEmployment', first.params);
+  return message(t, 'lenderCarLimit', first.params);
+}
+
 /* ------------------------------------------------------------------ */
 /* Document slots                                                      */
 /* ------------------------------------------------------------------ */
@@ -623,21 +672,33 @@ export const DOCUMENT_SLOT_GROUP_LABEL_KEYS: Record<DocumentSlotGroup, string> =
 };
 
 /** Profile handed to `documentSlotsFor` — the same inputs the API uses for the submit gate. */
-export function documentSlotProfileFor(info: CustomerInfoFormValue): DocumentSlotProfile {
+export function documentSlotProfileFor(
+  info: CustomerInfoFormValue,
+  ctx: DocumentSlotContext = {},
+): DocumentSlotProfile {
   return {
     residency: residencyForInfo(info),
     employmentType: info.employment.employmentType || null,
     hasGuarantor: !!info.hasGuarantor,
     applicantType: info.applicantType,
+    companyCode: ctx.companyCode,
+    companyName: ctx.companyName,
   };
 }
 
-/** Ordered checklist for the applicant; corporate applicants keep their fixed document set. */
-export function wizardDocumentSlots(info: CustomerInfoFormValue): WizardDocumentSlot[] {
+/** Ordered checklist for the applicant; QAuto uses the dealer pack. */
+export function wizardDocumentSlots(
+  info: CustomerInfoFormValue,
+  ctx: DocumentSlotContext = {},
+): WizardDocumentSlot[] {
+  const profile = documentSlotProfileFor(info, ctx);
+  if (usesQautoDocumentPack(profile)) {
+    return documentSlotsFor(profile).map((slot: DocumentSlot) => ({ ...slot }));
+  }
   if (info.applicantType === 'corporate') {
     return CORPORATE_WIZARD_SLOTS.map((slot) => ({ ...slot }));
   }
-  return documentSlotsFor(documentSlotProfileFor(info)).map((slot: DocumentSlot) => ({ ...slot }));
+  return documentSlotsFor(profile).map((slot: DocumentSlot) => ({ ...slot }));
 }
 
 /** Slots grouped in display order (groups without slots are dropped). */
@@ -662,6 +723,7 @@ export function validateRequiredWizardDocuments(
   files: Partial<Record<string, File>>,
   applicantTypeOrInfo: ApplicantType | CustomerInfoFormValue,
   t: IntakeTranslate = passthroughTranslate,
+  ctx: DocumentSlotContext = {},
 ): string | null {
   const required: Array<{ category: string; labelKey: string }> =
     typeof applicantTypeOrInfo === 'string'
@@ -669,7 +731,7 @@ export function validateRequiredWizardDocuments(
           category,
           labelKey: `ops.wizard.doc.${category}`,
         }))
-      : wizardDocumentSlots(applicantTypeOrInfo).filter((s) => s.required);
+      : wizardDocumentSlots(applicantTypeOrInfo, ctx).filter((s) => s.required);
   const chosen = Object.keys(files).filter((key) => !!files[key]);
   const missing = required.filter((slot) => !slotSatisfiedBy(slot.category, chosen));
   if (missing.length === 0) return null;
@@ -702,12 +764,15 @@ export type WizardRuleVehicle = {
 };
 
 export type WizardRuleInput = {
-  info: Pick<CustomerInfoFormValue, 'applicantType' | 'residency' | 'qid'>;
+  info: Pick<CustomerInfoFormValue, 'applicantType' | 'residency' | 'qid'> &
+    Partial<Pick<CustomerInfoFormValue, 'dateOfBirth' | 'residenceDuration'>>;
   vehicle: WizardRuleVehicle;
   tenureMonths: number;
   downPaymentPct: number;
   offerTenureOptions?: number[] | null;
   offerMinDownPaymentPct?: number | null;
+  lenderCode?: string | null;
+  employerCategory?: EmployerCategory | null;
 };
 
 /**
@@ -730,6 +795,8 @@ export function wizardRuleViolations(input: WizardRuleInput): ProductRuleViolati
     downPaymentPct: input.downPaymentPct,
     offerTenureOptions: input.offerTenureOptions ?? null,
     offerMinDownPaymentPct: input.offerMinDownPaymentPct ?? null,
+    lenderCode: input.lenderCode ?? null,
+    employerCategory: input.employerCategory ?? null,
     enforceFinancingCaps: false,
     enforceIndividualsOnly: false,
   });
@@ -748,17 +815,23 @@ export function applicantAgeBandWarning(
   info: Pick<CustomerInfoFormValue, 'dateOfBirth' | 'residency' | 'qid'>,
   tenureMonths: number,
   t: IntakeTranslate = passthroughTranslate,
+  lenderCode?: string | null,
+  employerCategory?: EmployerCategory | null,
 ): string | null {
   const residency = residencyForInfo(info);
   const age = ageFromDateOfBirth(info.dateOfBirth);
   if (!residency || age == null) return null;
+  const lender = resolveLenderCriteria(lenderCode, residency, employerCategory);
   const band = PRODUCT_RULES.applicant.ageAtContractEnd[residency];
+  const min = lender?.minAge ?? band.min;
+  const max = lender?.maxAgeAtMaturity ?? band.max;
   const ageAtEnd = age + tenureMonths / 12;
-  if (ageAtEnd >= band.min && ageAtEnd <= band.max) return null;
+  const ageNowOk = age >= min && (lender?.maxAgeAtApplication == null || age <= lender.maxAgeAtApplication);
+  if (ageNowOk && ageAtEnd >= min && ageAtEnd <= max) return null;
   return t('dealerOps.plan.ageWarning', {
     defaultValue: 'The applicant would be {{age}} at the end of the tenure; the allowed band is {{min}}–{{max}}.',
     age: Math.floor(ageAtEnd),
-    min: band.min,
-    max: band.max,
+    min,
+    max,
   });
 }

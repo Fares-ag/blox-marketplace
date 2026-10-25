@@ -39,6 +39,7 @@ import { CurrentUser, Roles } from '../auth/guards';
 import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
 import { IDEMPOTENCY_KEY_HEADER, IDEMPOTENCY_SCOPES } from '../common/idempotency.constants';
 import { IdempotencyService } from '../common/idempotency.service';
+import { setFileDownloadHeaders } from '../common/content-disposition';
 import { multerUploadOptions } from '../common/multer-options';
 import { CustomerPaymentsService } from '../payments/customer-payments.service';
 import { ComplianceService } from '../compliance/compliance.service';
@@ -468,11 +469,12 @@ export class ApplicationsController {
     @CurrentUser() user: User,
     @Param('id') id: string,
     @Param('docId') docId: string,
+    @Query('disposition') disposition: 'inline' | 'attachment' | undefined,
     @Res() res: Response,
   ) {
     const file = await this.apps.downloadDocument(user, id, docId);
-    res.setHeader('Content-Type', file.contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
+    const mode = disposition === 'attachment' ? 'attachment' : 'inline';
+    setFileDownloadHeaders(res, file.contentType, file.filename, mode);
     res.send(file.buffer);
   }
 

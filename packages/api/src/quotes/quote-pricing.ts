@@ -27,7 +27,7 @@ export function parseTenureOptions(raw: unknown): number[] {
 }
 
 /**
- * Tenure must sit inside the product band (3–60 months). A plain `Error` here
+ * Tenure must sit inside the platform band (3–71 months). A plain `Error` here
  * reached the exception filter as a 500, so a customer asking for an
  * out-of-band term got a server error instead of a validation message.
  */

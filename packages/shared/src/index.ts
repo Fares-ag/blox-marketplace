@@ -7,7 +7,23 @@ export {
   isPreviewableImageDocument,
   type ApplicationDocumentLike,
 } from './application-document-label';
-export { apiFetch, ApiError, getApiBase, apiUrl, apiFileUrl, resolveListingImageUrl, assertApiBaseConfigured, registerUnauthorizedHandler, resetUnauthorizedLatch, DEFAULT_PAGE_SIZE, buildPaginationQuery, paginationWindow } from './lib/api';
+export {
+  apiFetch,
+  ApiError,
+  getApiBase,
+  apiUrl,
+  apiFileUrl,
+  downloadApiFile,
+  openApiFileInNewTab,
+  resolveListingImageUrl,
+  assertApiBaseConfigured,
+  registerUnauthorizedHandler,
+  resetUnauthorizedLatch,
+  DEFAULT_PAGE_SIZE,
+  buildPaginationQuery,
+  paginationWindow,
+} from './lib/api';
+export { ApplicationDocumentActions } from './ops-applications/ApplicationDocumentActions';
 export { listingImageMediaPath } from './lib/listing-image-url';
 export { createQueryClient } from './lib/query-client';
 export { useNavCounts } from './lib/use-nav-counts';
@@ -339,8 +355,26 @@ export {
   type ResidencyClass,
   type ResidenceDurationValue,
   type RuleVehicleCondition,
+  type LenderRuleContext,
   type VehicleCategory,
 } from './lib/product-rules';
+export {
+  AL_JAZEERA_FINANCE_CODE,
+  alJazeeraCriteriaFor,
+  alJazeeraSegmentFor,
+  employmentMonthsFromDuration,
+  isAlJazeeraFinance,
+  lenderCodeOf,
+  lenderMinDownPaymentPct,
+  lenderTenureBounds,
+  lenderApplicantIssues,
+  privateSectorCarLimitViolation,
+  resolveLenderCriteria,
+  type LenderApplicantIssue,
+  type LenderApplicantIssueCode,
+  type AlJazeeraSegment,
+  type LenderSegmentCriteria,
+} from './lib/lender-criteria';
 export {
   assessAffordability,
   dbrCapFor,
@@ -410,11 +444,15 @@ export {
   identityPresentSet,
   documentMatchesSlot,
   documentsForSlot,
+  isQautoCompany,
   isSelfEmployed,
   missingDocumentCategories,
+  qautoDocumentSlots,
   requiredDocumentCategoriesFor,
+  usesQautoDocumentPack,
   type DocumentSlot,
   type DocumentSlotCategory,
+  type DocumentSlotContext,
   type DocumentSlotGroup,
   type DocumentSlotProfile,
   type UploadRejection,

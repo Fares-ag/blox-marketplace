@@ -3,6 +3,7 @@ import { useOpsLabels } from '../../i18n/use-ops-labels';
 import { OpsDetailGrid } from '../../ops-ui-v2';
 import { OpsStatusPill } from '../../components/ops-ui';
 import { apiFileUrl } from '../../lib/api';
+import { ApplicationDocumentActions } from '../ApplicationDocumentActions';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
 import { CustomerInfoOverview } from '../CustomerInfoOverview';
 import { documentsForSlot } from '../../lib/document-slots';
@@ -61,7 +62,13 @@ export function OverviewTab(props: Props) {
   const pricing = (data.pricing_snapshot ?? {}) as Record<string, unknown>;
   const snap = data.customer_snapshot ?? {};
   const info = useMemo(() => customerInfoFromSnapshot(snap), [snap]);
-  const requiredSlots = useMemo(() => wizardDocumentSlots(info).filter((slot) => slot.required), [info]);
+  const requiredSlots = useMemo(
+    () =>
+      wizardDocumentSlots(info, { companyCode: data.company?.code, companyName: data.company?.name }).filter(
+        (slot) => slot.required,
+      ),
+    [info, data.company?.code, data.company?.name],
+  );
   const docs = data.documents ?? [];
   const uploaded = docs.map((d) => d.category);
   const doneCount = requiredSlots.filter((slot) => slotSatisfiedBy(slot.category, uploaded)).length;
@@ -183,16 +190,14 @@ export function OverviewTab(props: Props) {
                   defaultValue: t(`application.docCategory.${cat}`, { defaultValue: cat.replace(/_/g, ' ') }),
                 });
                 const displayName = doc ? applicationDocumentLabel(doc, () => label) : label;
-                const fileHref = doc ? apiFileUrl(`/applications/${id}/documents/${doc.id}/file`) : null;
+                const filePath = doc ? `/applications/${id}/documents/${doc.id}/file` : null;
                 const showImage = doc && isPreviewableImageDocument(doc);
 
                 return (
                   <li key={cat} className="blox-doc-card">
                     <div className="blox-doc-card__preview">
-                      {showImage && fileHref ? (
-                        <a href={fileHref} target="_blank" rel="noreferrer">
-                          <img src={fileHref} alt={displayName} className="blox-doc-card__thumb" loading="lazy" />
-                        </a>
+                      {showImage && filePath ? (
+                        <img src={apiFileUrl(filePath)} alt={displayName} className="blox-doc-card__thumb" loading="lazy" />
                       ) : (
                         <span className="blox-doc-card__placeholder">
                           {doc?.mime_type?.includes('pdf') ? 'PDF' : doc ? 'IMG' : '—'}
@@ -210,10 +215,13 @@ export function OverviewTab(props: Props) {
                               })}
                               variant={doc.verification_status === 'verified' ? 'success' : doc.verification_status === 'rejected' ? 'danger' : 'info'}
                             />
-                            {fileHref && (
-                              <a className="blox-btn blox-btn--ghost blox-btn--sm" href={fileHref} target="_blank" rel="noreferrer">
-                                {t('ops.common.view')}
-                              </a>
+                            {filePath && (
+                              <ApplicationDocumentActions
+                                filePath={filePath}
+                                viewLabel={t('ops.common.view')}
+                                downloadLabel={t('ops.common.download')}
+                                fallbackFilename={doc.original_name ?? `${cat}.pdf`}
+                              />
                             )}
                           </>
                         ) : (

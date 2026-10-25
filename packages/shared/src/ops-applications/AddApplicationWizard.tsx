@@ -6,6 +6,7 @@ import { FileDropzone } from '../components/FileDropzone';
 import { apiFetch } from '../lib/api';
 import { buildPricingSnapshot } from '../lib/pricing';
 import { assessAffordability } from '../lib/affordability';
+import { isAlJazeeraFinance } from '../lib/lender-criteria';
 import {
   allowedTenureOptions,
   downPaymentBounds,
@@ -52,6 +53,7 @@ import {
   applicantAgeBandWarning,
   buildCustomerSnapshot,
   emptyCustomerInfo,
+  validateApplicantAgainstLender,
   groupDocumentSlots,
   kycUploadRejection,
   residencyForInfo,
@@ -81,7 +83,19 @@ type VehicleOption = {
   identity_complete?: boolean;
 };
 
-type CompanyOption = { id: string; name: string };
+type CompanyOption = { id: string; name: string; code?: string | null };
+
+function slotContextFor(
+  companyId: string,
+  companies: CompanyOption[],
+  fallbackName?: string | null,
+): { companyCode?: string | null; companyName?: string | null } {
+  const company = companies.find((c) => c.id === companyId);
+  return {
+    companyCode: company?.code,
+    companyName: company?.name ?? fallbackName,
+  };
+}
 
 type WizardData = {
   customerInfo: CustomerInfoFormValue;
@@ -99,6 +113,7 @@ type WizardData = {
   files: Partial<Record<string, File>>;
   installmentPlan: InstallmentPlan | null;
   planPricingSnapshot: Record<string, unknown> | null;
+  existingFinancedCar: '' | 'yes' | 'no';
 };
 
 function identityComplete(v: VehicleOption): boolean | undefined {
@@ -170,6 +185,20 @@ function filterVehicleItems(items: VehicleOption[], isAdmin: boolean, companyId:
     primary_image: v.primary_image ?? v.images?.[0]?.storage_path ?? null,
     identity_complete: identityComplete(v),
   }));
+}
+
+function lenderApplicantError(
+  data: WizardData,
+  lenderCode: string | null | undefined,
+  t: (key: string, opts?: { defaultValue?: string; [k: string]: unknown }) => string,
+): string | null {
+  return validateApplicantAgainstLender(
+    data.customerInfo ?? emptyCustomerInfo(),
+    data.tenure,
+    lenderCode,
+    data.existingFinancedCar,
+    t,
+  );
 }
 
 function offerTenureOptions(offer: PublicOffer | undefined): number[] | null {
@@ -282,6 +311,7 @@ export function AddApplicationWizard({
       files: {},
       installmentPlan: null,
       planPricingSnapshot: null,
+      existingFinancedCar: '',
     }),
     [user?.company_id, user?.id, user?.role],
   );
@@ -305,6 +335,21 @@ export function AddApplicationWizard({
     queryFn: () => apiFetch<PaginatedResponse<CompanyOption>>('/api/companies/all?limit=100&offset=0'),
     enabled: isAdmin,
   });
+  const mineCompany = useQuery({
+    queryKey: ['wizard-company-mine'],
+    queryFn: () => apiFetch<CompanyOption | null>('/api/companies/mine'),
+    enabled: !isAdmin,
+  });
+
+  const slotCtx = (companyId: string) =>
+    slotContextFor(
+      companyId,
+      [
+        ...(companies.data?.items ?? []),
+        ...(mineCompany.data ? [mineCompany.data] : []),
+      ],
+      user?.company_name,
+    );
 
   const toggleProduct = useCallback(
     (data: WizardData, id: string, vehicleItems: VehicleOption[]) => {
@@ -340,12 +385,14 @@ export function AddApplicationWizard({
       const primaryVehicle = selectedVehicles[0];
       const offer = (offers.data?.items ?? []).find((o) => o.id === data.offerId);
       const tenureOptions = offerTenureOptions(offer);
+      const lenderCode = offer?.finance_partner_code ?? null;
       const condition = primaryVehicle?.condition === 'used' ? 'used' : 'new';
-      const minDown = minDownPaymentPctFor(condition, offer?.min_down_payment_pct ?? null);
+      const minDown = minDownPaymentPctFor(condition, offer?.min_down_payment_pct ?? null, lenderCode);
       const offerRate = Number(offer?.annual_rent_rate ?? 0);
       const rate =
         data.annualRate != null && Number.isFinite(data.annualRate) ? data.annualRate : offerRate;
       const priceForPlan = data.sellingPrice || data.listPrice || Number(primaryVehicle?.price ?? 0);
+      const employerCategory = employerCategoryFromEmploymentType(data.customerInfo.employment.employmentType);
       const violations: ProductRuleViolation[] = offer
         ? wizardRuleViolations({
             info: data.customerInfo,
@@ -354,6 +401,8 @@ export function AddApplicationWizard({
             downPaymentPct: data.downPct,
             offerTenureOptions: tenureOptions,
             offerMinDownPaymentPct: offer?.min_down_payment_pct ?? null,
+            lenderCode,
+            employerCategory,
           })
         : [];
       return {
@@ -362,6 +411,7 @@ export function AddApplicationWizard({
         primaryVehicle,
         offer,
         tenureOptions,
+        lenderCode,
         minDown,
         rate,
         priceForPlan,
@@ -468,12 +518,16 @@ export function AddApplicationWizard({
               const next = (offers.data?.items ?? []).find((o) => o.id === e.target.value);
               const { primaryVehicle } = planContext(data);
               const condition = primaryVehicle?.condition === 'used' ? 'used' : 'new';
-              const allowed = allowedTenureOptions(residencyForInfo(data.customerInfo), offerTenureOptions(next));
+              const allowed = allowedTenureOptions(
+                residencyForInfo(data.customerInfo),
+                offerTenureOptions(next),
+                next?.finance_partner_code,
+              );
               updateData({
                 offerId: e.target.value,
                 tenure: allowed.includes(36) ? 36 : allowed[0] ?? 36,
                 annualRate: Number(next?.annual_rent_rate ?? 0),
-                downPct: minDownPaymentPctFor(condition, next?.min_down_payment_pct ?? null),
+                downPct: minDownPaymentPctFor(condition, next?.min_down_payment_pct ?? null, next?.finance_partner_code),
               });
             }}
             required
@@ -491,7 +545,9 @@ export function AddApplicationWizard({
     },
     {
       label: t('ops.wizard.step.plan'),
-      validate: (data) => (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null),
+      validate: (data) =>
+        lenderApplicantError(data, planContext(data).lenderCode, t) ??
+        (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null),
       component: ({ data, updateData }: StepProps<WizardData>) => {
         const ctx = planContext(data);
         const preview = ctx.offer
@@ -507,8 +563,9 @@ export function AddApplicationWizard({
         if (!preview) return null;
 
         const residency = residencyForInfo(data.customerInfo);
-        const tenureOptions = allowedTenureOptions(residency, ctx.tenureOptions);
+        const tenureOptions = allowedTenureOptions(residency, ctx.tenureOptions, ctx.lenderCode);
         const income = data.customerInfo.monthlyIncome;
+        const employerCategory = employerCategoryFromEmploymentType(data.customerInfo.employment.employmentType);
         const affordability =
           data.customerInfo.applicantType !== 'corporate' && income > 0 && residency
             ? assessAffordability({
@@ -516,11 +573,19 @@ export function AddApplicationWizard({
                 monthlyLiabilities: data.customerInfo.monthlyLiabilities,
                 proposedInstallment: preview.monthly,
                 residency,
-                employerCategory: employerCategoryFromEmploymentType(data.customerInfo.employment.employmentType),
+                employerCategory,
                 financedAmount: ctx.priceForPlan - preview.down_payment,
+                lenderCode: ctx.lenderCode,
               })
             : null;
-        const ageWarning = applicantAgeBandWarning(data.customerInfo, data.tenure, t);
+        const ageWarning = applicantAgeBandWarning(data.customerInfo, data.tenure, t, ctx.lenderCode, employerCategory);
+        const applicantError = lenderApplicantError(data, ctx.lenderCode, t);
+        const showCarLimit =
+          isAlJazeeraFinance(ctx.lenderCode) &&
+          residency === 'expat' &&
+          employerCategory !== 'government' &&
+          employerCategory !== 'private_approved';
+        const tenureBand = tenureBounds({ lenderCode: ctx.lenderCode, residency });
         const dbrVariant =
           affordability?.status === 'within_cap' ? 'success' : affordability?.status === 'above_hard_cap' ? 'error' : 'warning';
         const dbrStatusText = !affordability
@@ -533,6 +598,25 @@ export function AddApplicationWizard({
 
         return (
           <OpsFormSection title={t('ops.wizard.step.plan')}>
+            {isAlJazeeraFinance(ctx.lenderCode) ? (
+              <Alert variant="info" title={t('dealerOps.plan.alJazeeraTitle')}>
+                {t('dealerOps.plan.alJazeeraBody')}
+              </Alert>
+            ) : null}
+            {showCarLimit ? (
+              <OpsSelect
+                label={t('dealerOps.plan.existingCar')}
+                hint={t('dealerOps.plan.existingCarHint')}
+                value={data.existingFinancedCar}
+                onChange={(e) => updateData({ existingFinancedCar: e.target.value as 'yes' | 'no' | '' })}
+                required
+                fullWidth
+              >
+                <option value="">{t('dealerOps.plan.existingCarUnset')}</option>
+                <option value="no">{t('dealerOps.plan.existingCarNo')}</option>
+                <option value="yes">{t('dealerOps.plan.existingCarYes')}</option>
+              </OpsSelect>
+            ) : null}
             <OpsSelect
               label={t('ops.credit.tenure')}
               value={data.tenure}
@@ -549,15 +633,14 @@ export function AddApplicationWizard({
             </OpsSelect>
             <OpsNumberField
               label={t('ops.wizard.tenureCustom')}
-              hint={t('ops.wizard.tenureCustomHint', { min: tenureBounds().min, max: tenureBounds().max })}
-              min={tenureBounds().min}
-              max={tenureBounds().max}
+              hint={t('ops.wizard.tenureCustomHint', { min: tenureBand.min, max: tenureBand.max })}
+              min={tenureBand.min}
+              max={tenureBand.max}
               step={1}
               emptyValue={data.tenure}
               value={data.tenure}
               onValueChange={(tenure) => {
-                const band = tenureBounds();
-                if (Number.isInteger(tenure) && tenure >= band.min && tenure <= band.max) {
+                if (Number.isInteger(tenure) && tenure >= tenureBand.min && tenure <= tenureBand.max) {
                   updateData({ tenure });
                 }
               }}
@@ -606,8 +689,17 @@ export function AddApplicationWizard({
                   {ruleViolationMessage(v, t)}
                 </Alert>
               ))}
-              {ctx.violations.length === 0 && <p className="blox-form-success">{t('dealerOps.plan.rulesOk')}</p>}
-              {ageWarning && <Alert variant="warning">{ageWarning}</Alert>}
+              {ctx.violations.length === 0 && !applicantError && (
+                <p className="blox-form-success">{t('dealerOps.plan.rulesOk')}</p>
+              )}
+              {applicantError ? (
+                <Alert variant="error" title={t('dealerOps.plan.rulesBlock')}>
+                  {applicantError}
+                </Alert>
+              ) : null}
+              {ageWarning && !applicantError ? (
+                <Alert variant={isAlJazeeraFinance(ctx.lenderCode) ? 'error' : 'warning'}>{ageWarning}</Alert>
+              ) : null}
               {affordability ? (
                 <Alert variant={dbrVariant}>
                   {t('dealerOps.plan.dbr', {
@@ -627,9 +719,9 @@ export function AddApplicationWizard({
     {
       label: t('ops.wizard.step.documents'),
       validate: (data) =>
-        validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t),
+        validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t, slotCtx(data.companyId)),
       component: ({ data, updateData }: StepProps<WizardData>) => {
-        const groups = groupDocumentSlots(wizardDocumentSlots(data.customerInfo));
+        const groups = groupDocumentSlots(wizardDocumentSlots(data.customerInfo, slotCtx(data.companyId)));
         return (
           <>
             <p className="blox-muted">{t('dealerOps.intake.docsIntro')}</p>
@@ -707,7 +799,7 @@ export function AddApplicationWizard({
       validate: (data) => {
         const customerError = validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo(), t);
         if (customerError) return customerError;
-        const docsError = validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t);
+        const docsError = validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t, slotCtx(data.companyId));
         if (docsError) return docsError;
         const vehicleError = validateSelectedVehicles(
           data,
@@ -717,6 +809,8 @@ export function AddApplicationWizard({
         );
         if (vehicleError) return vehicleError;
         if (!data.offerId) return t('ops.wizard.selectOffer');
+        const lenderError = lenderApplicantError(data, planContext(data).lenderCode, t);
+        if (lenderError) return lenderError;
         if (planContext(data).hard.length) return t('dealerOps.validation.rulesBlocking');
         if (!data.planPricingSnapshot || !data.installmentPlan) return t('ops.wizard.completePlan');
         return null;
@@ -737,6 +831,7 @@ export function AddApplicationWizard({
                   user?.company_name ??
                   undefined
             }
+            companyCode={slotCtx(data.companyId).companyCode}
             agentCompanyId={isAdmin ? data.companyId : user?.company_id ?? ''}
             isAdmin={isAdmin}
             ruleViolations={ctx.violations}
@@ -752,7 +847,8 @@ export function AddApplicationWizard({
 
     const validationError =
       validateCustomerInfo(data.customerInfo, t) ??
-      validateRequiredWizardDocuments(data.files, data.customerInfo, t) ??
+      validateRequiredWizardDocuments(data.files, data.customerInfo, t, slotCtx(data.companyId)) ??
+      lenderApplicantError(data, planContext(data).lenderCode, t) ??
       (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null);
     if (validationError) {
       setError(validationError);

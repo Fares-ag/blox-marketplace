@@ -22,7 +22,7 @@ import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ApplicationDocCategory } from './application-documents';
 import { resolveStoredDocumentCategory } from './application-documents';
-import { buildApplicationPricingSnapshot } from './application-pricing';
+import { buildApplicationPricingSnapshot, resolveTenureMonths } from './application-pricing';
 import { buildPlanFromPricingSnapshot } from '@drivemarket/shared/installment-plan';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
 import { mapApplicationDto, type ApplicationAudience } from './application-response.dto';
@@ -31,10 +31,19 @@ import { submittedStatusForPartner } from './partner-finance';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
 import { shouldSyncStatusToCrm } from '../integrations/zoho/zoho-sync-policy';
 import { ApplicationIntakeService } from './application-intake.service';
-import { assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
-import { normalizeCustomerSnapshot, type NormalizedCustomerSnapshot } from './customer-snapshot';
+import { assertLenderApplicantGates, assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
+import {
+  employmentDurationOf,
+  employmentTypeOf,
+  normalizeCustomerSnapshot,
+  readCustomerSnapshot,
+  residencyOf,
+  type NormalizedCustomerSnapshot,
+} from './customer-snapshot';
 import { assertSubmitGates, VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE } from './submit-gates';
+import { employerCategoryFromEmploymentType } from '@drivemarket/shared/domain-rules';
 import { assessApplicationCredit, creditAssessedLogMetadata, creditAssessmentData } from './credit-assessment';
+import { countExistingActiveCarFinancings } from './existing-car-financings';
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
@@ -123,7 +132,7 @@ export class ApplicationsStaffService {
 
     const offer = await this.prisma.offer.findFirst({
       where: { id: dto.offerId, status: 'active' },
-      include: { financePartner: { select: { crmAdapter: true } } },
+      include: { financePartner: { select: { crmAdapter: true, code: true } } },
     });
     if (!offer) throw new BadRequestException('validation_failed');
 
@@ -206,9 +215,25 @@ export class ApplicationsStaffService {
         pricingSnapshot,
         applicantType: normalized.snapshot.applicantType,
         residency: normalized.residency,
+        lenderCode: offer.financePartner?.code,
+        employerCategory: employerCategoryFromEmploymentType(employmentTypeOf(normalized.snapshot)),
         enforcement,
       });
       assertNoHardViolations(violations);
+      const existingActiveCarCount = await countExistingActiveCarFinancings(this.prisma, {
+        customerUserId: walkIn.userId,
+        financePartnerId: offer.financePartnerId,
+      });
+      assertLenderApplicantGates({
+        lenderCode: offer.financePartner?.code,
+        residency: normalized.residency,
+        employmentType: employmentTypeOf(normalized.snapshot),
+        dateOfBirth: typeof normalized.snapshot.dateOfBirth === 'string' ? normalized.snapshot.dateOfBirth : null,
+        monthlyIncome: Number(normalized.snapshot.monthlyIncome) || null,
+        employmentDuration: employmentDurationOf(normalized.snapshot),
+        tenureMonths: resolveTenureMonths(pricingSnapshot),
+        existingActiveCarCount,
+      });
       const pricingWithFlags = withRuleFlags(pricingSnapshot, violations);
 
       const installmentPlan = buildPlanFromPricingSnapshot({
@@ -230,7 +255,13 @@ export class ApplicationsStaffService {
       // is for a customer submit.
       const assessed =
         initialStatus !== ApplicationStatus.draft
-          ? assessApplicationCredit({ customerSnapshot, pricingSnapshot: pricingWithFlags, product })
+          ? assessApplicationCredit({
+              customerSnapshot,
+              pricingSnapshot: pricingWithFlags,
+              product,
+              lenderCode: offer.financePartner?.code,
+              existingActiveCarCount,
+            })
           : null;
 
       const now = new Date();
@@ -335,6 +366,7 @@ export class ApplicationsStaffService {
         documents: { include: { uploadedBy: { select: { role: true } } } },
         product: true,
         financePartner: true,
+        company: { select: { code: true, name: true } },
       },
     });
     if (!app) throw new NotFoundException();
@@ -365,10 +397,28 @@ export class ApplicationsStaffService {
       now: new Date(),
     });
 
+    const existingActiveCarCount = await countExistingActiveCarFinancings(this.prisma, {
+      customerUserId: app.customerUserId,
+      excludeApplicationId: app.id,
+      financePartnerId: app.financePartnerId,
+    });
+    const snapshot = readCustomerSnapshot(app.customerSnapshot);
+    assertLenderApplicantGates({
+      lenderCode: app.financePartner?.code,
+      residency: residencyOf(snapshot),
+      employmentType: employmentTypeOf(snapshot),
+      dateOfBirth: typeof snapshot.dateOfBirth === 'string' ? snapshot.dateOfBirth : null,
+      monthlyIncome: Number(snapshot.monthlyIncome) || null,
+      employmentDuration: employmentDurationOf(snapshot),
+      tenureMonths: resolveTenureMonths((app.pricingSnapshot as Record<string, unknown>) ?? {}),
+      existingActiveCarCount,
+    });
     const assessed = assessApplicationCredit({
       customerSnapshot: app.customerSnapshot,
       pricingSnapshot: app.pricingSnapshot,
       product: app.product,
+      financePartner: app.financePartner,
+      existingActiveCarCount,
     });
     const nextStatus = submittedStatusForPartner(app.financePartner?.crmAdapter);
     const lenderId = app.financePartnerId ?? (await this.intake.defaultLenderId());

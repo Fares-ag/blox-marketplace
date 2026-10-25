@@ -7,6 +7,7 @@ import {
   PRODUCT_RULES,
   assessAffordability,
   employerCategoryFromEmploymentType,
+  resolveLenderCriteria,
   formatQar,
   getAppLocale,
   type ResidencyClass,
@@ -23,14 +24,17 @@ type Props = {
   residency: ResidencyClass | null;
   installment: number;
   financedAmount: number;
+  lenderCode?: string | null;
 };
 
-export function EmploymentStep({ form, errors, onChange, onBlur, residency, installment, financedAmount }: Props) {
+export function EmploymentStep({ form, errors, onChange, onBlur, residency, installment, financedAmount, lenderCode }: Props) {
   const { t } = useTranslation();
   const locale = getAppLocale();
   const err = (field: string) => (errors[field] ? t(errors[field]) : null);
   const effectiveResidency: ResidencyClass = residency ?? 'expat';
-  const floor = PRODUCT_RULES.applicant.minNetMonthlyIncome[effectiveResidency];
+  const employerCategory = employerCategoryFromEmploymentType(form.employmentType);
+  const lender = resolveLenderCriteria(lenderCode, effectiveResidency, employerCategory);
+  const floor = lender?.minSalary ?? PRODUCT_RULES.applicant.minNetMonthlyIncome[effectiveResidency];
 
   const income = parseAmount(form.monthlyIncome) ?? 0;
   const liabilities = parseAmount(form.monthlyLiabilities) ?? 0;
@@ -42,10 +46,11 @@ export function EmploymentStep({ form, errors, onChange, onBlur, residency, inst
       monthlyLiabilities: liabilities,
       proposedInstallment: installment,
       residency: effectiveResidency,
-      employerCategory: employerCategoryFromEmploymentType(form.employmentType),
+      employerCategory,
       financedAmount,
+      lenderCode,
     });
-  }, [income, liabilities, installment, effectiveResidency, form.employmentType, financedAmount]);
+  }, [income, liabilities, installment, effectiveResidency, employerCategory, financedAmount, lenderCode]);
 
   const dbrTone = !affordability ? 'neutral' : affordability.status === 'within_cap' ? 'success' : affordability.status === 'above_hard_cap' ? 'danger' : 'warn';
   const dbrLabel = !affordability

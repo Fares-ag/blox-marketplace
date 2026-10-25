@@ -267,7 +267,7 @@ describe('customer intake (integration)', () => {
     );
     await ctx.prisma.application.delete({ where: { id: longTenure.body.id } });
 
-    // The band itself still holds: 72 months is outside 3–60 and is refused
+    // The band itself still holds: 72 months is outside 3–71 and is refused
     // by the pricing guard before the rule set is even consulted.
     const tooLong = await createCustomerDraft(customer.agent, { product, offer, pricing: { tenureMonths: 72 } });
     expectApiError(tooLong, 400, 'invalid_tenure');

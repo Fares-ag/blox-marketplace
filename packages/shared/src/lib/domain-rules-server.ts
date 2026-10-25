@@ -5,6 +5,7 @@
  * browser globals and Prisma so it stays isomorphic.
  */
 export * from './product-rules';
+export * from './lender-criteria';
 export * from './affordability';
 export * from './qid';
 export * from './consents';

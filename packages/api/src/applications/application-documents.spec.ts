@@ -150,6 +150,29 @@ describe('document freshness', () => {
     expect(byCategory.get('salary')?.maxAgeDays).toBe(30);
   });
 
+  it('returns the QAuto dealer document pack when the company is QAuto', () => {
+    const dto = documentSlotsForApplication(
+      { applicantType: 'individual', employment: { employmentType: 'private-local' }, qid: '28563412345' },
+      [],
+      NOW,
+      {},
+      { companyCode: 'qauto-audi' },
+    );
+    expect(dto.slots.map((slot) => slot.category)).toEqual([
+      'qid',
+      'passport',
+      'cr',
+      'computer_card',
+      'salary',
+      'bank',
+      'credit_bureau',
+      'rental_agreement',
+      'national_address',
+      'bank_liability',
+    ]);
+    expect(dto.missing).toEqual(['qid', 'salary', 'bank']);
+  });
+
   describe('e-KYC identity policy (BRD BR-3)', () => {
     const EKYC = { ekycRequired: true };
     const rest = [{ category: 'salary' }, { category: 'bank' }];

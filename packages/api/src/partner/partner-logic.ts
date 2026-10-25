@@ -44,6 +44,9 @@ export const PARTNER_DOCUMENT_CATEGORIES: DocumentCategory[] = [
   DocumentCategory.guarantor_bank,
   DocumentCategory.cr,
   DocumentCategory.computer_card,
+  DocumentCategory.rental_agreement,
+  DocumentCategory.national_address,
+  DocumentCategory.bank_liability,
   DocumentCategory.signatory_id,
 ];
 

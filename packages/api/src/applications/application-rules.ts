@@ -1,8 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import {
+  employerCategoryFromEmploymentType,
   hasHardViolation,
+  lenderApplicantIssues,
   validateFinancingRequest,
   type ApplicantKind,
+  type EmployerCategory,
   type ProductRuleViolation,
   type ResidencyClass,
   type VehicleCategory,
@@ -84,6 +87,8 @@ export type ProductRuleInput = {
   pricingSnapshot: Record<string, unknown>;
   applicantType?: ApplicantKind | null;
   residency?: ResidencyClass | null;
+  lenderCode?: string | null;
+  employerCategory?: EmployerCategory | null;
   enforcement?: Partial<ProductRuleEnforcement> | null;
   now?: Date;
 };
@@ -107,6 +112,8 @@ export function evaluateProductRules(input: ProductRuleInput): ProductRuleViolat
     offerTenureOptions: offerTenureOptionsOf(input.offer.tenureOptions),
     offerMinDownPaymentPct:
       input.offer.minDownPaymentPct == null ? null : Number(input.offer.minDownPaymentPct),
+    lenderCode: input.lenderCode ?? null,
+    employerCategory: input.employerCategory ?? null,
     enforceFinancingCaps: !!input.enforcement?.enforceFinancingCaps,
     enforceIndividualsOnly: !!input.enforcement?.enforceIndividualsOnly,
     now: input.now,
@@ -125,6 +132,34 @@ export function softRuleFlags(violations: ProductRuleViolation[]): RuleFlag[] {
 export function assertNoHardViolations(violations: ProductRuleViolation[]): void {
   if (hasHardViolation(violations)) {
     throw new BadRequestException({ message: 'product_rule_violation', violations });
+  }
+}
+
+/** 400 `lender_applicant_ineligible` when Al Jazeera age / salary / work period / 1-car fail. */
+export function assertLenderApplicantGates(input: {
+  lenderCode?: string | null;
+  residency?: ResidencyClass | null;
+  employerCategory?: EmployerCategory | null;
+  employmentType?: string | null;
+  dateOfBirth?: string | null;
+  monthlyIncome?: number | null;
+  employmentDuration?: string | null;
+  tenureMonths?: number | null;
+  existingActiveCarCount?: number | null;
+}): void {
+  const issues = lenderApplicantIssues({
+    lenderCode: input.lenderCode,
+    residency: input.residency ?? null,
+    employerCategory:
+      input.employerCategory ?? employerCategoryFromEmploymentType(input.employmentType),
+    dateOfBirth: input.dateOfBirth,
+    monthlyIncome: input.monthlyIncome,
+    employmentDuration: input.employmentDuration,
+    tenureMonths: input.tenureMonths,
+    existingActiveCarCount: input.existingActiveCarCount,
+  });
+  if (issues.length) {
+    throw new BadRequestException({ message: 'lender_applicant_ineligible', issues });
   }
 }
 

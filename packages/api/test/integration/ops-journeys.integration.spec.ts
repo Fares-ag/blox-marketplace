@@ -500,4 +500,49 @@ describe('ops role journeys', () => {
     expect(resubmit.status).toBe(200);
     expect(resubmit.body.status).toBe('under_review');
   });
+
+  it('dealer and credit officers can download application KYC documents', async () => {
+    const company = await seedCompany(ctx.prisma, 'Doc Download Co');
+    const offer = await seedOffer(ctx.prisma, company.id);
+    const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
+    const dealer = await staffUser('doc-dl-dealer', 'dealer_agent', { companyId: company.id });
+    const credit = await staffUser('doc-dl-credit', 'credit_officer', { creditScope: 'assigned' });
+    await assignCreditOfficer(ctx.prisma, credit.user.id, company.id);
+
+    const customerEmail = `doc-dl-${Date.now()}@integration.test`;
+    const created = await authed(dealer.agent)
+      .post('/api/v1/ops/applications')
+      .send({
+        productId: product.id,
+        offerId: offer.id,
+        customerSnapshot: {
+          full_name: 'Doc Download Buyer',
+          phone: '+97451114444',
+          qid: '28012345680',
+          email: customerEmail,
+          applicantType: 'individual',
+        },
+        pricingSnapshot: buildPricingSnapshot(Number(product.price)),
+        agentUserId: dealer.user.id,
+        listPrice: Number(product.price),
+        sellingPrice: Number(product.price),
+      });
+    expect(created.status).toBeLessThan(300);
+
+    await seedRequiredDocuments(ctx.prisma, created.body.id, dealer.user.id);
+    const doc = await ctx.prisma.applicationDocument.findFirstOrThrow({
+      where: { applicationId: created.body.id },
+    });
+
+    const dealerFile = await authed(dealer.agent).get(
+      `/api/v1/applications/${created.body.id}/documents/${doc.id}/file?disposition=attachment`,
+    );
+    expect(dealerFile.status).toBe(200);
+    expect(String(dealerFile.headers['content-disposition'] ?? '')).toMatch(/attachment/i);
+
+    const creditFile = await authed(credit.agent).get(
+      `/api/v1/applications/${created.body.id}/documents/${doc.id}/file`,
+    );
+    expect(creditFile.status).toBe(200);
+  });
 });

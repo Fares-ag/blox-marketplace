@@ -239,7 +239,7 @@ export class ProductsService {
       include: {
         company: { select: { id: true, name: true, code: true, logoUrl: true, contactPhone: true } },
         images: { orderBy: { sortOrder: 'asc' } },
-        defaultOffer: true,
+        defaultOffer: { include: { financePartner: { select: { code: true } } } },
       },
     });
     if (!product) throw new NotFoundException('listing_not_available');
@@ -269,6 +269,7 @@ export class ProductsService {
         product.defaultOffer ??
         (await this.prisma.offer.findFirst({
           where: { isDefault: true, status: 'active' },
+          include: { financePartner: { select: { code: true } } },
         }));
 
       return {
@@ -296,6 +297,7 @@ export class ProductsService {
               annual_rent_rate: Number(offer.annualRentRate),
               tenure_options: offer.tenureOptions,
               min_down_payment_pct: Number(offer.minDownPaymentPct),
+              finance_partner_code: offer.financePartner?.code ?? null,
             }
           : null,
       };

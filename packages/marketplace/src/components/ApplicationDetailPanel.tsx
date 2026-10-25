@@ -244,8 +244,11 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
   const [contractError, setContractError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<'submit' | 'resubmit' | 'contracts' | null>(null);
   const fallbackSlots = useMemo(
-    () => documentSlotsFromCustomerSnapshot(app.customerSnapshot),
-    [app.customerSnapshot],
+    () =>
+      documentSlotsFromCustomerSnapshot(app.customerSnapshot, {
+        companyName: app.product?.company_name ?? app.dealerName,
+      }),
+    [app.customerSnapshot, app.product?.company_name, app.dealerName],
   );
 
   // ---- document slots (required/optional + freshness) ---------------------

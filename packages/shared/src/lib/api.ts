@@ -166,6 +166,67 @@ export function apiFileUrl(path: string): string {
   return `${API_BASE()}/api/v1${normalized}`;
 }
 
+function parseContentDispositionFilename(header: string | null): string | undefined {
+  if (!header) return undefined;
+  const star = header.match(/filename\*=UTF-8''([^;\s]+)/i);
+  if (star?.[1]) {
+    try {
+      return decodeURIComponent(star[1]);
+    } catch {
+      return star[1];
+    }
+  }
+  const plain = header.match(/filename="([^"]+)"/i);
+  return plain?.[1];
+}
+
+function triggerFileDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Authenticated download for cross-origin API file routes (dealer/credit portals). */
+export async function downloadApiFile(path: string, fallbackFilename = 'download'): Promise<void> {
+  const base = apiFileUrl(path);
+  const url = `${base}${base.includes('?') ? '&' : '?'}disposition=attachment`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    let message = 'Download failed';
+    try {
+      const data = await res.json();
+      message = parseApiErrorBody(data, res.status).message;
+    } catch {
+      /* ignore */
+    }
+    if (res.status === 401) {
+      triggerUnauthorized();
+    }
+    throw new ApiError(message, res.status);
+  }
+  const blob = await res.blob();
+  const filename = parseContentDispositionFilename(res.headers.get('Content-Disposition')) || fallbackFilename;
+  triggerFileDownload(blob, filename);
+}
+
+/** Open a file route in a new tab with session cookies (works across portal/API origins). */
+export async function openApiFileInNewTab(path: string): Promise<void> {
+  const base = apiFileUrl(path);
+  const url = `${base}${base.includes('?') ? '&' : '?'}disposition=inline`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    if (res.status === 401) triggerUnauthorized();
+    throw new ApiError('Could not open file', res.status);
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  window.open(objectUrl, '_blank', 'noopener,noreferrer');
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
 export const DEFAULT_PAGE_SIZE = 50;
 
 export function buildPaginationQuery(page: number, pageSize = DEFAULT_PAGE_SIZE): string {

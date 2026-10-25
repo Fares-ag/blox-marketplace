@@ -110,6 +110,35 @@ describe('document slots', () => {
     const corporate = documentSlotsFromCustomerSnapshot({ applicantType: 'corporate' });
     expect(corporate.filter((s) => s.required).map((s) => s.category)).toEqual(['qid', 'salary', 'bank']);
   });
+
+  it('uses the QAuto dealer document pack', () => {
+    const qauto = documentSlotsFor({
+      residency: 'qatari',
+      employmentType: 'private-local',
+      companyCode: 'qauto-audi',
+    });
+    expect(qauto.map((s) => s.category)).toEqual([
+      'qid',
+      'passport',
+      'cr',
+      'computer_card',
+      'salary',
+      'bank',
+      'credit_bureau',
+      'rental_agreement',
+      'national_address',
+      'bank_liability',
+    ]);
+    expect(qauto.filter((s) => s.required).map((s) => s.category)).toEqual(['qid', 'salary', 'bank']);
+    expect(qauto.find((s) => s.category === 'bank')?.labelKey).toBe('applyFlow.docs.bankSixMonths');
+
+    const expat = documentSlotsFor({
+      residency: 'expat',
+      employmentType: 'private-local',
+      companyName: 'QAuto Volkswagen',
+    });
+    expect(expat.find((s) => s.category === 'passport')?.required).toBe(true);
+  });
 });
 
 describe('consents', () => {

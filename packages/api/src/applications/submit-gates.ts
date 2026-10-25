@@ -51,6 +51,9 @@ export type SubmitGateApplication = {
   consentsCompletedAt?: Date | null;
   customerSnapshot: unknown;
   pricingSnapshot: unknown;
+  companyCode?: string | null;
+  companyName?: string | null;
+  company?: { code?: string | null; name?: string | null } | null;
 };
 
 export type SubmitGateProduct = {
@@ -108,14 +111,19 @@ export function evaluateSubmitGates(input: SubmitGateInput): SubmitGateFailure |
     return { code: 'consents_required' };
   }
 
+  const slotCtx = {
+    companyCode: application.companyCode ?? application.company?.code,
+    companyName: application.companyName ?? application.company?.name,
+  };
   const missing = missingDocumentsForApplication(
     application.customerSnapshot,
     input.documents,
     input.identityPolicy ?? {},
+    slotCtx,
   );
   if (missing.length > 0) return { code: 'documents_missing', missing };
 
-  const stale = staleDocumentCategories(application.customerSnapshot, input.documents, input.now);
+  const stale = staleDocumentCategories(application.customerSnapshot, input.documents, input.now, slotCtx);
   if (stale.length > 0) return { code: 'documents_stale', stale };
 
   if (guarantorConsentRequired(application, input.guarantorConsentCompleted)) {

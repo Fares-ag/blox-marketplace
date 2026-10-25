@@ -170,6 +170,7 @@ export function ApplyPage() {
       annualRatePercent: Number(offer.annual_rent_rate),
       offerTenureOptions: options,
       offerMinDownPct: Number(offer.min_down_payment_pct ?? 0),
+      lenderCode: offer.finance_partner_code ?? null,
     };
   }, [product, offer, quotedPrice]);
 
@@ -341,7 +342,10 @@ export function ApplyPage() {
   }, [localViolations, serverViolations]);
   const tenureOptions = useMemo(() => (ctx ? planTenureOptions(ctx, residency) : []), [ctx, residency]);
   const minDownPct = ctx ? planMinDownPct(ctx) : 0;
-  const creditPreview = useMemo(() => creditPreviewFor(form, residency, pricing, violations), [form, residency, pricing, violations]);
+  const creditPreview = useMemo(
+    () => creditPreviewFor(form, residency, pricing, violations, new Date(), ctx?.lenderCode),
+    [form, residency, pricing, violations, ctx?.lenderCode],
+  );
 
   // ---- validation ---------------------------------------------------------
   const stepErrors = useMemo(
@@ -387,7 +391,16 @@ export function ApplyPage() {
     queryFn: () => loadUploadedDocuments(draftId!),
     enabled: !!draftId,
   });
-  const localSlots = useMemo(() => documentSlotsFor(documentProfile(form, residency)), [form, residency]);
+  const localSlots = useMemo(
+    () =>
+      documentSlotsFor(
+        documentProfile(form, residency, {
+          companyCode: product?.company_code,
+          companyName: product?.company_name ?? company?.name,
+        }),
+      ),
+    [form, residency, product?.company_code, product?.company_name, company?.name],
+  );
   const slots = useMemo(
     () => (docsQuery.data?.slots?.length ? docsQuery.data.slots : localSlots),
     [docsQuery.data?.slots, localSlots],
@@ -924,6 +937,7 @@ export function ApplyPage() {
                   residency={residency}
                   installment={pricing.monthly}
                   financedAmount={Math.max(pricing.list_price - pricing.down_payment, 0)}
+                  lenderCode={ctx?.lenderCode}
                 />
               ) : null}
               {step === 'guarantor' ? (

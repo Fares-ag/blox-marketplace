@@ -133,6 +133,18 @@ describe('evaluateSubmitGates', () => {
     expect(evaluateSubmitGates(qatari)).toBeNull();
   });
 
+  it('uses the QAuto pack: one QID copy plus salary and six-month bank statements', () => {
+    const qauto = input({
+      application: {
+        ...input().application,
+        customerSnapshot: { ...EXPAT_SNAPSHOT, qid: '28563412345' },
+        company: { code: 'qauto-audi', name: 'QAuto Audi' },
+      },
+      documents: [{ category: 'qid' }, { category: 'salary' }, { category: 'bank' }],
+    });
+    expect(evaluateSubmitGates(qauto)).toBeNull();
+  });
+
   it('asks self-employed applicants for the business pack', () => {
     const selfEmployed = input({
       application: {

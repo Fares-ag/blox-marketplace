@@ -118,6 +118,28 @@ describe('evaluateProductRules', () => {
     // 25% of 100k = 25k financed — within the 50k used-car cap.
     expect(violations).toEqual([]);
   });
+
+  it('accepts an Al Jazeera Qatari 71-month plan and refuses an expat 60-month plan', () => {
+    const qatari = evaluateProductRules({
+      product: newCar,
+      offer: { tenureOptions: [12, 24, 36, 48, 60, 71], minDownPaymentPct: 0 },
+      pricingSnapshot: { tenor: 71, down_payment_pct: 0, list_price: 80_000 },
+      residency: 'qatari',
+      lenderCode: 'al-jazeera-finance',
+      now: NOW,
+    });
+    expect(qatari.filter((v) => v.severity === 'hard')).toEqual([]);
+
+    const expat = evaluateProductRules({
+      product: newCar,
+      offer: { tenureOptions: [12, 24, 36, 48, 60, 71], minDownPaymentPct: 0 },
+      pricingSnapshot: { tenor: 60, down_payment_pct: 0, list_price: 80_000 },
+      residency: 'expat',
+      lenderCode: 'al-jazeera-finance',
+      now: NOW,
+    });
+    expect(expat.map((v) => v.code)).toContain('tenure_above_max');
+  });
 });
 
 describe('rule flags', () => {

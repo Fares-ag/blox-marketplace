@@ -17,9 +17,13 @@ export const DOCUMENT_SLOT_CATEGORIES = [
   'bank',
   'credit_bureau',
   'residence_proof',
+  'national_address',
+  'bank_liability',
   'license',
   'employment_contract',
   'cr',
+  'computer_card',
+  'rental_agreement',
   'trade_license',
   'business_bank',
   'audited_financials',
@@ -45,12 +49,26 @@ export type DocumentSlot = {
   maxAgeDays?: number;
 };
 
+export type DocumentSlotContext = {
+  companyCode?: string | null;
+  companyName?: string | null;
+};
+
 export type DocumentSlotProfile = {
   residency?: ResidencyClass | null;
   employmentType?: string | null;
   hasGuarantor?: boolean;
   applicantType?: 'individual' | 'corporate' | null;
-};
+} & DocumentSlotContext;
+
+export function isQautoCompany(codeOrName?: string | null): boolean {
+  const value = (codeOrName ?? '').trim().toLowerCase();
+  return value === 'qauto' || value.startsWith('qauto-') || value.startsWith('qauto ');
+}
+
+export function usesQautoDocumentPack(ctx: DocumentSlotContext = {}): boolean {
+  return isQautoCompany(ctx.companyCode) || isQautoCompany(ctx.companyName);
+}
 
 const SALARY_CERT_MAX_AGE_DAYS = 30;
 const BANK_STATEMENT_MAX_AGE_DAYS = 30;
@@ -59,8 +77,59 @@ export function isSelfEmployed(employmentType: string | null | undefined): boole
   return (employmentType ?? '').trim() === 'self-employed';
 }
 
+const QAUTO_GUARANTOR_SLOTS: DocumentSlot[] = [
+  { category: 'guarantor_qid', required: true, group: 'guarantor', labelKey: 'applyFlow.docs.guarantorQid' },
+  {
+    category: 'guarantor_salary',
+    required: true,
+    group: 'guarantor',
+    labelKey: 'applyFlow.docs.guarantorSalary',
+    maxAgeDays: SALARY_CERT_MAX_AGE_DAYS,
+  },
+  { category: 'guarantor_bank', required: false, group: 'guarantor', labelKey: 'applyFlow.docs.guarantorBank' },
+];
+
+/**
+ * QAuto dealer pack — the documents sales desks actually collect:
+ * QID, passport, employer CR, employer computer card, salary certificate,
+ * 6-month bank statement, credit bureau, tenancy, national address, bank liability.
+ */
+export function qautoDocumentSlots(profile: DocumentSlotProfile): DocumentSlot[] {
+  const selfEmployed = isSelfEmployed(profile.employmentType);
+  const corporate = profile.applicantType === 'corporate';
+  const expat = profile.residency === 'expat';
+  const slots: DocumentSlot[] = [
+    { category: 'qid', required: true, group: 'identity', labelKey: 'applyFlow.docs.qidCopy' },
+    { category: 'passport', required: expat, group: 'identity', labelKey: 'applyFlow.docs.passportCopy' },
+    { category: 'cr', required: selfEmployed || corporate, group: 'business', labelKey: 'applyFlow.docs.employerCr' },
+    { category: 'computer_card', required: false, group: 'business', labelKey: 'applyFlow.docs.employerComputerCard' },
+    {
+      category: 'salary',
+      required: !selfEmployed && !corporate,
+      group: 'income',
+      labelKey: 'applyFlow.docs.salary',
+      maxAgeDays: SALARY_CERT_MAX_AGE_DAYS,
+    },
+    {
+      category: 'bank',
+      required: true,
+      group: 'income',
+      labelKey: 'applyFlow.docs.bankSixMonths',
+      maxAgeDays: BANK_STATEMENT_MAX_AGE_DAYS,
+    },
+    { category: 'credit_bureau', required: false, group: 'income', labelKey: 'applyFlow.docs.creditBureau' },
+    { category: 'rental_agreement', required: false, group: 'identity', labelKey: 'applyFlow.docs.tenancyContract' },
+    { category: 'national_address', required: false, group: 'identity', labelKey: 'applyFlow.docs.nationalAddress' },
+    { category: 'bank_liability', required: false, group: 'income', labelKey: 'applyFlow.docs.bankLiability' },
+  ];
+  if (profile.hasGuarantor) slots.push(...QAUTO_GUARANTOR_SLOTS.map((slot) => ({ ...slot })));
+  return slots;
+}
+
 /** Ordered slots for the checklist; `required` drives the submit gate. */
 export function documentSlotsFor(profile: DocumentSlotProfile): DocumentSlot[] {
+  if (usesQautoDocumentPack(profile)) return qautoDocumentSlots(profile);
+
   const selfEmployed = isSelfEmployed(profile.employmentType);
   const expat = profile.residency === 'expat';
   const slots: DocumentSlot[] = [];
@@ -155,8 +224,12 @@ export function documentSlotProfileFromSnapshot(snapshot: unknown): DocumentSlot
 }
 
 /** Same checklist as the API slots endpoint, for customer/dealer fallbacks. */
-export function documentSlotsFromCustomerSnapshot(snapshot: unknown): DocumentSlot[] {
-  const profile = documentSlotProfileFromSnapshot(snapshot);
+export function documentSlotsFromCustomerSnapshot(
+  snapshot: unknown,
+  ctx: DocumentSlotContext = {},
+): DocumentSlot[] {
+  const profile = { ...documentSlotProfileFromSnapshot(snapshot), ...ctx };
+  if (usesQautoDocumentPack(profile)) return qautoDocumentSlots(profile);
   if (profile.applicantType === 'corporate') return CORPORATE_FALLBACK_SLOTS.map((slot) => ({ ...slot }));
   return documentSlotsFor(profile);
 }

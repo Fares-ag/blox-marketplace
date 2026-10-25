@@ -10,6 +10,7 @@ export type ListingEligibilityInput = {
   tenure?: number;
   downPct?: number;
   rate?: number;
+  lender?: string | null;
 };
 
 /** Build `/eligibility` with listing context so vehicle fields are prefilled and locked. */
@@ -24,5 +25,6 @@ export function buildListingEligibilityHref(input: ListingEligibilityInput): str
   if (input.tenure != null && input.tenure > 0) params.set('tenure', String(input.tenure));
   if (input.downPct != null && input.downPct >= 0) params.set('downPct', String(input.downPct));
   if (input.rate != null && input.rate > 0) params.set('rate', String(input.rate));
+  if (input.lender) params.set('lender', input.lender);
   return `/eligibility?${params.toString()}`;
 }

@@ -14,12 +14,10 @@ import {
   DocumentMeta,
   apiFetch,
   buildPricingSnapshot,
-  clampTenureMonths,
   formatQar,
   getAppLocale,
-  MAX_TENURE_MONTHS,
-  MIN_TENURE_MONTHS,
   minDownPaymentPctFor,
+  tenureBounds,
   applicationMarketplacePillVariant,
   applicationStatusLabel,
   type ProductDetailResponse,
@@ -276,8 +274,12 @@ function VehicleDetailPage() {
 
   const minDownPct = useMemo(() => {
     const condition = product?.condition === 'used' ? 'used' : 'new';
-    return minDownPaymentPctFor(condition, offer?.min_down_payment_pct ?? null);
-  }, [product?.condition, offer?.min_down_payment_pct]);
+    return minDownPaymentPctFor(
+      condition,
+      offer?.min_down_payment_pct ?? null,
+      offer?.finance_partner_code,
+    );
+  }, [product?.condition, offer?.min_down_payment_pct, offer?.finance_partner_code]);
 
   useEffect(() => {
     setDownPct((prev) => (prev < minDownPct ? minDownPct : prev));
@@ -329,6 +331,7 @@ function VehicleDetailPage() {
     tenure,
     downPct,
     rate: offer?.annual_rent_rate ?? undefined,
+    lender: offer?.finance_partner_code ?? undefined,
   });
 
   return (
@@ -392,10 +395,14 @@ function VehicleDetailPage() {
                 {t('detail.tenure')}
                 <input
                   type="number"
-                  min={MIN_TENURE_MONTHS}
-                  max={MAX_TENURE_MONTHS}
+                  min={tenureBounds({ lenderCode: offer.finance_partner_code }).min}
+                  max={tenureBounds({ lenderCode: offer.finance_partner_code }).max}
                   value={tenure}
-                  onChange={(e) => setTenure(clampTenureMonths(Number(e.target.value)))}
+                  onChange={(e) => {
+                    const band = tenureBounds({ lenderCode: offer.finance_partner_code });
+                    const n = Number(e.target.value);
+                    setTenure(Math.min(Math.max(Math.round(n) || band.min, band.min), band.max));
+                  }}
                   style={{ display: 'block', width: '100%', minHeight: 40, marginTop: 6 }}
                 />
               </label>

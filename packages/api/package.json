@@ -16,6 +16,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:finance": "tsx prisma/seed-finance-partners.ts",
     "ensure:seed-users": "node scripts/ensure-seed-users.mjs",
     "db:backfill-installment-plan": "tsx scripts/backfill-installment-plan.ts",
     "db:backfill-ownership-register": "tsx scripts/backfill-ownership-register.ts",

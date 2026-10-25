@@ -4,6 +4,7 @@ import {
   buildCustomerSnapshot,
   customerInfoFromSnapshot,
   emptyCustomerInfo,
+  validateApplicantAgainstLender,
   validateCustomerInfo,
   validateRequiredWizardDocuments,
   wizardDocumentSlots,
@@ -282,6 +283,22 @@ describe('document slots in the wizard', () => {
     expect(slots.filter((s) => s.required).map((s) => s.category)).toEqual(['qid', 'salary', 'bank']);
   });
 
+  it('shows the QAuto dealer pack when the company is QAuto', () => {
+    const slots = wizardDocumentSlots(individual(), { companyCode: 'qauto' });
+    expect(slots.map((s) => s.category)).toEqual([
+      'qid',
+      'passport',
+      'cr',
+      'computer_card',
+      'salary',
+      'bank',
+      'credit_bureau',
+      'rental_agreement',
+      'national_address',
+      'bank_liability',
+    ]);
+  });
+
   it('reports missing required files, treating `id` as a Qatar ID', () => {
     const file = new File(['x'], 'doc.pdf', { type: 'application/pdf' });
     expect(validateRequiredWizardDocuments({ id: file, salary: file, bank: file }, individual())).toBeNull();
@@ -332,6 +349,60 @@ describe('wizardRuleViolations', () => {
   it('flags corporate applicants softly so the dealer corporate flow keeps working', () => {
     const violations = wizardRuleViolations({ ...base, info: { ...individual(), applicantType: 'corporate' } });
     expect(violations.find((v) => v.code === 'corporate_not_eligible')?.severity).toBe('soft');
+  });
+
+  it('applies Al Jazeera tenure and financing limits when the dealer picks that lender', () => {
+    const overTenure = wizardRuleViolations({
+      ...base,
+      info: { ...individual(), qid: EXPAT_QID, dateOfBirth: '2001-01-01', residency: 'expat', residenceDuration: '1-3-years' },
+      lenderCode: 'al-jazeera-finance',
+      employerCategory: 'private_unlisted',
+      tenureMonths: 60,
+      downPaymentPct: 0,
+    });
+    expect(overTenure.filter((v) => v.severity === 'hard').map((v) => v.code)).toContain('tenure_above_max');
+
+    const qatariLong = wizardRuleViolations({
+      ...base,
+      lenderCode: 'al-jazeera-finance',
+      tenureMonths: 71,
+      downPaymentPct: 0,
+    });
+    expect(qatariLong.filter((v) => v.severity === 'hard')).toEqual([]);
+  });
+});
+
+describe('validateApplicantAgainstLender', () => {
+  it('blocks Al Jazeera applicants who miss salary, work period or age', () => {
+    expect(validateApplicantAgainstLender(individual(), 36, 'blox-finance', '')).toBeNull();
+    expect(validateApplicantAgainstLender(individual({ monthlyIncome: 3_000 }), 36, 'al-jazeera-finance', '')).toMatch(
+      /4,000|4000|QAR/,
+    );
+    expect(
+      validateApplicantAgainstLender(
+        individual({ employment: { ...individual().employment, employmentDuration: 'less-than-6-months' } }),
+        36,
+        'al-jazeera-finance',
+        '',
+      ),
+    ).toMatch(/6 months|months/);
+    expect(
+      validateApplicantAgainstLender(individual({ dateOfBirth: '2010-04-12', qid: QATARI_QID }), 36, 'al-jazeera-finance', ''),
+    ).toMatch(/age/i);
+  });
+
+  it('requires the one-car answer for a private-sector expatriate on Al Jazeera', () => {
+    const expat = individual({
+      qid: EXPAT_QID,
+      dateOfBirth: '2001-01-01',
+      residency: 'expat',
+      residenceDuration: '1-3-years',
+      employment: { ...individual().employment, employmentType: 'private-local', employmentDuration: 'more-than-12-months' },
+      monthlyIncome: 8_000,
+    });
+    expect(validateApplicantAgainstLender(expat, 36, 'al-jazeera-finance', '')).toMatch(/financed car/i);
+    expect(validateApplicantAgainstLender(expat, 36, 'al-jazeera-finance', 'yes')).toMatch(/one financed car/i);
+    expect(validateApplicantAgainstLender(expat, 36, 'al-jazeera-finance', 'no')).toBeNull();
   });
 });
 

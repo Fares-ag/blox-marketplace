@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assessAffordability, maxFinancingForInstallment, preCheckEligibility } from './affordability';
+import { AL_JAZEERA_FINANCE_CODE } from './lender-criteria';
 
 const NOW = new Date('2026-09-07T00:00:00Z');
 
@@ -152,5 +153,67 @@ describe('affordability', () => {
       now: NOW,
     });
     expect(r.outcome).toBe('incomplete');
+  });
+
+  it('uses Al Jazeera income, age, DBR and work-period rules', () => {
+    const qatari = assessAffordability({
+      monthlyIncome: 8_000,
+      monthlyLiabilities: 1_000,
+      proposedInstallment: 4_800,
+      residency: 'qatari',
+      employerCategory: 'private_unlisted',
+      lenderCode: AL_JAZEERA_FINANCE_CODE,
+    });
+    expect(qatari.cap).toBe(0.75);
+    expect(qatari.status).toBe('within_cap');
+
+    const eligible = preCheckEligibility({
+      residency: 'expat',
+      dateOfBirth: '1990-01-01',
+      monthlyIncome: 5_000,
+      monthlyLiabilities: 0,
+      employerCategory: 'government',
+      residencyMonths: 12,
+      employmentDuration: 'between-6-12-months',
+      lenderCode: AL_JAZEERA_FINANCE_CODE,
+      financing: {
+        residency: 'expat',
+        lenderCode: AL_JAZEERA_FINANCE_CODE,
+        employerCategory: 'government',
+        vehicle: { price: 80_000, condition: 'new', modelYear: 2026 },
+        tenureMonths: 48,
+        downPaymentPct: 0,
+      },
+      annualRatePercent: 12.5,
+      now: NOW,
+    });
+    expect(eligible.checks.find((c) => c.code === 'income_floor')?.params.floor).toBe(4_000);
+    expect(eligible.checks.find((c) => c.code === 'employment_duration')?.status).toBe('pass');
+    expect(eligible.outcome).not.toBe('not_eligible');
+
+    const young = preCheckEligibility({
+      residency: 'expat',
+      dateOfBirth: '2010-01-01',
+      monthlyIncome: 8_000,
+      monthlyLiabilities: 0,
+      employerCategory: 'private_unlisted',
+      residencyMonths: 12,
+      employmentDuration: 'less-than-6-months',
+      lenderCode: AL_JAZEERA_FINANCE_CODE,
+      existingActiveCarCount: 1,
+      financing: {
+        residency: 'expat',
+        lenderCode: AL_JAZEERA_FINANCE_CODE,
+        vehicle: { price: 80_000, condition: 'new', modelYear: 2026 },
+        tenureMonths: 36,
+        downPaymentPct: 0,
+      },
+      annualRatePercent: 12.5,
+      now: NOW,
+    });
+    expect(young.checks.find((c) => c.code === 'age_band')?.status).toBe('fail');
+    expect(young.checks.find((c) => c.code === 'employment_duration')?.status).toBe('fail');
+    expect(young.checks.find((c) => c.code === 'car_limit')?.status).toBe('fail');
+    expect(young.outcome).toBe('not_eligible');
   });
 });

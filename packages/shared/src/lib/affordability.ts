@@ -10,6 +10,10 @@
  */
 import { computeExactMonthlyPayment } from './pricing';
 import {
+  employmentMonthsFromDuration,
+  resolveLenderCriteria,
+} from './lender-criteria';
+import {
   PRODUCT_RULES,
   validateFinancingRequest,
   type EmployerCategory,
@@ -28,6 +32,8 @@ export type AffordabilityInput = {
   employerCategory: EmployerCategory;
   /** Financed amount, used only for the high-ticket stress test. */
   financedAmount?: number;
+  /** Finance-partner code; Al Jazeera uses its own DBR grid. */
+  lenderCode?: string | null;
 };
 
 export type AffordabilityResult = {
@@ -43,7 +49,13 @@ export type AffordabilityResult = {
   stressed?: { dbr: number; withinLimit: boolean };
 };
 
-export function dbrCapFor(residency: ResidencyClass, employer: EmployerCategory): number {
+export function dbrCapFor(
+  residency: ResidencyClass,
+  employer: EmployerCategory,
+  lenderCode?: string | null,
+): number {
+  const lender = resolveLenderCriteria(lenderCode, residency, employer);
+  if (lender) return lender.dbrCap;
   return PRODUCT_RULES.dbr.caps[`${residency}_${employer}`] ?? 0.5;
 }
 
@@ -55,7 +67,7 @@ export function assessAffordability(input: AffordabilityInput): AffordabilityRes
   const income = Math.max(0, Number(input.monthlyIncome) || 0);
   const liabilities = Math.max(0, Number(input.monthlyLiabilities) || 0);
   const installment = Math.max(0, Number(input.proposedInstallment) || 0);
-  const cap = dbrCapFor(input.residency, input.employerCategory);
+  const cap = dbrCapFor(input.residency, input.employerCategory, input.lenderCode);
   const hardCap = PRODUCT_RULES.dbr.hardCap;
   const dbr = income > 0 ? round4((liabilities + installment) / income) : Number.POSITIVE_INFINITY;
 
@@ -103,6 +115,8 @@ export type EligibilityCheckCode =
   | 'age_band'
   | 'income_floor'
   | 'residency_duration'
+  | 'employment_duration'
+  | 'car_limit'
   | 'dbr'
   | 'stress_test'
   | 'applicant_type'
@@ -128,6 +142,10 @@ export type EligibilityInput = {
   annualRatePercent: number;
   proposedInstallment?: number | null;
   now?: Date;
+  lenderCode?: string | null;
+  employmentDuration?: string | null;
+  /** Other live car financings with this lender; used for Al Jazeera's 1-car private-sector cap. */
+  existingActiveCarCount?: number | null;
 };
 
 export type EligibilityResult = {
@@ -166,7 +184,13 @@ export function preCheckEligibility(input: EligibilityInput): EligibilityResult 
           })
         : 0;
 
-  const violations = validateFinancingRequest({ ...input.financing, enforceFinancingCaps: true, now });
+  const violations = validateFinancingRequest({
+    ...input.financing,
+    lenderCode: input.lenderCode ?? input.financing.lenderCode,
+    employerCategory: input.employerCategory,
+    enforceFinancingCaps: true,
+    now,
+  });
   const hard = violations.filter((v) => v.severity === 'hard');
   checks.push({
     code: 'product_rules',
@@ -181,12 +205,18 @@ export function preCheckEligibility(input: EligibilityInput): EligibilityResult 
   }
 
   const residency = input.residency;
+  const lender = resolveLenderCriteria(input.lenderCode, residency, input.employerCategory);
   if (!residency) {
     checks.push({ code: 'age_band', status: 'unknown', params: {} });
     checks.push({ code: 'income_floor', status: 'unknown', params: {} });
     checks.push({ code: 'residency_duration', status: 'unknown', params: {} });
+    if (lender) {
+      checks.push({ code: 'employment_duration', status: 'unknown', params: { min: lender.minEmploymentMonths } });
+    }
   } else {
-    const band = PRODUCT_RULES.applicant.ageAtContractEnd[residency];
+    const defaultBand = PRODUCT_RULES.applicant.ageAtContractEnd[residency];
+    const minAge = lender?.minAge ?? defaultBand.min;
+    const maxAtMaturity = lender?.maxAgeAtMaturity ?? defaultBand.max;
     if (input.dateOfBirth) {
       const dob = new Date(input.dateOfBirth);
       if (Number.isNaN(dob.getTime())) {
@@ -194,23 +224,27 @@ export function preCheckEligibility(input: EligibilityInput): EligibilityResult 
       } else {
         const end = new Date(now);
         end.setMonth(end.getMonth() + tenure);
+        const ageNow = ageAtDate(dob, now);
         const ageAtEnd = ageAtDate(dob, end);
-        const ok = ageAtEnd >= band.min && ageAtEnd <= band.max;
+        const inApplication =
+          ageNow >= minAge && (lender?.maxAgeAtApplication == null || ageNow <= lender.maxAgeAtApplication);
+        const inMaturity = ageAtEnd >= minAge && ageAtEnd <= maxAtMaturity;
         checks.push({
           code: 'age_band',
-          status: ok ? 'pass' : 'fail',
-          params: { ageAtEnd, min: band.min, max: band.max },
+          status: inApplication && inMaturity ? 'pass' : 'fail',
+          params: { ageAtEnd, ageNow, min: minAge, max: maxAtMaturity },
         });
       }
     } else {
-      checks.push({ code: 'age_band', status: 'unknown', params: { min: band.min, max: band.max } });
+      checks.push({ code: 'age_band', status: 'unknown', params: { min: minAge, max: maxAtMaturity } });
     }
 
-    const floor = PRODUCT_RULES.applicant.minNetMonthlyIncome[residency];
+    const floor = lender?.minSalary ?? PRODUCT_RULES.applicant.minNetMonthlyIncome[residency];
     const income = Number(input.monthlyIncome) || 0;
+    const incomeFailIsHard = !!lender || residency === 'qatari';
     checks.push({
       code: 'income_floor',
-      status: income <= 0 ? 'unknown' : income >= floor ? 'pass' : residency === 'expat' ? 'warn' : 'fail',
+      status: income <= 0 ? 'unknown' : income >= floor ? 'pass' : incomeFailIsHard ? 'fail' : 'warn',
       params: { floor, income },
     });
 
@@ -225,6 +259,33 @@ export function preCheckEligibility(input: EligibilityInput): EligibilityResult 
     } else {
       checks.push({ code: 'residency_duration', status: 'pass', params: {} });
     }
+
+    if (lender) {
+      const employedMonths = employmentMonthsFromDuration(input.employmentDuration);
+      checks.push({
+        code: 'employment_duration',
+        status:
+          employedMonths == null
+            ? 'unknown'
+            : employedMonths >= lender.minEmploymentMonths
+              ? 'pass'
+              : 'fail',
+        params: { min: lender.minEmploymentMonths, months: employedMonths ?? '' },
+      });
+      if (lender.maxPrivateSectorCars != null) {
+        const existing = input.existingActiveCarCount;
+        checks.push({
+          code: 'car_limit',
+          status:
+            existing == null
+              ? 'unknown'
+              : existing < lender.maxPrivateSectorCars
+                ? 'pass'
+                : 'fail',
+          params: { max: lender.maxPrivateSectorCars, existing: existing ?? '' },
+        });
+      }
+    }
   }
 
   let affordability: AffordabilityResult | null = null;
@@ -236,6 +297,7 @@ export function preCheckEligibility(input: EligibilityInput): EligibilityResult 
       residency,
       employerCategory: input.employerCategory,
       financedAmount,
+      lenderCode: input.lenderCode,
     });
     checks.push({
       code: 'dbr',

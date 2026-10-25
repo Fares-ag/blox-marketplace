@@ -441,8 +441,8 @@ export function ApplicationWorkspace({
       >
         <OpsNumberField
           label={t('ops.wizard.tenureCustom')}
-          min={tenureBounds().min}
-          max={tenureBounds().max}
+          min={tenureBounds({ lenderCode: data.finance_partner_code ?? data.offer?.finance_partner_code }).min}
+          max={tenureBounds({ lenderCode: data.finance_partner_code ?? data.offer?.finance_partner_code }).max}
           step={1}
           value={rebuildTenure}
           emptyValue={36}

@@ -2,7 +2,10 @@ import {
   documentSlotsFor,
   identityPresentSet,
   missingDocumentCategories,
+  qautoDocumentSlots,
+  usesQautoDocumentPack,
   type DocumentSlot,
+  type DocumentSlotContext,
   type DocumentSlotProfile,
 } from '@drivemarket/shared/domain-rules';
 import { employmentTypeOf, hasGuarantorOf, readCustomerSnapshot, residencyOf } from './customer-snapshot';
@@ -24,6 +27,8 @@ export const APPLICATION_DOC_CATEGORIES = [
   'cr',
   'computer_card',
   'rental_agreement',
+  'national_address',
+  'bank_liability',
   'signatory_id',
   'credit_bureau',
   'residence_proof',
@@ -180,13 +185,18 @@ const CORPORATE_DOCUMENT_SLOTS: ApplicationDocumentSlot[] = [
   { category: 'other', required: false, group: 'supporting', labelKey: 'applyFlow.docs.other' },
 ];
 
-export function documentProfileFromSnapshot(snapshotRaw: unknown): DocumentSlotProfile {
+export function documentProfileFromSnapshot(
+  snapshotRaw: unknown,
+  ctx: DocumentSlotContext = {},
+): DocumentSlotProfile {
   const snapshot = readCustomerSnapshot(snapshotRaw);
   return {
     residency: residencyOf(snapshot),
     employmentType: employmentTypeOf(snapshot),
     hasGuarantor: hasGuarantorOf(snapshot),
     applicantType: snapshot.applicantType,
+    companyCode: ctx.companyCode,
+    companyName: ctx.companyName,
   };
 }
 
@@ -217,8 +227,12 @@ export function missingDocumentsForApplication(
   snapshotRaw: unknown,
   documents: ApplicationDocumentForValidation[],
   policy: IdentityPolicy = {},
+  ctx: DocumentSlotContext = {},
 ): string[] {
-  const profile = documentProfileFromSnapshot(snapshotRaw);
+  const profile = documentProfileFromSnapshot(snapshotRaw, ctx);
+  if (usesQautoDocumentPack(profile)) {
+    return [...missingDocumentCategories(profile, uploadedDocumentCategories(documents, policy))];
+  }
   if (profile.applicantType === 'corporate') {
     return [...missingRequiredDocumentCategories(documents, policy)];
   }
@@ -229,13 +243,18 @@ export function hasAllDocumentsForApplication(
   snapshotRaw: unknown,
   documents: ApplicationDocumentForValidation[],
   policy: IdentityPolicy = {},
+  ctx: DocumentSlotContext = {},
 ): boolean {
-  return missingDocumentsForApplication(snapshotRaw, documents, policy).length === 0;
+  return missingDocumentsForApplication(snapshotRaw, documents, policy, ctx).length === 0;
 }
 
-/** Profile-aware slot list (corporate applicants keep the legacy rule set). */
-export function applicationDocumentSlots(snapshotRaw: unknown): ApplicationDocumentSlot[] {
-  const profile = documentProfileFromSnapshot(snapshotRaw);
+/** Profile-aware slot list (QAuto dealer pack, else corporate legacy or individual). */
+export function applicationDocumentSlots(
+  snapshotRaw: unknown,
+  ctx: DocumentSlotContext = {},
+): ApplicationDocumentSlot[] {
+  const profile = documentProfileFromSnapshot(snapshotRaw, ctx);
+  if (usesQautoDocumentPack(profile)) return qautoDocumentSlots(profile).map((slot) => ({ ...slot }));
   return profile.applicantType === 'corporate'
     ? CORPORATE_DOCUMENT_SLOTS.map((slot) => ({ ...slot }))
     : documentSlotsFor(profile).map((slot) => ({ ...slot }));
@@ -292,9 +311,10 @@ export function staleDocumentCategories(
   snapshotRaw: unknown,
   documents: ApplicationDocumentForValidation[],
   now: Date = new Date(),
+  ctx: DocumentSlotContext = {},
 ): string[] {
   const newest = newestUploadByCategory(documents);
-  return applicationDocumentSlots(snapshotRaw)
+  return applicationDocumentSlots(snapshotRaw, ctx)
     .filter((slot) => isSlotStale(slot, newest.get(slot.category), now))
     .map((slot) => slot.category);
 }
@@ -318,16 +338,17 @@ export function documentSlotsForApplication(
   documents: ApplicationDocumentForValidation[],
   now: Date = new Date(),
   policy: IdentityPolicy = {},
+  ctx: DocumentSlotContext = {},
 ): ApplicationDocumentSlotsDto {
   const newest = newestUploadByCategory(documents);
-  const slots: ApplicationDocumentSlotDto[] = applicationDocumentSlots(snapshotRaw).map((slot) => {
+  const slots: ApplicationDocumentSlotDto[] = applicationDocumentSlots(snapshotRaw, ctx).map((slot) => {
     const uploadedAt = newest.get(slot.category);
     return { ...slot, uploaded_at: uploadedAt == null ? null : new Date(uploadedAt).toISOString() };
   });
   return {
     slots,
     uploaded: uploadedDocumentCategories(documents, policy),
-    missing: missingDocumentsForApplication(snapshotRaw, documents, policy),
+    missing: missingDocumentsForApplication(snapshotRaw, documents, policy, ctx),
     stale: slots.filter((slot) => isSlotStale(slot, newest.get(slot.category), now)).map((slot) => slot.category),
     // Only surface the "e-KYC, not a photo" notice when a manual QID genuinely
     // cannot satisfy the slot. When customer manual identity is allowed, the

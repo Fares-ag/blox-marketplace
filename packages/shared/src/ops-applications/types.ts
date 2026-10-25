@@ -157,11 +157,12 @@ export type OpsWorkspace = {
   pricing_snapshot?: Record<string, unknown>;
   installment_plan?: Record<string, unknown> | null;
   product?: { make: string; model: string; model_year?: number; slug?: string };
-  company?: { id: string; name: string };
+  company?: { id: string; name: string; code?: string | null };
   customer?: { name: string | null; email: string; phone?: string | null };
   offer?: PublicOffer;
   financing_source?: 'blox' | 'partner';
   finance_partner_name?: string | null;
+  finance_partner_code?: string | null;
   finance_partner_id?: string | null;
   submitted_at?: string | null;
   /** Identity hold set at intake when the QID is already on file with different details. */

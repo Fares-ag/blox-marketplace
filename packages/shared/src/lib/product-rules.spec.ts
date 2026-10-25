@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { AL_JAZEERA_FINANCE_CODE } from './lender-criteria';
 import {
   allowedTenureOptions,
   employerCategoryFromEmploymentType,
@@ -190,5 +191,44 @@ describe('product rules', () => {
     expect(residencyFromNationality('Qatari')).toBe('qatari');
     expect(residencyFromNationality('India')).toBe('expat');
     expect(residencyFromNationality('')).toBeNull();
+  });
+
+  it('applies Al Jazeera tenure, down payment and financing limits', () => {
+    expect(tenureBounds({ lenderCode: AL_JAZEERA_FINANCE_CODE, residency: 'expat' })).toEqual({ min: 3, max: 48 });
+    expect(tenureBounds({ lenderCode: AL_JAZEERA_FINANCE_CODE, residency: 'qatari' })).toEqual({ min: 3, max: 71 });
+    expect(allowedTenureOptions('qatari', null, AL_JAZEERA_FINANCE_CODE)).toContain(71);
+    expect(allowedTenureOptions('expat', null, AL_JAZEERA_FINANCE_CODE)).not.toContain(60);
+    expect(minDownPaymentPctFor('new', 0, AL_JAZEERA_FINANCE_CODE)).toBe(0);
+
+    const overCap = validateFinancingRequest({
+      residency: 'expat',
+      employerCategory: 'government',
+      lenderCode: AL_JAZEERA_FINANCE_CODE,
+      vehicle: { price: 250_000, condition: 'new', modelYear: 2026 },
+      tenureMonths: 36,
+      downPaymentPct: 0,
+      now: NOW,
+    });
+    expect(overCap.map((v) => v.code)).toContain('financing_amount_exceeds_cap');
+
+    const short = validateFinancingRequest({
+      residency: 'qatari',
+      lenderCode: AL_JAZEERA_FINANCE_CODE,
+      vehicle: { price: 40_000, condition: 'new', modelYear: 2026 },
+      tenureMonths: 36,
+      downPaymentPct: 0,
+      now: NOW,
+    });
+    expect(short.map((v) => v.code)).toContain('financing_amount_below_min');
+
+    const qatariLong = validateFinancingRequest({
+      residency: 'qatari',
+      lenderCode: AL_JAZEERA_FINANCE_CODE,
+      vehicle: { price: 80_000, condition: 'new', modelYear: 2026 },
+      tenureMonths: 71,
+      downPaymentPct: 0,
+      now: NOW,
+    });
+    expect(qatariLong.filter((v) => v.severity === 'hard')).toEqual([]);
   });
 });

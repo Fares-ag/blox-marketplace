@@ -3,6 +3,7 @@ import { ApplicationStatus, User, UserRole } from '@prisma/client';
 import { IsEnum, IsOptional } from 'class-validator';
 import type { Response } from 'express';
 import { CurrentUser, Roles } from '../auth/guards';
+import { setFileDownloadHeaders } from '../common/content-disposition';
 import { PaginationQueryDto, resolvePagination } from '../common/pagination.dto';
 import { PartnerService } from './partner.service';
 
@@ -39,12 +40,12 @@ export class PartnerController {
     @CurrentUser() user: User,
     @Param('id') id: string,
     @Param('docId') docId: string,
+    @Query('disposition') disposition: 'inline' | 'attachment' | undefined,
     @Res() res: Response,
   ) {
     const file = await this.partner.documentFile(user, id, docId);
-    const safeName = file.filename.replace(/[^\w.\-() ]+/g, '_');
-    res.setHeader('Content-Type', file.contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+    const mode = disposition === 'attachment' ? 'attachment' : 'inline';
+    setFileDownloadHeaders(res, file.contentType, file.filename, mode);
     res.send(file.buffer);
   }
 }

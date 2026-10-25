@@ -181,6 +181,15 @@ export function employmentTypeOf(snapshot: CustomerSnapshotInput | null | undefi
   return null;
 }
 
+export function employmentDurationOf(snapshot: CustomerSnapshotInput | null | undefined): string | null {
+  if (!snapshot) return null;
+  const employment = snapshot.employment;
+  if (isRecord(employment)) return str(employment.employmentDuration) ?? null;
+  const details = snapshot.employmentDetails;
+  if (isRecord(details)) return str(details.employmentDuration) ?? null;
+  return null;
+}
+
 export function hasGuarantorOf(snapshot: CustomerSnapshotInput | null | undefined): boolean {
   if (!snapshot) return false;
   if (snapshot.hasGuarantor === true) return true;

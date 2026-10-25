@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ApiError, apiFetch, apiFileUrl, DEFAULT_PAGE_SIZE } from '../lib/api';
+import { ApiError, apiFetch, DEFAULT_PAGE_SIZE } from '../lib/api';
+import { ApplicationDocumentActions } from './ApplicationDocumentActions';
 import { formatQar } from '../lib/format';
 import { applicationOpsPillVariant } from '../config/status-styles';
 import { useOpsLabels } from '../i18n/use-ops-labels';
@@ -307,14 +308,12 @@ export function PartnerApplicationDetail({ id, backTo = '/partner' }: { id: stri
                           {doc.created_at ? ` · ${t('dealerOps.docs.uploadedOn', { date: new Date(doc.created_at).toLocaleDateString() })}` : ''}
                         </small>
                       </span>
-                      <a
-                        className="blox-btn blox-btn--ghost blox-btn--sm"
-                        href={apiFileUrl(`/partner/applications/${data.id}/documents/${doc.id}/file`)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {t('dealerOps.partnerView.view')}
-                      </a>
+                      <ApplicationDocumentActions
+                        filePath={`/partner/applications/${data.id}/documents/${doc.id}/file`}
+                        viewLabel={t('dealerOps.partnerView.view')}
+                        downloadLabel={t('ops.common.download')}
+                        fallbackFilename={doc.original_name ?? `${doc.category}.pdf`}
+                      />
                     </li>
                   ))}
                 </ul>

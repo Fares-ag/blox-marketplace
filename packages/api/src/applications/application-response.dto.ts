@@ -255,7 +255,7 @@ type ApplicationCore = {
 type ApplicationRelations = {
   product?: Partial<Parameters<typeof toApplicationProductDto>[0]> | null;
   documents?: Array<Partial<Parameters<typeof toApplicationDocumentDto>[0]>> | null;
-  company?: { id?: string; name?: string; allowDirectActivate?: boolean } | null;
+  company?: { id?: string; name?: string; code?: string | null; allowDirectActivate?: boolean } | null;
   customer?: { name: string | null; email: string; phone?: string | null } | null;
   offer?: (Parameters<typeof toPublicOfferDto>[0] & Record<string, unknown>) | null;
   paymentSchedules?: Array<Partial<Parameters<typeof toPaymentScheduleDto>[0]>> | null;
@@ -374,7 +374,7 @@ function applicationRelations(app: ApplicationRelations, audience: ApplicationAu
         }
       : {}),
     ...(app.company?.id && app.company?.name
-      ? { company: { id: app.company.id, name: app.company.name } }
+      ? { company: { id: app.company.id, name: app.company.name, code: app.company.code ?? null } }
       : {}),
     ...(app.customer ? { customer: customerForAudience(app.customer, audience) } : {}),
     ...(hasOfferFields(app.offer) ? { offer: toPublicOfferDto(app.offer) } : {}),
@@ -390,6 +390,7 @@ function applicationRelations(app: ApplicationRelations, audience: ApplicationAu
       : {}),
     financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
     finance_partner_name: app.financePartner?.name ?? null,
+    finance_partner_code: app.financePartner?.code ?? null,
     branch_name: app.branch?.name ?? null,
     ...(app.ownershipRegister
       ? {
@@ -528,7 +529,7 @@ export function toOpsApplicationQueueItemDto(app: {
   customer?: { name: string | null; email: string } | null;
   agent?: { id: string; name: string | null; email: string } | null;
   paymentSchedules?: Array<{ status: string; dueDate: Date }>;
-  financePartner?: { id?: string; name?: string | null; crmAdapter?: string | null } | null;
+  financePartner?: { id?: string; name?: string | null; code?: string | null; crmAdapter?: string | null } | null;
   branch?: { id?: string; name?: string | null } | null;
 }) {
   const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
@@ -575,6 +576,7 @@ export function toOpsApplicationQueueItemDto(app: {
     financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
     finance_partner_id: app.financePartnerId ?? app.financePartner?.id ?? null,
     finance_partner_name: app.financePartner?.name ?? null,
+    finance_partner_code: app.financePartner?.code ?? null,
     branch_id: app.branchId ?? app.branch?.id ?? null,
     branch_name: app.branch?.name ?? null,
   };
@@ -618,7 +620,7 @@ export function toDealerApplicationListItemDto(app: {
   product?: { make: string; model: string; modelYear: number; slug: string } | null;
   customer?: { name: string | null; email: string; phone?: string | null } | null;
   agent?: { id: string; name: string | null; email: string } | null;
-  financePartner?: { id?: string; name?: string | null } | null;
+  financePartner?: { id?: string; name?: string | null; code?: string | null } | null;
   branch?: { id?: string; name?: string | null } | null;
 }) {
   return {
@@ -664,6 +666,7 @@ export function toDealerApplicationListItemDto(app: {
       : { agent: null }),
     finance_partner_id: app.financePartnerId ?? app.financePartner?.id ?? null,
     finance_partner_name: app.financePartner?.name ?? null,
+    finance_partner_code: app.financePartner?.code ?? null,
     branch_id: app.branchId ?? app.branch?.id ?? null,
     branch_name: app.branch?.name ?? null,
   };

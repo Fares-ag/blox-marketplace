@@ -17,7 +17,7 @@ export function toPublicOfferDto(offer: {
   minDownPaymentPct: DecimalLike;
   financePartnerId?: string | null;
   isDefault?: boolean;
-  financePartner?: { name?: string | null; crmAdapter?: string | null } | null;
+  financePartner?: { name?: string | null; crmAdapter?: string | null; code?: string | null } | null;
   financingType?: string | null;
 }) {
   return {
@@ -27,6 +27,7 @@ export function toPublicOfferDto(offer: {
     tenure_options: offer.tenureOptions,
     min_down_payment_pct: asNumber(offer.minDownPaymentPct),
     finance_partner_id: offer.financePartnerId ?? null,
+    finance_partner_code: offer.financePartner?.code ?? null,
     finance_partner_name: offer.financePartner?.name ?? null,
     crm_adapter: offer.financePartner?.crmAdapter ?? null,
     financing_type: offer.financingType ?? 'diminishing_musharakah',

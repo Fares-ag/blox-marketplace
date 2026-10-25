@@ -27,6 +27,7 @@ import { shouldSyncStatusToCrm } from '../integrations/zoho/zoho-sync-policy';
 import {
   buildApplicationPricingSnapshot,
   assertOfferMatchesProduct,
+  resolveTenureMonths,
 } from './application-pricing';
 import {
   documentSlotsForApplication,
@@ -68,11 +69,14 @@ import {
   toOpsApplicationQueueItemDto,
   type ApplicationAudience,
 } from './application-response.dto';
+import { employerCategoryFromEmploymentType } from '@drivemarket/shared/domain-rules';
 import { parseApplicationRef } from './application-reference';
 import { decideDuplicateApplication, summarizeBlocking } from './application-dedup';
-import { assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
+import { assertLenderApplicantGates, assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
 import {
   normalizeCustomerSnapshot,
+  employmentDurationOf,
+  employmentTypeOf,
   pinAccountLegalName,
   readCustomerSnapshot,
   stripUndefinedDeep,
@@ -89,6 +93,7 @@ import {
   toCreditAssessmentDto,
   type CreditAssessmentDto,
 } from './credit-assessment';
+import { countExistingActiveCarFinancings } from './existing-car-financings';
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
@@ -174,6 +179,7 @@ export class ApplicationsService {
 
     const offer = await this.prisma.offer.findFirst({
       where: { id: resolvedOfferId, status: 'active' },
+      include: { financePartner: { select: { code: true } } },
     });
     if (!offer) throw new BadRequestException('validation_failed');
 
@@ -262,9 +268,20 @@ export class ApplicationsService {
       pricingSnapshot,
       applicantType: normalized.snapshot.applicantType,
       residency: normalized.residency,
+      lenderCode: offer.financePartner?.code,
+      employerCategory: employerCategoryFromEmploymentType(employmentTypeOf(normalized.snapshot)),
       enforcement: this.intake.ruleEnforcement(),
     });
     assertNoHardViolations(violations);
+    assertLenderApplicantGates({
+      lenderCode: offer.financePartner?.code,
+      residency: normalized.residency,
+      employmentType: employmentTypeOf(normalized.snapshot),
+      dateOfBirth: typeof normalized.snapshot.dateOfBirth === 'string' ? normalized.snapshot.dateOfBirth : null,
+      monthlyIncome: Number(normalized.snapshot.monthlyIncome) || null,
+      employmentDuration: employmentDurationOf(normalized.snapshot),
+      tenureMonths: resolveTenureMonths(pricingSnapshot),
+    });
     const pricingWithFlags = withRuleFlags(pricingSnapshot, violations);
 
     const qidHash = this.intake.qidHash(normalized.snapshot.qid);
@@ -349,7 +366,7 @@ export class ApplicationsService {
   async updateDraft(user: User, id: string, body: UpdateDraftInput) {
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { product: true, offer: true },
+      include: { product: true, offer: { include: { financePartner: { select: { code: true } } } } },
     });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
     if (
@@ -367,6 +384,7 @@ export class ApplicationsService {
       assertOfferMatchesProduct(body.offerId, resolvedOfferId);
       const next = await this.prisma.offer.findFirst({
         where: { id: resolvedOfferId, status: 'active' },
+        include: { financePartner: { select: { code: true } } },
       });
       if (!next) throw new BadRequestException('validation_failed');
       offer = next;
@@ -401,9 +419,20 @@ export class ApplicationsService {
       pricingSnapshot,
       applicantType: normalized.snapshot.applicantType,
       residency: normalized.residency,
+      lenderCode: offer.financePartner?.code,
+      employerCategory: employerCategoryFromEmploymentType(employmentTypeOf(normalized.snapshot)),
       enforcement: this.intake.ruleEnforcement(),
     });
     assertNoHardViolations(violations);
+    assertLenderApplicantGates({
+      lenderCode: offer.financePartner?.code,
+      residency: normalized.residency,
+      employmentType: employmentTypeOf(normalized.snapshot),
+      dateOfBirth: typeof normalized.snapshot.dateOfBirth === 'string' ? normalized.snapshot.dateOfBirth : null,
+      monthlyIncome: Number(normalized.snapshot.monthlyIncome) || null,
+      employmentDuration: employmentDurationOf(normalized.snapshot),
+      tenureMonths: resolveTenureMonths(pricingSnapshot),
+    });
     const pricingWithFlags = withRuleFlags(pricingSnapshot, violations);
 
     const qidHash = this.intake.qidHash(normalized.snapshot.qid);
@@ -472,12 +501,22 @@ export class ApplicationsService {
   async documentSlots(user: User, id: string) {
     const app = await this.prisma.application.findUnique({
       where: { id },
-      select: { id: true, customerUserId: true, companyId: true, customerSnapshot: true, kycCaseId: true },
+      select: {
+        id: true,
+        customerUserId: true,
+        companyId: true,
+        customerSnapshot: true,
+        kycCaseId: true,
+        company: { select: { code: true, name: true } },
+      },
     });
     if (!app) throw new NotFoundException();
     await assertApplicationCanView(this.prisma, user, app);
     const documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
-    return documentSlotsForApplication(app.customerSnapshot, documents, new Date(), this.identityPolicy());
+    return documentSlotsForApplication(app.customerSnapshot, documents, new Date(), this.identityPolicy(), {
+      companyCode: app.company?.code,
+      companyName: app.company?.name,
+    });
   }
 
   /** Live credit assessment (`GET /ops/applications/:id/credit-assessment`) with the approver block for the caller. */
@@ -498,12 +537,19 @@ export class ApplicationsService {
         companyId: true,
         customerSnapshot: true,
         pricingSnapshot: true,
+        financePartnerId: true,
+        financePartner: { select: { code: true } },
         product: { select: { attributes: true, bodyType: true } },
       },
     });
     if (!app) throw new NotFoundException();
     await assertApplicationCanView(this.prisma, user, app);
-    return toCreditAssessmentDto(assessApplicationCredit(app), user.role);
+    const existingActiveCarCount = await countExistingActiveCarFinancings(this.prisma, {
+      customerUserId: app.customerUserId,
+      excludeApplicationId: app.id,
+      financePartnerId: app.financePartnerId,
+    });
+    return toCreditAssessmentDto(assessApplicationCredit({ ...app, existingActiveCarCount }), user.role);
   }
 
   private async loadDocumentsForSubmit(applicationId: string, kycCaseId: string | null) {
@@ -525,7 +571,7 @@ export class ApplicationsService {
   async submit(user: User, id: string) {
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { documents: true, product: true, financePartner: true },
+      include: { documents: true, product: true, financePartner: true, company: { select: { code: true, name: true } } },
     });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
     if (
@@ -558,10 +604,17 @@ export class ApplicationsService {
     // Credit assessment captured at submission (DBR, exception tier, approval
     // authority) — recomputed live at decision time, stored here for the
     // partner view and the audit trail.
+    const existingActiveCarCount = await countExistingActiveCarFinancings(this.prisma, {
+      customerUserId: app.customerUserId,
+      excludeApplicationId: app.id,
+      financePartnerId: app.financePartnerId,
+    });
     const assessed = assessApplicationCredit({
       customerSnapshot: app.customerSnapshot,
       pricingSnapshot: app.pricingSnapshot,
       product: app.product,
+      financePartner: app.financePartner,
+      existingActiveCarCount,
     });
     // Routing follows the offer's own partner (or a lender ops tagged before
     // submit); the default lender only fills the lender-of-record gap.
@@ -656,7 +709,7 @@ export class ApplicationsService {
         product: true,
         documents: true,
         company: {
-          select: { id: true, name: true, allowDirectActivate: true, separationOfDutiesEnabled: true },
+          select: { id: true, name: true, code: true, allowDirectActivate: true, separationOfDutiesEnabled: true },
         },
         customer: { select: { name: true, email: true, phone: true } },
         offer: true,
@@ -1145,7 +1198,7 @@ export class ApplicationsService {
   async resubmit(user: User, id: string) {
     const app = await this.prisma.application.findUnique({
       where: { id },
-      include: { documents: true, product: true, financePartner: true },
+      include: { documents: true, product: true, financePartner: true, company: { select: { code: true, name: true } } },
     });
     if (!app || app.customerUserId !== user.id) throw new ForbiddenException('forbidden_role');
     if (app.status !== 'resubmission_required') {
@@ -1163,10 +1216,17 @@ export class ApplicationsService {
     });
 
     // Re-assessed: the snapshot or documents may have changed since the first submit.
+    const existingActiveCarCount = await countExistingActiveCarFinancings(this.prisma, {
+      customerUserId: app.customerUserId,
+      excludeApplicationId: app.id,
+      financePartnerId: app.financePartnerId,
+    });
     const assessed = assessApplicationCredit({
       customerSnapshot: app.customerSnapshot,
       pricingSnapshot: app.pricingSnapshot,
       product: app.product,
+      financePartner: app.financePartner,
+      existingActiveCarCount,
     });
     const nextStatus = submittedStatusForPartner(app.financePartner?.crmAdapter);
     const updated = await this.prisma.$transaction(async (tx) => {

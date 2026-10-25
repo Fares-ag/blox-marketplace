@@ -66,7 +66,7 @@ export class OffersController {
           isDefault: true,
           financePartnerId: true,
           financingType: true,
-          financePartner: { select: { name: true, crmAdapter: true } },
+          financePartner: { select: { name: true, crmAdapter: true, code: true } },
         },
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
         take: limit,

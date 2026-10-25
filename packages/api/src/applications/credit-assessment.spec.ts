@@ -70,6 +70,7 @@ describe('credit-assessment input derivation', () => {
       residency: 'expat',
       employerCategory: 'private_unlisted',
       financedAmount: 64_000,
+      lenderCode: null,
     });
     expect(input.ruleFlags).toEqual([
       { code: 'financing_amount_exceeds_cap', severity: 'soft', params: { cap: 50_000, financed: 64_000 } },
@@ -180,6 +181,35 @@ describe('assessApplicationCredit', () => {
     );
     expect(assessed.assessment.approvalAuthority).toBe('above_matrix');
     expect(assessed.assessment.reasons).toContain('above_approval_matrix');
+  });
+
+  it('uses Al Jazeera 75% DBR for Qatari applicants and the one-car private-sector cap', () => {
+    const qatari = {
+      full_name: 'Mohammed Al Thani',
+      qid: '28563412345',
+      applicantType: 'individual',
+      employment: { employmentType: 'private-local', salary: 8_000 },
+      monthlyLiabilities: 1_000,
+    };
+    const pricing = { ...PRICING, monthly: 4_800 };
+    const assessed = assessApplicationCredit(
+      { customerSnapshot: qatari, pricingSnapshot: pricing, lenderCode: 'al-jazeera-finance' },
+      NOW,
+    );
+    expect(assessed.assessment.affordability?.cap).toBe(0.75);
+    expect(assessed.assessment.affordability?.status).toBe('within_cap');
+
+    const blocked = assessApplicationCredit(
+      {
+        customerSnapshot: EXPAT,
+        pricingSnapshot: { ...PRICING, rule_flags: [] },
+        lenderCode: 'al-jazeera-finance',
+        existingActiveCarCount: 1,
+      },
+      NOW,
+    );
+    expect(blocked.assessment.path).toBe('decline');
+    expect(blocked.assessment.ruleFlags.some((f) => f.code === 'private_sector_car_limit')).toBe(true);
   });
 });
 

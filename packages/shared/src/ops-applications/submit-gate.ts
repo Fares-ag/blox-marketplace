@@ -17,6 +17,7 @@ export const SUBMIT_GATE_CODES = [
   'vehicle_age_rule',
   'blocking_application',
   'product_rule_violation',
+  'lender_applicant_ineligible',
   'dob_qid_mismatch',
 ] as const;
 

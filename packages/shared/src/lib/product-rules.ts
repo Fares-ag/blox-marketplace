@@ -9,7 +9,12 @@
  *
  * Pure data + pure functions: no I/O, no React, no Prisma. Bundled for the API
  * through `@drivemarket/shared/domain-rules`.
+ *
+ * Al Jazeera Finance overlays live in `lender-criteria.ts` and are applied
+ * when `lenderCode` is `al-jazeera-finance`.
  */
+
+import { lenderMinDownPaymentPct, lenderTenureBounds, resolveLenderCriteria } from './lender-criteria';
 
 export type RuleVehicleCondition = 'new' | 'used';
 export type VehicleCategory = 'car' | 'motorcycle';
@@ -126,6 +131,8 @@ export type ProductRuleCode =
   | 'down_payment_below_recommended'
   | 'down_payment_above_max'
   | 'financing_amount_exceeds_cap'
+  | 'financing_amount_below_min'
+  | 'private_sector_car_limit'
   | 'vehicle_age_at_tenure_end'
   | 'used_vehicle_too_old'
   | 'price_not_positive';
@@ -153,6 +160,10 @@ export type FinancingRequest = {
   offerTenureOptions?: number[] | null;
   /** Offer-configured minimum, applied when higher than the product minimum. */
   offerMinDownPaymentPct?: number | null;
+  /** Finance-partner code; Al Jazeera applies its own tenure, down-payment and amount grid. */
+  lenderCode?: string | null;
+  /** Needed for Al Jazeera's govt/listed vs private-sector split. */
+  employerCategory?: EmployerCategory | null;
   /** Evaluate financing caps as hard violations (defaults to soft while the cap table is under review). */
   enforceFinancingCaps?: boolean;
   /** Block corporate applicants outright (defaults to a review flag so the dealer corporate flow keeps working). */
@@ -181,13 +192,20 @@ export function financingCapFor(variant: ProductVariant): number | null {
   return PRODUCT_RULES.financingCap[variant];
 }
 
-/** Hard tenure ceiling. The same for everyone; residency only sets a guideline. */
-export function maxTenureFor(_residency?: ResidencyClass | null): number {
-  return PRODUCT_RULES.tenure.maxMonths;
+export type LenderRuleContext = {
+  lenderCode?: string | null;
+  residency?: ResidencyClass | null;
+};
+
+/** Hard tenure ceiling. Al Jazeera raises this to 71 for Qataris / 48 for expats. */
+export function maxTenureFor(residency?: ResidencyClass | null, lenderCode?: string | null): number {
+  return tenureBounds({ residency, lenderCode }).max;
 }
 
 /** The whole tenure band a customer may choose from. */
-export function tenureBounds(): { min: number; max: number } {
+export function tenureBounds(ctx?: LenderRuleContext): { min: number; max: number } {
+  const overlay = lenderTenureBounds(ctx?.lenderCode, ctx?.residency);
+  if (overlay) return overlay;
   return { min: PRODUCT_RULES.tenure.minMonths, max: PRODUCT_RULES.tenure.maxMonths };
 }
 
@@ -202,11 +220,13 @@ export function recommendedMaxTenureFor(residency: ResidencyClass | null | undef
  * choice — they only add to it — because any month in the band is acceptable.
  */
 export function allowedTenureOptions(
-  _residency?: ResidencyClass | null,
+  residency?: ResidencyClass | null,
   offerTenureOptions?: number[] | null,
+  lenderCode?: string | null,
 ): number[] {
-  const { min, max } = tenureBounds();
+  const { min, max } = tenureBounds({ residency, lenderCode });
   const merged = new Set<number>([...PRODUCT_RULES.tenure.options, ...(offerTenureOptions ?? [])]);
+  if (max > PRODUCT_RULES.tenure.maxMonths) merged.add(max);
   return [...merged]
     .filter((m) => Number.isFinite(m) && Number.isInteger(m) && m >= min && m <= max)
     .sort((a, b) => a - b);
@@ -220,7 +240,10 @@ export function allowedTenureOptions(
 export function minDownPaymentPctFor(
   condition: RuleVehicleCondition,
   offerMinDownPaymentPct?: number | null,
+  lenderCode?: string | null,
 ): number {
+  const lenderFloor = lenderMinDownPaymentPct(lenderCode);
+  if (lenderFloor != null) return Math.max(lenderFloor, Number(offerMinDownPaymentPct ?? 0));
   const product = PRODUCT_RULES.downPayment.recommendedMinPctByCondition[condition];
   return Math.max(product, Number(offerMinDownPaymentPct ?? 0));
 }
@@ -255,14 +278,18 @@ export function validateFinancingRequest(req: FinancingRequest): ProductRuleViol
   const guidelineSeverity: ProductRuleViolation['severity'] = req.enforcePlanGuidelines ? 'hard' : 'soft';
 
   const tenure = Number(req.tenureMonths);
-  const { min: minTenure, max: maxTenure } = tenureBounds();
+  const { min: minTenure, max: maxTenure } = tenureBounds({
+    lenderCode: req.lenderCode,
+    residency: req.residency,
+  });
   if (tenure < minTenure) {
     out.push({ code: 'tenure_below_min', severity: 'hard', params: { min: minTenure } });
   }
   if (tenure > maxTenure) {
     out.push({ code: 'tenure_above_max', severity: 'hard', params: { max: maxTenure, residency: req.residency ?? '' } });
   }
-  const recommendedTenure = recommendedMaxTenureFor(req.residency);
+  const lender = resolveLenderCriteria(req.lenderCode, req.residency, req.employerCategory);
+  const recommendedTenure = lender ? null : recommendedMaxTenureFor(req.residency);
   if (recommendedTenure != null && tenure > recommendedTenure && tenure <= maxTenure) {
     out.push({
       code: 'tenure_above_recommended',
@@ -278,7 +305,11 @@ export function validateFinancingRequest(req: FinancingRequest): ProductRuleViol
     });
   }
 
-  const recommendedDown = minDownPaymentPctFor(req.vehicle.condition, req.offerMinDownPaymentPct);
+  const recommendedDown = minDownPaymentPctFor(
+    req.vehicle.condition,
+    req.offerMinDownPaymentPct,
+    req.lenderCode,
+  );
   const { min: minDown, max: maxDown } = downPaymentBounds();
   const downPct = Number(req.downPaymentPct);
   if (!Number.isFinite(downPct) || downPct < minDown) {
@@ -296,13 +327,30 @@ export function validateFinancingRequest(req: FinancingRequest): ProductRuleViol
 
   const variant = resolveProductVariant(req.vehicle);
   const financed = Math.max(0, price - (price * Math.min(Math.max(downPct, 0), 100)) / 100);
-  const cap = financingCapFor(variant);
-  if (cap != null && financed > cap) {
-    out.push({
-      code: 'financing_amount_exceeds_cap',
-      severity: req.enforceFinancingCaps ? 'hard' : 'soft',
-      params: { cap, financed: Math.round(financed), variant },
-    });
+  if (lender) {
+    if (financed > 0 && financed < lender.minFinancing) {
+      out.push({
+        code: 'financing_amount_below_min',
+        severity: 'hard',
+        params: { min: lender.minFinancing, financed: Math.round(financed) },
+      });
+    }
+    if (lender.maxFinancing != null && financed > lender.maxFinancing) {
+      out.push({
+        code: 'financing_amount_exceeds_cap',
+        severity: 'hard',
+        params: { cap: lender.maxFinancing, financed: Math.round(financed), variant },
+      });
+    }
+  } else {
+    const cap = financingCapFor(variant);
+    if (cap != null && financed > cap) {
+      out.push({
+        code: 'financing_amount_exceeds_cap',
+        severity: req.enforceFinancingCaps ? 'hard' : 'soft',
+        params: { cap, financed: Math.round(financed), variant },
+      });
+    }
   }
 
   if (req.vehicle.modelYear) {

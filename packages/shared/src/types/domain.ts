@@ -108,6 +108,7 @@ export interface ProductDetailResponse {
     annual_rent_rate: number;
     tenure_options: number[];
     min_down_payment_pct: number;
+    finance_partner_code?: string | null;
   } | null;
 }
 
@@ -192,6 +193,7 @@ export interface PublicOffer {
   tenure_options: unknown;
   min_down_payment_pct: number | null;
   finance_partner_id?: string | null;
+  finance_partner_code?: string | null;
   finance_partner_name?: string | null;
   crm_adapter?: string | null;
   financing_type?: string | null;

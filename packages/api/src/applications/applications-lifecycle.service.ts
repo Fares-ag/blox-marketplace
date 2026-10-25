@@ -75,6 +75,8 @@ type CreditApprovalSource = {
   customerSnapshot: unknown;
   pricingSnapshot: unknown;
   product?: { attributes?: unknown; bodyType?: string | null } | null;
+  financePartner?: { code?: string | null } | null;
+  lenderCode?: string | null;
 };
 
 /**
@@ -221,7 +223,7 @@ export class ApplicationsLifecycleService {
         company: { select: { name: true, code: true } },
         agent: { select: { name: true, email: true } },
         documents: { select: { category: true } },
-        financePartner: { select: { name: true } },
+        financePartner: { select: { name: true, code: true } },
         offer: { include: { financePartner: { select: { name: true } } } },
       },
     });
@@ -525,7 +527,7 @@ export class ApplicationsLifecycleService {
     const app = await this.prisma.application.findUnique({
       where: { id },
       include: {
-        financePartner: { select: { crmAdapter: true } },
+        financePartner: { select: { crmAdapter: true, code: true } },
         product: { select: { attributes: true, bodyType: true } },
       },
     });
@@ -803,6 +805,7 @@ export class ApplicationsLifecycleService {
       include: {
         company: { select: { allowDirectActivate: true, unitOffersEnabled: true } },
         product: { select: { attributes: true, bodyType: true } },
+        financePartner: { select: { code: true } },
       },
     });
     if (!app) throw new NotFoundException();

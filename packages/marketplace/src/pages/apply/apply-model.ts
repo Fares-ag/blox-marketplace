@@ -93,6 +93,7 @@ export type PlanContext = {
   annualRatePercent: number;
   offerTenureOptions: number[];
   offerMinDownPct: number;
+  lenderCode?: string | null;
 };
 
 export type FieldErrors = Record<string, string>;
@@ -342,11 +343,11 @@ export function validateGuarantor(form: ApplyForm, now: Date = new Date()): Fiel
 }
 
 export function planTenureOptions(ctx: PlanContext, residency: ResidencyClass | null): number[] {
-  return allowedTenureOptions(residency, ctx.offerTenureOptions);
+  return allowedTenureOptions(residency, ctx.offerTenureOptions, ctx.lenderCode);
 }
 
 export function planMinDownPct(ctx: PlanContext): number {
-  return minDownPaymentPctFor(ctx.condition, ctx.offerMinDownPct);
+  return minDownPaymentPctFor(ctx.condition, ctx.offerMinDownPct, ctx.lenderCode);
 }
 
 export function planViolations(plan: ApplyPlan, ctx: PlanContext, residency: ResidencyClass | null, now?: Date): ProductRuleViolation[] {
@@ -358,6 +359,7 @@ export function planViolations(plan: ApplyPlan, ctx: PlanContext, residency: Res
     downPaymentPct: plan.downPct,
     offerTenureOptions: ctx.offerTenureOptions.length ? ctx.offerTenureOptions : null,
     offerMinDownPaymentPct: ctx.offerMinDownPct,
+    lenderCode: ctx.lenderCode,
     now,
   });
 }
@@ -380,8 +382,8 @@ export function buildPlanPricing(plan: ApplyPlan, ctx: PlanContext): PricingSnap
  * the offer's presets and contributions under the recommended minimum are
  * allowed here — they surface as review flags, not as blocks.
  */
-export function normalizePlan(plan: ApplyPlan, ctx: PlanContext, _residency?: ResidencyClass | null): { plan: ApplyPlan; adjusted: boolean } {
-  const tenureBand = tenureBounds();
+export function normalizePlan(plan: ApplyPlan, ctx: PlanContext, residency?: ResidencyClass | null): { plan: ApplyPlan; adjusted: boolean } {
+  const tenureBand = tenureBounds({ lenderCode: ctx.lenderCode, residency });
   const downBand = downPaymentBounds();
   const requested = Number.isFinite(plan.tenure) ? Math.round(plan.tenure) : planMinDownPct(ctx);
   const tenure = Math.min(Math.max(requested, tenureBand.min), tenureBand.max);
@@ -416,12 +418,18 @@ export function validateStep(
   }
 }
 
-export function documentProfile(form: ApplyForm, residency: ResidencyClass | null): DocumentSlotProfile {
+export function documentProfile(
+  form: ApplyForm,
+  residency: ResidencyClass | null,
+  ctx: { companyCode?: string | null; companyName?: string | null } = {},
+): DocumentSlotProfile {
   return {
     residency,
     employmentType: form.employmentType || null,
     hasGuarantor: form.hasGuarantor,
     applicantType: 'individual',
+    companyCode: ctx.companyCode,
+    companyName: ctx.companyName,
   };
 }
 
@@ -500,6 +508,7 @@ export function creditPreviewFor(
   pricing: PricingSnapshot | null,
   violations: ProductRuleViolation[],
   now: Date = new Date(),
+  lenderCode?: string | null,
 ): CreditAssessment | null {
   if (!pricing || !(pricing.list_price > 0)) return null;
   const income = parseAmount(form.monthlyIncome) ?? 0;
@@ -515,6 +524,7 @@ export function creditPreviewFor(
           residency: residency ?? 'expat',
           employerCategory: employerCategoryFromEmploymentType(form.employmentType),
           financedAmount,
+          lenderCode,
         }
       : null;
   const guarantorIncome = form.hasGuarantor ? (parseAmount(form.guarantor.monthlyIncome) ?? 0) : 0;

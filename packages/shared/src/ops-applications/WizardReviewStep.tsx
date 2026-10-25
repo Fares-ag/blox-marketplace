@@ -40,6 +40,7 @@ export function WizardReviewStep({
   selectedVehicles,
   offer,
   companyName,
+  companyCode,
   agentCompanyId,
   isAdmin,
   ruleViolations = [],
@@ -50,6 +51,7 @@ export function WizardReviewStep({
   selectedVehicles: VehicleCardOption[];
   offer?: PublicOffer;
   companyName?: string;
+  companyCode?: string | null;
   agentCompanyId: string;
   isAdmin: boolean;
   /** Product-rule findings for the plan; soft ones are listed for the reviewer. */
@@ -69,7 +71,7 @@ export function WizardReviewStep({
 
   const priceForPlan =
     data.sellingPrice || data.listPrice || Number(selectedVehicles[0]?.price ?? 0);
-  const slots = wizardDocumentSlots(data.customerInfo);
+  const slots = wizardDocumentSlots(data.customerInfo, { companyCode, companyName });
   const isCorporateMulti = data.customerInfo.applicantType === 'corporate' && selectedVehicles.length > 1;
   const financeLabel = t(financeProductLabelKey(financeProductKind(offer)));
   const snapshot = data.planPricingSnapshot;

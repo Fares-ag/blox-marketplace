@@ -48,8 +48,8 @@ export async function seedFinancePartners(prisma: PrismaClient) {
         id: 'seed-al-jazeera-offer',
         name: 'Al Jazeera Standard',
         annualRentRate: 12.5,
-        minDownPaymentPct: 10,
-        tenureOptions: [12, 24, 36, 48, 60],
+        minDownPaymentPct: 0,
+        tenureOptions: [12, 24, 36, 48, 60, 71],
         financingType: 'diminishing_musharakah' as const,
       },
     },
@@ -187,4 +187,25 @@ export async function seedFinancePartners(prisma: PrismaClient) {
     defaultLender,
     providerBranches,
   };
+}
+
+async function main() {
+  const { PrismaClient } = await import('@prisma/client');
+  const prisma = new PrismaClient();
+  try {
+    const result = await seedFinancePartners(prisma);
+    console.log(
+      `Finance partners seeded: ${result.partners.join(', ')} (default lender: ${result.defaultLender ?? 'none'}).`,
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+const invokedDirectly = /seed-finance-partners(\.ts)?$/i.test(process.argv[1]?.replace(/\\/g, '/') ?? '');
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 }

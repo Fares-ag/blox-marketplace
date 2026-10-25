@@ -11,11 +11,13 @@ import {
   EMPLOYMENT_TYPE_OPTIONS,
   MoneyText,
   RESIDENCE_DURATION_OPTIONS,
+  EMPLOYMENT_DURATION_OPTIONS,
   allowedTenureOptions,
   employerCategoryFromEmploymentType,
   formatQar,
   getAppLocale,
   downPaymentBounds,
+  isAlJazeeraFinance,
   minDownPaymentPctFor,
   preCheckEligibility,
   residenceMonthsFromOption,
@@ -60,6 +62,8 @@ type EligForm = {
   tenure: number;
   downPct: number;
   rate: number;
+  employmentDuration: string;
+  existingFinancedCar: '' | 'yes' | 'no';
 };
 
 function readNumber(value: string | null, fallback: number): number {
@@ -82,8 +86,13 @@ function initialForm(params: URLSearchParams): EligForm {
     category: params.get('category') === 'motorcycle' ? 'motorcycle' : 'car',
     modelYear: params.get('year') && readNumber(params.get('year'), 0) > 1990 ? String(readNumber(params.get('year'), 0)) : '',
     tenure: readNumber(params.get('tenure'), 36),
-    downPct: Math.max(readNumber(params.get('downPct'), 0), minDownPaymentPctFor(condition, null)),
+    downPct: Math.max(
+      readNumber(params.get('downPct'), 0),
+      minDownPaymentPctFor(condition, null, params.get('lender')),
+    ),
     rate,
+    employmentDuration: '',
+    existingFinancedCar: '',
   };
 }
 
@@ -107,9 +116,16 @@ export function EligibilityPage() {
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
   const residency = form.residency || null;
-  const tenureOptions = useMemo(() => allowedTenureOptions(residency, null), [residency]);
-  const minDown = minDownPaymentPctFor(form.condition, null);
+  const lenderCode = params.get('lender');
+  const employerCategory = employerCategoryFromEmploymentType(form.employmentType);
+  const tenureOptions = useMemo(
+    () => allowedTenureOptions(residency, null, lenderCode),
+    [residency, lenderCode],
+  );
+  const minDown = minDownPaymentPctFor(form.condition, null, lenderCode);
   const downBand = downPaymentBounds();
+  const showCarLimit =
+    isAlJazeeraFinance(lenderCode) && residency === 'expat' && employerCategory !== 'government' && employerCategory !== 'private_approved';
 
   const paramKey = params.toString();
   useEffect(() => {
@@ -142,7 +158,7 @@ export function EligibilityPage() {
       dateOfBirth: form.dateOfBirth || null,
       monthlyIncome: income ?? 0,
       monthlyLiabilities: liabilities ?? 0,
-      employerCategory: employerCategoryFromEmploymentType(form.employmentType),
+      employerCategory,
       residencyMonths: residency === 'expat' ? residenceMonthsFromOption(form.residenceDuration) : null,
       financing: {
         applicantType: 'individual',
@@ -150,10 +166,20 @@ export function EligibilityPage() {
         vehicle: { price, condition: form.condition, category: form.category, modelYear: modelYear && modelYear > 1900 ? modelYear : null },
         tenureMonths: form.tenure,
         downPaymentPct: form.downPct,
+        lenderCode,
+        employerCategory,
       },
       annualRatePercent: form.rate,
+      lenderCode,
+      employmentDuration: form.employmentDuration || null,
+      existingActiveCarCount:
+        showCarLimit && form.existingFinancedCar
+          ? form.existingFinancedCar === 'yes'
+            ? 1
+            : 0
+          : null,
     });
-  }, [checked, price, residency, form.dateOfBirth, income, liabilities, form.employmentType, form.residenceDuration, form.condition, form.category, modelYear, form.tenure, form.downPct, form.rate]);
+  }, [checked, price, residency, form.dateOfBirth, income, liabilities, employerCategory, form.residenceDuration, form.condition, form.category, modelYear, form.tenure, form.downPct, form.rate, lenderCode, form.employmentDuration, form.existingFinancedCar, showCarLimit]);
 
   const priceError = touched.price && (!price || price <= 0) ? t('applyFlow.error.invalidAmount') : null;
   const incomeError =
@@ -291,6 +317,35 @@ export function EligibilityPage() {
                   )}
                 </Field>
               </div>
+              {isAlJazeeraFinance(lenderCode) ? (
+                <Field
+                  id="elig-employment-duration"
+                  label={t('eligibilityCheck.form.employmentDuration')}
+                  hint={t('eligibilityCheck.form.employmentDurationHint')}
+                >
+                  {(a11y) => (
+                    <SelectInput
+                      {...a11y}
+                      value={form.employmentDuration}
+                      placeholder={t('apply.selectPlaceholder')}
+                      options={EMPLOYMENT_DURATION_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+                      onChange={(e) => update('employmentDuration', e.target.value)}
+                    />
+                  )}
+                </Field>
+              ) : null}
+              {showCarLimit ? (
+                <ChipRadioGroup<'yes' | 'no'>
+                  name="elig-existing-car"
+                  legend={t('eligibilityCheck.form.existingCar')}
+                  options={[
+                    { value: 'no', label: t('eligibilityCheck.form.existingCarNo') },
+                    { value: 'yes', label: t('eligibilityCheck.form.existingCarYes') },
+                  ]}
+                  value={form.existingFinancedCar}
+                  onChange={(v) => update('existingFinancedCar', v)}
+                />
+              ) : null}
               {form.residency === 'expat' ? (
                 <Field
                   id="elig-residence-duration"

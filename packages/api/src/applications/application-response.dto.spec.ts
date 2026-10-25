@@ -150,6 +150,7 @@ describe('application-response.dto', () => {
       tenure_options: [12, 24, 36],
       min_down_payment_pct: 10,
       finance_partner_id: 'fp-1',
+      finance_partner_code: null,
       finance_partner_name: null,
       crm_adapter: null,
       financing_type: 'diminishing_musharakah',

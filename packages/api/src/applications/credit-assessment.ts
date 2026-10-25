@@ -3,6 +3,8 @@ import {
   MAX_EXCEPTION_TIER_BY_ROLE,
   assessCredit,
   employerCategoryFromEmploymentType,
+  lenderCodeOf,
+  privateSectorCarLimitViolation,
   roleMayApprove,
   type AffordabilityResult,
   type CreditAssessment,
@@ -56,6 +58,10 @@ export type CreditAssessmentSource = {
   pricingSnapshot: unknown;
   /** Motorcycles are recognised from the listing attributes / body type. */
   product?: { attributes?: unknown; bodyType?: string | null } | null;
+  lenderCode?: string | null;
+  financePartner?: { code?: string | null } | null;
+  /** Other live car files for this customer with the same lender. */
+  existingActiveCarCount?: number | null;
 };
 
 export type AssessedApplicationCredit = {
@@ -136,6 +142,8 @@ export function creditAssessmentInputFor(source: CreditAssessmentSource): {
   const snapshot = readCustomerSnapshot(source.customerSnapshot);
   const income = monthlyIncomeOf(snapshot);
   const residency = residencyOf(snapshot);
+  const employerCategory = employerCategoryFromEmploymentType(employmentTypeOf(snapshot));
+  const lenderCode = lenderCodeOf(source);
   const affordability =
     income != null && residency
       ? {
@@ -143,16 +151,23 @@ export function creditAssessmentInputFor(source: CreditAssessmentSource): {
           monthlyLiabilities: monthlyLiabilitiesOf(snapshot),
           proposedInstallment: monthlyInstallment,
           residency,
-          employerCategory: employerCategoryFromEmploymentType(employmentTypeOf(snapshot)),
+          employerCategory,
           financedAmount,
+          lenderCode,
         }
       : null;
+  const carLimit = privateSectorCarLimitViolation(
+    lenderCode,
+    residency,
+    employerCategory,
+    source.existingActiveCarCount,
+  );
   return {
     input: {
       affordability,
       financedAmount,
       vehicleCategory: source.product ? vehicleCategoryFor(source.product) : 'car',
-      ruleFlags: ruleViolationsOf(source.pricingSnapshot),
+      ruleFlags: [...ruleViolationsOf(source.pricingSnapshot), ...(carLimit ? [carLimit] : [])],
       guarantorMonthlyIncome: guarantorMonthlyIncomeOf(snapshot),
     },
     financedAmount,

@@ -89,7 +89,7 @@ describe('buildApplicationPricingSnapshot', () => {
       buildApplicationPricingSnapshot({
         listPrice: 100_000,
         offer: sampleOffer,
-        pricingSnapshot: { tenor: 61 },
+        pricingSnapshot: { tenor: 72 },
       }),
     ).toThrow('invalid_tenure');
   });
@@ -98,18 +98,19 @@ describe('buildApplicationPricingSnapshot', () => {
 describe('assertTenureAllowed', () => {
   // LMS product configuration §1: the shortest Diminishing Musharakah tenure is
   // 3 months (shared MIN_TENURE_MONTHS), so 1 and 2 are now out of range.
-  it('accepts tenure values in 3–60 range', () => {
+  it('accepts tenure values in the 3–71 platform band', () => {
     expect(() => assertTenureAllowed(3, [])).not.toThrow();
     expect(() => assertTenureAllowed(7, [])).not.toThrow();
     expect(() => assertTenureAllowed(36, [])).not.toThrow();
     expect(() => assertTenureAllowed(60, [])).not.toThrow();
+    expect(() => assertTenureAllowed(71, [])).not.toThrow();
   });
 
   it('rejects tenure outside range', () => {
     expect(() => assertTenureAllowed(0, [])).toThrow('invalid_tenure');
     expect(() => assertTenureAllowed(1, [])).toThrow('invalid_tenure');
     expect(() => assertTenureAllowed(2, [])).toThrow('invalid_tenure');
-    expect(() => assertTenureAllowed(61, [])).toThrow('invalid_tenure');
+    expect(() => assertTenureAllowed(72, [])).toThrow('invalid_tenure');
   });
 });
 

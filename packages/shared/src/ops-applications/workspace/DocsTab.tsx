@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
 import { apiFetch, apiFileUrl } from '../../lib/api';
+import { ApplicationDocumentActions } from '../ApplicationDocumentActions';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
 import { FileDropzone } from '../../components/FileDropzone';
 import { OpsPrimaryButton, OpsStatusPill } from '../../components/ops-ui';
@@ -43,7 +44,7 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
   const slots: ChecklistSlot[] = useMemo(() => {
     const server = slotsQuery.data?.slots;
     if (server?.length) return server.map((slot) => ({ ...slot }));
-    return wizardDocumentSlots(info);
+    return wizardDocumentSlots(info, { companyCode: data.company?.code, companyName: data.company?.name });
   }, [slotsQuery.data, info]);
 
   const uploaded = useMemo(() => {
@@ -167,14 +168,12 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                     <OpsStatusPill label={t('dealerOps.intake.slotMissing')} variant={slot.required ? 'warning' : 'neutral'} />
                   )}
                   {first && (
-                    <a
-                      className="blox-btn blox-btn--ghost blox-btn--sm"
-                      href={apiFileUrl(`/applications/${id}/documents/${first.id}/file`)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {t('ops.common.view')}
-                    </a>
+                    <ApplicationDocumentActions
+                      filePath={`/applications/${id}/documents/${first.id}/file`}
+                      viewLabel={t('ops.common.view')}
+                      downloadLabel={t('ops.common.download')}
+                      fallbackFilename={first.original_name ?? `${slot.category}.pdf`}
+                    />
                   )}
                   {actions.uploadDocs && (
                     <FileDropzone
@@ -259,19 +258,19 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
 
               if (isPreviewableImageDocument(doc)) {
                 return (
-                  <a
-                    key={doc.id}
-                    href={fileHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="blox-document-card blox-document-card--image"
-                  >
+                  <div key={doc.id} className="blox-document-card blox-document-card--image">
                     <img src={fileHref} alt={label} className="blox-document-card__thumb" loading="lazy" />
                     <div className="blox-document-card__meta">
                       <strong>{label}</strong>
-                      <span className="blox-document-card__action">{t('ops.common.view')}</span>
+                      <ApplicationDocumentActions
+                        filePath={`/applications/${id}/documents/${doc.id}/file`}
+                        viewLabel={t('ops.common.view')}
+                        downloadLabel={t('ops.common.download')}
+                        fallbackFilename={doc.original_name ?? `${doc.category}.pdf`}
+                        className="blox-document-card__actions"
+                      />
                     </div>
-                  </a>
+                  </div>
                 );
               }
 
@@ -288,9 +287,13 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                       </>
                     )}
                   </div>
-                  <a href={fileHref} target="_blank" rel="noreferrer">
-                    {t('ops.common.view')}
-                  </a>
+                  <ApplicationDocumentActions
+                    filePath={`/applications/${id}/documents/${doc.id}/file`}
+                    viewLabel={t('ops.common.view')}
+                    downloadLabel={t('ops.common.download')}
+                    fallbackFilename={doc.original_name ?? `${doc.category}.pdf`}
+                    className="blox-document-card__actions"
+                  />
                 </div>
               );
             })}
