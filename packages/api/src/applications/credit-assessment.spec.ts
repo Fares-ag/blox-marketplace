@@ -217,7 +217,16 @@ describe('credit assessment DTO', () => {
   const assessed = assessApplicationCredit({ customerSnapshot: EXPAT, pricingSnapshot: PRICING }, NOW);
 
   it('matches CreditAssessmentDto field for field, with the approver block for the caller', () => {
-    const dto = toCreditAssessmentDto(assessed, 'credit_officer');
+    const dto = toCreditAssessmentDto(assessed, 'credit_officer', {
+      list_price: 120_000,
+      selling_price: 100_000,
+      down_payment: 20_000,
+      monthly: 2500,
+    });
+    expect(dto.list_price).toBe(120_000);
+    expect(dto.selling_price).toBe(100_000);
+
+    const dtoNoPricing = toCreditAssessmentDto(assessed, 'credit_officer');
     expect(Object.keys(dto).sort()).toEqual(
       [
         'affordability',
@@ -229,6 +238,8 @@ describe('credit assessment DTO', () => {
         'assessed_at',
         'financed_amount',
         'monthly_installment',
+        'list_price',
+        'selling_price',
         'approver',
       ].sort(),
     );

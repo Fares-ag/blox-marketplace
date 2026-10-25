@@ -161,7 +161,7 @@ export class ApplicationsLifecycleService {
       assessment: assessed.assessment,
       overrideReason,
     });
-    return { assessed, decision, columns: creditAssessmentData(assessed) };
+    return { assessed, decision, columns: creditAssessmentData(assessed, app.pricingSnapshot) };
   }
 
   private async logCreditDecision(

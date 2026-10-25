@@ -285,7 +285,7 @@ export class ApplicationsStaffService {
             qidHash,
             submittedAt: initialStatus !== ApplicationStatus.draft ? now : null,
             ...this.intake.holdColumns(identity, now),
-            ...(assessed ? creditAssessmentData(assessed) : {}),
+            ...(assessed ? creditAssessmentData(assessed, pricingWithFlags) : {}),
           },
         });
 
@@ -429,7 +429,7 @@ export class ApplicationsStaffService {
       await transitionApplication(tx, id, fromStatus, {
         status: nextStatus,
         submittedAt: app.submittedAt ?? new Date(),
-        ...creditAssessmentData(assessed),
+        ...creditAssessmentData(assessed, app.pricingSnapshot),
       });
       if (autoTagged || (branchId && branchId !== app.branchId)) {
         await tx.application.update({

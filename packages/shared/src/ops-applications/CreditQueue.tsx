@@ -131,10 +131,15 @@ export function CreditQueue({
         id: 'deal',
         label: t('ops.workspace.deal'),
         numeric: true,
-        format: (_, a) =>
-          a.deal_summary
-            ? `QAR ${a.deal_summary.selling_price.toLocaleString()} · ${a.deal_summary.rate}%`
-            : '—',
+        format: (_, a) => {
+          if (!a.deal_summary) return '—';
+          const { list_price: list, selling_price: sell, rate } = a.deal_summary;
+          const price =
+            list > 0 && sell > 0 && list !== sell
+              ? `${sell.toLocaleString()} (${t('ops.wizard.listPrice', { defaultValue: 'List' })} ${list.toLocaleString()})`
+              : sell.toLocaleString();
+          return `QAR ${price} · ${rate}%`;
+        },
       },
       {
         id: 'customer',

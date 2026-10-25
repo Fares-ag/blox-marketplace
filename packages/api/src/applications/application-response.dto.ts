@@ -534,6 +534,7 @@ export function toOpsApplicationQueueItemDto(app: {
 }) {
   const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
   const plan = app.installmentPlan as Record<string, unknown> | null | undefined;
+  const listPrice = Number(pricing.list_price ?? app.product?.price ?? 0);
   const sellingPrice = Number(pricing.selling_price ?? pricing.list_price ?? app.product?.price ?? 0);
   const monthly = Number(plan?.monthlyAmount ?? pricing.monthly ?? 0);
 
@@ -549,6 +550,7 @@ export function toOpsApplicationQueueItemDto(app: {
     rule_flags: ruleFlagsOf(app.pricingSnapshot),
     ...identityAndConsentFields(app),
     deal_summary: {
+      list_price: listPrice,
       selling_price: sellingPrice,
       monthly,
       rate: Number(pricing.rate ?? plan?.annualRentalRate ?? 0),

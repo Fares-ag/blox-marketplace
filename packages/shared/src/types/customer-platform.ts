@@ -287,6 +287,10 @@ export type CreditAssessmentDto = {
   assessed_at: string;
   financed_amount: number;
   monthly_installment: number;
+  /** Catalog / sticker price from the pricing snapshot. */
+  list_price?: number | null;
+  /** Deal price used for installments and financed amount. */
+  selling_price?: number | null;
   /** Computed for the requesting officer. */
   approver: { role_may_approve: boolean; required_roles: string[]; max_tier_for_role: number };
 };

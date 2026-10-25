@@ -715,7 +715,16 @@ export function AddApplicationWizard({
                 })
               }
               onBalloonPctChange={(balloonPct) => updateData({ balloonPct: clampBalloonPercent(data.downPct, balloonPct) })}
-              onChange={(plan, snap) => updateData({ installmentPlan: plan, planPricingSnapshot: snap })}
+              onChange={(plan, snap) =>
+                updateData({
+                  installmentPlan: plan,
+                  planPricingSnapshot: {
+                    ...snap,
+                    list_price: data.listPrice || Number(snap.list_price ?? 0),
+                    selling_price: data.sellingPrice || data.listPrice || Number(snap.list_price ?? 0),
+                  },
+                })
+              }
             />
             <div className="blox-form-grid__full blox-stack">
               <h3 className="blox-panel__subtitle">{t('dealerOps.plan.rulesTitle')}</h3>
@@ -927,7 +936,11 @@ export function AddApplicationWizard({
             productIds: data.customerInfo.applicantType === 'corporate' ? data.productIds : undefined,
             offerId: data.offerId,
             customerSnapshot,
-            pricingSnapshot: data.planPricingSnapshot,
+            pricingSnapshot: {
+              ...data.planPricingSnapshot,
+              list_price: data.listPrice,
+              selling_price: data.sellingPrice || data.listPrice,
+            },
             installmentPlan: data.installmentPlan,
             agentUserId: data.agentUserId || undefined,
             listPrice: data.listPrice,

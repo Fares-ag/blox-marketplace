@@ -552,7 +552,11 @@ export class ApplicationsService {
       excludeApplicationId: app.id,
       financePartnerId: app.financePartnerId,
     });
-    return toCreditAssessmentDto(assessApplicationCredit({ ...app, existingActiveCarCount }), user.role);
+    return toCreditAssessmentDto(
+      assessApplicationCredit({ ...app, existingActiveCarCount }),
+      user.role,
+      app.pricingSnapshot,
+    );
   }
 
   private async loadDocumentsForSubmit(applicationId: string, kycCaseId: string | null) {
@@ -628,7 +632,7 @@ export class ApplicationsService {
       await transitionApplication(tx, id, fromStatus, {
         status: nextStatus,
         submittedAt: app.submittedAt ?? new Date(),
-        ...creditAssessmentData(assessed),
+        ...creditAssessmentData(assessed, app.pricingSnapshot),
       });
       if (autoTagged) {
         await tx.application.update({ where: { id }, data: { financePartnerId: lenderId } });
@@ -1235,7 +1239,7 @@ export class ApplicationsService {
     const updated = await this.prisma.$transaction(async (tx) => {
       await transitionApplication(tx, id, ApplicationStatus.resubmission_required, {
         status: nextStatus,
-        ...creditAssessmentData(assessed),
+        ...creditAssessmentData(assessed, app.pricingSnapshot),
       });
       return tx.application.findUniqueOrThrow({ where: { id } });
     });
@@ -1455,23 +1459,31 @@ export class ApplicationsService {
       throw new BadRequestException('cannot_rebuild_paid_schedule');
     }
     const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
-    const next = buildApplicationPricingSnapshot({
-      listPrice: dto.sellingPrice ?? Number(pricing.list_price ?? pricing.selling_price ?? 0),
-      offer: app.offer,
-      financePartnerCode: app.offer.financePartner?.code,
-      pricingSnapshot: {
-        ...pricing,
-        tenor: dto.tenureMonths ?? pricing.tenor ?? pricing.tenure,
-        tenure: dto.tenureMonths ?? pricing.tenure ?? pricing.tenor,
-        down_payment_pct: dto.downPaymentPct ?? pricing.down_payment_pct,
-        ...(dto.annualRatePercent !== undefined ? { rate: dto.annualRatePercent } : {}),
-      },
-    });
+    const sellingPrice = Number(
+      dto.sellingPrice ?? pricing.selling_price ?? pricing.list_price ?? app.product.price ?? 0,
+    );
+    const catalogListPrice = Number(pricing.list_price ?? app.product.price ?? sellingPrice);
+    const next = {
+      ...buildApplicationPricingSnapshot({
+        listPrice: sellingPrice,
+        offer: app.offer,
+        financePartnerCode: app.offer.financePartner?.code,
+        pricingSnapshot: {
+          ...pricing,
+          tenor: dto.tenureMonths ?? pricing.tenor ?? pricing.tenure,
+          tenure: dto.tenureMonths ?? pricing.tenure ?? pricing.tenor,
+          down_payment_pct: dto.downPaymentPct ?? pricing.down_payment_pct,
+          ...(dto.annualRatePercent !== undefined ? { rate: dto.annualRatePercent } : {}),
+        },
+      }),
+      list_price: catalogListPrice,
+      selling_price: sellingPrice,
+    };
     const installmentPlan =
       dto.installmentPlan ??
       buildPlanFromPricingSnapshot({
         pricingSnapshot: next,
-        vehiclePrice: Number(next.list_price ?? app.product.price),
+        vehiclePrice: sellingPrice,
       });
 
     await this.prisma.$transaction(async (tx) => {

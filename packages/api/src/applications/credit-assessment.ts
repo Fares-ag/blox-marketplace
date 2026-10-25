@@ -49,6 +49,8 @@ export type CreditAssessmentDto = {
   assessed_at: string;
   financed_amount: number;
   monthly_installment: number;
+  list_price?: number | null;
+  selling_price?: number | null;
   /** Computed for the requesting officer (neutral values on the stored copy). */
   approver: { role_may_approve: boolean; required_roles: string[]; max_tier_for_role: number };
 };
@@ -206,11 +208,23 @@ export function approverFor(
   };
 }
 
+function vehiclePricesFromSnapshot(pricingRaw: unknown): { list_price: number | null; selling_price: number | null } {
+  const pricing = pricingOf(pricingRaw);
+  const list = num(pricing.list_price);
+  const sell = num(pricing.selling_price) ?? list;
+  return {
+    list_price: list,
+    selling_price: sell,
+  };
+}
+
 export function toCreditAssessmentDto(
   assessed: AssessedApplicationCredit,
   role: string | null | undefined,
+  pricingRaw?: unknown,
 ): CreditAssessmentDto {
   const { assessment } = assessed;
+  const prices = vehiclePricesFromSnapshot(pricingRaw);
   return {
     affordability: toAffordabilityDto(assessment.affordability),
     affordability_with_guarantor: toAffordabilityDto(assessment.affordabilityWithGuarantor),
@@ -225,27 +239,35 @@ export function toCreditAssessmentDto(
     assessed_at: assessment.assessedAt,
     financed_amount: assessed.financedAmount,
     monthly_installment: assessed.monthlyInstallment,
+    list_price: prices.list_price,
+    selling_price: prices.selling_price,
     approver: approverFor(role, assessment.approvalAuthority),
   };
 }
 
 /** Column values persisted on the application at submit / decision time. */
-export function creditAssessmentColumns(assessed: AssessedApplicationCredit): {
+export function creditAssessmentColumns(
+  assessed: AssessedApplicationCredit,
+  pricingRaw?: unknown,
+): {
   creditAssessment: CreditAssessmentDto;
   approvalAuthority: CreditAssessment['approvalAuthority'];
 } {
   return {
-    creditAssessment: toCreditAssessmentDto(assessed, null),
+    creditAssessment: toCreditAssessmentDto(assessed, null, pricingRaw),
     approvalAuthority: assessed.assessment.approvalAuthority,
   };
 }
 
 /** Same columns typed for a Prisma write (`creditAssessment` is a Json column). */
-export function creditAssessmentData(assessed: AssessedApplicationCredit): {
+export function creditAssessmentData(
+  assessed: AssessedApplicationCredit,
+  pricingRaw?: unknown,
+): {
   creditAssessment: Prisma.InputJsonValue;
   approvalAuthority: CreditAssessment['approvalAuthority'];
 } {
-  const columns = creditAssessmentColumns(assessed);
+  const columns = creditAssessmentColumns(assessed, pricingRaw);
   return {
     creditAssessment: columns.creditAssessment as unknown as Prisma.InputJsonValue,
     approvalAuthority: columns.approvalAuthority,

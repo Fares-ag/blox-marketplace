@@ -74,7 +74,8 @@ export function OverviewTab(props: Props) {
   const doneCount = requiredSlots.filter((slot) => slotSatisfiedBy(slot.category, uploaded)).length;
   const tenor = pricing.tenor as number | undefined;
   const down = Number(pricing.down_payment ?? 0);
-  const listPrice = Number(pricing.list_price ?? pricing.selling_price ?? 0);
+  const listPrice = Number(pricing.list_price ?? 0);
+  const sellingPrice = Number(pricing.selling_price ?? listPrice);
   const logs = (data.activity_logs ?? []).slice(0, 3);
   const ruleFlags = (data.rule_flags ?? (pricing.rule_flags as OpsRuleFlag[] | undefined) ?? []) as OpsRuleFlag[];
   const audience = platform?.audience;
@@ -101,8 +102,10 @@ export function OverviewTab(props: Props) {
               <dd>{data.offer?.name ?? '—'}</dd>
               <dt>{t('ops.wizard.rate', { defaultValue: 'Rate' })}</dt>
               <dd className="blox-kv__num">{pricing.rate != null ? `${pricing.rate} %` : '—'}</dd>
-              <dt>{t('ops.credit.vehiclePrice')}</dt>
-              <dd className="blox-kv__num">{qar(listPrice)}</dd>
+              <dt>{t('ops.wizard.listPrice')}</dt>
+              <dd className="blox-kv__num">{listPrice > 0 ? qar(listPrice) : '—'}</dd>
+              <dt>{t('ops.wizard.sellingPrice')}</dt>
+              <dd className="blox-kv__num">{sellingPrice > 0 ? qar(sellingPrice) : '—'}</dd>
               <dt>{t('ops.wizard.downPayment', { defaultValue: 'Down payment' })}</dt>
               <dd className="blox-kv__num">
                 {down ? `${qar(down)}${pricing.down_payment_pct ? ` (${pricing.down_payment_pct} %)` : ''}` : '—'}

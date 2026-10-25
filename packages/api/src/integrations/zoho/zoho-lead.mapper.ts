@@ -126,6 +126,9 @@ export function mapApplicationToZohoLead(
     age != null ? `Age: ${age}` : null,
     vehicle ? `Vehicle: ${vehicle}` : null,
     pricing.list_price ? `List price: ${qar(pricing.list_price)}` : null,
+    pricing.selling_price && pricing.selling_price !== pricing.list_price
+      ? `Selling price: ${qar(pricing.selling_price)}`
+      : null,
     financeAmount != null ? `Finance amount: ${qar(financeAmount)}` : null,
     pricing.down_payment
       ? `Down payment: ${qar(pricing.down_payment)}${pricing.down_payment_pct ? ` (${pricing.down_payment_pct}%)` : ''}`

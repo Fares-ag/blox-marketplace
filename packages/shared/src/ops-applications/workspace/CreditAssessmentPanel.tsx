@@ -222,6 +222,18 @@ export function CreditAssessmentPanel({
                 <span className="blox-muted">{t('dealerOps.creditAssessment.stressNotApplicable')}</span>
               )}
             </dd>
+            {assessment.list_price != null && assessment.list_price > 0 ? (
+              <>
+                <dt>{t('ops.wizard.listPrice')}</dt>
+                <dd className="blox-kv__num">{formatQar(assessment.list_price)}</dd>
+              </>
+            ) : null}
+            {assessment.selling_price != null && assessment.selling_price > 0 ? (
+              <>
+                <dt>{t('ops.wizard.sellingPrice')}</dt>
+                <dd className="blox-kv__num">{formatQar(assessment.selling_price)}</dd>
+              </>
+            ) : null}
             <dt>{t('dealerOps.creditAssessment.financedAmount')}</dt>
             <dd className="blox-kv__num">{formatQar(Number(assessment.financed_amount) || 0)}</dd>
             <dt>{t('dealerOps.creditAssessment.monthlyInstallment')}</dt>

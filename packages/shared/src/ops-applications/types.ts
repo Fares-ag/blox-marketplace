@@ -76,7 +76,7 @@ export type OpsQueueItem = {
   branch_name?: string | null;
   pricing_snapshot?: Record<string, unknown> | null;
   installment_plan?: Record<string, unknown> | null;
-  deal_summary?: { selling_price: number; monthly: number; rate: number };
+  deal_summary?: { list_price: number; selling_price: number; monthly: number; rate: number };
   payment_health?: 'none' | 'on_track' | 'overdue' | 'paid';
   risk_level?: 'low' | 'medium' | 'high';
   product?: { make: string; model: string; model_year: number; slug: string; price?: number | null };
