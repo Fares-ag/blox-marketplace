@@ -11,6 +11,7 @@ import {
   customerInfoFromSnapshot,
   ruleViolationMessage,
   slotSatisfiedBy,
+  documentSlotContextForWorkspace,
   wizardDocumentSlots,
 } from '../customer-info';
 import type { ProductRuleCode } from '../../lib/product-rules';
@@ -64,10 +65,8 @@ export function OverviewTab(props: Props) {
   const info = useMemo(() => customerInfoFromSnapshot(snap), [snap]);
   const requiredSlots = useMemo(
     () =>
-      wizardDocumentSlots(info, { companyCode: data.company?.code, companyName: data.company?.name }).filter(
-        (slot) => slot.required,
-      ),
-    [info, data.company?.code, data.company?.name],
+      wizardDocumentSlots(info, documentSlotContextForWorkspace(data)).filter((slot) => slot.required),
+    [info, data],
   );
   const docs = data.documents ?? [];
   const uploaded = docs.map((d) => d.category);

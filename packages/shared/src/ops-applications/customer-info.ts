@@ -683,6 +683,21 @@ export function documentSlotProfileFor(
     applicantType: info.applicantType,
     companyCode: ctx.companyCode,
     companyName: ctx.companyName,
+    financePartnerCode: ctx.financePartnerCode,
+    financingType: ctx.financingType,
+  };
+}
+
+export function documentSlotContextForWorkspace(data: {
+  company?: { code?: string | null; name?: string | null };
+  finance_partner_code?: string | null;
+  offer?: { finance_partner_code?: string | null; financing_type?: string | null } | null;
+}): DocumentSlotContext {
+  return {
+    companyCode: data.company?.code,
+    companyName: data.company?.name,
+    financePartnerCode: data.finance_partner_code ?? data.offer?.finance_partner_code ?? null,
+    financingType: data.offer?.financing_type ?? null,
   };
 }
 

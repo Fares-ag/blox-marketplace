@@ -285,6 +285,21 @@ describe('document slots in the wizard', () => {
 
   it('shows the QAuto dealer pack when the company is QAuto', () => {
     const slots = wizardDocumentSlots(individual(), { companyCode: 'qauto' });
+    expect(slots.map((s) => s.category)).toContain('credit_bureau');
+
+    const inHouse = wizardDocumentSlots(individual(), { financePartnerCode: 'in-house-finance' });
+    expect(inHouse.map((s) => s.category)).toEqual([
+      'qid',
+      'passport',
+      'cr',
+      'computer_card',
+      'salary',
+      'bank',
+      'credit_bureau',
+      'rental_agreement',
+      'national_address',
+      'bank_liability',
+    ]);
     expect(slots.map((s) => s.category)).toEqual([
       'qid',
       'passport',

@@ -54,6 +54,8 @@ export type SubmitGateApplication = {
   companyCode?: string | null;
   companyName?: string | null;
   company?: { code?: string | null; name?: string | null } | null;
+  financePartner?: { code?: string | null } | null;
+  offer?: { financingType?: string | null } | null;
 };
 
 export type SubmitGateProduct = {
@@ -114,6 +116,8 @@ export function evaluateSubmitGates(input: SubmitGateInput): SubmitGateFailure |
   const slotCtx = {
     companyCode: application.companyCode ?? application.company?.code,
     companyName: application.companyName ?? application.company?.name,
+    financePartnerCode: application.financePartner?.code ?? null,
+    financingType: application.offer?.financingType ?? null,
   };
   const missing = missingDocumentsForApplication(
     application.customerSnapshot,

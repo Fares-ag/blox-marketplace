@@ -139,6 +139,26 @@ describe('document slots', () => {
     });
     expect(expat.find((s) => s.category === 'passport')?.required).toBe(true);
   });
+
+  it('uses the dealer credit pack for in-house conventional finance', () => {
+    const inHouse = documentSlotsFor({
+      residency: 'qatari',
+      employmentType: 'private-local',
+      financePartnerCode: 'in-house-finance',
+    });
+    expect(inHouse.map((s) => s.category)).toEqual([
+      'qid',
+      'passport',
+      'cr',
+      'computer_card',
+      'salary',
+      'bank',
+      'credit_bureau',
+      'rental_agreement',
+      'national_address',
+      'bank_liability',
+    ]);
+  });
 });
 
 describe('consents', () => {

@@ -129,16 +129,19 @@ export function visibleWorkspaceActions(
     // shared
     comment: decide || dealer,
     uploadDocs:
-      (dealer || decide) &&
-      [
-        'draft',
-        'under_review',
-        'resubmission_required',
-        'rejected',
-        'contract_signing_required',
-        'contracts_submitted',
-        'contract_under_review',
-      ].includes(status),
+      (dealer &&
+        ['draft', 'resubmission_required', 'rejected', 'partner_processing'].includes(status)) ||
+      (decide &&
+        [
+          'draft',
+          'under_review',
+          'resubmission_required',
+          'rejected',
+          'partner_processing',
+          'contract_signing_required',
+          'contracts_submitted',
+          'contract_under_review',
+        ].includes(status)),
 
     // admin config
     edit: admin,

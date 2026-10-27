@@ -92,7 +92,7 @@
   padding: 20px 22px;
   box-shadow: var(--blox-shadow-rest, var(--card-shadow));
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 
   &__title {
     margin: 0 0 16px;
@@ -125,8 +125,8 @@
 
   span {
     min-width: 0;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   em {
@@ -314,10 +314,10 @@
   }
 
   &--inline {
-    flex: none;
-    min-width: 128px;
-    max-width: 200px;
-    padding: 10px 12px;
+    flex: 1 1 11rem;
+    min-width: 10rem;
+    max-width: 18rem;
+    padding: 8px 12px;
     text-align: center;
     font-size: 0.75rem;
     line-height: 1.35;
@@ -330,7 +330,7 @@
 
     .blox-upload-dropzone__hint {
       display: block;
-      margin-top: 4px;
+      margin-top: 2px;
       font-size: 0.6875rem;
     }
   }

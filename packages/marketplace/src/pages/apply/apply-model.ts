@@ -421,7 +421,12 @@ export function validateStep(
 export function documentProfile(
   form: ApplyForm,
   residency: ResidencyClass | null,
-  ctx: { companyCode?: string | null; companyName?: string | null } = {},
+  ctx: {
+    companyCode?: string | null;
+    companyName?: string | null;
+    financePartnerCode?: string | null;
+    financingType?: string | null;
+  } = {},
 ): DocumentSlotProfile {
   return {
     residency,
@@ -430,6 +435,8 @@ export function documentProfile(
     applicantType: 'individual',
     companyCode: ctx.companyCode,
     companyName: ctx.companyName,
+    financePartnerCode: ctx.financePartnerCode,
+    financingType: ctx.financingType,
   };
 }
 

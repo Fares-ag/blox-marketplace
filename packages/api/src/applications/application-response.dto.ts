@@ -35,6 +35,44 @@ function asSnapshot(value: unknown): Snapshot | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Snapshot) : null;
 }
 
+/** Dealer column on ops lists — application company, else the listing's company (customer portal apps). */
+export function resolveDealerCompanyName(app: {
+  companyId?: string | null;
+  company?: { id?: string | null; name?: string | null; code?: string | null } | null;
+  product?: { company?: { name?: string | null } | null } | null;
+}): string | null {
+  const direct = app.company?.name?.trim();
+  if (direct) return direct;
+  const viaProduct = app.product?.company?.name?.trim();
+  if (viaProduct) return viaProduct;
+  return null;
+}
+
+function companyDtoForAudience(
+  app: {
+    companyId?: string | null;
+    company?: { id?: string | null; name?: string | null; code?: string | null; allowDirectActivate?: boolean } | null;
+    product?: { company?: { name?: string | null } | null } | null;
+  },
+  audience: ApplicationAudience,
+): { id?: string; name: string; code?: string | null; allowDirectActivate?: boolean } | null {
+  const name = resolveDealerCompanyName(app);
+  if (!name) return null;
+  const id = app.company?.id ?? app.companyId ?? undefined;
+  const code = app.company?.code ?? null;
+  if (audience === 'ops' || audience === 'dealer') {
+    return {
+      ...(id ? { id } : {}),
+      name,
+      code,
+      ...(app.company?.allowDirectActivate != null
+        ? { allowDirectActivate: app.company.allowDirectActivate }
+        : {}),
+    };
+  }
+  return { ...(id ? { id } : {}), name, code };
+}
+
 /** Customer snapshot as the audience may see it. */
 export function snapshotForAudience(snapshot: unknown, audience: ApplicationAudience): unknown {
   if (audience === 'customer') return snapshot ?? null;
@@ -373,9 +411,10 @@ function applicationRelations(app: ApplicationRelations, audience: ApplicationAu
             .map((doc) => toApplicationDocumentDto(doc)),
         }
       : {}),
-    ...(app.company?.id && app.company?.name
-      ? { company: { id: app.company.id, name: app.company.name, code: app.company.code ?? null } }
-      : {}),
+    ...(() => {
+      const company = companyDtoForAudience(app, audience);
+      return company ? { company } : {};
+    })(),
     ...(app.customer ? { customer: customerForAudience(app.customer, audience) } : {}),
     ...(hasOfferFields(app.offer) ? { offer: toPublicOfferDto(app.offer) } : {}),
     ...(app.paymentSchedules
@@ -524,8 +563,16 @@ export function toOpsApplicationQueueItemDto(app: {
   identityHoldAt?: Date | null;
   identityHoldClearedAt?: Date | null;
   consentsCompletedAt?: Date | null;
-  product?: { make: string; model: string; modelYear: number; slug: string; price?: DecimalLike } | null;
-  company?: { name: string } | null;
+  product?: {
+    make: string;
+    model: string;
+    modelYear: number;
+    slug: string;
+    price?: DecimalLike;
+    company?: { name: string } | null;
+  } | null;
+  companyId?: string | null;
+  company?: { id?: string | null; name?: string | null } | null;
   customer?: { name: string | null; email: string } | null;
   agent?: { id: string; name: string | null; email: string } | null;
   paymentSchedules?: Array<{ status: string; dueDate: Date }>;
@@ -568,7 +615,10 @@ export function toOpsApplicationQueueItemDto(app: {
           },
         }
       : {}),
-    ...(app.company ? { company: { name: app.company.name } } : {}),
+    ...(() => {
+      const dealerName = resolveDealerCompanyName(app);
+      return dealerName ? { company: { name: dealerName } } : {};
+    })(),
     ...(app.customer
       ? { customer: { name: app.customer.name, email: app.customer.email } }
       : {}),
@@ -619,7 +669,15 @@ export function toDealerApplicationListItemDto(app: {
   identityHoldAt?: Date | null;
   identityHoldClearedAt?: Date | null;
   consentsCompletedAt?: Date | null;
-  product?: { make: string; model: string; modelYear: number; slug: string } | null;
+  product?: {
+    make: string;
+    model: string;
+    modelYear: number;
+    slug: string;
+    company?: { name?: string | null } | null;
+  } | null;
+  companyId?: string | null;
+  company?: { name?: string | null } | null;
   customer?: { name: string | null; email: string; phone?: string | null } | null;
   agent?: { id: string; name: string | null; email: string } | null;
   financePartner?: { id?: string; name?: string | null; code?: string | null } | null;
@@ -666,6 +724,10 @@ export function toDealerApplicationListItemDto(app: {
     ...(app.agent
       ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
       : { agent: null }),
+    ...(() => {
+      const dealerName = resolveDealerCompanyName(app);
+      return dealerName ? { company: { name: dealerName } } : {};
+    })(),
     finance_partner_id: app.financePartnerId ?? app.financePartner?.id ?? null,
     finance_partner_name: app.financePartner?.name ?? null,
     finance_partner_code: app.financePartner?.code ?? null,

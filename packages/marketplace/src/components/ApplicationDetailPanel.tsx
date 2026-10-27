@@ -1145,7 +1145,7 @@ export function ApplicationDetailPanel({ app }: { app: ApplicationDetailData }) 
           font-size: 14px; padding: 10px 12px; background: var(--dm-canvas); border-radius: 8px;
           min-width: 0;
         }
-        .dm-app-detail__doc-list li > span { min-width: 0; overflow-wrap: anywhere; }
+        .dm-app-detail__doc-list li > span { flex: 1 1 12rem; min-width: 0; overflow-wrap: break-word; word-break: normal; }
         .dm-app-detail__doc-list a { font-weight: 600; color: var(--dm-steel); flex-shrink: 0; }
         .dm-app-detail__checklist {
           display: grid;

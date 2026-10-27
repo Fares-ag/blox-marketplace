@@ -21,7 +21,7 @@ import { ActivityService } from '../common/activity.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ApplicationDocCategory } from './application-documents';
-import { resolveStoredDocumentCategory } from './application-documents';
+import { removeApplicationDocumentsForSlot, resolveStoredDocumentCategory } from './application-documents';
 import { buildApplicationPricingSnapshot, resolveTenureMonths } from './application-pricing';
 import { buildPlanFromPricingSnapshot } from '@drivemarket/shared/installment-plan';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
@@ -509,22 +509,21 @@ export class ApplicationsStaffService {
     //
     // It is also the state in which the partner asks for more paperwork, which
     // is exactly when a dealer needs to attach it.
-    if (
-      ![
-        'draft',
-        'under_review',
-        'partner_processing',
-        'resubmission_required',
-        'rejected',
-        'contract_signing_required',
-        'contracts_submitted',
-        'contract_under_review',
-      ].includes(app.status)
-    ) {
+    const dealerEditable = ['draft', 'resubmission_required', 'rejected', 'partner_processing'];
+    const staffEditable = [
+      ...dealerEditable,
+      'under_review',
+      'contract_signing_required',
+      'contracts_submitted',
+      'contract_under_review',
+    ];
+    const allowedStatuses = isDealer ? dealerEditable : staffEditable;
+    if (!allowedStatuses.includes(app.status)) {
       throw new BadRequestException('validation_failed');
     }
 
     storage.assertKycFile(file);
+    await removeApplicationDocumentsForSlot(this.prisma, id, category);
     const stored = resolveStoredDocumentCategory(category);
     const key = await storage.uploadKyc(file, id, stored.category);
     const doc = await this.prisma.applicationDocument.create({

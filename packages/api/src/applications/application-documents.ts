@@ -1,9 +1,10 @@
 import {
+  documentMatchesSlot,
   documentSlotsFor,
   identityPresentSet,
   missingDocumentCategories,
   qautoDocumentSlots,
-  usesQautoDocumentPack,
+  usesDealerCreditDocumentPack,
   type DocumentSlot,
   type DocumentSlotContext,
   type DocumentSlotProfile,
@@ -109,6 +110,32 @@ function hasManualQidSide(documents: ApplicationDocumentForValidation[], side: '
 }
 
 /** Map the apply-flow front/back slots onto the stored `qid` category. */
+type ApplicationDocumentStore = {
+  applicationDocument: {
+    findMany: (args: { where: { applicationId: string } }) => Promise<
+      Array<{ id: string; category: string; kycDocumentType: string | null }>
+    >;
+    deleteMany: (args: { where: { id: { in: string[] } } }) => Promise<{ count: number }>;
+  };
+};
+
+/** Drop prior uploads for the same checklist slot so re-upload replaces instead of stacking. */
+export async function removeApplicationDocumentsForSlot(
+  prisma: ApplicationDocumentStore,
+  applicationId: string,
+  slotCategory: string,
+): Promise<number> {
+  const existing = await prisma.applicationDocument.findMany({ where: { applicationId } });
+  const ids = existing
+    .filter((doc) =>
+      documentMatchesSlot({ category: doc.category, kycDocumentType: doc.kycDocumentType }, slotCategory),
+    )
+    .map((doc) => doc.id);
+  if (!ids.length) return 0;
+  const removed = await prisma.applicationDocument.deleteMany({ where: { id: { in: ids } } });
+  return removed.count;
+}
+
 export function resolveStoredDocumentCategory(category: string): {
   category: Exclude<ApplicationDocCategory, 'qid_front' | 'qid_back'>;
   kycDocumentType?: 'qid_front' | 'qid_back';
@@ -197,6 +224,8 @@ export function documentProfileFromSnapshot(
     applicantType: snapshot.applicantType,
     companyCode: ctx.companyCode,
     companyName: ctx.companyName,
+    financePartnerCode: ctx.financePartnerCode,
+    financingType: ctx.financingType,
   };
 }
 
@@ -230,7 +259,7 @@ export function missingDocumentsForApplication(
   ctx: DocumentSlotContext = {},
 ): string[] {
   const profile = documentProfileFromSnapshot(snapshotRaw, ctx);
-  if (usesQautoDocumentPack(profile)) {
+  if (usesDealerCreditDocumentPack(profile)) {
     return [...missingDocumentCategories(profile, uploadedDocumentCategories(documents, policy))];
   }
   if (profile.applicantType === 'corporate') {
@@ -254,7 +283,7 @@ export function applicationDocumentSlots(
   ctx: DocumentSlotContext = {},
 ): ApplicationDocumentSlot[] {
   const profile = documentProfileFromSnapshot(snapshotRaw, ctx);
-  if (usesQautoDocumentPack(profile)) return qautoDocumentSlots(profile).map((slot) => ({ ...slot }));
+  if (usesDealerCreditDocumentPack(profile)) return qautoDocumentSlots(profile).map((slot) => ({ ...slot }));
   return profile.applicantType === 'corporate'
     ? CORPORATE_DOCUMENT_SLOTS.map((slot) => ({ ...slot }))
     : documentSlotsFor(profile).map((slot) => ({ ...slot }));

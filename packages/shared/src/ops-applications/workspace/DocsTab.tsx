@@ -12,6 +12,7 @@ import {
   DOCUMENT_SLOT_GROUP_LABEL_KEYS,
   KYC_UPLOAD_ACCEPT,
   customerInfoFromSnapshot,
+  documentSlotContextForWorkspace,
   groupDocumentSlots,
   kycUploadRejection,
   slotSatisfiedBy,
@@ -44,8 +45,8 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
   const slots: ChecklistSlot[] = useMemo(() => {
     const server = slotsQuery.data?.slots;
     if (server?.length) return server.map((slot) => ({ ...slot }));
-    return wizardDocumentSlots(info, { companyCode: data.company?.code, companyName: data.company?.name });
-  }, [slotsQuery.data, info]);
+    return wizardDocumentSlots(info, documentSlotContextForWorkspace(data));
+  }, [slotsQuery.data, info, data]);
 
   const uploaded = useMemo(() => {
     const set = new Set<string>(slotsQuery.data?.uploaded ?? []);
@@ -126,77 +127,76 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                   <span className="blox-doc-row__ic" aria-hidden>
                     {first ? (first.mime_type?.includes('pdf') ? 'PDF' : 'IMG') : '—'}
                   </span>
-                  <span className="blox-doc-row__name">
-                    <strong>{slotLabel(slot)}</strong>
-                    {(hint || freshness || isQuotation) && (
-                      <>
-                        <br />
-                        <small className="blox-muted">
-                          {isQuotation ? t('dealerOps.docs.attachQuotationHint') : hint}
-                          {freshness ? ` · ${freshness}` : ''}
-                          {isQuotation && first?.created_at
-                            ? ` · ${t('inventoryRules.quotationAttached', { date: new Date(first.created_at).toLocaleDateString() })}`
-                            : ''}
-                        </small>
-                      </>
-                    )}
-                    {isStale ? (
-                      <>
-                        <br />
-                        <small className="blox-field__error" role="status">
-                          {t('dealerOps.docs.staleHint', { date: uploadedDate, days: slot.maxAgeDays ?? '' })}
-                        </small>
-                      </>
-                    ) : satisfied && uploadedDate && !isQuotation ? (
-                      <>
-                        <br />
-                        <small className="blox-muted">{t('dealerOps.docs.uploadedAt', { date: uploadedDate })}</small>
-                      </>
-                    ) : null}
-                  </span>
-                  <OpsStatusPill
-                    label={slot.required ? t('dealerOps.intake.slotRequired') : t('dealerOps.intake.slotOptional')}
-                    variant={slot.required ? 'ink' : 'outline'}
-                  />
-                  {satisfied ? (
-                    isStale ? (
-                      <OpsStatusPill label={t('dealerOps.docs.stale')} variant="danger" />
-                    ) : (
-                      <OpsStatusPill label={t('dealerOps.docs.fileCount', { count: Math.max(files.length, 1) })} variant="success" />
-                    )
-                  ) : (
-                    <OpsStatusPill label={t('dealerOps.intake.slotMissing')} variant={slot.required ? 'warning' : 'neutral'} />
-                  )}
-                  {first && (
-                    <ApplicationDocumentActions
-                      filePath={`/applications/${id}/documents/${first.id}/file`}
-                      viewLabel={t('ops.common.view')}
-                      downloadLabel={t('ops.common.download')}
-                      fallbackFilename={first.original_name ?? `${slot.category}.pdf`}
-                    />
-                  )}
-                  {actions.uploadDocs && (
-                    <FileDropzone
-                      className={`blox-upload-dropzone blox-upload-dropzone--inline${isStale ? ' is-missing' : ''}${satisfied && !isStale ? ' is-filled' : ''}`}
-                      accept={KYC_UPLOAD_ACCEPT}
-                      disabled={mutations.uploadDoc.isPending}
-                      onFile={(file) => {
-                        const fake = { target: { files: [file], value: '' } } as unknown as ChangeEvent<HTMLInputElement>;
-                        onPick(fake, slot.category);
-                      }}
-                    >
-                      <span className="blox-upload-dropzone__action">
-                        {isQuotation && !satisfied
-                          ? t('inventoryRules.attachQuotation')
-                          : isStale
-                            ? t('applyFlow.docs.reupload')
-                            : satisfied
-                              ? t('dealerOps.docs.replace')
-                              : t('dealerOps.docs.upload')}
-                      </span>
-                      <small className="blox-upload-dropzone__hint">{t('dealerOps.docs.dropHint')}</small>
-                    </FileDropzone>
-                  )}
+                  <div className="blox-doc-row__body">
+                    <div className="blox-doc-row__head">
+                      <div className="blox-doc-row__name">
+                        <strong>{slotLabel(slot)}</strong>
+                        {(hint || freshness || isQuotation) && (
+                          <small className="blox-doc-row__sub">
+                            {isQuotation ? t('dealerOps.docs.attachQuotationHint') : hint}
+                            {freshness ? ` · ${freshness}` : ''}
+                            {isQuotation && first?.created_at
+                              ? ` · ${t('inventoryRules.quotationAttached', { date: new Date(first.created_at).toLocaleDateString() })}`
+                              : ''}
+                          </small>
+                        )}
+                        {isStale ? (
+                          <small className="blox-field__error" role="status">
+                            {t('dealerOps.docs.staleHint', { date: uploadedDate, days: slot.maxAgeDays ?? '' })}
+                          </small>
+                        ) : satisfied && uploadedDate && !isQuotation ? (
+                          <small className="blox-muted">{t('dealerOps.docs.uploadedAt', { date: uploadedDate })}</small>
+                        ) : null}
+                      </div>
+                      <div className="blox-doc-row__status">
+                        <OpsStatusPill
+                          label={slot.required ? t('dealerOps.intake.slotRequired') : t('dealerOps.intake.slotOptional')}
+                          variant={slot.required ? 'ink' : 'outline'}
+                        />
+                        {satisfied ? (
+                          isStale ? (
+                            <OpsStatusPill label={t('dealerOps.docs.stale')} variant="danger" />
+                          ) : (
+                            <OpsStatusPill label={t('dealerOps.docs.fileCount', { count: Math.max(files.length, 1) })} variant="success" />
+                          )
+                        ) : (
+                          <OpsStatusPill label={t('dealerOps.intake.slotMissing')} variant={slot.required ? 'warning' : 'neutral'} />
+                        )}
+                      </div>
+                    </div>
+                    <div className="blox-doc-row__actions">
+                      {first && (
+                        <ApplicationDocumentActions
+                          filePath={`/applications/${id}/documents/${first.id}/file`}
+                          viewLabel={t('ops.common.view')}
+                          downloadLabel={t('ops.common.download')}
+                          fallbackFilename={first.original_name ?? `${slot.category}.pdf`}
+                        />
+                      )}
+                      {actions.uploadDocs && (
+                        <FileDropzone
+                          className={`blox-upload-dropzone blox-upload-dropzone--inline${isStale ? ' is-missing' : ''}${satisfied && !isStale ? ' is-filled' : ''}`}
+                          accept={KYC_UPLOAD_ACCEPT}
+                          disabled={mutations.uploadDoc.isPending}
+                          onFile={(file) => {
+                            const fake = { target: { files: [file], value: '' } } as unknown as ChangeEvent<HTMLInputElement>;
+                            onPick(fake, slot.category);
+                          }}
+                        >
+                          <span className="blox-upload-dropzone__action">
+                            {isQuotation && !satisfied
+                              ? t('inventoryRules.attachQuotation')
+                              : isStale
+                                ? t('applyFlow.docs.reupload')
+                                : satisfied
+                                  ? t('dealerOps.docs.replace')
+                                  : t('dealerOps.docs.upload')}
+                          </span>
+                          <small className="blox-upload-dropzone__hint">{t('dealerOps.docs.dropHint')}</small>
+                        </FileDropzone>
+                      )}
+                    </div>
+                  </div>
                 </li>
               );
             })}

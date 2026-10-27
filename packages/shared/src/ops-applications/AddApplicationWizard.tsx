@@ -359,8 +359,8 @@ export function AddApplicationWizard({
     enabled: !isAdmin,
   });
 
-  const slotCtx = (companyId: string) =>
-    slotContextFor(
+  const slotCtx = (companyId: string, offerId?: string) => {
+    const base = slotContextFor(
       companyId,
       [
         ...(companies.data?.items ?? []),
@@ -368,6 +368,13 @@ export function AddApplicationWizard({
       ],
       user?.company_name,
     );
+    const offer = (offers.data?.items ?? []).find((o) => o.id === offerId);
+    return {
+      ...base,
+      financePartnerCode: offer?.finance_partner_code ?? null,
+      financingType: offer?.financing_type ?? null,
+    };
+  };
 
   const toggleProduct = useCallback(
     (data: WizardData, id: string, vehicleItems: VehicleOption[]) => {
@@ -768,9 +775,9 @@ export function AddApplicationWizard({
     {
       label: t('ops.wizard.step.documents'),
       validate: (data) =>
-        validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t, slotCtx(data.companyId)),
+        validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t, slotCtx(data.companyId, data.offerId)),
       component: ({ data, updateData }: StepProps<WizardData>) => {
-        const groups = groupDocumentSlots(wizardDocumentSlots(data.customerInfo, slotCtx(data.companyId)));
+        const groups = groupDocumentSlots(wizardDocumentSlots(data.customerInfo, slotCtx(data.companyId, data.offerId)));
         return (
           <>
             <p className="blox-muted">{t('dealerOps.intake.docsIntro')}</p>
@@ -848,7 +855,7 @@ export function AddApplicationWizard({
       validate: (data) => {
         const customerError = validateCustomerInfo(data.customerInfo ?? emptyCustomerInfo(), t);
         if (customerError) return customerError;
-        const docsError = validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t, slotCtx(data.companyId));
+        const docsError = validateRequiredWizardDocuments(data.files, data.customerInfo ?? emptyCustomerInfo(), t, slotCtx(data.companyId, data.offerId));
         if (docsError) return docsError;
         const vehicleError = validateSelectedVehicles(
           data,
@@ -882,7 +889,9 @@ export function AddApplicationWizard({
                   user?.company_name ??
                   undefined
             }
-            companyCode={slotCtx(data.companyId).companyCode}
+            companyCode={slotCtx(data.companyId, data.offerId).companyCode}
+            financePartnerCode={slotCtx(data.companyId, data.offerId).financePartnerCode}
+            financingType={slotCtx(data.companyId, data.offerId).financingType}
             agentCompanyId={isAdmin ? data.companyId : user?.company_id ?? ''}
             isAdmin={isAdmin}
             ruleViolations={ctx.violations}
@@ -898,7 +907,7 @@ export function AddApplicationWizard({
 
     const validationError =
       validateCustomerInfo(data.customerInfo, t) ??
-      validateRequiredWizardDocuments(data.files, data.customerInfo, t, slotCtx(data.companyId)) ??
+      validateRequiredWizardDocuments(data.files, data.customerInfo, t, slotCtx(data.companyId, data.offerId)) ??
       lenderApplicantError(data, planContext(data).lenderCode, t) ??
       balloonPlanError(data, planContext(data).lenderCode, planContext(data).offer, t) ??
       (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null);

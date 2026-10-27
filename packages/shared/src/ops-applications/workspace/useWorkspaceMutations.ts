@@ -92,10 +92,7 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
   const submit = useMutation({
     mutationFn: () => apiFetch(`/api/ops/applications/${id}/submit`, { method: 'POST' }),
     onSuccess: invalidate,
-    onError: (e: Error) => {
-      fail(e);
-      toast.error(e.message);
-    },
+    onError: fail,
   });
   const compliance = useMutation({
     mutationFn: () => apiFetch(`/api/ops/applications/${id}/compliance-check`, { method: 'POST' }),

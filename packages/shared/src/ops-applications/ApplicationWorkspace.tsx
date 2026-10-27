@@ -22,6 +22,7 @@ import { useWorkspaceMutations } from './workspace/useWorkspaceMutations';
 import { useGuarantorSession } from './workspace/GuarantorPanel';
 import { WorkspaceFacts } from './workspace/WorkspaceFacts';
 import { IdentityHoldBanner } from './workspace/IdentityHoldBanner';
+import { CreditFeedbackBanner } from './workspace/CreditFeedbackBanner';
 import { ReasonDialog } from './workspace/ReasonDialog';
 import { TagLenderDialog } from './workspace/TagLenderDialog';
 import { OverviewTab } from './workspace/OverviewTab';
@@ -373,6 +374,7 @@ export function ApplicationWorkspace({
           onClear={() => setReasonRequest({ kind: 'clearHold' })}
           busy={mutations.clearIdentityHold.isPending}
         />
+        <CreditFeedbackBanner data={data} />
 
         <WorkspaceFacts
           data={data}

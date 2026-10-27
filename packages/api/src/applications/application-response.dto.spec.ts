@@ -9,6 +9,7 @@ import {
   toDealerApplicationDto,
   toDealerApplicationListItemDto,
   toOpsApplicationDto,
+  resolveDealerCompanyName,
   toOpsApplicationQueueItemDto,
   toTakafulPolicyDto,
 } from './application-response.dto';
@@ -313,6 +314,35 @@ describe('application-response.dto', () => {
     expect((dealer.customer_snapshot as Record<string, unknown>).phone).toBe('+97455512345');
     expect(dealer.customer?.phone).toBe('+97455512345');
     expect(dealer).toMatchObject({ finance_partner_name: 'Blox Finance', branch_name: 'West Bay' });
+  });
+
+  it('resolves dealer name from the listing company when the application company row is absent', () => {
+    expect(
+      resolveDealerCompanyName({
+        company: null,
+        product: { company: { name: 'QA-TEST Motors (do not use)' } },
+      }),
+    ).toBe('QA-TEST Motors (do not use)');
+    const queue = toOpsApplicationQueueItemDto({
+      id: 'app-qa',
+      referenceSeq: 6,
+      status: 'under_review',
+      createdAt: new Date('2026-09-22T00:00:00.000Z'),
+      customerSnapshot: { full_name: 'Demo Customer', qid: '28012345679', phone: '+97455512345' },
+      pricingSnapshot: { list_price: 100_000, rate: 11.9, monthly: 2000 },
+      product: {
+        make: 'QA-TEST',
+        model: 'Do Not Buy Three',
+        modelYear: 2026,
+        slug: 'qa-test-three',
+        company: { name: 'QA-TEST Motors (do not use)' },
+      },
+      company: null,
+      customer: { name: 'Demo Customer', email: 'customer@drivemarket.local' },
+      agent: null,
+      paymentSchedules: [],
+    });
+    expect(queue.company).toEqual({ name: 'QA-TEST Motors (do not use)' });
   });
 
   it('maps takaful policies to the shared TakafulPolicyDto', () => {

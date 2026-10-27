@@ -397,9 +397,11 @@ export function ApplyPage() {
         documentProfile(form, residency, {
           companyCode: product?.company_code,
           companyName: product?.company_name ?? company?.name,
+          financePartnerCode: offer?.finance_partner_code ?? null,
+          financingType: offer?.financing_type ?? null,
         }),
       ),
-    [form, residency, product?.company_code, product?.company_name, company?.name],
+    [form, residency, product?.company_code, product?.company_name, company?.name, offer?.finance_partner_code, offer?.financing_type],
   );
   const slots = useMemo(
     () => (docsQuery.data?.slots?.length ? docsQuery.data.slots : localSlots),

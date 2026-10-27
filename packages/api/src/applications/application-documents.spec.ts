@@ -5,11 +5,28 @@ import {
   isSlotStale,
   missingRequiredDocumentCategories,
   newestUploadByCategory,
+  removeApplicationDocumentsForSlot,
   staleDocumentCategories,
   uploadedDocumentCategories,
 } from './application-documents';
 
 describe('application-documents', () => {
+  it('replaces prior uploads in the same slot when re-uploading', async () => {
+    const prisma = {
+      applicationDocument: {
+        findMany: async () => [
+          { id: 'old-bank', category: 'bank', kycDocumentType: null },
+          { id: 'keep-passport', category: 'passport', kycDocumentType: null },
+        ],
+        deleteMany: async ({ where }: { where: { id: { in: string[] } } }) => ({
+          count: where.id.in.length,
+        }),
+      },
+    };
+    const removed = await removeApplicationDocumentsForSlot(prisma, 'app-1', 'bank');
+    expect(removed).toBe(1);
+  });
+
   it('requires qid, salary, and bank', () => {
     expect(missingRequiredDocumentCategories([])).toEqual(['qid', 'salary', 'bank']);
   });
@@ -171,6 +188,28 @@ describe('document freshness', () => {
       'bank_liability',
     ]);
     expect(dto.missing).toEqual(['qid', 'salary', 'bank']);
+  });
+
+  it('returns the dealer credit document pack for in-house conventional finance', () => {
+    const dto = documentSlotsForApplication(
+      { applicantType: 'individual', employment: { employmentType: 'private-local' }, qid: '28563412345' },
+      [],
+      NOW,
+      {},
+      { financePartnerCode: 'in-house-finance' },
+    );
+    expect(dto.slots.map((slot) => slot.category)).toEqual([
+      'qid',
+      'passport',
+      'cr',
+      'computer_card',
+      'salary',
+      'bank',
+      'credit_bureau',
+      'rental_agreement',
+      'national_address',
+      'bank_liability',
+    ]);
   });
 
   describe('e-KYC identity policy (BRD BR-3)', () => {

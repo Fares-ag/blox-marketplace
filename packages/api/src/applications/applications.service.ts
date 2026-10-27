@@ -31,6 +31,7 @@ import {
 } from './application-pricing';
 import {
   documentSlotsForApplication,
+  removeApplicationDocumentsForSlot,
   resolveStoredDocumentCategory,
   type ApplicationDocCategory,
 } from './application-documents';
@@ -42,9 +43,8 @@ import { ApplicationsLifecycleService } from './applications-lifecycle.service';
 import { ApplicationIntakeService } from './application-intake.service';
 import { KycBridgeService } from '../kyc/kyc-bridge.service';
 import type { KycVerificationSummaryDto } from '../kyc/kyc-verification-summary';
-import {
-  opsCompanyFilter,
-} from './company-scope';
+import { opsCompanyFilter } from './company-scope';
+import { expandCompanyIds } from '../companies/company-hierarchy';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
 import {
   resolveCreditApproverId,
@@ -511,6 +511,8 @@ export class ApplicationsService {
         customerSnapshot: true,
         kycCaseId: true,
         company: { select: { code: true, name: true } },
+        financePartner: { select: { code: true } },
+        offer: { select: { financingType: true } },
       },
     });
     if (!app) throw new NotFoundException();
@@ -519,6 +521,8 @@ export class ApplicationsService {
     return documentSlotsForApplication(app.customerSnapshot, documents, new Date(), this.identityPolicy(), {
       companyCode: app.company?.code,
       companyName: app.company?.name,
+      financePartnerCode: app.financePartner?.code,
+      financingType: app.offer?.financingType,
     });
   }
 
@@ -880,13 +884,14 @@ export class ApplicationsService {
     const createdFrom = query.createdFrom ? new Date(query.createdFrom) : undefined;
     const createdTo = query.createdTo ? new Date(query.createdTo) : undefined;
     const requestedCompany = query.companyId?.trim();
+    const expandedRequested = requestedCompany
+      ? await expandCompanyIds(this.prisma, [requestedCompany])
+      : undefined;
     const scopedCompanyIds = companyFilter
-      ? requestedCompany
-        ? companyFilter.filter((id) => id === requestedCompany)
+      ? expandedRequested
+        ? companyFilter.filter((id) => expandedRequested.includes(id))
         : companyFilter
-      : requestedCompany
-        ? [requestedCompany]
-        : undefined;
+      : expandedRequested;
     const financePartnerId = query.financePartnerId?.trim();
     const where: Prisma.ApplicationWhereInput = {
       ...(statusIn ? { status: { in: statusIn } } : {}),
@@ -921,8 +926,17 @@ export class ApplicationsService {
       this.prisma.application.findMany({
         where,
         include: {
-          product: { select: { make: true, model: true, modelYear: true, slug: true, price: true } },
-          company: { select: { name: true } },
+          product: {
+            select: {
+              make: true,
+              model: true,
+              modelYear: true,
+              slug: true,
+              price: true,
+              company: { select: { name: true } },
+            },
+          },
+          company: { select: { id: true, name: true } },
           customer: { select: { name: true, email: true } },
           agent: { select: { id: true, name: true, email: true } },
           paymentSchedules: { select: { status: true, dueDate: true } },
@@ -996,7 +1010,16 @@ export class ApplicationsService {
       this.prisma.application.findMany({
         where,
         include: {
-          product: { select: { make: true, model: true, modelYear: true, slug: true } },
+          product: {
+            select: {
+              make: true,
+              model: true,
+              modelYear: true,
+              slug: true,
+              company: { select: { name: true } },
+            },
+          },
+          company: { select: { name: true } },
           customer: { select: { name: true, email: true, phone: true } },
           agent: { select: { id: true, name: true, email: true } },
           financePartner: { select: { id: true, name: true } },
@@ -1336,6 +1359,7 @@ export class ApplicationsService {
     }
 
     this.storage.assertKycFile(file);
+    await removeApplicationDocumentsForSlot(this.prisma, id, category);
     const stored = resolveStoredDocumentCategory(category);
     const key = await this.storage.uploadKyc(file, id, stored.category);
     const doc = await this.prisma.applicationDocument.create({

@@ -17,6 +17,9 @@ const ACTIVITY_EVENTS = [
   'pointerdown',
   'pointermove',
   'wheel',
+  'dragover',
+  'drop',
+  'dragenter',
 ] as const;
 
 /**

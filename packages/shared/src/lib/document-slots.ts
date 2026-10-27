@@ -6,6 +6,7 @@
  * The API and every portal call the same function so the customer, the sales
  * executive and the credit officer all see the same checklist.
  */
+import { isInHouseFinance } from './lender-criteria';
 import type { ResidencyClass } from './product-rules';
 
 export const DOCUMENT_SLOT_CATEGORIES = [
@@ -52,6 +53,8 @@ export type DocumentSlot = {
 export type DocumentSlotContext = {
   companyCode?: string | null;
   companyName?: string | null;
+  financePartnerCode?: string | null;
+  financingType?: string | null;
 };
 
 export type DocumentSlotProfile = {
@@ -68,6 +71,14 @@ export function isQautoCompany(codeOrName?: string | null): boolean {
 
 export function usesQautoDocumentPack(ctx: DocumentSlotContext = {}): boolean {
   return isQautoCompany(ctx.companyCode) || isQautoCompany(ctx.companyName);
+}
+
+/** QAuto dealers and conventional in-house finance share the same retail credit checklist. */
+export function usesDealerCreditDocumentPack(profile: DocumentSlotProfile): boolean {
+  if (usesQautoDocumentPack(profile)) return true;
+  if (isInHouseFinance(profile.financePartnerCode)) return true;
+  if (profile.financingType === 'conventional_interest') return true;
+  return false;
 }
 
 const SALARY_CERT_MAX_AGE_DAYS = 30;
@@ -128,7 +139,7 @@ export function qautoDocumentSlots(profile: DocumentSlotProfile): DocumentSlot[]
 
 /** Ordered slots for the checklist; `required` drives the submit gate. */
 export function documentSlotsFor(profile: DocumentSlotProfile): DocumentSlot[] {
-  if (usesQautoDocumentPack(profile)) return qautoDocumentSlots(profile);
+  if (usesDealerCreditDocumentPack(profile)) return qautoDocumentSlots(profile);
 
   const selfEmployed = isSelfEmployed(profile.employmentType);
   const expat = profile.residency === 'expat';
@@ -229,7 +240,7 @@ export function documentSlotsFromCustomerSnapshot(
   ctx: DocumentSlotContext = {},
 ): DocumentSlot[] {
   const profile = { ...documentSlotProfileFromSnapshot(snapshot), ...ctx };
-  if (usesQautoDocumentPack(profile)) return qautoDocumentSlots(profile);
+  if (usesDealerCreditDocumentPack(profile)) return qautoDocumentSlots(profile);
   if (profile.applicantType === 'corporate') return CORPORATE_FALLBACK_SLOTS.map((slot) => ({ ...slot }));
   return documentSlotsFor(profile);
 }
