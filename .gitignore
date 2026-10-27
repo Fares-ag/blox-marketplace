@@ -15,14 +15,16 @@ packages/api/.uploads
 packages/api/.test-database-url
 .vercel
 
-# Local env files (never commit outside secrets/)
+# Local env files
 .env
 .env.local
 .env.*
 !.env.example
 *.local
 
-# TEMPORARY: committed secrets vault — delete secrets/ before public release
-!secrets/
-!secrets/**
-.env*
+# Local credential copies (use platform dashboards + .env.example)
+secrets/*.env
+secrets/*.env.*
+secrets/*.local
+secrets/root.env.local
+secrets/marketplace.env.local
