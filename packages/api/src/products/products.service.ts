@@ -298,6 +298,7 @@ export class ProductsService {
               tenure_options: offer.tenureOptions,
               min_down_payment_pct: Number(offer.minDownPaymentPct),
               finance_partner_code: offer.financePartner?.code ?? null,
+              financing_type: offer.financingType ?? 'diminishing_musharakah',
             }
           : null,
       };

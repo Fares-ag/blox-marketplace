@@ -109,6 +109,7 @@ export interface ProductDetailResponse {
     tenure_options: number[];
     min_down_payment_pct: number;
     finance_partner_code?: string | null;
+    financing_type?: string | null;
   } | null;
 }
 
