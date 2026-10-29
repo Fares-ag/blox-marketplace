@@ -136,8 +136,8 @@ export function buildContractScheduleFromInstallmentPlan(
   const payableRows = (plan.schedule ?? []).filter((row) => row.paymentType !== 'down_payment');
   const installmentMonths = installmentRows.length;
   const installmentPrincipalPool =
-    structure && structure.installmentPercent > 0
-      ? roundMoney((listPrice * structure.installmentPercent) / 100)
+    structure && (structure.installmentPercent ?? 0) > 0
+      ? roundMoney((listPrice * (structure.installmentPercent ?? 0)) / 100)
       : roundMoney(Math.max(listPrice - downPayment - (plan.balloonPayment?.amount ?? 0), 0));
   const principalPerInstallment =
     installmentMonths > 0 ? roundMoney(installmentPrincipalPool / installmentMonths) : 0;

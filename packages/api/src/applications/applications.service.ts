@@ -1487,7 +1487,7 @@ export class ApplicationsService {
       dto.sellingPrice ?? pricing.selling_price ?? pricing.list_price ?? app.product.price ?? 0,
     );
     const catalogListPrice = Number(pricing.list_price ?? app.product.price ?? sellingPrice);
-    const next = {
+    const next: Record<string, unknown> = {
       ...buildApplicationPricingSnapshot({
         listPrice: sellingPrice,
         offer: app.offer,

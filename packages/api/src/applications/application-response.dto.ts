@@ -291,7 +291,9 @@ type ApplicationCore = {
 };
 
 type ApplicationRelations = {
-  product?: Partial<Parameters<typeof toApplicationProductDto>[0]> | null;
+  product?: (Partial<Parameters<typeof toApplicationProductDto>[0]> & {
+    company?: { name?: string | null } | null;
+  }) | null;
   documents?: Array<Partial<Parameters<typeof toApplicationDocumentDto>[0]>> | null;
   company?: { id?: string; name?: string; code?: string | null; allowDirectActivate?: boolean } | null;
   customer?: { name: string | null; email: string; phone?: string | null } | null;
