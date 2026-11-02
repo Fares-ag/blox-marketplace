@@ -148,7 +148,7 @@ describe('ops role journeys', () => {
 
     const resubmit = await authed(credit.agent)
       .post(`/api/v1/ops/applications/${draft.body.id}/transition`)
-      .send({ toStatus: 'resubmission_required', reason: 'Missing bank statement' });
+      .send({ toStatus: 'resubmission_required', reason: 'Missing bank statement', resubmission_items: ['bank'] });
     expect(resubmit.status).toBe(200);
     expect(resubmit.body.status).toBe('resubmission_required');
 

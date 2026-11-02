@@ -69,7 +69,11 @@ import {
   toOpsApplicationQueueItemDto,
   type ApplicationAudience,
 } from './application-response.dto';
-import { employerCategoryFromEmploymentType } from '@drivemarket/shared/domain-rules';
+import {
+  contractNumberValidationError,
+  employerCategoryFromEmploymentType,
+  normalizeContractSeries,
+} from '@drivemarket/shared/domain-rules';
 import { parseApplicationRef } from './application-reference';
 import { decideDuplicateApplication, summarizeBlocking } from './application-dedup';
 import { assertLenderApplicantGates, assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
@@ -593,6 +597,9 @@ export class ApplicationsService {
       throw new BadRequestException('invalid_status_transition');
     }
     const documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
+    const missingConsents = app.consentsCompletedAt
+      ? undefined
+      : await this.intake.missingMandatoryConsentCodes(app.customerUserId);
     // consents_required → documents_missing → documents_stale →
     // guarantor_consent_required → vehicle_identity_incomplete (only when
     // reserving) → vehicle_age_rule. An identity hold is non-blocking here.
@@ -603,6 +610,7 @@ export class ApplicationsService {
       requireVehicleIdentity:
         VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE && app.status === ApplicationStatus.draft,
       guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
+      missingConsents,
       identityPolicy: this.identityPolicy(),
       now: new Date(),
     });
@@ -740,20 +748,18 @@ export class ApplicationsService {
     const identityHoldClearedByName = await this.identityHoldClearedByName(app.identityHoldClearedById);
 
     let kycVerification: KycVerificationSummaryDto | null = null;
-    if ((audience === 'ops' || audience === 'dealer') && app.kycCaseId) {
+    if (audience === 'ops' || audience === 'dealer') {
       try {
-        await this.kycBridge.syncDocumentsForApplication(id);
-        app.documents = await this.prisma.applicationDocument.findMany({
-          where: { applicationId: id },
-          orderBy: { createdAt: 'asc' },
-        });
-        kycVerification = await this.kycBridge.getVerificationSummary(
-          id,
-          app.kycCaseId,
-          app.kycStatus,
-        );
+        app.documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
+        if (app.kycCaseId) {
+          kycVerification = await this.kycBridge.getVerificationSummary(
+            id,
+            app.kycCaseId,
+            app.kycStatus,
+          );
+        }
       } catch {
-        // Non-fatal: show whatever was synced via webhooks.
+        // Non-fatal: show whatever was synced via webhooks or prior uploads.
       }
     }
 
@@ -1043,17 +1049,22 @@ export class ApplicationsService {
       comment?: string;
       customerSnapshot?: Record<string, unknown>;
       hideInterest?: boolean;
+      sapNumber?: string | null;
+      contractSeries?: string | null;
+      contractNumber?: string | null;
     },
   ) {
     const isAdmin = user.role === UserRole.admin || user.role === UserRole.super_admin;
     const isCredit = user.role === UserRole.credit_officer;
-    if (!isAdmin && !isCredit) throw new ForbiddenException('forbidden_role');
+    const isDealer = user.role === UserRole.dealer_agent;
+    if (!isAdmin && !isCredit && !isDealer) throw new ForbiddenException('forbidden_role');
 
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException();
     await assertApplicationCanView(this.prisma, user, app);
 
     if (body.comment?.trim()) {
+      if (isDealer) throw new ForbiddenException('forbidden_role');
       await this.activity.log({
         actorUserId: user.id,
         entityType: 'application',
@@ -1063,6 +1074,13 @@ export class ApplicationsService {
       });
     }
 
+    if (isCredit && !isAdmin && body.sapNumber !== undefined) {
+      throw new ForbiddenException('forbidden_role');
+    }
+    if (isDealer && (body.contractSeries !== undefined || body.contractNumber !== undefined)) {
+      throw new ForbiddenException('forbidden_role');
+    }
+
     const data: Prisma.ApplicationUpdateInput = {};
     if (isAdmin && body.agentUserId !== undefined) {
       data.agent = body.agentUserId ? { connect: { id: body.agentUserId } } : { disconnect: true };
@@ -1070,7 +1088,29 @@ export class ApplicationsService {
     if (isAdmin && body.companyId) {
       data.company = { connect: { id: body.companyId } };
     }
+    if ((isDealer || isAdmin) && body.sapNumber !== undefined) {
+      const sap = body.sapNumber?.trim() || null;
+      data.sapNumber = sap;
+    }
+    if ((isCredit || isAdmin) && (body.contractSeries !== undefined || body.contractNumber !== undefined)) {
+      if (body.contractSeries !== undefined) {
+        data.contractSeries = normalizeContractSeries(body.contractSeries) || null;
+      }
+      if (body.contractNumber !== undefined) {
+        const contractErr = contractNumberValidationError(body.contractNumber);
+        if (contractErr === 'invalid') {
+          throw new BadRequestException('validation_failed');
+        }
+        data.contractNumber = body.contractNumber?.trim() || null;
+      }
+    }
     if (body.customerSnapshot && typeof body.customerSnapshot === 'object') {
+      if (isDealer && app.status !== ApplicationStatus.resubmission_required) {
+        throw new ForbiddenException('forbidden_role');
+      }
+      if (!isDealer && !isAdmin && !isCredit) {
+        throw new ForbiddenException('forbidden_role');
+      }
       // Same normalisation as intake so residency/nationality stay QID-derived
       // and the blind index follows a corrected QID.
       const normalized = normalizeCustomerSnapshot(
@@ -1084,6 +1124,7 @@ export class ApplicationsService {
       data.qidHash = this.intake.qidHash(normalized.snapshot.qid);
     }
     if (body.hideInterest !== undefined) {
+      if (isDealer) throw new ForbiddenException('forbidden_role');
       const pricing = (app.pricingSnapshot as Record<string, unknown>) ?? {};
       data.pricingSnapshot = asJson({ ...pricing, hide_interest: body.hideInterest });
     }
@@ -1221,8 +1262,9 @@ export class ApplicationsService {
     toStatus: ApplicationStatus,
     reason?: string,
     overrideReason?: string,
+    resubmissionItems?: string[],
   ) {
-    return this.lifecycle.opsTransition(user, id, toStatus, reason, overrideReason);
+    return this.lifecycle.opsTransition(user, id, toStatus, reason, overrideReason, resubmissionItems);
   }
 
   async resubmit(user: User, id: string) {
@@ -1235,12 +1277,16 @@ export class ApplicationsService {
       throw new BadRequestException('invalid_status_transition');
     }
     const documents = await this.loadDocumentsForSubmit(id, app.kycCaseId);
+    const missingConsents = app.consentsCompletedAt
+      ? undefined
+      : await this.intake.missingMandatoryConsentCodes(app.customerUserId);
     assertSubmitGates({
       application: app,
       documents,
       product: app.product,
       requireVehicleIdentity: false,
       guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
+      missingConsents,
       identityPolicy: this.identityPolicy(),
       now: new Date(),
     });
@@ -1263,6 +1309,7 @@ export class ApplicationsService {
       await transitionApplication(tx, id, ApplicationStatus.resubmission_required, {
         status: nextStatus,
         ...creditAssessmentData(assessed, app.pricingSnapshot),
+        resubmissionItems: Prisma.JsonNull,
       });
       return tx.application.findUniqueOrThrow({ where: { id } });
     });

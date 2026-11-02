@@ -27,6 +27,22 @@ describe('application-documents', () => {
     expect(removed).toBe(1);
   });
 
+  it('removes every duplicate row in the same slot before re-upload', async () => {
+    const prisma = {
+      applicationDocument: {
+        findMany: async () => [
+          { id: 'bank-a', category: 'bank', kycDocumentType: null },
+          { id: 'bank-b', category: 'bank', kycDocumentType: null },
+        ],
+        deleteMany: async ({ where }: { where: { id: { in: string[] } } }) => ({
+          count: where.id.in.length,
+        }),
+      },
+    };
+    const removed = await removeApplicationDocumentsForSlot(prisma, 'app-1', 'bank');
+    expect(removed).toBe(2);
+  });
+
   it('requires qid, salary, and bank', () => {
     expect(missingRequiredDocumentCategories([])).toEqual(['qid', 'salary', 'bank']);
   });

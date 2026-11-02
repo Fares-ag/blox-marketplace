@@ -102,6 +102,11 @@
     padding-inline-start: 10px;
     border-inline-start: 3px solid var(--blox-emerald);
   }
+
+  &.is-resubmit {
+    background: var(--blox-warning-soft, #fbf1df);
+    border-color: var(--blox-warning, #c47a00);
+  }
 }
 
 .blox-info-item {
@@ -127,6 +132,15 @@
     min-width: 0;
     overflow-wrap: break-word;
     word-break: normal;
+  }
+
+  &.is-resubmit {
+    background: var(--blox-warning-soft, #fbf1df);
+    border-radius: 6px;
+    padding-inline: 10px;
+    margin-inline: -10px;
+    border-bottom-color: transparent;
+    border-inline-start: 3px solid var(--blox-warning, #c47a00);
   }
 
   em {
@@ -424,5 +438,33 @@
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+}
+
+.blox-resubmit-picks {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--blox-border);
+  border-radius: var(--blox-radius-control, 8px);
+  min-width: 0;
+
+  legend {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--blox-deep-green);
+    padding: 0 4px;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+}
+
+.blox-resubmit-banner-list {
+  margin: 8px 0 0;
+  padding-inline-start: 1.15em;
 }
 

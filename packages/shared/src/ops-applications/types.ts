@@ -228,6 +228,10 @@ export type OpsWorkspace = {
   allow_direct_activate?: boolean;
   rejection_reason?: string | null;
   resubmission_comment?: string | null;
+  resubmission_items?: string[] | null;
+  sap_number?: string | null;
+  contract_series?: string | null;
+  contract_number?: string | null;
   /** True when the current user is the credit approver and SoD blocks them from payments. */
   separation_of_duties_blocked?: boolean;
   down_payment_required?: number | null;
@@ -256,4 +260,5 @@ export type StaffCreatePayload = {
   hideInterest?: boolean;
   companyId?: string;
   submit?: boolean;
+  sapNumber?: string;
 };

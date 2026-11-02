@@ -94,8 +94,8 @@ describe('resolveSessionCookieCacheMaxAge', () => {
 describe('resolvePrivilegedLoginLockout', () => {
   it('uses secure defaults', () => {
     expect(resolvePrivilegedLoginLockout(mockConfig({}) as never)).toEqual({
-      maxFailedAttempts: 5,
-      lockoutDurationSeconds: 900,
+      maxFailedAttempts: 10,
+      lockoutDurationSeconds: 300,
     });
   });
 });

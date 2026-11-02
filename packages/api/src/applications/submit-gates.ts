@@ -42,6 +42,8 @@ export type SubmitGateFailure = {
   code: SubmitGateCode;
   missing?: string[];
   stale?: string[];
+  /** Mandatory consent codes still outstanding on the customer account. */
+  missingConsents?: string[];
   params?: Record<string, number>;
 };
 
@@ -83,6 +85,8 @@ export type SubmitGateInput = {
   guarantorConsentCompleted?: boolean;
   /** e-KYC policy for the identity slot (BRD BR-7/BR-8): omitted ⇒ manual QID uploads still count. */
   identityPolicy?: IdentityPolicy;
+  /** Populated by the caller when consents are incomplete — surfaced to the dealer UI. */
+  missingConsents?: string[];
   now?: Date;
 };
 
@@ -110,7 +114,10 @@ export function evaluateSubmitGates(input: SubmitGateInput): SubmitGateFailure |
   // still submit, and ops follows up via `identityHoldActive`. See SUBMIT_GATE_ORDER.
 
   if (input.requireConsents !== false && !application.consentsCompletedAt) {
-    return { code: 'consents_required' };
+    return {
+      code: 'consents_required',
+      missingConsents: input.missingConsents?.length ? input.missingConsents : undefined,
+    };
   }
 
   const slotCtx = {
@@ -172,6 +179,12 @@ export function assertSubmitGates(input: SubmitGateInput): void {
   }
   if (failure.code === 'vehicle_age_rule') {
     throw new ConflictException({ message: 'vehicle_age_rule', ...(failure.params ?? {}) });
+  }
+  if (failure.code === 'consents_required') {
+    throw new ConflictException({
+      message: 'consents_required',
+      missing: failure.missingConsents ?? [],
+    });
   }
   throw new ConflictException(failure.code);
 }

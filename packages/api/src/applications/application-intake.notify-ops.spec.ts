@@ -1,6 +1,6 @@
 import { UserRole } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import { ApplicationIntakeService } from './application-intake.service';
+import { ApplicationIntakeService, creditQueueNoticeBody } from './application-intake.service';
 
 function buildService(
   targets: Array<{ id: string; role: UserRole }>,
@@ -17,6 +17,15 @@ function buildService(
         ),
       ),
     },
+    application: {
+      findUnique: vi.fn().mockResolvedValue({
+        customerEmail: 'sara@example.com',
+        customerSnapshot: { full_name: 'Sara Ali' },
+        referenceSeq: 17,
+        company: { name: company.id === 'qauto-audi' ? 'QAuto Audi' : 'Chery Elite Motors' },
+        customer: { name: 'Sara Ali' },
+      }),
+    },
   };
   const activity = {
     log: vi.fn().mockResolvedValue(undefined),
@@ -31,6 +40,18 @@ function buildService(
   );
   return { service, prisma, activity };
 }
+
+describe('creditQueueNoticeBody', () => {
+  it('never embeds a company UUID when the dealer name is missing', () => {
+    const companyId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const body = creditQueueNoticeBody(
+      { customerSnapshot: { full_name: 'Sara Ali' }, company: { name: null } },
+      companyId,
+    );
+    expect(body).toBe('Sara Ali at a dealer submitted a financing application.');
+    expect(body).not.toContain(companyId);
+  });
+});
 
 describe('ApplicationIntakeService.notifyOps', () => {
   it('emails in-scope credit officers when a BloX application enters the queue', async () => {
@@ -112,7 +133,7 @@ describe('ApplicationIntakeService.notifyOps', () => {
     expect(activity.notify).toHaveBeenCalledWith(
       'qauto-credit',
       'New financing application',
-      'A customer submitted a financing application.',
+      'Sara Ali at QAuto Audi submitted a financing application (BLOX-0017).',
       '/applications/app-3',
       { forceEmail: true },
     );

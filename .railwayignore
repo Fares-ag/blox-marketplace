@@ -33,6 +33,8 @@ packages/super-admin
 **/*.mp4
 **/*.mov
 **/*.pdf
+# Q-Auto form masters are overlaid at contract generation (copied by the API Dockerfile).
+!packages/api/assets/qauto-forms/*.pdf
 **/*.docx
 !packages/api/src/applications/documents/templates/*.docx
 **/*.xlsx

@@ -1,21 +1,27 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
+import { apiFetch } from '../../lib/api';
 import { OpsDetailGrid } from '../../ops-ui-v2';
-import { OpsStatusPill } from '../../components/ops-ui';
+import { OpsPrimaryButton, OpsStatusPill } from '../../components/ops-ui';
 import { apiFileUrl } from '../../lib/api';
 import { ApplicationDocumentActions } from '../ApplicationDocumentActions';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
+import { CustomerInfoForm } from '../CustomerInfoForm';
 import { CustomerInfoOverview } from '../CustomerInfoOverview';
 import { documentsForSlot } from '../../lib/document-slots';
 import {
+  buildCustomerSnapshot,
   customerInfoFromSnapshot,
   ruleViolationMessage,
   slotSatisfiedBy,
   documentSlotContextForWorkspace,
   wizardDocumentSlots,
+  type CustomerInfoFormValue,
 } from '../customer-info';
 import type { ProductRuleCode } from '../../lib/product-rules';
-import type { OpsRuleFlag } from '../types';
+import type { OpsDocumentSlotsResponse, OpsRuleFlag } from '../types';
+import { resubmissionHighlights } from '../../lib/credit-ops-fields';
 import { DecisionPanel } from './DecisionPanel';
 import { AssistedSessionPanel } from './AssistedSessionPanel';
 import { ConsentsPanel } from './ConsentsPanel';
@@ -42,6 +48,72 @@ function qar(value: unknown): string {
   return `QAR ${Number.isFinite(n) ? n.toLocaleString() : '0'}`;
 }
 
+function infoFromWorkspaceSnapshot(
+  snapshot: Record<string, unknown> | undefined,
+  customerEmail?: string | null,
+  customerName?: string | null,
+  customerPhone?: string | null,
+): CustomerInfoFormValue {
+  const info = customerInfoFromSnapshot(snapshot ?? {});
+  if (!info.email && customerEmail) info.email = customerEmail;
+  if (!info.phone && customerPhone) info.phone = customerPhone ?? '';
+  if (!info.firstName && !info.lastName && customerName) {
+    const parts = customerName.split(/\s+/);
+    info.firstName = parts[0] ?? '';
+    info.lastName = parts.slice(1).join(' ');
+  }
+  return info;
+}
+
+function DealerResubmitProfile({
+  snapshot,
+  customerEmail,
+  customerName,
+  customerPhone,
+  highlightFields,
+  saving,
+  onSave,
+}: {
+  snapshot?: Record<string, unknown> | null;
+  customerEmail?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  highlightFields: ReadonlySet<string>;
+  saving: boolean;
+  onSave: (next: Record<string, unknown>) => void;
+}) {
+  const { t } = useOpsLabels();
+  const initial = useMemo(
+    () => infoFromWorkspaceSnapshot(snapshot ?? undefined, customerEmail, customerName, customerPhone),
+    [snapshot, customerEmail, customerName, customerPhone],
+  );
+  const [value, setValue] = useState<CustomerInfoFormValue>(initial);
+  useEffect(() => {
+    setValue(initial);
+  }, [initial]);
+
+  return (
+    <>
+      <CustomerInfoForm
+        value={value}
+        onChange={setValue}
+        allowExistingCustomer={false}
+        highlightFields={highlightFields}
+      />
+      <div className="blox-panel__foot">
+        <OpsPrimaryButton
+          type="button"
+          disabled={saving}
+          loading={saving}
+          onClick={() => onSave(buildCustomerSnapshot(value))}
+        >
+          {t('ops.workspace.saveChanges')}
+        </OpsPrimaryButton>
+      </div>
+    </>
+  );
+}
+
 function ruleFlagLabel(flag: OpsRuleFlag, t: (key: string, opts?: Record<string, unknown>) => string): string {
   if (typeof flag === 'string') return t(`applyFlow.rule.${flag}`, { defaultValue: flag.replace(/_/g, ' ') });
   return ruleViolationMessage(
@@ -63,13 +135,28 @@ export function OverviewTab(props: Props) {
   const pricing = (data.pricing_snapshot ?? {}) as Record<string, unknown>;
   const snap = data.customer_snapshot ?? {};
   const info = useMemo(() => customerInfoFromSnapshot(snap), [snap]);
-  const requiredSlots = useMemo(
-    () =>
-      wizardDocumentSlots(info, documentSlotContextForWorkspace(data)).filter((slot) => slot.required),
-    [info, data],
-  );
+  const slotsQuery = useQuery({
+    queryKey: ['ops-app-document-slots', id],
+    queryFn: () => apiFetch<OpsDocumentSlotsResponse>(`/api/ops/applications/${id}/document-slots`),
+    enabled: !!id,
+    retry: false,
+  });
+  const requiredSlots = useMemo(() => {
+    const server = slotsQuery.data?.slots;
+    const base = server?.length
+      ? server
+      : wizardDocumentSlots(info, documentSlotContextForWorkspace(data));
+    return base.filter((slot) => slot.required);
+  }, [slotsQuery.data, info, data]);
   const docs = data.documents ?? [];
-  const uploaded = docs.map((d) => d.category);
+  const uploaded = useMemo(() => {
+    const set = new Set<string>(slotsQuery.data?.uploaded ?? []);
+    for (const doc of docs) {
+      if (doc.category) set.add(doc.category);
+      if (doc.kyc_document_type) set.add(doc.kyc_document_type);
+    }
+    return set;
+  }, [slotsQuery.data, docs]);
   const doneCount = requiredSlots.filter((slot) => slotSatisfiedBy(slot.category, uploaded)).length;
   const tenor = pricing.tenor as number | undefined;
   const down = Number(pricing.down_payment ?? 0);
@@ -80,21 +167,40 @@ export function OverviewTab(props: Props) {
   const audience = platform?.audience;
   const assistPhone = data.customer?.phone ?? info.phone;
   const assistEmail = data.customer?.email ?? data.customer_email ?? info.email;
+  const highlights = useMemo(() => resubmissionHighlights(data.resubmission_items), [data.resubmission_items]);
+  const canEditResubmitProfile =
+    (audience === 'dealer' || audience === 'admin' || audience === 'super_admin') &&
+    data.status === 'resubmission_required' &&
+    highlights.info.size > 0;
+  const highlightPlan = highlights.plan && audience !== 'dealer';
 
   return (
     <OpsDetailGrid
       main={
         <>
-          <CustomerInfoOverview
-            snapshot={snap}
-            customerEmail={data.customer_email ?? data.customer?.email}
-            customerName={data.customer?.name}
-            customerPhone={data.customer?.phone}
-            maskIdentity
-            reveal={platform?.reveal}
-          />
+          {canEditResubmitProfile ? (
+            <DealerResubmitProfile
+              snapshot={snap}
+              customerEmail={data.customer_email ?? data.customer?.email}
+              customerName={data.customer?.name}
+              customerPhone={data.customer?.phone}
+              highlightFields={highlights.info}
+              saving={props.mutations.patchEdit.isPending}
+              onSave={(customerSnapshot) => props.mutations.patchEdit.mutate({ customerSnapshot })}
+            />
+          ) : (
+            <CustomerInfoOverview
+              snapshot={snap}
+              customerEmail={data.customer_email ?? data.customer?.email}
+              customerName={data.customer?.name}
+              customerPhone={data.customer?.phone}
+              maskIdentity
+              reveal={platform?.reveal}
+              highlightFields={highlights.info}
+            />
+          )}
 
-          <section className="blox-detail-section">
+          <section className={`blox-detail-section${highlightPlan ? ' is-resubmit' : ''}`}>
             <h2 className="blox-panel__title">{t('ops.credit.applicantPlan')}</h2>
             <dl className="blox-kv blox-kv--two">
               <dt>{t('ops.credit.offer')}</dt>
@@ -196,7 +302,7 @@ export function OverviewTab(props: Props) {
                 const showImage = doc && isPreviewableImageDocument(doc);
 
                 return (
-                  <li key={cat} className="blox-doc-card">
+                  <li key={cat} className={`blox-doc-card${highlights.docs.has(cat) ? ' is-resubmit' : ''}`}>
                     <div className="blox-doc-card__preview">
                       {showImage && filePath ? (
                         <img src={apiFileUrl(filePath)} alt={displayName} className="blox-doc-card__thumb" loading="lazy" />

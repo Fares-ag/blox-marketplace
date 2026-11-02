@@ -48,6 +48,7 @@ import { formatApplicationRef } from './application-reference';
 import { assertApplicationCanView, BLOCKING_APPLICATION_STATUSES } from './application-access';
 import { transitionApplication } from './guarded-transitions';
 import { toApplicationDto, toOpsApplicationDto } from './application-response.dto';
+import { parseResubmissionItems } from '@drivemarket/shared/domain-rules';
 import {
   assessApplicationCredit,
   creditAssessedLogMetadata,
@@ -318,6 +319,9 @@ export class ApplicationsLifecycleService {
       overrideReason: opts?.overrideReason,
       kyc: kycCase,
       kycStatus: app.kycStatus,
+      sapNumber: app.sapNumber,
+      contractSeries: app.contractSeries,
+      contractNumber: app.contractNumber,
     });
 
     const pdf = await buildProgrammaticContractPdf(agreementType, fieldCtx);
@@ -523,6 +527,7 @@ export class ApplicationsLifecycleService {
     toStatus: ApplicationStatus,
     reason?: string,
     overrideReason?: string | null,
+    resubmissionItems?: string[] | null,
   ) {
     // The per-edge actor table in application-transitions.ts is the
     // authoritative gate; this only rejects roles that never transition.
@@ -550,6 +555,9 @@ export class ApplicationsLifecycleService {
     }
 
     if (opsTransitionRequiresReason(app.status, toStatus) && !reason?.trim()) {
+      throw new BadRequestException('validation_failed');
+    }
+    if (toStatus === ApplicationStatus.resubmission_required && parseResubmissionItems(resubmissionItems).length === 0) {
       throw new BadRequestException('validation_failed');
     }
 
@@ -626,6 +634,9 @@ export class ApplicationsLifecycleService {
         }
       }
 
+      const items = toStatus === ApplicationStatus.resubmission_required
+        ? parseResubmissionItems(resubmissionItems)
+        : [];
       const next = await tx.application.update({
         where: { id },
         data: {
@@ -638,6 +649,14 @@ export class ApplicationsLifecycleService {
             toStatus === 'contract_signing_required' || toStatus === 'resubmission_required'
               ? reason
               : app.resubmissionComment,
+          resubmissionItems:
+            toStatus === ApplicationStatus.resubmission_required
+              ? items
+              : toStatus === ApplicationStatus.under_review ||
+                  toStatus === ApplicationStatus.rejected ||
+                  toStatus === ApplicationStatus.submission_cancelled
+                ? Prisma.JsonNull
+                : undefined,
           ...(credit ? credit.columns : {}),
         },
       });
@@ -656,7 +675,12 @@ export class ApplicationsLifecycleService {
       action: 'status_transition',
       fromValue: app.status,
       toValue: toStatus,
-      metadata: { reason },
+      metadata: {
+        reason,
+        ...(toStatus === ApplicationStatus.resubmission_required
+          ? { resubmission_items: parseResubmissionItems(resubmissionItems) }
+          : {}),
+      },
     });
     if (credit) await this.logCreditDecision(user, id, credit, overrideReason);
     await this.kyc?.syncLegalHoldForStatus(app.kycCaseId, toStatus, reason);

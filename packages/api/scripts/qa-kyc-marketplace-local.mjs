@@ -368,7 +368,11 @@ async function main() {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toStatus: 'resubmission_required', reason: 'QA resubmit test' }),
+        body: JSON.stringify({
+          toStatus: 'resubmission_required',
+          reason: 'QA resubmit test',
+          resubmission_items: ['bank'],
+        }),
       },
     );
     record(

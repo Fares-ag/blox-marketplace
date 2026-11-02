@@ -89,6 +89,7 @@ enum ContractDocumentType {
   amortization_schedule
   qauto_retail_credit_application
   qauto_fleet_credit_application
+  qauto_vehicles_finance_agreement
 }
 
 enum ContractDocumentAudience {
@@ -647,7 +648,14 @@ model Application {
   agent              User?             @relation("AgentApplications", fields: [agentUserId], references: [id])
   rejectionReason    String?
   resubmissionComment String?
+  /// Fields credit asked the dealer to correct (see shared RESUBMISSION_ITEM_KEYS).
+  resubmissionItems  Json?             @map("resubmission_items")
   statusReason       String?
+  /// Dealer SAP / ERP customer number.
+  sapNumber          String?           @map("sap_number")
+  /// Credit contract series prefix (RSK, RA, Ru, RV, FU, FSK).
+  contractSeries     String?           @map("contract_series")
+  contractNumber     String?           @map("contract_number")
   submittedAt        DateTime?
   activatedAt        DateTime?
   completedAt        DateTime?

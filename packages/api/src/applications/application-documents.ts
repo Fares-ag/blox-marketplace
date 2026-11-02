@@ -1,5 +1,6 @@
 import {
   documentMatchesSlot,
+  documentsForSlot,
   documentSlotsFor,
   identityPresentSet,
   missingDocumentCategories,
@@ -126,11 +127,16 @@ export async function removeApplicationDocumentsForSlot(
   slotCategory: string,
 ): Promise<number> {
   const existing = await prisma.applicationDocument.findMany({ where: { applicationId } });
-  const ids = existing
-    .filter((doc) =>
-      documentMatchesSlot({ category: doc.category, kycDocumentType: doc.kycDocumentType }, slotCategory),
-    )
-    .map((doc) => doc.id);
+  const slotDocs = documentsForSlot(
+    existing.map((doc) => ({
+      id: doc.id,
+      category: doc.category,
+      kyc_document_type: doc.kycDocumentType,
+      kycDocumentType: doc.kycDocumentType,
+    })),
+    slotCategory,
+  );
+  const ids = [...new Set(slotDocs.map((doc) => String((doc as { id: string }).id)))];
   if (!ids.length) return 0;
   const removed = await prisma.applicationDocument.deleteMany({ where: { id: { in: ids } } });
   return removed.count;

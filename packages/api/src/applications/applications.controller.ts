@@ -17,6 +17,13 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
 import {
+  CONTRACT_NUMBER_MAX_LENGTH,
+  CONTRACT_SERIES,
+  RESUBMISSION_ITEM_KEYS,
+  SAP_NUMBER_MAX_LENGTH,
+  normalizeContractSeries,
+} from '@drivemarket/shared/domain-rules';
+import {
   IsArray,
   IsBoolean,
   IsDateString,
@@ -33,7 +40,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { Response } from 'express';
 import { CurrentUser, Roles } from '../auth/guards';
 import { QID_PATTERN, QID_VALIDATION_MESSAGE } from '../common/qid';
@@ -184,6 +191,9 @@ class TransitionDto {
   @IsOptional() @IsString() reason?: string;
   /** Super-admin justification for approving above the DBR hard cap (logged as `credit_override`). */
   @IsOptional() @IsString() @MaxLength(2000) override_reason?: string;
+  /** Checklist of fields/documents the dealer must correct (resubmission_required). */
+  @IsOptional() @IsArray() @IsIn([...RESUBMISSION_ITEM_KEYS], { each: true })
+  resubmission_items?: string[];
 }
 
 class ActivateDto {
@@ -273,6 +283,7 @@ class StaffCreateApplicationDto {
   @IsOptional() @IsBoolean() hideInterest?: boolean;
   @IsOptional() @IsString() companyId?: string;
   @IsOptional() @IsBoolean() submit?: boolean;
+  @IsOptional() @IsString() @MaxLength(SAP_NUMBER_MAX_LENGTH) sapNumber?: string;
 }
 
 class OpsApplicationsQueryDto extends PaginationQueryDto {
@@ -311,6 +322,12 @@ class PatchOpsApplicationDto {
   @IsOptional() @IsString() comment?: string;
   @IsOptional() @IsObject() customerSnapshot?: Record<string, unknown>;
   @IsOptional() @IsBoolean() hideInterest?: boolean;
+  @IsOptional() @IsString() @MaxLength(SAP_NUMBER_MAX_LENGTH) sapNumber?: string | null;
+  @IsOptional()
+  @Transform(({ value }) => (value == null || value === '' ? value : (normalizeContractSeries(value) ?? value)))
+  @IsIn([...CONTRACT_SERIES])
+  contractSeries?: string | null;
+  @IsOptional() @IsString() @MaxLength(CONTRACT_NUMBER_MAX_LENGTH) contractNumber?: string | null;
 }
 
 /** Roles that may read an application from the ops side (dealer agents scoped to their company). */
@@ -604,7 +621,7 @@ export class ApplicationsController {
     return this.staff.uploadDoc(user, id, dto.category, file, this.storage);
   }
 
-  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin)
+  @Roles(UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.dealer_agent)
   @Patch('ops/applications/:id')
   patchOps(
     @CurrentUser() user: User,
@@ -662,7 +679,7 @@ export class ApplicationsController {
     @Param('id') id: string,
     @Body() dto: TransitionDto,
   ) {
-    return this.apps.transition(user, id, dto.toStatus, dto.reason, dto.override_reason);
+    return this.apps.transition(user, id, dto.toStatus, dto.reason, dto.override_reason, dto.resubmission_items);
   }
 
   @Roles(UserRole.credit_officer, UserRole.finance_officer, UserRole.admin, UserRole.super_admin)

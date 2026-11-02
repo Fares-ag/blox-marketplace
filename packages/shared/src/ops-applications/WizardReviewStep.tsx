@@ -26,6 +26,7 @@ export type WizardReviewData = {
   listPrice: number;
   sellingPrice: number;
   hideInterest: boolean;
+  sapNumber?: string;
   submitOnCreate: boolean;
   offerId: string;
   tenure: number;
@@ -140,6 +141,7 @@ export function WizardReviewStep({
           label={t('ops.wizard.hideInterest')}
           value={data.hideInterest ? t('ops.common.yes') : t('ops.common.no')}
         />
+        <InfoItem label={t('ops.workspace.sapNumber')} value={data.sapNumber?.trim() || undefined} />
       </section>
 
       <section className="blox-detail-section">

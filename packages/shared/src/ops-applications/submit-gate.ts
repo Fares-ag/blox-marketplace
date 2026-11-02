@@ -1,4 +1,5 @@
 import { ApiError } from '../lib/api';
+import { CONSENT_CATALOG, isConsentCode } from '../lib/consents';
 import type { IntakeTranslate } from './customer-info';
 
 /**
@@ -43,6 +44,19 @@ export function submitGateCode(error: unknown): SubmitGateCode | null {
   return (SUBMIT_GATE_CODES as readonly string[]).includes(code) ? (code as SubmitGateCode) : null;
 }
 
+function consentLabels(codes: unknown, t: IntakeTranslate): string {
+  if (!Array.isArray(codes) || codes.length === 0) return '';
+  return codes
+    .map((code) => {
+      const key = String(code);
+      if (isConsentCode(key)) {
+        return t(`dealerOps.consentNames.${key}`, { defaultValue: CONSENT_CATALOG[key].title.en });
+      }
+      return key.replace(/_/g, ' ');
+    })
+    .join(', ');
+}
+
 function categoryLabels(categories: unknown, t: IntakeTranslate): string {
   if (!Array.isArray(categories) || categories.length === 0) return '';
   return categories
@@ -67,6 +81,13 @@ export function submitGateMessage(error: unknown, t: IntakeTranslate): string | 
   if (code === 'documents_stale') {
     const labels = categoryLabels(details.stale, t);
     return labels ? `${base} (${labels})` : base;
+  }
+  if (code === 'consents_required') {
+    const pending = consentLabels(details.missing, t);
+    const action = t('dealerOps.submitGate.consents_requiredAction');
+    return pending
+      ? `${t('dealerOps.submitGate.consents_requiredPending', { list: pending })} ${action}`
+      : `${base} ${action}`;
   }
   return base;
 }

@@ -91,6 +91,7 @@ describe('contract document field maps', () => {
       applicantType: 'individual',
     });
     expect(retail[0].documentType).toBe('qauto_retail_credit_application');
+    expect(retail[1].documentType).toBe('qauto_vehicles_finance_agreement');
     const fleet = documentsForFinancingType('diminishing_musharakah', {
       companyCode: 'qauto',
       applicantType: 'corporate',

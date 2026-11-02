@@ -322,6 +322,11 @@
   overflow: hidden;
   font-size: 0.8125rem;
 
+  &.is-resubmit {
+    background: var(--blox-warning-soft, #fbf1df);
+    border-color: var(--blox-warning, #c47a00);
+  }
+
   &__preview {
     aspect-ratio: 4 / 3;
     background: var(--blox-canvas, #f1f5f9);
@@ -363,7 +368,8 @@
   &__name {
     font-weight: 600;
     line-height: 1.3;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   &__footer {
@@ -395,6 +401,11 @@
   background: var(--blox-surface);
   transition: border-color var(--blox-motion-fast) var(--blox-ease-standard),
               box-shadow var(--blox-motion-fast) var(--blox-ease-standard);
+
+  &.is-resubmit {
+    background: var(--blox-warning-soft, #fbf1df);
+    border-color: var(--blox-warning, #c47a00);
+  }
 
   @media (hover: hover) {
     &:hover {

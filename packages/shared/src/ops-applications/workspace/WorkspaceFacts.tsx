@@ -5,6 +5,7 @@ import type { OpsWorkspace } from '../types';
 import { isGuarantorSessionActive } from './GuarantorPanel';
 import { isIdentityHoldActive } from './IdentityHoldBanner';
 import type { WorkspaceGuarantorProps } from './types';
+import { formatContractRef } from '../../lib/credit-ops-fields';
 import { resolveLenderLabel } from './lender-label';
 
 function qar(value: unknown): string {
@@ -54,6 +55,14 @@ export function WorkspaceFacts({
       <div className="blox-fact">
         <dt>{t('ops.workspace.fact.company')}</dt>
         <dd>{data.company?.name ?? '—'}</dd>
+      </div>
+      <div className="blox-fact">
+        <dt>{t('ops.workspace.sapNumber')}</dt>
+        <dd className="blox-table__mono">{data.sap_number?.trim() || '—'}</dd>
+      </div>
+      <div className="blox-fact">
+        <dt>{t('ops.workspace.contractRef')}</dt>
+        <dd className="blox-table__mono">{formatContractRef(data.contract_series, data.contract_number) || '—'}</dd>
       </div>
       <div className="blox-fact">
         <dt>{t('ops.workspace.fact.kyc')}</dt>

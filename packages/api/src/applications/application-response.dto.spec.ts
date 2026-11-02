@@ -182,6 +182,32 @@ describe('application-response.dto', () => {
     expect(mapApplicationDto(app, 'customer').status_reason).toBeUndefined();
   });
 
+  it('exposes SAP, contract number and resubmission items to dealer and ops only', () => {
+    const numbered = {
+      ...app,
+      sapNumber: 'SAP-991',
+      contractSeries: 'RSK',
+      contractNumber: '44012',
+      resubmissionItems: ['identity', 'bank'],
+    };
+    expect(toOpsApplicationDto(numbered)).toMatchObject({
+      sap_number: 'SAP-991',
+      contract_series: 'RSK',
+      contract_number: '44012',
+      resubmission_items: ['identity', 'bank'],
+    });
+    expect(toDealerApplicationDto(numbered)).toMatchObject({
+      sap_number: 'SAP-991',
+      contract_series: 'RSK',
+      contract_number: '44012',
+      resubmission_items: ['identity', 'bank'],
+    });
+    const customer = toApplicationDto(numbered) as Record<string, unknown>;
+    expect(customer).not.toHaveProperty('sap_number');
+    expect(customer).not.toHaveProperty('contract_series');
+    expect(customer).not.toHaveProperty('resubmission_items');
+  });
+
   it('never gives the customer a decision reason — status only', () => {
     const declined = { ...app, status: 'rejected' as const, rejectionReason: 'DBR above cap', statusReason: 'DBR above cap' };
     const customer = mapApplicationDto(declined, 'customer') as Record<string, unknown>;

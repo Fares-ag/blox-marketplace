@@ -165,7 +165,7 @@ describe('customer document vault (integration)', () => {
     const noFile = await uploadVault(customer.agent, { category: 'passport' }, null);
     expectApiError(noFile, 400, 'validation_failed');
 
-    const huge = Buffer.alloc(5 * 1024 * 1024 + 1, 0x41);
+    const huge = Buffer.alloc(20 * 1024 * 1024 + 1, 0x41);
     huge.write('%PDF-1.4', 0);
     const tooLarge = await uploadVault(customer.agent, { category: 'bank_statement' }, { content: huge, filename: 'big.pdf' });
     expectApiError(tooLarge, 400, 'file_too_large');

@@ -27,7 +27,9 @@ export type WorkspaceMutationOptions = {
  * object carrying a super-admin `override_reason` for a case above the DBR hard
  * cap (`dbr_above_hard_cap`, logged server-side as `credit_override`).
  */
-export type TransitionInput = string | { toStatus: string; override_reason?: string };
+export type TransitionInput =
+  | string
+  | { toStatus: string; override_reason?: string; resubmission_items?: string[] };
 export type ApproveInput = { override_reason?: string } | void;
 
 function overrideReasonOf(input: unknown): string | undefined {
@@ -54,12 +56,15 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     mutationFn: (input: TransitionInput) => {
       const toStatus = typeof input === 'string' ? input : input.toStatus;
       const overrideReason = overrideReasonOf(input);
+      const items =
+        typeof input === 'object' && Array.isArray(input.resubmission_items) ? input.resubmission_items : undefined;
       return apiFetch(`/api/ops/applications/${id}/transition`, {
         method: 'POST',
         body: JSON.stringify({
           toStatus,
           reason: opts.getReason().trim() || undefined,
           ...(overrideReason ? { override_reason: overrideReason } : {}),
+          ...(toStatus === 'resubmission_required' && items ? { resubmission_items: items } : {}),
         }),
       });
     },
@@ -112,8 +117,15 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
     onError: fail,
   });
   const patchEdit = useMutation({
-    mutationFn: (body: { hideInterest?: boolean; agentUserId?: string | null; companyId?: string }) =>
-      apiFetch(`/api/ops/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    mutationFn: (body: {
+      hideInterest?: boolean;
+      agentUserId?: string | null;
+      companyId?: string;
+      sapNumber?: string | null;
+      contractSeries?: string | null;
+      contractNumber?: string | null;
+      customerSnapshot?: Record<string, unknown>;
+    }) => apiFetch(`/api/ops/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     onSuccess: () => {
       opts.onEditSaved?.();
       invalidate();

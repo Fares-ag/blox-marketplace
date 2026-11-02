@@ -141,7 +141,11 @@ describe('finance ↔ credit parity', () => {
     // Resubmission from contract_signing_required used to be a UI button with no API edge.
     const resub = await authed(finance.agent)
       .post(`/api/v1/ops/applications/${app.id}/transition`)
-      .send({ toStatus: 'resubmission_required', reason: 'Bank statement unreadable' });
+      .send({
+        toStatus: 'resubmission_required',
+        reason: 'Bank statement unreadable',
+        resubmission_items: ['bank'],
+      });
     expect(resub.status).toBe(200);
     expect(resub.body.status).toBe('resubmission_required');
 

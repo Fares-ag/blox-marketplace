@@ -16,9 +16,9 @@ describe('login lockout helpers', () => {
   });
 
   it('locks after the configured number of failures', () => {
-    expect(lockoutExpiresAt(4, DEFAULT_LOGIN_LOCKOUT, now)).toBeNull();
-    const lockedUntil = lockoutExpiresAt(5, DEFAULT_LOGIN_LOCKOUT, now);
-    expect(lockedUntil?.toISOString()).toBe('2026-08-20T10:15:00.000Z');
+    expect(lockoutExpiresAt(9, DEFAULT_LOGIN_LOCKOUT, now)).toBeNull();
+    const lockedUntil = lockoutExpiresAt(10, DEFAULT_LOGIN_LOCKOUT, now);
+    expect(lockedUntil?.toISOString()).toBe('2026-08-20T10:05:00.000Z');
   });
 
   it('formats a human-readable lockout message', () => {

@@ -23,6 +23,7 @@ import { useGuarantorSession } from './workspace/GuarantorPanel';
 import { WorkspaceFacts } from './workspace/WorkspaceFacts';
 import { IdentityHoldBanner } from './workspace/IdentityHoldBanner';
 import { CreditFeedbackBanner } from './workspace/CreditFeedbackBanner';
+import { ReferenceNumbersPanel } from './workspace/ReferenceNumbersPanel';
 import { ReasonDialog } from './workspace/ReasonDialog';
 import { TagLenderDialog } from './workspace/TagLenderDialog';
 import { OverviewTab } from './workspace/OverviewTab';
@@ -68,6 +69,7 @@ export function ApplicationWorkspace({
   const role = user?.role;
   const [tab, setTab] = useState<Tab>('overview');
   const [reason, setReason] = useState('');
+  const [resubmitItems, setResubmitItems] = useState<string[]>([]);
   const [comment, setComment] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
@@ -142,6 +144,8 @@ export function ApplicationWorkspace({
   }
 
   const dealerRole = role === 'dealer_agent';
+  const canEditSap = dealerRole || isFullAdminRole(role);
+  const canEditContract = role === 'credit_officer' || isFullAdminRole(role);
   const canClearHold = role === 'credit_officer' || isFullAdminRole(role);
   const canTagLender = role === 'finance_officer' || isFullAdminRole(role);
   const canVerifyTakaful = canCreditDecide(role);
@@ -205,7 +209,11 @@ export function ApplicationWorkspace({
   const bloxPct = Math.max(0, 100 - customerPct);
 
   const canSeeLogs = audience === 'super_admin' || audience === 'admin' || audience === 'credit';
-  const visibleTabs = TABS.filter((name) => name !== 'logs' || canSeeLogs);
+  const visibleTabs = TABS.filter((name) => {
+    if (name === 'logs') return canSeeLogs;
+    if (name === 'comments') return audience !== 'dealer';
+    return true;
+  });
 
   const platform: WorkspacePlatformProps = {
     audience,
@@ -229,7 +237,18 @@ export function ApplicationWorkspace({
     guarantor: { hasGuarantor, session: guarantorSession.data ?? null, canSend: canSendGuarantorRequest },
   };
 
-  const panelProps: WorkspacePanelProps = { id, data, actions, mutations, label, setConfirm, setError, platform };
+  const panelProps: WorkspacePanelProps = {
+    id,
+    data,
+    actions,
+    mutations,
+    label,
+    setConfirm,
+    setError,
+    platform,
+    resubmitItems,
+    onResubmitItemsChange: setResubmitItems,
+  };
   const partnerProcessed = data.status === 'partner_processing';
 
   function onReasonConfirm(text: string) {
@@ -375,6 +394,13 @@ export function ApplicationWorkspace({
           busy={mutations.clearIdentityHold.isPending}
         />
         <CreditFeedbackBanner data={data} />
+        <ReferenceNumbersPanel
+          data={data}
+          actions={actions}
+          mutations={mutations}
+          canEditSap={canEditSap}
+          canEditContract={canEditContract}
+        />
 
         <WorkspaceFacts
           data={data}

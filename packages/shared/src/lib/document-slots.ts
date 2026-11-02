@@ -297,7 +297,8 @@ export function documentsForSlot<T extends SlotDocument>(docs: T[], category: st
 
 /** Upload constraints shared by every upload surface (LOS FSD Stage 1 "Document Controls"). */
 export const DOCUMENT_UPLOAD_ACCEPT = '.pdf,image/jpeg,image/png';
-export const DOCUMENT_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export const DOCUMENT_UPLOAD_MAX_MB = 20;
+export const DOCUMENT_UPLOAD_MAX_BYTES = DOCUMENT_UPLOAD_MAX_MB * 1024 * 1024;
 const DOCUMENT_UPLOAD_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 
 export type UploadRejection = { code: 'type' | 'size'; params: Record<string, string | number> };
@@ -307,7 +308,7 @@ export function documentUploadRejection(file: { name: string; type: string; size
     return { code: 'type', params: { name: file.name, type: file.type || 'unknown' } };
   }
   if (file.size > DOCUMENT_UPLOAD_MAX_BYTES) {
-    return { code: 'size', params: { name: file.name, mb: Math.round((file.size / 1024 / 1024) * 10) / 10, limitMb: 5 } };
+    return { code: 'size', params: { name: file.name, mb: Math.round((file.size / 1024 / 1024) * 10) / 10, limitMb: DOCUMENT_UPLOAD_MAX_MB } };
   }
   return null;
 }

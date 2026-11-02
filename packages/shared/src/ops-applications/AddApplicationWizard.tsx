@@ -26,6 +26,7 @@ import {
   OpsContentCard,
   OpsNumberField,
   clearMultiStepDraft,
+  OpsField,
   OpsFormGrid,
   OpsFormSection,
   OpsSelect,
@@ -48,6 +49,7 @@ import {
   type ListingFinancingBlock,
 } from './vehicle-availability';
 import type { InstallmentPlan } from '../types/installment-plan';
+import { SAP_NUMBER_MAX_LENGTH } from '../lib/credit-ops-fields';
 import {
   DOCUMENT_SLOT_GROUP_LABEL_KEYS,
   KYC_UPLOAD_ACCEPT,
@@ -106,6 +108,7 @@ type WizardData = {
   listPrice: number;
   sellingPrice: number;
   hideInterest: boolean;
+  sapNumber: string;
   submitOnCreate: boolean;
   offerId: string;
   tenure: number;
@@ -271,6 +274,14 @@ function DealSetupFields({
           value={data.sellingPrice}
           onValueChange={(sellingPrice) => updateData({ sellingPrice })}
         />
+        <OpsField
+          label={t('ops.workspace.sapNumber')}
+          hint={t('ops.workspace.sapNumberHint')}
+          value={data.sapNumber ?? ''}
+          maxLength={SAP_NUMBER_MAX_LENGTH}
+          onChange={(e) => updateData({ sapNumber: e.target.value })}
+          mono
+        />
         <label className="blox-checkbox-row blox-form-grid__full">
           <input
             type="checkbox"
@@ -319,6 +330,7 @@ export function AddApplicationWizard({
       listPrice: 0,
       sellingPrice: 0,
       hideInterest: false,
+      sapNumber: '',
       submitOnCreate: false,
       offerId: '',
       tenure: 36,
@@ -955,6 +967,7 @@ export function AddApplicationWizard({
             listPrice: data.listPrice,
             sellingPrice: data.sellingPrice,
             hideInterest: data.hideInterest,
+            sapNumber: data.sapNumber.trim() || undefined,
             companyId: isAdmin ? data.companyId || undefined : undefined,
             submit: isAdmin ? data.submitOnCreate : true,
           }),

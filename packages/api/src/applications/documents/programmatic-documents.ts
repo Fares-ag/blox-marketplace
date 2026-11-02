@@ -5,6 +5,7 @@ import { buildConventionalLoanAgreementPdf } from './conventional-loan-pdf';
 import type { ContractFieldContext } from './field-maps';
 import { buildOwnershipSchedulePdf } from './ownership-schedule-pdf';
 import { buildQautoFleetCreditApplicationPdf, buildQautoRetailCreditApplicationPdf } from './qauto-ca-pdf';
+import { buildQautoVehiclesFinanceAgreementPdf } from './qauto-vfa-pdf';
 import type { ContractDocumentType } from './template-catalog';
 
 export async function buildProgrammaticContractPdf(
@@ -26,6 +27,8 @@ export async function buildProgrammaticContractPdf(
       return buildQautoRetailCreditApplicationPdf(ctx);
     case 'qauto_fleet_credit_application':
       return buildQautoFleetCreditApplicationPdf(ctx);
+    case 'qauto_vehicles_finance_agreement':
+      return buildQautoVehiclesFinanceAgreementPdf(ctx);
     case 'credit_appraisal_memorandum':
       return buildCamPdf(ctx);
     default:

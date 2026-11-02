@@ -7,7 +7,8 @@ export type ContractDocumentType =
   | 'conventional_loan_agreement'
   | 'amortization_schedule'
   | 'qauto_retail_credit_application'
-  | 'qauto_fleet_credit_application';
+  | 'qauto_fleet_credit_application'
+  | 'qauto_vehicles_finance_agreement';
 export type ContractDocumentAudience = 'customer' | 'ops';
 
 export const CONTRACT_TEMPLATES = {
@@ -19,6 +20,7 @@ export const CONTRACT_TEMPLATES = {
   amortization_schedule: 'BLX-TPL-031_Amortization_Schedule.pdf',
   qauto_retail_credit_application: 'QAuto_Retail_Credit_Application.pdf',
   qauto_fleet_credit_application: 'QAuto_Fleet_Credit_Application.pdf',
+  qauto_vehicles_finance_agreement: 'QAuto_Vehicles_Finance_Agreement.pdf',
 } as const satisfies Record<ContractDocumentType, string>;
 
 export const CONTRACT_DOCUMENT_LABELS: Record<ContractDocumentType, string> = {
@@ -30,6 +32,7 @@ export const CONTRACT_DOCUMENT_LABELS: Record<ContractDocumentType, string> = {
   amortization_schedule: 'Amortization Schedule',
   qauto_retail_credit_application: 'QAuto Credit Application (Individual)',
   qauto_fleet_credit_application: 'QAuto Credit Application (Fleet / Corporate)',
+  qauto_vehicles_finance_agreement: 'Q-Auto Vehicles Finance Agreement',
 };
 
 export type ContractDocumentSpec = {
@@ -133,7 +136,16 @@ export function documentsForFinancingType(
     : musharakahOrIjarahPack(financingType);
 
   if (isQautoCompany(opts?.companyCode)) {
-    return [qautoCreditApplicationSpec(opts?.applicantType), ...specs];
+    const qautoDocs: ContractDocumentSpec[] = [qautoCreditApplicationSpec(opts?.applicantType)];
+    if (isConventionalFinancing(financingType) && opts?.applicantType !== 'corporate') {
+      qautoDocs.push({
+        documentType: 'qauto_vehicles_finance_agreement',
+        audience: 'customer',
+        label: CONTRACT_DOCUMENT_LABELS.qauto_vehicles_finance_agreement,
+        templateFile: CONTRACT_TEMPLATES.qauto_vehicles_finance_agreement,
+      });
+    }
+    return [...qautoDocs, ...specs];
   }
   return specs;
 }

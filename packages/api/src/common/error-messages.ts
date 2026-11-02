@@ -39,7 +39,7 @@ const HUMAN_MESSAGES: Record<string, string> = {
   pre_disbursal_incomplete: 'Complete the pre-disbursal checklist before activation.',
   disclosure_required: 'Read and acknowledge the unit-offer disclosure before accepting.',
   gateway_verification_required: 'Payment completion requires gateway verification.',
-  file_too_large: 'The uploaded file exceeds the size limit.',
+  file_too_large: 'The uploaded file exceeds the 20 MB size limit.',
   mfa_required: 'Multi-factor authentication is required.',
   compliance_check_required: 'A compliance check must pass before this action. Run the compliance check, then try again.',
   contracts_incomplete: 'Sign every agreement before submitting the package.',

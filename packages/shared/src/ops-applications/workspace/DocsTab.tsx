@@ -21,6 +21,7 @@ import {
 } from '../customer-info';
 import { newestUploadAt, staleDocumentCategories } from '../document-freshness';
 import { documentsForSlot } from '../../lib/document-slots';
+import { resubmissionHighlights } from '../../lib/credit-ops-fields';
 import type { OpsDocumentSlotsResponse } from '../types';
 import type { WorkspacePanelProps } from './types';
 
@@ -66,9 +67,12 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
 
   const groups = groupDocumentSlots(slots);
   const requiredMissing = slots.filter((slot) => slot.required && !slotSatisfiedBy(slot.category, uploaded));
+  const highlights = useMemo(() => resubmissionHighlights(data.resubmission_items), [data.resubmission_items]);
 
   function filesFor(category: string) {
-    return documentsForSlot(docs, category);
+    return documentsForSlot(docs, category).sort(
+      (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
+    );
   }
 
   function onPick(e: ChangeEvent<HTMLInputElement>, category: string) {
@@ -123,7 +127,7 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
               const uploadedDate = uploadedAt ? new Date(uploadedAt).toLocaleDateString() : '';
               const first = files[0];
               return (
-                <li key={slot.category} className="blox-doc-row">
+                <li key={slot.category} className={`blox-doc-row${highlights.docs.has(slot.category) ? ' is-resubmit' : ''}`}>
                   <span className="blox-doc-row__ic" aria-hidden>
                     {first ? (first.mime_type?.includes('pdf') ? 'PDF' : 'IMG') : '—'}
                   </span>
@@ -156,8 +160,10 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                         {satisfied ? (
                           isStale ? (
                             <OpsStatusPill label={t('dealerOps.docs.stale')} variant="danger" />
+                          ) : files.length > 1 ? (
+                            <OpsStatusPill label={t('dealerOps.docs.replacedCount', { count: files.length })} variant="warning" />
                           ) : (
-                            <OpsStatusPill label={t('dealerOps.docs.fileCount', { count: Math.max(files.length, 1) })} variant="success" />
+                            <OpsStatusPill label={t('dealerOps.docs.fileCount', { count: 1 })} variant="success" />
                           )
                         ) : (
                           <OpsStatusPill label={t('dealerOps.intake.slotMissing')} variant={slot.required ? 'warning' : 'neutral'} />

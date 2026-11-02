@@ -22,6 +22,22 @@ describe('submit gate codes (wave 2)', () => {
     expect(message).toContain('applyFlow.docs.bank');
   });
 
+  it('lists missing consents and the assisted-session hint', () => {
+    const richT: IntakeTranslate = (key, opts) => {
+      if (key === 'dealerOps.submitGate.consents_requiredPending' && opts && 'list' in opts) {
+        return `${key} ${String(opts.list)}`;
+      }
+      return key;
+    };
+    const error = new ApiError('consents_required', 409, 'consents_required', {
+      missing: ['credit_bureau', 'terms'],
+    });
+    const message = submitGateMessage(error, richT);
+    expect(message).toContain('dealerOps.consentNames.credit_bureau');
+    expect(message).toContain('dealerOps.consentNames.terms');
+    expect(message).toContain('dealerOps.submitGate.consents_requiredAction');
+  });
+
   it('returns the bare guidance when the API sent no categories', () => {
     const error = new ApiError('documents_stale', 409, 'documents_stale');
     expect(submitGateMessage(error, t)).toBe('dealerOps.submitGate.documents_stale');

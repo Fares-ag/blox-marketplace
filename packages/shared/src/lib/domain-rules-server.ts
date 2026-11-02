@@ -15,3 +15,4 @@ export * from './settlement';
 export * from './credit-assessment';
 export * from './terminology';
 export * from './contact';
+export * from './credit-ops-fields';

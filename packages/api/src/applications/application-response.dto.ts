@@ -275,6 +275,10 @@ type ApplicationCore = {
   contractGenerated: boolean;
   rejectionReason?: string | null;
   resubmissionComment?: string | null;
+  resubmissionItems?: unknown;
+  sapNumber?: string | null;
+  contractSeries?: string | null;
+  contractNumber?: string | null;
   statusReason?: string | null;
   submittedAt?: Date | null;
   activatedAt?: Date | null;
@@ -393,6 +397,10 @@ function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudien
     dto.rejection_reason = app.rejectionReason ?? null;
     dto.branch_id = app.branchId ?? null;
     dto.rule_flags = ruleFlagsOf(app.pricingSnapshot);
+    dto.sap_number = app.sapNumber ?? null;
+    dto.contract_series = app.contractSeries ?? null;
+    dto.contract_number = app.contractNumber ?? null;
+    dto.resubmission_items = Array.isArray(app.resubmissionItems) ? app.resubmissionItems : [];
   }
 
   if (audience === 'ops') {

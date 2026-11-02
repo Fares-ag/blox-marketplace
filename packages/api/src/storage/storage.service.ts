@@ -22,14 +22,14 @@ const KYC_MIME_TO_EXT: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-/** Customer self-service uploads (vault, takaful): pdf/jpeg/png only, 5 MB — mirrors DOCUMENT_UPLOAD_* in shared. */
+/** Customer self-service uploads (vault, takaful): pdf/jpeg/png only — mirrors DOCUMENT_UPLOAD_* in shared. */
 const CUSTOMER_MIME_TO_EXT: Record<string, string> = {
   'application/pdf': '.pdf',
   'image/jpeg': '.jpg',
   'image/png': '.png',
 };
 
-export const CUSTOMER_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export const CUSTOMER_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 
 const LISTING_MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -200,7 +200,7 @@ export class StorageService implements OnModuleInit {
 
   private static readonly KYC_ALLOWED_MIME = new Set(Object.keys(KYC_MIME_TO_EXT));
 
-  private static readonly KYC_MAX_BYTES = 10 * 1024 * 1024;
+  private static readonly KYC_MAX_BYTES = 20 * 1024 * 1024;
 
   assertKycFile(file?: Express.Multer.File) {
     if (!file?.buffer?.length) {
@@ -220,7 +220,7 @@ export class StorageService implements OnModuleInit {
     return this.readObject(bucket, storagePath);
   }
 
-  /** Customer self-service upload policy: present, pdf/jpeg/png, at most 5 MB. */
+  /** Customer self-service upload policy: present, pdf/jpeg/png, at most 20 MB. */
   assertCustomerUploadFile(file?: Express.Multer.File) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('validation_failed');

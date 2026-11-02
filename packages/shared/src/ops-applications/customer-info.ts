@@ -9,6 +9,8 @@
  * `address { line1, area, city, zone, poBox }` and `employment.jobTitle`.
  */
 import {
+  DOCUMENT_UPLOAD_MAX_BYTES,
+  DOCUMENT_UPLOAD_MAX_MB,
   documentSlotsFor,
   type DocumentSlotContext,
   identityPresentSet,
@@ -168,13 +170,13 @@ export const CORPORATE_DOC_CATEGORIES = [
 
 /**
  * Must stay in step with StorageService.assertKycFile in the API, which accepts
- * only these four types and 10 MB. The ops upload inputs used `accept=".pdf,
- * image/*"`, which is far wider: a phone photo (HEIC/HEIF) or a screenshot
- * (GIF/AVIF) passed the file picker and came back as an opaque 400
+ * only these four types and DOCUMENT_UPLOAD_MAX_MB. The ops upload inputs used
+ * `accept=".pdf, image/*"`, which is far wider: a phone photo (HEIC/HEIF) or a
+ * screenshot (GIF/AVIF) passed the file picker and came back as an opaque 400
  * invalid_file_type, with nothing on screen explaining which file was wrong.
  */
 export const KYC_UPLOAD_ACCEPT = '.pdf,image/jpeg,image/png,image/webp';
-export const KYC_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+export const KYC_UPLOAD_MAX_BYTES = DOCUMENT_UPLOAD_MAX_BYTES;
 const KYC_UPLOAD_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
 
 /**
@@ -188,7 +190,7 @@ export function kycUploadRejection(file: { name: string; type: string; size: num
     return `${file.name} is a ${kind} file. Upload a PDF, JPG, PNG or WebP — a photo taken on an iPhone is usually HEIC and needs converting first.`;
   }
   if (file.size > KYC_UPLOAD_MAX_BYTES) {
-    return `${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is 10 MB.`;
+    return `${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is ${DOCUMENT_UPLOAD_MAX_MB} MB.`;
   }
   return null;
 }

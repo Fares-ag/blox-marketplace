@@ -11,6 +11,7 @@ import {
   type IdentityHoldDecision,
 } from './application-dedup';
 import { resolveSelfAndAncestorCompanyIds } from '../companies/company-hierarchy';
+import { formatApplicationRef } from './application-reference';
 import { productRuleEnforcementFrom, type ProductRuleEnforcement } from './application-rules';
 import {
   birthYearOf,
@@ -18,6 +19,41 @@ import {
   type CustomerProfileFields,
   type NormalizedCustomerSnapshot,
 } from './customer-snapshot';
+import { buildConsentStatus } from '../consents/consent-logic';
+import { CONSENT_CODES } from '@drivemarket/shared/domain-rules';
+
+function customerNameFromSnapshot(snapshot: unknown, fallback?: string | null): string {
+  const raw = snapshot && typeof snapshot === 'object' ? (snapshot as Record<string, unknown>) : {};
+  const full = typeof raw.full_name === 'string' ? raw.full_name.trim() : '';
+  if (full) return full;
+  const first = typeof raw.firstName === 'string' ? raw.firstName.trim() : '';
+  const last = typeof raw.lastName === 'string' ? raw.lastName.trim() : '';
+  const joined = [first, last].filter(Boolean).join(' ');
+  if (joined) return joined;
+  const legal = raw.corporate && typeof raw.corporate === 'object'
+    ? String((raw.corporate as { legalName?: unknown }).legalName ?? '').trim()
+    : '';
+  return legal || fallback?.trim() || 'A customer';
+}
+
+/** Body of the credit-queue email: who applied, and at which dealer. */
+export function creditQueueNoticeBody(
+  app: {
+    customerSnapshot?: unknown;
+    customerEmail?: string | null;
+    referenceSeq?: number | null;
+    company?: { name?: string | null } | null;
+    customer?: { name?: string | null } | null;
+  } | null,
+  fallbackDealer?: string,
+): string {
+  const customer = customerNameFromSnapshot(app?.customerSnapshot, app?.customer?.name ?? app?.customerEmail ?? null);
+  const fallback = fallbackDealer?.trim();
+  const fallbackLooksLikeId = !!fallback && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fallback);
+  const dealer = app?.company?.name?.trim() || (fallback && !fallbackLooksLikeId ? fallback : '') || 'a dealer';
+  const ref = formatApplicationRef(app?.referenceSeq);
+  return `${customer} at ${dealer} submitted a financing application${ref ? ` (${ref})` : ''}.`;
+}
 
 /**
  * Intake support shared by the customer, staff and mobile application paths:
@@ -148,6 +184,16 @@ export class ApplicationIntakeService {
    * The guarantor submit gate reads the consent session the guarantors module
    * writes: a session that captured its consents and was not cancelled since.
    */
+  /** Mandatory consents still outstanding on the customer account (for submit-gate error details). */
+  async missingMandatoryConsentCodes(customerUserId: string | null): Promise<string[]> {
+    if (!customerUserId) return [...CONSENT_CODES];
+    const records = await this.prisma.consentRecord.findMany({
+      where: { userId: customerUserId },
+      orderBy: { acceptedAt: 'desc' },
+    });
+    return buildConsentStatus(records).missing;
+  }
+
   async guarantorConsentCompleted(applicationId: string): Promise<boolean> {
     const session = await this.prisma.guarantorConsentSession.findFirst({
       where: {
@@ -203,6 +249,16 @@ export class ApplicationIntakeService {
    * application. Used by both the customer submit path and the dealer wizard.
    */
   async notifyOpsOnSubmit(companyId: string, appId: string): Promise<void> {
+    const app = await this.prisma.application.findUnique({
+      where: { id: appId },
+      select: {
+        customerEmail: true,
+        customerSnapshot: true,
+        referenceSeq: true,
+        company: { select: { name: true } },
+        customer: { select: { name: true } },
+      },
+    });
     await this.notifyOps(
       companyId,
       [
@@ -213,7 +269,7 @@ export class ApplicationIntakeService {
         UserRole.super_admin,
       ],
       (role) => (role === UserRole.dealer_agent ? 'New lead on your stock' : 'New financing application'),
-      'A customer submitted a financing application.',
+      creditQueueNoticeBody(app),
       `/applications/${appId}`,
     );
   }

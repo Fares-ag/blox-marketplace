@@ -53,6 +53,10 @@ export type ContractFieldContext = {
   overrideReason?: string | null;
   kyc?: KycCaseDetail | null;
   kycStatus?: string | null;
+  /** Dealer SAP / ERP customer account (Q-Auto Vehicles Finance Agreement header). */
+  sapNumber?: string | null;
+  contractSeries?: string | null;
+  contractNumber?: string | null;
 };
 
 function money(amount: number): string {

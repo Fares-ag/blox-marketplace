@@ -138,7 +138,10 @@ export const en = {
   },
   submitGate: {
     identity_hold: 'This application is on identity hold. A credit officer or admin must clear the hold before it can be submitted.',
-    consents_required: 'The customer has not given all consents yet. Start an assisted session or ask the customer to accept them in the app.',
+    consents_required: 'Customer consents are not complete yet.',
+    consents_requiredPending: 'Still needed: {{list}}.',
+    consents_requiredAction:
+      'Use “Start assisted session” on Overview (SMS link) or ask the customer to sign in to the Blox app and accept the checkboxes there.',
     documents_missing: 'Required documents are missing. Open the Documents tab to see the checklist.',
     vehicle_identity_incomplete: 'The vehicle is missing its VIN, chassis number or engine number. Complete the vehicle identity in Inventory first.',
     vehicle_age_rule: 'The vehicle would be older than 10 years at the end of the tenure. Choose a shorter tenure.',
@@ -149,6 +152,12 @@ export const en = {
     documents_stale: 'Some documents are older than allowed. Ask for a fresh copy and upload it again.',
     guarantor_consent_required:
       'The guarantor has not given their consents yet. Send the guarantor request and wait for it to complete.',
+  },
+  consentNames: {
+    credit_bureau: 'Credit bureau authorisation',
+    terms: 'Terms and conditions',
+    kyc_biometric: 'Digital identity and biometrics',
+    aml: 'AML and sanctions screening',
   },
   workspace: {
     lender: 'Lender',
@@ -226,6 +235,7 @@ export const en = {
     replace: 'Replace',
     dropHint: 'Drag and drop, or click to upload',
     fileCount: '{{count}} file(s)',
+    replacedCount: '{{count}} on file — latest shown; re-upload to keep one copy',
     missingCount: '{{count}} required missing',
     complete: 'All required documents uploaded',
     uploadedOn: 'Uploaded {{date}}',
@@ -577,7 +587,10 @@ export const ar: typeof en = {
   },
   submitGate: {
     identity_hold: 'هذا الطلب معلق بسبب الهوية. يجب أن يرفع موظف الائتمان أو المسؤول التعليق قبل الإرسال.',
-    consents_required: 'لم يمنح العميل جميع الموافقات بعد. ابدأ جلسة مساعدة أو اطلب من العميل قبولها في التطبيق.',
+    consents_required: 'موافقات العميل غير مكتملة بعد.',
+    consents_requiredPending: 'ما زال مطلوباً: {{list}}.',
+    consents_requiredAction:
+      'استخدم «بدء جلسة مساعدة» في نظرة عامة (رابط SMS) أو اطلب من العميل تسجيل الدخول إلى تطبيق Blox وقبول خانات الموافقة هناك.',
     documents_missing: 'هناك مستندات مطلوبة ناقصة. افتح تبويب المستندات لعرض القائمة.',
     vehicle_identity_incomplete: 'المركبة تفتقد رقم الهيكل أو رقم الشاصي أو رقم المحرك. أكمل هوية المركبة في المخزون أولاً.',
     vehicle_age_rule: 'سيتجاوز عمر المركبة ١٠ سنوات عند نهاية المدة. اختر مدة أقصر.',
@@ -587,6 +600,12 @@ export const ar: typeof en = {
     dob_qid_mismatch: 'تاريخ الميلاد لا يطابق سنة الميلاد في البطاقة الشخصية.',
     documents_stale: 'بعض المستندات أقدم من المسموح به. اطلب نسخة حديثة وارفعها من جديد.',
     guarantor_consent_required: 'لم يمنح الكفيل موافقاته بعد. أرسل طلب الكفيل وانتظر اكتماله.',
+  },
+  consentNames: {
+    credit_bureau: 'تفويض الاستعلام الائتماني',
+    terms: 'الشروط والأحكام',
+    kyc_biometric: 'التحقق الرقمي من الهوية والبيانات الحيوية',
+    aml: 'فحص مكافحة غسل الأموال والعقوبات',
   },
   workspace: {
     lender: 'الممول',
@@ -664,6 +683,7 @@ export const ar: typeof en = {
     replace: 'استبدال',
     dropHint: 'اسحب الملف وأفلته، أو انقر للرفع',
     fileCount: '{{count}} ملف',
+    replacedCount: '{{count}} في الملف — يُعرض الأحدث؛ أعد الرفع للاحتفاظ بنسخة واحدة',
     missingCount: '{{count}} من المستندات المطلوبة ناقصة',
     complete: 'تم رفع جميع المستندات المطلوبة',
     uploadedOn: 'رُفع في {{date}}',

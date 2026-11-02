@@ -57,7 +57,7 @@ describe('application-transitions', () => {
     expect(() =>
       assertOpsTransitionAllowed('contract_signing_required', 'resubmission_required', UserRole.credit_officer),
     ).not.toThrow();
-    expect(opsTransitionRequiresReason('contract_signing_required', 'resubmission_required')).toBe(true);
+    expect(opsTransitionRequiresReason('contract_signing_required', 'resubmission_required')).toBe(false);
   });
 
   it('allows reject and reopen from pending_finance_activation', () => {

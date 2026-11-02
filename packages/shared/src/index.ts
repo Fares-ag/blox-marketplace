@@ -446,6 +446,7 @@ export {
   DOCUMENT_SLOT_CATEGORIES,
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_UPLOAD_MAX_BYTES,
+  DOCUMENT_UPLOAD_MAX_MB,
   documentSlotsFor,
   documentSlotsFromCustomerSnapshot,
   documentSlotProfileFromSnapshot,
@@ -466,6 +467,22 @@ export {
   type DocumentSlotProfile,
   type UploadRejection,
 } from './lib/document-slots';
+export {
+  CONTRACT_NUMBER_MAX_LENGTH,
+  CONTRACT_SERIES,
+  SAP_NUMBER_MAX_LENGTH,
+  RESUBMISSION_ITEM_KEYS,
+  contractNumberValidationError,
+  formatContractRef,
+  isContractSeries,
+  normalizeContractSeries,
+  isResubmissionItemKey,
+  parseResubmissionItems,
+  resubmissionHighlights,
+  resubmissionItemLabelKey,
+  type ContractSeries,
+  type ResubmissionItemKey,
+} from './lib/credit-ops-fields';
 export { maskEmail, maskIban, maskName, maskPhone, maskQid, maskCustomerSnapshot } from './lib/masking';
 export type {
   AssistedSessionDto,

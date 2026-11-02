@@ -59,17 +59,24 @@ function isIndividualCustomerHit(hit: CustomerSearchHit): boolean {
 
 const QID_LENGTH = 11;
 
+function highlightClass(fields: ReadonlySet<string> | undefined, ...keys: string[]) {
+  return fields && keys.some((key) => fields.has(key)) ? 'is-resubmit' : undefined;
+}
+
 export function CustomerInfoForm({
   value,
   onChange,
   allowExistingCustomer = true,
   submitted = false,
+  highlightFields,
 }: {
   value: CustomerInfoFormValue;
   onChange: (next: CustomerInfoFormValue) => void;
   allowExistingCustomer?: boolean;
   /** When true (set by the wizard after a failed Next attempt), all required-empty fields show their error. */
   submitted?: boolean;
+  /** Applicant-profile keys credit asked the dealer to correct. */
+  highlightFields?: ReadonlySet<string>;
 }) {
   const { t } = useOpsLabels();
   const locale = getAppLocale();
@@ -336,7 +343,10 @@ export function CustomerInfoForm({
 
       {value.applicantType === 'corporate' ? (
         <>
-          <OpsFormSection title={t('ops.customer.companyInfo')}>
+          <OpsFormSection
+            title={t('ops.customer.companyInfo')}
+            className={highlightClass(highlightFields, 'legalName', 'crNumber')}
+          >
               <OpsField
                 label={t('ops.customer.legalName')}
                 required
@@ -366,7 +376,10 @@ export function CustomerInfoForm({
                 onChange={(e) => patch({ corporate: { ...value.corporate, industry: e.target.value } })}
               />
           </OpsFormSection>
-          <OpsFormSection title={t('ops.customer.registeredAddress')}>
+          <OpsFormSection
+            title={t('ops.customer.registeredAddress')}
+            className={highlightClass(highlightFields, 'address', 'street', 'city', 'country', 'postalCode')}
+          >
               <OpsField
                 label={t('ops.customer.street')}
                 required
@@ -425,7 +438,20 @@ export function CustomerInfoForm({
                 }
               />
           </OpsFormSection>
-          <OpsFormSection title={t('ops.customer.authorizedSignatory')}>
+          <OpsFormSection
+            title={t('ops.customer.authorizedSignatory')}
+            className={highlightClass(
+              highlightFields,
+              'firstName',
+              'lastName',
+              'email',
+              'phone',
+              'qid',
+              'nationality',
+              'position',
+              'employment',
+            )}
+          >
               <OpsField
                 label={t('ops.customer.firstName')}
                 required
@@ -558,7 +584,22 @@ export function CustomerInfoForm({
         </>
       ) : (
         <>
-          <OpsFormSection title={t('ops.customer.personalInfo')}>
+          <OpsFormSection
+            title={t('ops.customer.personalInfo')}
+            className={highlightClass(
+              highlightFields,
+              'firstName',
+              'lastName',
+              'gender',
+              'dateOfBirth',
+              'qid',
+              'nationality',
+              'residency',
+              'residenceDuration',
+              'email',
+              'phone',
+            )}
+          >
               <OpsField
                 label={t('ops.customer.firstName')}
                 required
@@ -696,7 +737,10 @@ export function CustomerInfoForm({
                 mono
               />
           </OpsFormSection>
-          <OpsFormSection title={t('ops.customer.address')}>
+          <OpsFormSection
+            title={t('ops.customer.address')}
+            className={highlightClass(highlightFields, 'address', 'street', 'city', 'area', 'zone', 'poBox', 'country')}
+          >
               <OpsField
                 label={t('dealerOps.intake.addressLine1')}
                 required
@@ -730,7 +774,19 @@ export function CustomerInfoForm({
                 onChange={(e) => patch({ address: { ...value.address, poBox: e.target.value } })}
               />
           </OpsFormSection>
-          <OpsFormSection title={t('ops.customer.employmentInfo')}>
+          <OpsFormSection
+            title={t('ops.customer.employmentInfo')}
+            className={highlightClass(
+              highlightFields,
+              'companyName',
+              'position',
+              'employmentType',
+              'employmentDuration',
+              'employment',
+              'monthlyIncome',
+              'monthlyLiabilities',
+            )}
+          >
               <OpsField
                 label={t('ops.customer.companyName')}
                 required
@@ -796,7 +852,11 @@ export function CustomerInfoForm({
                 mono
               />
           </OpsFormSection>
-          <OpsFormSection title={t('dealerOps.intake.guarantor')} description={t('dealerOps.intake.guarantorHint')}>
+          <OpsFormSection
+            title={t('dealerOps.intake.guarantor')}
+            description={t('dealerOps.intake.guarantorHint')}
+            className={highlightClass(highlightFields, 'guarantor')}
+          >
               <label className="blox-checkbox-row blox-form-grid__full">
                 <input
                   type="checkbox"

@@ -28,3 +28,7 @@ secrets/*.env.*
 secrets/*.local
 secrets/root.env.local
 secrets/marketplace.env.local
+.env*
+
+# QA contract renders (scripts/qa-generate-contracts.ts)
+packages/api/.tmp-contract-pdfs/

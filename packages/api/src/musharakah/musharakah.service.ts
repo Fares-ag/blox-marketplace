@@ -861,6 +861,8 @@ export class MusharakahService {
         await transitionApplication(tx, applicationId, ApplicationStatus.under_review, {
           status: ApplicationStatus.resubmission_required,
           statusReason: 'kyc_rejected',
+          resubmissionComment: 'kyc_rejected',
+          resubmissionItems: ['qid_front', 'qid_back'],
         });
       });
     }

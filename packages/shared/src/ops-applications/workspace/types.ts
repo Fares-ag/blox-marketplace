@@ -50,6 +50,9 @@ export type WorkspacePanelProps = {
   setConfirm: (req: ConfirmRequest | null) => void;
   setError: (message: string | null) => void;
   platform?: WorkspacePlatformProps;
+  /** Shared across Overview aside and the footer DecisionPanel so tab switches keep the checklist. */
+  resubmitItems: string[];
+  onResubmitItemsChange: (items: string[]) => void;
 };
 
 export type PayTarget = {

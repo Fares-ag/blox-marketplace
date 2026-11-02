@@ -4,15 +4,17 @@ import { useAuthStore } from '../../auth/auth-store';
 import { Alert, OpsTextarea } from '../../ops-ui-v2';
 import { OpsDangerButton, OpsGhostButton, OpsPrimaryButton, OpsSecondaryButton, OpsStatusPill } from '../../components/ops-ui';
 import { HARD_CAP_PERCENT } from '../../lib/credit-assessment';
-import { apiErrorCodeOf } from '../submit-gate';
+import { apiErrorCodeOf, submitGateMessage } from '../submit-gate';
 import {
   approveBlockReason,
   creditPathVariant,
   decisionErrorCode,
+  decisionErrorMessage,
   effectiveAffordability,
   formatDbrPct,
   roleListLabel,
 } from '../credit-decision';
+import { RESUBMISSION_ITEM_KEYS, resubmissionItemLabelKey } from '../../lib/credit-ops-fields';
 import { ReasonDialog } from './ReasonDialog';
 import type { WorkspacePanelProps } from './types';
 
@@ -32,7 +34,18 @@ type Action = { key: string; label: string; onClick: () => void; disabled?: bool
  * exception tier for the signed-in role, hard cap for everyone but a super admin) and a
  * `dbr_above_hard_cap` refusal opens the override-reason dialog for credit/super admin.
  */
-export function DecisionPanel({ data, actions, mutations, label, setConfirm, reason, onReasonChange, platform }: Props) {
+export function DecisionPanel({
+  data,
+  actions,
+  mutations,
+  label,
+  setConfirm,
+  reason,
+  onReasonChange,
+  resubmitItems,
+  onResubmitItemsChange,
+  platform,
+}: Props) {
   const { t } = useOpsLabels();
   const role = useAuthStore((s) => s.user?.role ?? null);
   const busy = mutations.busy;
@@ -116,8 +129,44 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
     }
   }
 
+  function requireResubmission(): boolean {
+    if (resubmitItems.length === 0) {
+      setReasonError(t('ops.workspace.resubmissionItemsRequired'));
+      return false;
+    }
+    setReasonError(null);
+    return true;
+  }
+
+  function confirmApproveIfNeeded(then: () => void) {
+    if ((data.documents?.length ?? 0) > 0) {
+      then();
+      return;
+    }
+    setConfirm({
+      title: t('ops.credit.approveSendContract'),
+      message: t('ops.credit.approveNoDocsConfirm', {
+        defaultValue: 'No documents are attached to this application. Approve and send the contract anyway?',
+      }),
+      onConfirm: then,
+    });
+  }
+
+  function toggleResubmitItem(key: string) {
+    onResubmitItemsChange(
+      resubmitItems.includes(key) ? resubmitItems.filter((item) => item !== key) : [...resubmitItems, key],
+    );
+    if (reasonError) setReasonError(null);
+  }
+
   function runTransition(toStatus: string, overrideReason?: string) {
-    mutations.transition.mutate(overrideReason ? { toStatus, override_reason: overrideReason } : toStatus, {
+    const payload =
+      toStatus === 'resubmission_required'
+        ? { toStatus, resubmission_items: resubmitItems, ...(overrideReason ? { override_reason: overrideReason } : {}) }
+        : overrideReason
+          ? { toStatus, override_reason: overrideReason }
+          : toStatus;
+    mutations.transition.mutate(payload, {
       onError: (e) => {
         surfaceTransitionReasonError(e);
         maybeOverride(e, (next) => runTransition(toStatus, next));
@@ -131,13 +180,33 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
   const destructive: Action[] = [];
   const gated = block ? { disabled: true, title: block.message } : {};
 
+  function runSubmitToCredit() {
+    mutations.submit.mutate(undefined, {
+      onError: (error) => {
+        const message =
+          submitGateMessage(error, t) ??
+          decisionErrorMessage(error, t) ??
+          (error instanceof Error ? error.message : t('ops.wizard.submitFailed'));
+        setReasonError(message);
+        requestAnimationFrame(() => {
+          sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+      },
+    });
+  }
+
   if (actions.submitToCredit)
     primary.push(
-      bindAction({ key: 'submit', label: t('ops.dealer.submitToCredit'), onClick: () => mutations.submit.mutate() }),
+      bindAction({ key: 'submit', label: t('ops.dealer.submitToCredit'), onClick: () => runSubmitToCredit() }),
     );
   if (actions.approveContract)
     primary.push(
-      bindAction({ key: 'approve', label: t('ops.credit.approveSendContract'), onClick: () => runApprove(), ...gated }),
+      bindAction({
+        key: 'approve',
+        label: t('ops.credit.approveSendContract'),
+        onClick: () => confirmApproveIfNeeded(() => runApprove()),
+        ...gated,
+      }),
     );
   if (actions.approveForFinance)
     (primary.length ? secondary : primary).push(
@@ -248,7 +317,7 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
       key: 'resubmission',
       label: t('ops.credit.requestResubmission'),
       onClick: () => {
-        if (!requireReason()) return;
+        if (!requireResubmission()) return;
         runTransition('resubmission_required');
       },
     });
@@ -346,6 +415,7 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
 
   const anyAction = primary.length + secondary.length + tertiary.length + destructive.length > 0;
   const needsReason = actions.reject || actions.requestResubmission || actions.cancel || actions.returnFromRecovery;
+  const reasonRequired = Boolean(actions.reject || actions.cancel || actions.returnFromRecovery);
   const showSummary = approvalStage && (actions.approveContract || actions.approveForFinance);
 
   return (
@@ -404,11 +474,35 @@ export function DecisionPanel({ data, actions, mutations, label, setConfirm, rea
 
       {needsReason && (
         <>
+          {actions.requestResubmission && (
+            <fieldset className="blox-resubmit-picks">
+              <legend>{t('ops.workspace.resubmissionItems')}</legend>
+              <p className="blox-field__hint">{t('ops.workspace.resubmissionItemsHint')}</p>
+              <ul className="blox-resubmit-picks__list">
+                {RESUBMISSION_ITEM_KEYS.map((key) => (
+                  <li key={key}>
+                    <label className="blox-checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={resubmitItems.includes(key)}
+                        onChange={() => toggleResubmitItem(key)}
+                      />
+                      <span>{t(resubmissionItemLabelKey(key))}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+          )}
           <div ref={reasonWrapRef}>
             <OpsTextarea
               id={reasonFieldId}
-              label={t('ops.credit.reasonForReject')}
-              required
+              label={
+                actions.requestResubmission && !reasonRequired
+                  ? t('ops.credit.reasonOptional', { defaultValue: 'Additional notes (optional)' })
+                  : t('ops.credit.reasonForReject')
+              }
+              required={reasonRequired}
               value={reason}
               onChange={(e) => {
                 onReasonChange(e.target.value);

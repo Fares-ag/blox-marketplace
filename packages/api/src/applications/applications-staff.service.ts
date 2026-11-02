@@ -64,6 +64,7 @@ export type StaffCreateApplicationDto = {
   hideInterest?: boolean;
   companyId?: string;
   submit?: boolean;
+  sapNumber?: string;
 };
 
 @Injectable()
@@ -283,6 +284,7 @@ export class ApplicationsStaffService {
             agentUserId: agentUserId ?? null,
             branchId,
             qidHash,
+            sapNumber: dto.sapNumber?.trim() || null,
             submittedAt: initialStatus !== ApplicationStatus.draft ? now : null,
             ...this.intake.holdColumns(identity, now),
             ...(assessed ? creditAssessmentData(assessed, pricingWithFlags) : {}),
@@ -383,6 +385,9 @@ export class ApplicationsStaffService {
     // consents_required → documents_missing → documents_stale →
     // guarantor_consent_required → vehicle_identity_incomplete (only when
     // reserving) → vehicle_age_rule. An identity hold is non-blocking here.
+    const missingConsents = app.consentsCompletedAt
+      ? undefined
+      : await this.intake.missingMandatoryConsentCodes(app.customerUserId);
     assertSubmitGates({
       application: app,
       documents: app.documents.map(({ uploadedBy, ...doc }) => ({ ...doc, uploadedByRole: uploadedBy?.role ?? null })),
@@ -390,6 +395,7 @@ export class ApplicationsStaffService {
       requireVehicleIdentity:
         VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE && fromStatus === ApplicationStatus.draft,
       guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
+      missingConsents,
       identityPolicy: {
         ekycRequired: this.appConfig.kycEkycRequired,
         allowStaffManualIdentity: this.appConfig.kycAllowStaffManualIdentity,
@@ -430,6 +436,7 @@ export class ApplicationsStaffService {
         status: nextStatus,
         submittedAt: app.submittedAt ?? new Date(),
         ...creditAssessmentData(assessed, app.pricingSnapshot),
+        ...(fromStatus === ApplicationStatus.resubmission_required ? { resubmissionItems: Prisma.JsonNull } : {}),
       });
       if (autoTagged || (branchId && branchId !== app.branchId)) {
         await tx.application.update({
@@ -509,7 +516,16 @@ export class ApplicationsStaffService {
     //
     // It is also the state in which the partner asks for more paperwork, which
     // is exactly when a dealer needs to attach it.
-    const dealerEditable = ['draft', 'resubmission_required', 'rejected', 'partner_processing'];
+    // Blox-financed offers land in `under_review` on submit; the Add Application
+    // wizard POSTs the application first and uploads documents immediately after
+    // (same sequence as partner_processing / Zoho). Dealers must attach here.
+    const dealerEditable = [
+      'draft',
+      'under_review',
+      'resubmission_required',
+      'rejected',
+      'partner_processing',
+    ];
     const staffEditable = [
       ...dealerEditable,
       'under_review',

@@ -113,7 +113,7 @@ export function visibleWorkspaceActions(
     cancel:
       (decide && (status === 'under_review' || status === 'resubmission_required')) ||
       (admin && (status === 'pending_finance_activation' || status === 'active')),
-    complianceCheck: decide,
+    complianceCheck: decide && status === 'under_review',
     uploadSignedContract: decide && status === 'contract_signing_required',
 
     // activation (credit / admin only)
@@ -127,10 +127,12 @@ export function visibleWorkspaceActions(
     settlements: finance,
 
     // shared
-    comment: decide || dealer,
+    comment: decide,
     uploadDocs:
       (dealer &&
-        ['draft', 'resubmission_required', 'rejected', 'partner_processing'].includes(status)) ||
+        ['draft', 'under_review', 'resubmission_required', 'rejected', 'partner_processing'].includes(
+          status,
+        )) ||
       (decide &&
         [
           'draft',

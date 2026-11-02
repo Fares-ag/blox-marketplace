@@ -33,7 +33,7 @@ const RULES: TransitionRule[] = [
 
   // under_review — "Approve for Finance" is the spine edge (vercel step 2).
   { from: 'under_review', to: 'pending_finance_activation', actors: DECISION },
-  { from: 'under_review', to: 'resubmission_required', actors: DECISION, reasonRequired: true },
+  { from: 'under_review', to: 'resubmission_required', actors: DECISION },
   { from: 'under_review', to: 'rejected', actors: DECISION, reasonRequired: true },
   { from: 'under_review', to: 'submission_cancelled', actors: DECISION, reasonRequired: true },
 
@@ -44,7 +44,7 @@ const RULES: TransitionRule[] = [
   { from: 'resubmission_required', to: 'submission_cancelled', actors: DECISION, reasonRequired: true },
 
   // contract_signing_required (customer uploads the signed contract → contracts_submitted)
-  { from: 'contract_signing_required', to: 'resubmission_required', actors: DECISION, reasonRequired: true },
+  { from: 'contract_signing_required', to: 'resubmission_required', actors: DECISION },
   { from: 'contract_signing_required', to: 'rejected', actors: DECISION, reasonRequired: true },
   { from: 'contract_signing_required', to: 'under_review', actors: DECISION, reasonRequired: true },
 
@@ -52,7 +52,7 @@ const RULES: TransitionRule[] = [
   { from: 'contracts_submitted', to: 'contract_under_review', actors: DECISION },
   { from: 'contracts_submitted', to: 'pending_finance_activation', actors: DECISION },
   { from: 'contracts_submitted', to: 'contract_signing_required', actors: DECISION, reasonRequired: true },
-  { from: 'contracts_submitted', to: 'resubmission_required', actors: DECISION, reasonRequired: true },
+  { from: 'contracts_submitted', to: 'resubmission_required', actors: DECISION },
   { from: 'contracts_submitted', to: 'rejected', actors: DECISION, reasonRequired: true },
 
   // contract_under_review

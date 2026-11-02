@@ -143,10 +143,16 @@ function buildPricing(listPrice) {
 }
 
 async function findPublishedProduct(session) {
-  const products = await jsonOk(session, '/api/v1/products?limit=20');
+  const products = await jsonOk(session, '/api/v1/products?limit=50');
   const items = products.items ?? products;
-  const published = items.find((p) => p.listingStatus === 'published' || !p.listingStatus);
-  if (published?.id) return published;
+  for (const card of items) {
+    if (!card?.id || card.finance_eligible === false) continue;
+    const slug = card.slug || card.id;
+    const detail = await jsonOk(session, `/api/v1/products/by-slug/${encodeURIComponent(slug)}`);
+    const product = detail.product ?? detail;
+    const offerId = product.default_offer_id || detail.offer?.id || product.defaultOfferId;
+    if (offerId) return { ...card, ...product, default_offer_id: offerId };
+  }
   throw new Error('No published finance-eligible product found for QA');
 }
 
@@ -182,7 +188,7 @@ async function createDraftApp(customer) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       productId: product.id,
-      offerId: product.defaultOfferId ?? 'seed-al-jazeera-offer',
+      offerId: product.default_offer_id || product.defaultOfferId,
       customerSnapshot: {
         full_name: 'QA Customer',
         phone: '+974 5555 0099',
@@ -462,7 +468,11 @@ async function main() {
       const transitioned = await jsonOk(credit, `/api/v1/ops/applications/${appId}/transition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toStatus: 'resubmission_required', reason: 'QA: please re-upload docs' }),
+        body: JSON.stringify({
+          toStatus: 'resubmission_required',
+          reason: 'QA: please re-upload docs',
+          resubmission_items: ['bank'],
+        }),
       });
       record(
         'resubmit',

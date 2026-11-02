@@ -6,14 +6,16 @@ export function OpsFormSection({
   description,
   children,
   actions,
+  className,
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   actions?: ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="blox-form-section blox-detail-section">
+    <section className={`blox-form-section blox-detail-section${className ? ` ${className}` : ''}`}>
       <div className="blox-form-section__head">
         <div>
           <h2 className="blox-form-section__title">{title}</h2>
