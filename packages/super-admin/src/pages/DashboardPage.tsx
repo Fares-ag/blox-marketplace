@@ -69,7 +69,6 @@ export function DashboardPage() {
   const data = metrics.data;
   const byStatus = data?.applications_by_status ?? {};
   const dash = (value: number | undefined) => String(value ?? '—');
-  const active = byStatus.active ?? 0;
   const underReview = byStatus.under_review ?? 0;
   const totalApplications = totalStatuses(byStatus);
   const activeFinancings = sumStatuses(byStatus, ACTIVE_FINANCING_STATUSES);
