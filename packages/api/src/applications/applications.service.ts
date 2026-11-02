@@ -34,6 +34,7 @@ import {
   removeApplicationDocumentsForSlot,
   resolveStoredDocumentCategory,
   type ApplicationDocCategory,
+  type IdentityPolicy,
 } from './application-documents';
 import {
   assertApplicationCanView,
@@ -89,7 +90,6 @@ import {
 import { requiredDownPaymentAmount, sumDownPaymentRecorded } from './down-payment';
 import { assertSubmitGates, identityHoldActive, VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE } from './submit-gates';
 import { AppConfigService } from '../config/app-config.service';
-import type { IdentityPolicy } from './application-documents';
 import {
   assessApplicationCredit,
   creditAssessedLogMetadata,
@@ -600,7 +600,7 @@ export class ApplicationsService {
     const missingConsents = app.consentsCompletedAt
       ? undefined
       : await this.intake.missingMandatoryConsentCodes(app.customerUserId);
-    // consents_required → documents_missing → documents_stale →
+    // Customer submit only: consents_required → documents_missing → documents_stale →
     // guarantor_consent_required → vehicle_identity_incomplete (only when
     // reserving) → vehicle_age_rule. An identity hold is non-blocking here.
     assertSubmitGates({
@@ -1310,6 +1310,7 @@ export class ApplicationsService {
         status: nextStatus,
         ...creditAssessmentData(assessed, app.pricingSnapshot),
         resubmissionItems: Prisma.JsonNull,
+        resubmissionComment: null,
       });
       return tx.application.findUniqueOrThrow({ where: { id } });
     });

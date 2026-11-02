@@ -382,20 +382,17 @@ export class ApplicationsStaffService {
       throw new BadRequestException('invalid_status_transition');
     }
     const fromStatus = app.status;
-    // consents_required → documents_missing → documents_stale →
-    // guarantor_consent_required → vehicle_identity_incomplete (only when
-    // reserving) → vehicle_age_rule. An identity hold is non-blocking here.
-    const missingConsents = app.consentsCompletedAt
-      ? undefined
-      : await this.intake.missingMandatoryConsentCodes(app.customerUserId);
+    // Customer consents are captured in the Blox app, not in dealer/credit/ops.
+    // documents_missing → documents_stale → guarantor_consent_required →
+    // vehicle_identity_incomplete (only when reserving) → vehicle_age_rule.
     assertSubmitGates({
       application: app,
       documents: app.documents.map(({ uploadedBy, ...doc }) => ({ ...doc, uploadedByRole: uploadedBy?.role ?? null })),
       product: app.product,
       requireVehicleIdentity:
         VEHICLE_IDENTITY_REQUIRED_FOR_RESERVE && fromStatus === ApplicationStatus.draft,
+      requireConsents: false,
       guarantorConsentCompleted: await this.intake.guarantorConsentCompleted(id),
-      missingConsents,
       identityPolicy: {
         ekycRequired: this.appConfig.kycEkycRequired,
         allowStaffManualIdentity: this.appConfig.kycAllowStaffManualIdentity,
@@ -436,7 +433,9 @@ export class ApplicationsStaffService {
         status: nextStatus,
         submittedAt: app.submittedAt ?? new Date(),
         ...creditAssessmentData(assessed, app.pricingSnapshot),
-        ...(fromStatus === ApplicationStatus.resubmission_required ? { resubmissionItems: Prisma.JsonNull } : {}),
+        ...(fromStatus === ApplicationStatus.resubmission_required
+          ? { resubmissionItems: Prisma.JsonNull, resubmissionComment: null }
+          : {}),
       });
       if (autoTagged || (branchId && branchId !== app.branchId)) {
         await tx.application.update({

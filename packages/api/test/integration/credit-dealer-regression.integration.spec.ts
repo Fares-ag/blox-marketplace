@@ -97,7 +97,7 @@ describe('credit ↔ dealer regression (recent workspace fixes)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('credit PATCH rejects non-numeric contract numbers', async () => {
+  it('credit PATCH stores alphanumeric contract numbers and rejects punctuation', async () => {
     const { company, app } = await underReviewApp();
     const credit = await staffUser('regression-credit-contract', 'credit_officer', { creditScope: 'assigned' });
     await assignCreditOfficer(ctx.prisma, credit.user.id, company.id);
@@ -109,9 +109,9 @@ describe('credit ↔ dealer regression (recent workspace fixes)', () => {
 
     const good = await authed(credit.agent)
       .patch(`/api/v1/ops/applications/${app.id}`)
-      .send({ contractSeries: 'RSK', contractNumber: '44012' });
+      .send({ contractSeries: 'RSK', contractNumber: '3453sdf' });
     expect(good.status).toBe(200);
-    expect(good.body.contract_number).toBe('44012');
+    expect(good.body.contract_number).toBe('3453sdf');
     expect(good.body.contract_series).toBe('RSK');
   });
 

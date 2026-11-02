@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
-import { apiFetch } from '../../lib/api';
+import { apiFetch, apiFileUrl } from '../../lib/api';
 import { OpsDetailGrid } from '../../ops-ui-v2';
 import { OpsPrimaryButton, OpsStatusPill } from '../../components/ops-ui';
-import { apiFileUrl } from '../../lib/api';
 import { ApplicationDocumentActions } from '../ApplicationDocumentActions';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
 import { CustomerInfoForm } from '../CustomerInfoForm';
@@ -23,8 +22,8 @@ import type { ProductRuleCode } from '../../lib/product-rules';
 import type { OpsDocumentSlotsResponse, OpsRuleFlag } from '../types';
 import { resubmissionHighlights } from '../../lib/credit-ops-fields';
 import { DecisionPanel } from './DecisionPanel';
+import { ReferenceNumbersPanel } from './ReferenceNumbersPanel';
 import { AssistedSessionPanel } from './AssistedSessionPanel';
-import { ConsentsPanel } from './ConsentsPanel';
 import { CreditAssessmentPanel } from './CreditAssessmentPanel';
 import { GuarantorPanel } from './GuarantorPanel';
 import { TakafulPanel } from './TakafulPanel';
@@ -39,6 +38,8 @@ type Props = WorkspacePanelProps & {
   showOwnership: boolean;
   onOpenTab: (tab: 'docs' | 'logs' | 'schedule' | 'register') => void;
   canSeeLogs: boolean;
+  canEditSap: boolean;
+  canEditContract: boolean;
 };
 
 const ASSIST_CLOSED_STATUSES = new Set(['active', 'completed', 'rejected', 'submission_cancelled', 'partner_processing']);
@@ -126,11 +127,11 @@ function ruleFlagLabel(flag: OpsRuleFlag, t: (key: string, opts?: Record<string,
  * Overview tab — Phase 1 §11. Main: applicant profile (masked identity with
  * audited reveal), plan with rule flags, the credit assessment (ops audiences),
  * documents checklist. Aside: the decision panel first, then the
- * customer-platform cards (assisted session for dealers, consents, guarantor
+ * customer-platform cards (assisted session for dealers, guarantor
  * consent, takaful) and the last three events.
  */
 export function OverviewTab(props: Props) {
-  const { id, data, customerPct, bloxPct, showOwnership, onOpenTab, canSeeLogs, platform } = props;
+  const { id, data, customerPct, bloxPct, showOwnership, onOpenTab, canSeeLogs, platform, canEditSap, canEditContract } = props;
   const { t } = useOpsLabels();
   const pricing = (data.pricing_snapshot ?? {}) as Record<string, unknown>;
   const snap = data.customer_snapshot ?? {};
@@ -178,6 +179,13 @@ export function OverviewTab(props: Props) {
     <OpsDetailGrid
       main={
         <>
+          <ReferenceNumbersPanel
+            data={data}
+            actions={props.actions}
+            mutations={props.mutations}
+            canEditSap={canEditSap}
+            canEditContract={canEditContract}
+          />
           {canEditResubmitProfile ? (
             <DealerResubmitProfile
               snapshot={snap}
@@ -358,14 +366,6 @@ export function OverviewTab(props: Props) {
               defaultPhone={assistPhone && !/x/i.test(assistPhone) ? assistPhone : ''}
               defaultEmail={assistEmail ?? ''}
               canStart={!ASSIST_CLOSED_STATUSES.has(data.status)}
-            />
-          )}
-          {platform && (
-            <ConsentsPanel
-              status={platform.consents}
-              loading={platform.consentsPending}
-              error={platform.consentsError}
-              completedAt={data.consents_completed_at}
             />
           )}
           {platform?.guarantor?.hasGuarantor && (

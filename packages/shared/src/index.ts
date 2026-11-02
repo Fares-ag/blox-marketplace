@@ -474,6 +474,7 @@ export {
   RESUBMISSION_ITEM_KEYS,
   contractNumberValidationError,
   formatContractRef,
+  splitContractRef,
   isContractSeries,
   normalizeContractSeries,
   isResubmissionItemKey,

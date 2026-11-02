@@ -25,7 +25,7 @@ export function CreditFeedbackBanner({ data }: Props) {
     );
   }
 
-  if (!declined && (resubmission || items.length > 0)) {
+  if (data.status === 'resubmission_required' && (resubmission || items.length > 0)) {
     return (
       <Alert variant="warning" title={t('ops.workspace.creditMessageAction')}>
         {resubmission ? <p className="blox-m-0">{resubmission}</p> : null}

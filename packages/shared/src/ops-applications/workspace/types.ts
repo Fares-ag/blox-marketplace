@@ -1,5 +1,5 @@
 import type { IdentityRevealProps, OpsAudience, OpsWorkspace } from '../types';
-import type { ConsentStatusDto, CreditAssessmentDto, GuarantorSessionDto } from '../../types/customer-platform';
+import type { CreditAssessmentDto, GuarantorSessionDto } from '../../types/customer-platform';
 import type { visibleWorkspaceActions } from '../useApplicationActions';
 import type { WorkspaceMutations } from './useWorkspaceMutations';
 
@@ -18,16 +18,13 @@ export type WorkspaceGuarantorProps = {
 
 /**
  * Customer-platform extras the workspace hands to its panels: masked-identity
- * reveal, consents status, takaful verification, lender tagging, the live
+ * reveal, takaful verification, lender tagging, the live
  * credit assessment and the guarantor consent session. Optional so portals
- * rendering the panels on their own keep working.
+ * rendering the panels on their own keep working. Customer consents stay in the Blox app.
  */
 export type WorkspacePlatformProps = {
   audience?: OpsAudience;
   reveal?: IdentityRevealProps;
-  consents?: ConsentStatusDto | null;
-  consentsPending?: boolean;
-  consentsError?: string | null;
   canVerifyTakaful?: boolean;
   onVerifyTakaful?: (policyId: string) => void;
   verifyingTakaful?: boolean;

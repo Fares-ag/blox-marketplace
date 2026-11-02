@@ -1,7 +1,7 @@
 export const en = {
   dealer: {
     title: 'Assisted application',
-    intro: 'Run the application on behalf of a walk-in customer. The customer verifies their phone, gives consents and completes identity checks on their own device.',
+    intro: 'Run the application on behalf of a walk-in customer. The customer verifies their phone and completes identity checks on their own device.',
     start: 'Start assisted session',
     customerPhone: 'Customer mobile number',
     customerEmail: 'Customer email (optional)',
@@ -14,7 +14,7 @@ export const en = {
     statusLabel: {
       pending: 'Waiting for the customer',
       otp_verified: 'Phone verified',
-      consents_done: 'Consents captured',
+      consents_done: 'In progress',
       identity_started: 'Identity check in progress',
       completed: 'Completed',
       expired: 'Expired',
@@ -22,7 +22,7 @@ export const en = {
     },
     opened: 'Customer opened the link {{time}}',
     notOpened: 'Not opened yet',
-    proofNote: 'Consents and identity are captured on the customer’s own device and stamped with time, IP and device.',
+    proofNote: 'Identity is captured on the customer’s own device and stamped with time, IP and device.',
     branch: 'Branch',
     agent: 'Sales executive',
     copyLink: 'Copy link',
@@ -31,7 +31,7 @@ export const en = {
     expires: 'Link expires',
     started: 'Started {{time}}',
     newSession: 'Start a new session',
-    noSession: 'No assisted session yet. Send the customer a link to verify their phone, give consents and complete identity checks on their own device.',
+    noSession: 'No assisted session yet. Send the customer a link to verify their phone and complete identity checks on their own device.',
     resendLimit: 'Resend limit reached. Wait a few minutes before sending another code.',
     cancelConfirm: 'Cancel this assisted session? The customer link stops working immediately.',
     cancelled: 'Assisted session cancelled.',
@@ -130,7 +130,7 @@ export const en = {
 export const ar: typeof en = {
   dealer: {
     title: 'طلب بمساعدة المندوب',
-    intro: 'أنشئ الطلب نيابةً عن عميل حاضر في المعرض. يتحقق العميل من هاتفه ويمنح موافقاته ويكمل التحقق من الهوية على جهازه الخاص.',
+    intro: 'أنشئ الطلب نيابةً عن عميل حاضر في المعرض. يتحقق العميل من هاتفه ويكمل التحقق من الهوية على جهازه الخاص.',
     start: 'بدء جلسة مساعدة',
     customerPhone: 'رقم جوال العميل',
     customerEmail: 'بريد العميل الإلكتروني (اختياري)',
@@ -143,7 +143,7 @@ export const ar: typeof en = {
     statusLabel: {
       pending: 'بانتظار العميل',
       otp_verified: 'تم التحقق من الهاتف',
-      consents_done: 'تم تسجيل الموافقات',
+      consents_done: 'جارٍ التنفيذ',
       identity_started: 'التحقق من الهوية جارٍ',
       completed: 'مكتملة',
       expired: 'منتهية',
@@ -151,7 +151,7 @@ export const ar: typeof en = {
     },
     opened: 'فتح العميل الرابط {{time}}',
     notOpened: 'لم يُفتح بعد',
-    proofNote: 'تُسجل الموافقات والهوية على جهاز العميل الخاص مع ختم الوقت وعنوان IP والجهاز.',
+    proofNote: 'تُسجل الهوية على جهاز العميل الخاص مع ختم الوقت وعنوان IP والجهاز.',
     branch: 'الفرع',
     agent: 'مندوب المبيعات',
     copyLink: 'نسخ الرابط',
@@ -160,7 +160,7 @@ export const ar: typeof en = {
     expires: 'انتهاء صلاحية الرابط',
     started: 'بدأت {{time}}',
     newSession: 'بدء جلسة جديدة',
-    noSession: 'لا توجد جلسة مساعدة بعد. أرسل للعميل رابطاً للتحقق من هاتفه ومنح الموافقات وإكمال التحقق من الهوية على جهازه.',
+    noSession: 'لا توجد جلسة مساعدة بعد. أرسل للعميل رابطاً للتحقق من هاتفه وإكمال التحقق من الهوية على جهازه.',
     resendLimit: 'تم بلوغ حد إعادة الإرسال. انتظر بضع دقائق قبل إرسال رمز آخر.',
     cancelConfirm: 'إلغاء هذه الجلسة؟ سيتوقف رابط العميل عن العمل فوراً.',
     cancelled: 'تم إلغاء جلسة المساعدة.',

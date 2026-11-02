@@ -8,8 +8,8 @@ export const SAP_NUMBER_MAX_LENGTH = 40;
 export const CONTRACT_SERIES = ['RSK', 'RA', 'Ru', 'RV', 'FU', 'FSK'] as const;
 export type ContractSeries = (typeof CONTRACT_SERIES)[number];
 export const CONTRACT_NUMBER_MAX_LENGTH = 40;
-/** Lender contract numbers are numeric only (series prefix is stored separately). */
-export const CONTRACT_NUMBER_PATTERN = /^\d+$/;
+/** Lender contract numbers are alphanumeric; the series prefix is stored separately. */
+export const CONTRACT_NUMBER_PATTERN = /^[A-Za-z0-9]+$/;
 
 export function contractNumberValidationError(value: unknown): 'empty' | 'invalid' | null {
   if (value == null || (typeof value === 'string' && !value.trim())) return null;
@@ -18,6 +18,18 @@ export function contractNumberValidationError(value: unknown): 'empty' | 'invali
   if (!trimmed) return null;
   if (trimmed.length > CONTRACT_NUMBER_MAX_LENGTH) return 'invalid';
   return CONTRACT_NUMBER_PATTERN.test(trimmed) ? null : 'invalid';
+}
+
+const SERIES_PREFIX = new RegExp(`^(${CONTRACT_SERIES.map((code) => code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})[-\\s]+(.+)$`, 'i');
+
+/** Splits a pasted "RSK-3453sdf" into series + number so credit does not have to retype it. */
+export function splitContractRef(value: unknown): { series: string | null; number: string } {
+  if (typeof value !== 'string') return { series: null, number: '' };
+  const trimmed = value.trim();
+  if (!trimmed) return { series: null, number: '' };
+  const match = trimmed.match(SERIES_PREFIX);
+  if (!match) return { series: null, number: trimmed };
+  return { series: normalizeContractSeries(match[1]), number: match[2].trim() };
 }
 
 export function isContractSeries(value: unknown): value is ContractSeries {
@@ -29,8 +41,9 @@ export function normalizeContractSeries(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  if (trimmed.toUpperCase() === 'RU') return 'Ru';
-  return trimmed;
+  const upper = trimmed.toUpperCase();
+  const known = CONTRACT_SERIES.find((code) => code.toUpperCase() === upper);
+  return known ?? trimmed;
 }
 
 export function formatContractRef(series?: string | null, number?: string | null): string | null {

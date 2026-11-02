@@ -7,6 +7,7 @@ import {
   CONTRACT_SERIES,
   contractNumberValidationError,
   formatContractRef,
+  splitContractRef,
   SAP_NUMBER_MAX_LENGTH,
   CONTRACT_NUMBER_MAX_LENGTH,
 } from '../../lib/credit-ops-fields';
@@ -32,6 +33,7 @@ export function ReferenceNumbersPanel({ data, mutations, canEditSap, canEditCont
   }, [data.sap_number, data.contract_series, data.contract_number]);
 
   const contractLabel = formatContractRef(data.contract_series, data.contract_number);
+  if (!canEditSap && !canEditContract) return null;
 
   return (
     <section className="blox-detail-section">
@@ -68,14 +70,19 @@ export function ReferenceNumbersPanel({ data, mutations, canEditSap, canEditCont
             </OpsSelect>
             <OpsField
               label={t('ops.workspace.contractNumber')}
-              hint={t('ops.workspace.contractNumberHint', { defaultValue: 'Digits only.' })}
+              hint={t('ops.workspace.contractNumberHint', { defaultValue: 'Letters and digits. Series is selected separately.' })}
               value={number}
               maxLength={CONTRACT_NUMBER_MAX_LENGTH}
-              inputMode="numeric"
-              pattern="[0-9]*"
               error={numberError}
               onChange={(e) => {
-                setNumber(e.target.value);
+                const next = e.target.value;
+                const split = splitContractRef(next);
+                if (split.series) {
+                  setSeries(split.series);
+                  setNumber(split.number);
+                } else {
+                  setNumber(next);
+                }
                 if (numberError) setNumberError(undefined);
               }}
               mono
@@ -96,7 +103,7 @@ export function ReferenceNumbersPanel({ data, mutations, canEditSap, canEditCont
               onClick={() => {
                 if (canEditContract && contractNumberValidationError(number) === 'invalid') {
                   const message = t('ops.workspace.contractNumberInvalid', {
-                    defaultValue: 'Contract number must contain digits only.',
+                    defaultValue: 'Contract number must be letters and digits only.',
                   });
                   setNumberError(message);
                   toast.error(message);

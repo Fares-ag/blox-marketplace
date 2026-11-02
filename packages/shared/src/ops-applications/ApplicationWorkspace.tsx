@@ -10,7 +10,7 @@ import { tenureBounds } from '../lib/product-rules';
 import { calculateOwnershipTimeline, overlayRegisterOnTimeline } from '../lib/ownership';
 import { resolveDisplaySchedule } from '../lib/resolve-display-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
-import type { ConsentStatusDto, CreditAssessmentDto } from '../types/customer-platform';
+import type { CreditAssessmentDto } from '../types/customer-platform';
 import type { OpsAudience, OpsUnmaskField, OpsWorkspace } from './types';
 import { downPaymentCollectedForOps } from './down-payment-ui';
 import { canCreditDecide, isFullAdminRole, visibleWorkspaceActions } from './useApplicationActions';
@@ -23,7 +23,6 @@ import { useGuarantorSession } from './workspace/GuarantorPanel';
 import { WorkspaceFacts } from './workspace/WorkspaceFacts';
 import { IdentityHoldBanner } from './workspace/IdentityHoldBanner';
 import { CreditFeedbackBanner } from './workspace/CreditFeedbackBanner';
-import { ReferenceNumbersPanel } from './workspace/ReferenceNumbersPanel';
 import { ReasonDialog } from './workspace/ReasonDialog';
 import { TagLenderDialog } from './workspace/TagLenderDialog';
 import { OverviewTab } from './workspace/OverviewTab';
@@ -48,7 +47,7 @@ type ReasonRequest = { kind: 'unmask'; field: OpsUnmaskField } | { kind: 'clearH
  * Server actions live in `useWorkspaceMutations`, each tab in `./workspace/*Tab.tsx`.
  *
  * Customer-platform additions wired here: masked identity with audited reveal,
- * identity hold + clear, consents status, lender tagging, takaful verification,
+ * identity hold + clear, lender tagging, takaful verification,
  * the live credit assessment (ops audiences) and the guarantor consent session.
  */
 export function ApplicationWorkspace({
@@ -85,13 +84,6 @@ export function ApplicationWorkspace({
     queryKey: ['ops-app', id],
     queryFn: () => apiFetch<OpsWorkspace>(`/api/applications/${id}`),
     enabled: !!id,
-  });
-
-  const consents = useQuery({
-    queryKey: ['ops-app-consents', id],
-    queryFn: () => apiFetch<ConsentStatusDto>(`/api/ops/applications/${id}/consents`),
-    enabled: !!id && !!data,
-    retry: false,
   });
 
   const registerQuery = useQuery({
@@ -223,9 +215,6 @@ export function ApplicationWorkspace({
       onReveal: (field) => setReasonRequest({ kind: 'unmask', field }),
       busy: mutations.unmask.isPending,
     },
-    consents: consents.data ?? null,
-    consentsPending: consents.isLoading,
-    consentsError: consents.error ? (consents.error as Error).message : null,
     canVerifyTakaful,
     onVerifyTakaful: (policyId) =>
       mutations.verifyTakaful.mutate(policyId, { onSuccess: () => toast.success(t('dealerOps.takaful.verifiedToast')) }),
@@ -394,18 +383,9 @@ export function ApplicationWorkspace({
           busy={mutations.clearIdentityHold.isPending}
         />
         <CreditFeedbackBanner data={data} />
-        <ReferenceNumbersPanel
-          data={data}
-          actions={actions}
-          mutations={mutations}
-          canEditSap={canEditSap}
-          canEditContract={canEditContract}
-        />
 
         <WorkspaceFacts
           data={data}
-          consents={consents.data ?? null}
-          consentsPending={consents.isLoading}
           onTagLender={platform.onTagLender}
           guarantor={platform.guarantor}
         />
@@ -422,6 +402,8 @@ export function ApplicationWorkspace({
             showOwnership={ownership.vehiclePrice > 0}
             onOpenTab={(next) => setTab(next)}
             canSeeLogs={canSeeLogs}
+            canEditSap={canEditSap}
+            canEditContract={canEditContract}
           />
         )}
         {tab === 'transactions' && <TransactionsTab data={data} />}

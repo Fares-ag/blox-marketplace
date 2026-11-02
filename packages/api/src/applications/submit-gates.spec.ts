@@ -210,7 +210,7 @@ describe('evaluateSubmitGates', () => {
     expect(evaluateSubmitGates(resubmit)).toBeNull();
   });
 
-  it('can skip the consent gate for flows that capture consents later', () => {
+  it('skips the consent gate for dealer and ops submit', () => {
     const noConsents = input({
       application: { ...input().application, consentsCompletedAt: null },
       requireConsents: false,

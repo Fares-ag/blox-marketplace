@@ -333,17 +333,6 @@ export function PartnerApplicationDetail({ id, backTo = '/partner' }: { id: stri
               <dd>{data.submitted_at ? new Date(data.submitted_at).toLocaleString() : '—'}</dd>
               <dt>{t('dealerOps.partnerView.updated')}</dt>
               <dd>{data.updated_at ? new Date(data.updated_at).toLocaleString() : '—'}</dd>
-              <dt>{t('dealerOps.partnerView.consents')}</dt>
-              <dd>
-                {data.consents_completed_at ? (
-                  <OpsStatusPill
-                    label={t('dealerOps.partnerView.consentsComplete', { date: new Date(data.consents_completed_at).toLocaleDateString() })}
-                    variant="success"
-                  />
-                ) : (
-                  <OpsStatusPill label={t('dealerOps.partnerView.consentsPending')} variant="warning" />
-                )}
-              </dd>
               <dt>{t('dealerOps.partnerView.creditPath')}</dt>
               <dd>
                 {data.credit_assessment ? (

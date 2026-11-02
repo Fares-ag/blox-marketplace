@@ -648,7 +648,11 @@ export class ApplicationsLifecycleService {
           resubmissionComment:
             toStatus === 'contract_signing_required' || toStatus === 'resubmission_required'
               ? reason
-              : app.resubmissionComment,
+              : toStatus === ApplicationStatus.under_review ||
+                  toStatus === ApplicationStatus.rejected ||
+                  toStatus === ApplicationStatus.submission_cancelled
+                ? null
+                : app.resubmissionComment,
           resubmissionItems:
             toStatus === ApplicationStatus.resubmission_required
               ? items

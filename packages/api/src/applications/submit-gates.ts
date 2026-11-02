@@ -12,7 +12,7 @@ import { hasGuarantorOf, readCustomerSnapshot } from './customer-snapshot';
 /**
  * Submit gates, evaluated in this order (each a 409 with the code as message):
  *
- *   1. `consents_required`           — the four mandatory consents were not captured
+ *   1. `consents_required`           — customer submit only; the four mandatory consents were not captured
  *   2. `documents_missing`           — required document slots still empty (`missing` list)
  *   3. `documents_stale`             — time-sensitive uploads older than the slot allows (`stale` list)
  *   4. `guarantor_consent_required`  — a declared guarantor has not completed the consent session
@@ -76,7 +76,7 @@ export type SubmitGateInput = {
   product: SubmitGateProduct;
   /** True only when this submit will reserve the listing (first submit from `draft`). */
   requireVehicleIdentity: boolean;
-  /** Defaults to true; the consent gate is skipped only for flows that capture consents later. */
+  /** Defaults to true for customer submit. Dealer/credit/ops submit skips this — consents live in the Blox app. */
   requireConsents?: boolean;
   /**
    * Whether a `GuarantorConsentSession` with `consentsCompletedAt` exists for the
@@ -85,7 +85,7 @@ export type SubmitGateInput = {
   guarantorConsentCompleted?: boolean;
   /** e-KYC policy for the identity slot (BRD BR-7/BR-8): omitted ⇒ manual QID uploads still count. */
   identityPolicy?: IdentityPolicy;
-  /** Populated by the caller when consents are incomplete — surfaced to the dealer UI. */
+  /** Populated by the caller when consents are incomplete — surfaced to the customer app. */
   missingConsents?: string[];
   now?: Date;
 };

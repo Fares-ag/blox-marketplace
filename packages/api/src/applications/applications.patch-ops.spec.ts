@@ -99,10 +99,20 @@ describe('ApplicationsService.patchOps', () => {
     );
   });
 
-  it('rejects non-numeric contract numbers for credit', async () => {
+  it('accepts alphanumeric contract numbers for credit', async () => {
+    prisma.application.findUnique.mockResolvedValue(app(ApplicationStatus.under_review));
+    await service.patchOps(actor(UserRole.credit_officer), 'app-1', { contractNumber: '3453sdf' });
+    expect(prisma.application.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ contractNumber: '3453sdf' }),
+      }),
+    );
+  });
+
+  it('rejects contract numbers that include punctuation', async () => {
     prisma.application.findUnique.mockResolvedValue(app(ApplicationStatus.under_review));
     await expect(
-      service.patchOps(actor(UserRole.credit_officer), 'app-1', { contractNumber: '12X' }),
+      service.patchOps(actor(UserRole.credit_officer), 'app-1', { contractNumber: 'RSK-3453sdf' }),
     ).rejects.toMatchObject({ message: 'validation_failed' });
     expect(prisma.application.update).not.toHaveBeenCalled();
   });

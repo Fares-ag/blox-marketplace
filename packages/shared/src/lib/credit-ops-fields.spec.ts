@@ -5,6 +5,7 @@ import {
   formatContractRef,
   isContractSeries,
   normalizeContractSeries,
+  splitContractRef,
   parseResubmissionItems,
   resubmissionHighlights,
 } from './credit-ops-fields';
@@ -19,14 +20,22 @@ describe('contract series', () => {
   it('maps RU shorthand onto Ru', () => {
     expect(normalizeContractSeries('RU')).toBe('Ru');
     expect(normalizeContractSeries('ru')).toBe('Ru');
+    expect(normalizeContractSeries('rsk')).toBe('RSK');
     expect(normalizeContractSeries('RSK')).toBe('RSK');
   });
 
-  it('accepts digits-only contract numbers', () => {
+  it('accepts alphanumeric contract numbers', () => {
     expect(contractNumberValidationError('44012')).toBeNull();
+    expect(contractNumberValidationError('3453sdf')).toBeNull();
     expect(contractNumberValidationError('')).toBeNull();
-    expect(contractNumberValidationError('abc12')).toBe('invalid');
     expect(contractNumberValidationError('12-34')).toBe('invalid');
+    expect(contractNumberValidationError('RSK-3453sdf')).toBe('invalid');
+  });
+
+  it('splits a pasted SERIES-number into the dropdown and the number field', () => {
+    expect(splitContractRef('RSK-3453sdf')).toEqual({ series: 'RSK', number: '3453sdf' });
+    expect(splitContractRef('Ru 0076')).toEqual({ series: 'Ru', number: '0076' });
+    expect(splitContractRef('3453sdf')).toEqual({ series: null, number: '3453sdf' });
   });
 
   it('formats series and number as SERIES-number', () => {

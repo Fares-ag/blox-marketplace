@@ -35,8 +35,8 @@ function isActive(session: AssistedSessionDto | null | undefined): session is As
 
 /**
  * Assisted session panel (dealer workspace). The sales executive sends the
- * walk-in customer a link + one-time code; the customer verifies the phone,
- * gives consents and starts the identity check on their own device. The panel
+ * walk-in customer a link + one-time code; the customer verifies the phone
+ * and starts the identity check on their own device. The panel
  * polls every 5 s while a session is live so the executive sees each step land.
  */
 export function AssistedSessionPanel({
@@ -171,7 +171,6 @@ export function AssistedSessionPanel({
   const steps = active
     ? [
         { key: 'otp', label: t('assistMode.dealer.steps.otp'), at: active.otp_verified_at },
-        { key: 'consents', label: t('assistMode.dealer.steps.consents'), at: active.consents_completed_at },
         { key: 'identity', label: t('assistMode.dealer.steps.identity'), at: active.identity_started_at },
         { key: 'done', label: t('assistMode.dealer.steps.done'), at: active.completed_at },
       ]
