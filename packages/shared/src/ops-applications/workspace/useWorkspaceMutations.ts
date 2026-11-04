@@ -176,7 +176,7 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
       toast.success('Application deleted');
       window.location.href = opts.backHref;
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: fail,
   });
   const convertDaily = useMutation({
     mutationFn: () =>
@@ -185,7 +185,7 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
       toast.success('Schedule converted');
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: fail,
   });
   const rebuild = useMutation({
     mutationFn: (body: { tenureMonths?: number; downPaymentPct?: number; annualRatePercent?: number }) =>
@@ -194,7 +194,7 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
       toast.success('Installments updated');
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: fail,
   });
   const downPay = useMutation({
     mutationFn: () =>
@@ -277,6 +277,7 @@ export function useWorkspaceMutations(id: string, opts: WorkspaceMutationOptions
   const busy =
     transition.isPending ||
     approve.isPending ||
+    compliance.isPending ||
     activate.isPending ||
     submit.isPending ||
     patchEdit.isPending ||

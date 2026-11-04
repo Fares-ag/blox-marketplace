@@ -69,6 +69,7 @@ const QUOTE_SELECT = {
   customerUserId: true,
   customerEmail: true,
   companyId: true,
+  agentUserId: true,
   pricingSnapshot: true,
   activatedAt: true,
   paymentSchedules: { orderBy: { sequence: 'asc' as const } },

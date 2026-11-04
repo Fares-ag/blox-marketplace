@@ -14,7 +14,7 @@ import type { CreditAssessmentDto } from '../types/customer-platform';
 import type { OpsAudience, OpsUnmaskField, OpsWorkspace } from './types';
 import { downPaymentCollectedForOps } from './down-payment-ui';
 import { canCreditDecide, isFullAdminRole, visibleWorkspaceActions } from './useApplicationActions';
-import { submitGateMessage } from './submit-gate';
+import { apiErrorCodeOf, submitGateMessage } from './submit-gate';
 import { decisionErrorMessage } from './credit-decision';
 import { customerInfoFromSnapshot } from './customer-info';
 import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
@@ -123,7 +123,13 @@ export function ApplicationWorkspace({
     downPaymentAmount: () => Number((data?.pricing_snapshot as { down_payment?: number } | undefined)?.down_payment ?? 0),
     loadCompanies: !!actions.assignCompany,
     // Submit gates and approval enforcement come back as machine codes; map them to guidance before showing.
-    onError: (message, err) => setError(submitGateMessage(err, t) ?? decisionErrorMessage(err, t) ?? message),
+    onError: (message, err) => {
+      // The decision panel already explains this one. A second banner is the same sentence.
+      if (apiErrorCodeOf(err) === 'compliance_check_required') return;
+      const text = submitGateMessage(err, t) ?? decisionErrorMessage(err, t) ?? message;
+      setError(text);
+      toast.error(text, { autoClose: false, toastId: `api:${text}` });
+    },
     onCommentPosted: () => setComment(''),
   });
 

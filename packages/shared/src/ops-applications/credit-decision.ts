@@ -162,6 +162,19 @@ export function creditPathVariant(path: CreditAssessmentDto['path'] | null | und
   return 'neutral';
 }
 
+/** Runs the action, or explains the block without calling it. */
+export function runUnlessBlocked(
+  blockMessage: string | null | undefined,
+  run: () => void,
+  explain: (message: string) => void,
+): void {
+  if (blockMessage) {
+    explain(blockMessage);
+    return;
+  }
+  run();
+}
+
 /** Percentage string for a DBR ratio; "—" when it cannot be computed. */
 export function formatDbrPct(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(Number(value))) return '—';

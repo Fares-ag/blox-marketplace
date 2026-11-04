@@ -1,3 +1,4 @@
+import { toast } from 'react-toastify';
 import { IDEMPOTENCY_KEY_HEADER, parseApiErrorBody } from './api-errors';
 
 const LOCAL_API_FALLBACK = 'http://localhost:3011';
@@ -83,7 +84,23 @@ function resolveApiPath(path: string): string {
 export type ApiFetchOptions = {
   /** Replays the same response for duplicate POSTs (application create, payments, etc.). */
   idempotencyKey?: string;
+  /** Login, MFA, and expected probes already show their own error. */
+  silentError?: boolean;
 };
+
+const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+let lastMutationToast = { message: '', at: 0 };
+
+function reportMutationError(method: string, status: number, message: string, silent?: boolean) {
+  if (silent || status === 401 || typeof window === 'undefined') return;
+  if (!MUTATING_METHODS.has(method.toUpperCase())) return;
+  const text = message.trim();
+  if (!text) return;
+  const now = Date.now();
+  if (lastMutationToast.message === text && now - lastMutationToast.at < 800) return;
+  lastMutationToast = { message: text, at: now };
+  toast.error(text, { autoClose: false, toastId: `api:${text}` });
+}
 
 export async function apiFetch<T = unknown>(
   path: string,
@@ -123,6 +140,8 @@ export async function apiFetch<T = unknown>(
       if (!resolvedPath.endsWith('/me') && !path.endsWith('/me')) {
         triggerUnauthorized();
       }
+    } else {
+      reportMutationError(init.method ?? 'GET', res.status, message, options.silentError);
     }
     throw new ApiError(message, res.status, code, details);
   }
@@ -212,19 +231,46 @@ export async function downloadApiFile(path: string, fallbackFilename = 'download
   triggerFileDownload(blob, filename);
 }
 
-/** Open a file route in a new tab with session cookies (works across portal/API origins). */
-export async function openApiFileInNewTab(path: string): Promise<void> {
+function previewContentType(blob: Blob, filename: string): string {
+  const namedPdf = filename.toLowerCase().endsWith('.pdf');
+  if (blob.type === 'application/pdf' || namedPdf) return 'application/pdf';
+  return blob.type || 'application/octet-stream';
+}
+
+/**
+ * Open a file route in a new tab with session cookies.
+ * Pass the window opened in the click handler so the browser does not block it after the fetch.
+ */
+export async function openApiFileInNewTab(path: string, preview?: Window | null): Promise<void> {
+  const tab = preview && !preview.closed ? preview : null;
   const base = apiFileUrl(path);
   const url = `${base}${base.includes('?') ? '&' : '?'}disposition=inline`;
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) {
-    if (res.status === 401) triggerUnauthorized();
-    throw new ApiError('Could not open file', res.status);
+  try {
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) {
+      if (res.status === 401) triggerUnauthorized();
+      throw new ApiError('Could not open file', res.status);
+    }
+    const blob = await res.blob();
+    const filename = parseContentDispositionFilename(res.headers.get('Content-Disposition')) || '';
+    const type = previewContentType(blob, filename);
+    const fileBlob = blob.type === type ? blob : new Blob([blob], { type });
+    const objectUrl = URL.createObjectURL(fileBlob);
+    if (tab) {
+      tab.location.href = objectUrl;
+      try {
+        tab.opener = null;
+      } catch {
+        /* the browser may already have dropped the opener */
+      }
+    } else {
+      window.open(objectUrl, '_blank');
+    }
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    if (tab && !tab.closed) tab.close();
+    throw error;
   }
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  window.open(objectUrl, '_blank', 'noopener,noreferrer');
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
 export const DEFAULT_PAGE_SIZE = 50;

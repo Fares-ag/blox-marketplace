@@ -79,7 +79,7 @@ describe('evaluateSubmitGates', () => {
     });
     expect(evaluateSubmitGates(consented)).toEqual({
       code: 'documents_missing',
-      missing: ['qid_front', 'qid_back', 'passport', 'salary', 'bank'],
+      missing: ['qid_front', 'passport', 'salary', 'bank'],
     });
 
     // Documents in but the salary certificate is 45 days old → freshness.
@@ -133,7 +133,7 @@ describe('evaluateSubmitGates', () => {
     expect(evaluateSubmitGates(qatari)).toBeNull();
   });
 
-  it('uses the QAuto pack: one QID copy plus salary and six-month bank statements', () => {
+  it('uses the QAuto pack: a legacy one-file QID plus salary and six-month bank statements', () => {
     const qauto = input({
       application: {
         ...input().application,
@@ -286,7 +286,7 @@ describe('assertSubmitGates', () => {
     } catch (error) {
       const response = (error as ConflictException).getResponse() as { message: string; missing: string[] };
       expect(response.message).toBe('documents_missing');
-      expect(response.missing).toEqual(['qid_front', 'qid_back', 'passport', 'salary', 'bank']);
+      expect(response.missing).toEqual(['qid_front', 'passport', 'salary', 'bank']);
     }
   });
 
@@ -334,7 +334,7 @@ describe('helpers', () => {
         identityPolicy: { ekycRequired: true },
       }),
     );
-    expect(failure).toEqual({ code: 'documents_missing', missing: ['qid_front', 'qid_back'] });
+    expect(failure).toEqual({ code: 'documents_missing', missing: ['qid_front'] });
   });
 
   it('passes under e-KYC when the identity came from the KYC platform', () => {

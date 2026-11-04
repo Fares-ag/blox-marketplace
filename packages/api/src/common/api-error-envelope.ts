@@ -2,6 +2,7 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   defaultCodeForHttpStatus,
+  humanizeValidatorText,
   humanMessageForCode,
   isMachineErrorCode,
 } from './error-messages';
@@ -74,7 +75,7 @@ export function resolveHttpException(exception: HttpException): ResolvedApiError
     if (isMachineErrorCode(response)) {
       return { status, code: response, message: humanMessageForCode(response) };
     }
-    return { status, code: defaultCodeForHttpStatus(status), message: response };
+    return { status, code: defaultCodeForHttpStatus(status), message: humanizeValidatorText(response) };
   }
 
   if (typeof response === 'object' && response !== null) {
@@ -105,7 +106,7 @@ export function resolveHttpException(exception: HttpException): ResolvedApiError
       return {
         status,
         code: 'validation_failed',
-        message: messages.join('; ') || humanMessageForCode('validation_failed'),
+        message: humanizeValidatorText(messages.join('; ')) || humanMessageForCode('validation_failed'),
         details: { messages },
       };
     }
@@ -115,7 +116,7 @@ export function resolveHttpException(exception: HttpException): ResolvedApiError
         const code = defaultCodeForHttpStatus(status);
         return { status, code, message: humanMessageForCode(code) };
       }
-      return { status, code: defaultCodeForHttpStatus(status), message: rawMessage };
+      return { status, code: defaultCodeForHttpStatus(status), message: humanizeValidatorText(rawMessage) };
     }
   }
 

@@ -52,6 +52,7 @@ export class OriginationAnalyticsController {
     const applications = await this.prisma.application.findMany({
       where: {
         ...(scopeIds ? { companyId: { in: scopeIds } } : {}),
+        ...(user.role === UserRole.dealer_agent && user.dealerScope !== 'all' ? { agentUserId: user.id } : {}),
         createdAt: { lte: to },
         updatedAt: { gte: from },
       },

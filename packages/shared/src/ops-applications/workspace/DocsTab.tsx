@@ -2,8 +2,9 @@ import { useMemo, useState, type ChangeEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
-import { apiFetch, apiFileUrl } from '../../lib/api';
+import { apiFetch, apiFileUrl, downloadApiFile } from '../../lib/api';
 import { ApplicationDocumentActions } from '../ApplicationDocumentActions';
+import { DraggableApiFile } from '../DraggableApiFile';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
 import { FileDropzone } from '../../components/FileDropzone';
 import { OpsPrimaryButton, OpsStatusPill } from '../../components/ops-ui';
@@ -27,11 +28,28 @@ import type { WorkspacePanelProps } from './types';
 
 const QUOTATION_CATEGORY = 'vehicle_quotation';
 
+function documentsArchiveFallback(
+  referenceNo: string | null | undefined,
+  applicationId: string,
+  applicantName: string,
+): string {
+  const reference = (referenceNo || applicationId.slice(0, 8)).replace(/[^\w.-]+/g, '');
+  const name = applicantName
+    .replace(/[^\w.\-()+\s]/g, '_')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_.]+|[-_.]+$/g, '')
+    .slice(0, 60);
+  return name ? `${reference}-${name}-documents.zip` : `${reference}-documents.zip`;
+}
+
 type ChecklistSlot = WizardDocumentSlot & { uploaded_at?: string | null };
 
 export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePanelProps) {
   const { t } = useOpsLabels();
   const [signedContractFile, setSignedContractFile] = useState<File | null>(null);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const info = useMemo(() => customerInfoFromSnapshot(data.customer_snapshot ?? {}), [data.customer_snapshot]);
   const docs = data.documents ?? [];
 
@@ -111,6 +129,33 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
         <span className="blox-panel__title-aside">{headerPill}</span>
       </h2>
       <p className="blox-muted">{t('dealerOps.intake.docsIntro')}</p>
+      {docs.length > 0 && (
+        <div className="blox-panel__foot">
+          <OpsPrimaryButton
+            type="button"
+            disabled={downloadingAll}
+            loading={downloadingAll}
+            onClick={() => {
+              setDownloadingAll(true);
+              void downloadApiFile(
+                `/ops/applications/${id}/documents/archive`,
+                documentsArchiveFallback(
+                  data.reference_no,
+                  id,
+                  [info.firstName, info.lastName].filter(Boolean).join(' ') ||
+                    info.corporate.legalName ||
+                    data.customer?.name ||
+                    '',
+                ),
+              )
+                .catch(() => toast.error(t('ops.common.downloadFailed')))
+                .finally(() => setDownloadingAll(false));
+            }}
+          >
+            {t('dealerOps.docs.downloadAll')}
+          </OpsPrimaryButton>
+        </div>
+      )}
 
       {groups.map((group) => (
         <div key={group.group} className="blox-form-block">
@@ -122,6 +167,7 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
               const hint = t(`${slot.labelKey}Hint`, { defaultValue: '' });
               const freshness = slot.maxAgeDays ? t('applyFlow.docs.freshness', { days: slot.maxAgeDays }) : '';
               const isQuotation = slot.category === QUOTATION_CATEGORY;
+              const isOther = slot.category === 'other';
               const isStale = stale.has(slot.category);
               const uploadedAt = (slot as ChecklistSlot).uploaded_at ?? newestUploadAt(slot.category, docs);
               const uploadedDate = uploadedAt ? new Date(uploadedAt).toLocaleDateString() : '';
@@ -161,7 +207,10 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                           isStale ? (
                             <OpsStatusPill label={t('dealerOps.docs.stale')} variant="danger" />
                           ) : files.length > 1 ? (
-                            <OpsStatusPill label={t('dealerOps.docs.replacedCount', { count: files.length })} variant="warning" />
+                            <OpsStatusPill
+                              label={t(isOther ? 'dealerOps.docs.fileCount' : 'dealerOps.docs.replacedCount', { count: files.length })}
+                              variant={isOther ? 'success' : 'warning'}
+                            />
                           ) : (
                             <OpsStatusPill label={t('dealerOps.docs.fileCount', { count: 1 })} variant="success" />
                           )
@@ -171,14 +220,15 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                       </div>
                     </div>
                     <div className="blox-doc-row__actions">
-                      {first && (
+                      {(isOther ? files : first ? [first] : []).map((file) => (
                         <ApplicationDocumentActions
-                          filePath={`/applications/${id}/documents/${first.id}/file`}
+                          key={file.id}
+                          filePath={`/applications/${id}/documents/${file.id}/file`}
                           viewLabel={t('ops.common.view')}
                           downloadLabel={t('ops.common.download')}
-                          fallbackFilename={first.original_name ?? `${slot.category}.pdf`}
+                          fallbackFilename={file.original_name ?? `${slot.category}.pdf`}
                         />
-                      )}
+                      ))}
                       {actions.uploadDocs && (
                         <FileDropzone
                           className={`blox-upload-dropzone blox-upload-dropzone--inline${isStale ? ' is-missing' : ''}${satisfied && !isStale ? ' is-filled' : ''}`}
@@ -194,7 +244,7 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                               ? t('inventoryRules.attachQuotation')
                               : isStale
                                 ? t('applyFlow.docs.reupload')
-                                : satisfied
+                                : satisfied && !isOther
                                   ? t('dealerOps.docs.replace')
                                   : t('dealerOps.docs.upload')}
                           </span>
@@ -284,8 +334,10 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                 );
               }
 
+              const filePath = `/applications/${id}/documents/${doc.id}/file`;
+              const filename = doc.original_name ?? `${doc.category}.pdf`;
               return (
-                <div key={doc.id} className="blox-document-card">
+                <DraggableApiFile key={doc.id} filePath={filePath} filename={filename} className="blox-document-card">
                   <div>
                     <strong>{label}</strong>
                     {doc.created_at && (
@@ -298,13 +350,13 @@ export function DocsTab({ id, data, actions, mutations, setError }: WorkspacePan
                     )}
                   </div>
                   <ApplicationDocumentActions
-                    filePath={`/applications/${id}/documents/${doc.id}/file`}
+                    filePath={filePath}
                     viewLabel={t('ops.common.view')}
                     downloadLabel={t('ops.common.download')}
-                    fallbackFilename={doc.original_name ?? `${doc.category}.pdf`}
+                    fallbackFilename={filename}
                     className="blox-document-card__actions"
                   />
-                </div>
+                </DraggableApiFile>
               );
             })}
           </div>

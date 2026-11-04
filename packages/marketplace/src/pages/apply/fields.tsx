@@ -4,7 +4,8 @@
  * errors are wired through `aria-describedby`, and layout uses logical CSS so
  * the Arabic RTL rendering needs no overrides.
  */
-import { useId, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react';
+import { useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react';
+import { dmyToIso, isoToDmy } from './apply-model';
 
 export type FieldA11y = {
   id: string;
@@ -71,6 +72,58 @@ export function TextInput({ className, numeric, ref, ...rest }: TextInputProps) 
       ref={ref}
       className={`dm-input${numeric ? ' dm-numeric' : ''}${className ? ` ${className}` : ''}`}
       inputMode={rest.inputMode ?? (numeric ? 'decimal' : undefined)}
+    />
+  );
+}
+
+type DmyDateInputProps = Omit<TextInputProps, 'value' | 'onChange' | 'type'> & {
+  value: string;
+  onChange: (value: string) => void;
+};
+
+/** Date field that shows DD/MM/YYYY and stores YYYY-MM-DD. */
+export function DmyDateInput({ value, onChange, onBlur, ...rest }: DmyDateInputProps) {
+  const [text, setText] = useState(() => isoToDmy(value));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (focused.current) return;
+    setText(isoToDmy(value));
+  }, [value]);
+
+  return (
+    <TextInput
+      {...rest}
+      numeric
+      inputMode="numeric"
+      autoComplete="bday"
+      placeholder="DD/MM/YYYY"
+      maxLength={10}
+      value={text}
+      onFocus={(event) => {
+        focused.current = true;
+        rest.onFocus?.(event);
+      }}
+      onChange={(event) => {
+        const next = event.target.value.replace(/[^\d/]/g, '').slice(0, 10);
+        setText(next);
+        if (next === '') onChange('');
+        else {
+          const iso = dmyToIso(next);
+          if (iso) onChange(iso);
+        }
+      }}
+      onBlur={(event) => {
+        focused.current = false;
+        const iso = dmyToIso(text);
+        if (iso) {
+          onChange(iso);
+          setText(isoToDmy(iso));
+        } else if (text.trim()) {
+          onChange(text.trim());
+        }
+        onBlur?.(event);
+      }}
     />
   );
 }

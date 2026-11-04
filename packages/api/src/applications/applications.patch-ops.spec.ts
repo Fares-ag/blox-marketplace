@@ -19,6 +19,7 @@ function app(status: ApplicationStatus) {
     status,
     companyId: 'co-1',
     customerUserId: 'cust-1',
+    agentUserId: 'dealer_agent-1',
     customerSnapshot: {
       firstName: 'Sara',
       lastName: 'Ali',

@@ -9,7 +9,7 @@ import {
   normalizePhoneTyping,
   normalizeQid,
 } from '@drivemarket/shared';
-import { ChipRadioGroup, Field, Notice, Pill, SelectInput, TextInput } from '../fields';
+import { ChipRadioGroup, DmyDateInput, Field, Notice, Pill, SelectInput, TextInput } from '../fields';
 import { GENDER_OPTIONS, type ApplyForm, type DerivedIdentity, type FieldErrors, type GenderValue } from '../apply-model';
 
 type Props = {
@@ -110,7 +110,7 @@ export function IdentityStep({ form, derived, errors, onChange, onBlur, prefille
           required
         >
           {(a11y) => (
-            <TextInput {...a11y} type="date" lang="en-GB" numeric value={form.dateOfBirth} autoComplete="bday" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} onChange={(e) => onChange({ dateOfBirth: e.target.value })} onBlur={() => onBlur('dateOfBirth')} />
+            <DmyDateInput {...a11y} value={form.dateOfBirth} onChange={(dateOfBirth) => onChange({ dateOfBirth })} onBlur={() => onBlur('dateOfBirth')} />
           )}
         </Field>
       </div>

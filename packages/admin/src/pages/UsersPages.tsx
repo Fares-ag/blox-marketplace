@@ -6,11 +6,14 @@ import {
   ConfirmDialog,
   OpsDataTable,
   OpsEmptyState,
+  OpsField,
   OpsFormPage,
   OpsFormSection,
   OpsGhostButton,
   OpsListPage,
   OpsPrimaryButton,
+  OpsSecondaryButton,
+  OpsSelect,
   OpsStatusPill,
   PageSkeleton,
   SetPasswordDialog,
@@ -47,6 +50,7 @@ type UserDetail = AdminUser & {
   company_name?: string | null;
   credit_scope?: string;
   finance_scope?: string;
+  dealer_scope?: string;
   credit_company_ids?: string[];
   finance_company_ids?: string[];
   applications_count?: number;
@@ -87,6 +91,7 @@ export function UsersPage() {
   const [role, setRole] = useState('dealer_agent');
   const [companyId, setCompanyId] = useState('');
   const [homeBranchId, setHomeBranchId] = useState('');
+  const [salesManager, setSalesManager] = useState(false);
   const [creditScope, setCreditScope] = useState('assigned');
   const [financeScope, setFinanceScope] = useState('assigned');
   const [creditCompanyIds, setCreditCompanyIds] = useState<string[]>([]);
@@ -137,6 +142,7 @@ export function UsersPage() {
           companyId: companyId || undefined,
           home_branch_id: companyId && homeBranchId ? homeBranchId : undefined,
           creditScope: showsCreditFields(role) ? creditScope : undefined,
+          dealerScope: role === 'dealer_agent' && salesManager ? 'all' : undefined,
           financeScope: showsFinanceFields(role) ? financeScope : undefined,
           creditCompanyIds: showsCreditFields(role) ? creditCompanyIds : undefined,
           financeCompanyIds: showsFinanceFields(role) ? financeCompanyIds : undefined,
@@ -150,6 +156,7 @@ export function UsersPage() {
       setHomeBranchId('');
       setCreditCompanyIds([]);
       setFinanceCompanyIds([]);
+      setSalesManager(false);
       setError(null);
       setCreatedAccount(account);
       setCredentialsMode('create');
@@ -228,6 +235,13 @@ export function UsersPage() {
           )}
           {companyId && (
             <HomeBranchSelect plain companyId={companyId} value={homeBranchId} onChange={setHomeBranchId} />
+          )}
+          {role === 'dealer_agent' && (
+            <label>
+              <input type="checkbox" checked={salesManager} onChange={(e) => setSalesManager(e.target.checked)} />{' '}
+              {t('ops.superAdmin.salesManagerLabel')}
+              <small className="blox-field__hint">{t('ops.superAdmin.salesManagerHint')}</small>
+            </label>
           )}
           {showsCreditFields(role) && (
             <>
@@ -457,6 +471,7 @@ export function UserDetailPage() {
   const qc = useQueryClient();
   const me = useAuthStore((s) => s.user);
   const [displayName, setDisplayName] = useState('');
+  const [salesManager, setSalesManager] = useState(false);
   const [creditScope, setCreditScope] = useState('assigned');
   const [financeScope, setFinanceScope] = useState('assigned');
   const [creditIds, setCreditIds] = useState('');
@@ -512,6 +527,7 @@ export function UserDetailPage() {
           home_branch_id: companyId ? homeBranchId || null : null,
           creditScope,
           financeScope,
+          dealerScope: role === 'dealer_agent' && salesManager ? 'all' : 'assigned',
           creditCompanyIds: creditIds
             .split(',')
             .map((s) => s.trim())
@@ -585,6 +601,7 @@ export function UserDetailPage() {
     setHomeBranchId(data.home_branch?.id ?? '');
     setCreditScope(data.credit_scope ?? 'assigned');
     setFinanceScope(data.finance_scope ?? 'assigned');
+    setSalesManager(data.dealer_scope === 'all');
     setCreditIds((data.credit_company_ids ?? []).join(','));
     setFinanceIds((data.finance_company_ids ?? []).join(','));
   }, [data]);
@@ -655,106 +672,115 @@ export function UserDetailPage() {
         </OpsFormSection>
       )}
       <OpsFormSection title="Profile & scopes">
-        <label>
-          {t('ops.col.name')}
-          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
-        </label>
-        <label>
-          Role
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
-            {assignableRoles(me?.role).map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Company
-          <select
-            value={companyId}
-            onChange={(e) => {
-              setCompanyId(e.target.value);
-              setHomeBranchId('');
-            }}
-          >
-            <option value="">No company</option>
-            {(companies.data?.items ?? [])
-              .filter((c) => {
-                const kind = (c as { kind?: string }).kind;
-                if (role === 'group_admin') return kind === 'holding';
-                if (role === 'dealer_agent') return kind !== 'holding';
-                return true;
-              })
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {(c as { kind?: string }).kind === 'holding' ? ' (holding)' : ''}
-                </option>
-              ))}
-          </select>
-        </label>
-        <HomeBranchSelect plain companyId={companyId || null} value={homeBranchId} onChange={setHomeBranchId} />
-        <p>Applications: {data.applications_count ?? 0}</p>
-        <p>Credit scope: {data.credit_scope ?? 'assigned'}</p>
-        <p>Finance scope: {data.finance_scope ?? 'assigned'}</p>
-        <label>
-          Credit scope
-          <select value={creditScope} onChange={(e) => setCreditScope(e.target.value)}>
-            <option value="assigned">assigned</option>
-            <option value="all">all</option>
-          </select>
-        </label>
-        <label>
-          Credit company IDs (comma)
-          <input
-            value={creditIds}
-            onChange={(e) => setCreditIds(e.target.value)}
-            placeholder={(data.credit_company_ids ?? []).join(',')}
-          />
-        </label>
-        <label>
-          Finance scope
-          <select value={financeScope} onChange={(e) => setFinanceScope(e.target.value)}>
-            <option value="assigned">assigned</option>
-            <option value="all">all</option>
-          </select>
-        </label>
-        <label>
-          Finance company IDs (comma)
-          <input
-            value={financeIds}
-            onChange={(e) => setFinanceIds(e.target.value)}
-            placeholder={(data.finance_company_ids ?? []).join(',')}
-          />
-        </label>
-        <button type="button" className="blox-btn blox-btn--primary" disabled={save.isPending} onClick={() => save.mutate()}>
-          {t('ops.common.save')}
-        </button>
+        <OpsField
+          label={t('ops.col.name')}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          required
+        />
+        <OpsSelect label={t('ops.col.role')} value={role} onChange={(e) => setRole(e.target.value)}>
+          {assignableRoles(me?.role).map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </OpsSelect>
+        <OpsSelect
+          label="Company"
+          value={companyId}
+          onChange={(e) => {
+            setCompanyId(e.target.value);
+            setHomeBranchId('');
+          }}
+        >
+          <option value="">No company</option>
+          {filterCompaniesForRole(companies.data?.items ?? [], role).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+              {c.kind === 'holding' ? ' (holding)' : ''}
+            </option>
+          ))}
+        </OpsSelect>
+        <HomeBranchSelect companyId={companyId || null} value={homeBranchId} onChange={setHomeBranchId} />
+        {role === 'dealer_agent' && (
+          <div className="blox-field blox-form-grid__full">
+            <label className="blox-checkbox-row">
+              <input type="checkbox" checked={salesManager} onChange={(e) => setSalesManager(e.target.checked)} />
+              <span>{t('ops.superAdmin.salesManagerLabel')}</span>
+            </label>
+            <p className="blox-field__hint">{t('ops.superAdmin.salesManagerHint')}</p>
+          </div>
+        )}
+        <OpsField label="Applications" readOnly value={String(data.applications_count ?? 0)} />
+        {showsCreditFields(role) && (
+          <>
+            <OpsSelect label={t('ops.superAdmin.creditScopeLabel')} value={creditScope} onChange={(e) => setCreditScope(e.target.value)}>
+              <option value="assigned">{t('ops.superAdmin.officerScopeAssigned')}</option>
+              <option value="all">{t('ops.superAdmin.officerScopeAll')}</option>
+            </OpsSelect>
+            <OpsField
+              label={t('ops.superAdmin.creditCompaniesLabel')}
+              value={creditIds}
+              onChange={(e) => setCreditIds(e.target.value)}
+              placeholder={(data.credit_company_ids ?? []).join(',')}
+              hint="Comma-separated company IDs"
+              fullWidth
+            />
+          </>
+        )}
+        {showsFinanceFields(role) && (
+          <>
+            <OpsSelect label={t('ops.superAdmin.financeScopeLabel')} value={financeScope} onChange={(e) => setFinanceScope(e.target.value)}>
+              <option value="assigned">{t('ops.superAdmin.officerScopeAssigned')}</option>
+              <option value="all">{t('ops.superAdmin.officerScopeAll')}</option>
+            </OpsSelect>
+            <OpsField
+              label={t('ops.superAdmin.financeCompaniesLabel')}
+              value={financeIds}
+              onChange={(e) => setFinanceIds(e.target.value)}
+              placeholder={(data.finance_company_ids ?? []).join(',')}
+              hint="Comma-separated company IDs"
+              fullWidth
+            />
+          </>
+        )}
+        <div className="blox-form-grid__full blox-form-actions__primary">
+          <OpsPrimaryButton type="button" disabled={save.isPending} loading={save.isPending} onClick={() => save.mutate()}>
+            {t('ops.common.save')}
+          </OpsPrimaryButton>
+        </div>
       </OpsFormSection>
       <OpsFormSection title={`Blox credits · ${credits.data?.balance ?? 0}`}>
-        <label>
-          Action
-          <select value={creditAction} onChange={(e) => setCreditAction(e.target.value as typeof creditAction)}>
-            <option value="add">Add</option>
-            <option value="subtract">Subtract</option>
-            <option value="set">Set</option>
-          </select>
-        </label>
-        <label>
-          Amount
-          <input type="number" value={creditAmount} onChange={(e) => setCreditAmount(Number(e.target.value))} />
-        </label>
-        <button type="button" className="blox-btn blox-btn--secondary" onClick={() => adjustCredits.mutate()}>
-          Apply credits
-        </button>
-        <ul>
-          {(credits.data?.transactions ?? []).map((txn) => (
-            <li key={txn.id}>
-              {txn.action} {txn.amount} · {new Date(txn.created_at).toLocaleString()}
-            </li>
-          ))}
-        </ul>
+        <OpsSelect
+          label="Action"
+          value={creditAction}
+          onChange={(e) => setCreditAction(e.target.value as typeof creditAction)}
+        >
+          <option value="add">Add</option>
+          <option value="subtract">Subtract</option>
+          <option value="set">Set</option>
+        </OpsSelect>
+        <OpsField
+          label="Amount"
+          type="number"
+          min={0}
+          value={String(creditAmount)}
+          onChange={(e) => setCreditAmount(Number(e.target.value))}
+        />
+        <div className="blox-form-grid__full blox-form-actions__primary">
+          <OpsSecondaryButton type="button" onClick={() => adjustCredits.mutate()}>
+            Apply credits
+          </OpsSecondaryButton>
+        </div>
+        {(credits.data?.transactions ?? []).length > 0 && (
+          <ul className="blox-form-grid__full blox-muted blox-stack" style={{ margin: 0, paddingLeft: '1.25rem' }}>
+            {(credits.data?.transactions ?? []).map((txn) => (
+              <li key={txn.id}>
+                {txn.action} {txn.amount} · {new Date(txn.created_at).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        )}
       </OpsFormSection>
       <OpsFormSection title="Applications">
         {(apps.data?.items ?? []).map((app) => (

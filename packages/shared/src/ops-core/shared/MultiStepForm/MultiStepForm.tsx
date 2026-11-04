@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'react-toastify';
 import { Button as CustomButton } from '../../core/Button/Button';
 
 /** Chosen files cannot be serialised into sessionStorage. Memory covers the open tab; IndexedDB covers a sign-in after timeout. */
@@ -253,6 +254,7 @@ export const MultiStepForm: React.FC<MultiStepFormProps> = ({
   const validateCurrentStep = () => {
     const message = steps[activeStep].validate?.(formData) ?? null;
     setStepError(message);
+    if (message) toast.error(message, { autoClose: false, toastId: `step:${message}` });
     return message == null;
   };
 

@@ -89,6 +89,7 @@ export class MeController {
       company_name: company?.name ?? null,
       credit_scope: user.creditScope,
       finance_scope: user.financeScope,
+      dealer_scope: user.dealerScope,
       phone: user.phone,
       qid: this.identity.readQid(user),
       email_verified: user.emailVerified,

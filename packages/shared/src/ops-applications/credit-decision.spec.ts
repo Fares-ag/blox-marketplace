@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../lib/api';
 import type { AffordabilityDto, CreditAssessmentDto } from '../types/customer-platform';
 import type { IntakeTranslate } from './customer-info';
@@ -10,6 +10,7 @@ import {
   decisionErrorMessage,
   effectiveExceptionTier,
   formatDbrPct,
+  runUnlessBlocked,
 } from './credit-decision';
 
 const t: IntakeTranslate = (key, options) => {
@@ -144,6 +145,16 @@ describe('DBR gauge model', () => {
     expect(model.fillPct).toBe(100);
     expect(formatDbrPct(model.dbrPct)).toBe('—');
     expect(formatDbrPct(0.4321)).toBe('43.2');
+  });
+
+  it('explains a blocked approve without running it', () => {
+    const run = vi.fn();
+    const explain = vi.fn();
+    runUnlessBlocked('The assessment matrix blocks this approval.', run, explain);
+    expect(explain).toHaveBeenCalledWith('The assessment matrix blocks this approval.');
+    expect(run).not.toHaveBeenCalled();
+    runUnlessBlocked(null, run, explain);
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it('maps the credit path to a pill variant', () => {

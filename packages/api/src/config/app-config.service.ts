@@ -44,6 +44,23 @@ function parseBureauTransport(raw: string | undefined): 'local' | 'sftp' {
   return raw?.trim().toLowerCase() === 'sftp' ? 'sftp' : 'local';
 }
 
+/** Hostname prefix that identifies a portal inside CORS_ORIGINS when the explicit URL is unset. */
+const PORTAL_HOST_PREFIX: Record<string, string> = {
+  ADMIN_URL: 'admin.',
+  SUPER_ADMIN_URL: 'ops.',
+  DEALER_URL: 'dealer.',
+  CREDIT_URL: 'credit.',
+  FINANCE_URL: 'finance.',
+};
+
+function originHostname(origin: string): string | null {
+  try {
+    return new URL(origin).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 function resolvePortalBase(
   config: ConfigService,
   envKey: string,
@@ -52,9 +69,22 @@ function resolvePortalBase(
 ): string {
   const explicit = config.get<string>(envKey)?.trim();
   if (explicit) return explicit.replace(/\/$/, '');
-  const fromCors = corsOrigins.find((origin) => new RegExp(`:${devPort}(?:/|$)`).test(origin));
-  if (fromCors) return fromCors.replace(/\/$/, '');
+  const fromPort = corsOrigins.find((origin) => new RegExp(`:${devPort}(?:/|$)`).test(origin));
+  if (fromPort) return fromPort.replace(/\/$/, '');
+  const prefix = PORTAL_HOST_PREFIX[envKey];
+  if (prefix) {
+    const fromHost = corsOrigins.find((origin) => originHostname(origin)?.startsWith(prefix));
+    if (fromHost) return fromHost.replace(/\/$/, '');
+  }
   return `http://localhost:${devPort}`;
+}
+
+function assertProductionPortalUrl(name: string, url: string): void {
+  if (/localhost|127\.0\.0\.1/i.test(url)) {
+    throw new Error(
+      `${name} resolved to a local URL in production (${url}). Set ${name} or include the portal origin in CORS_ORIGINS.`,
+    );
+  }
 }
 
 /** Validated, typed view of process env — constructed once at boot. */
@@ -166,6 +196,13 @@ export class AppConfigService {
     }
     if (this.nodeEnv === 'production' && this.bureauIncludeAllCompanies) {
       throw new Error('BUREAU_INCLUDE_ALL_COMPANIES is not permitted in production');
+    }
+    if (this.nodeEnv === 'production') {
+      assertProductionPortalUrl('ADMIN_URL', this.adminUrl);
+      assertProductionPortalUrl('SUPER_ADMIN_URL', this.superAdminUrl);
+      assertProductionPortalUrl('DEALER_URL', this.dealerUrl);
+      assertProductionPortalUrl('CREDIT_URL', this.creditUrl);
+      assertProductionPortalUrl('FINANCE_URL', this.financeUrl);
     }
     if (this.bureauTransport === 'sftp' && !this.bureauSftpEnabled) {
       throw new Error('BUREAU_TRANSPORT=sftp requires BUREAU_SFTP_ENABLED=true');

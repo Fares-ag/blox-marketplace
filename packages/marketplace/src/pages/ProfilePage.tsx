@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ApiError,
   DOCUMENT_UPLOAD_ACCEPT,
+  FileDropzone,
   DocumentMeta,
   apiFetch,
   apiFileUrl,
@@ -187,7 +188,6 @@ export function ProfilePage() {
   const [vaultNotice, setVaultNotice] = useState<Notice>(null);
   const [securityNotice, setSecurityNotice] = useState<Notice>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const vaultRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -244,7 +244,6 @@ export function ProfilePage() {
     },
     onSuccess: () => {
       setVaultForm(EMPTY_VAULT_FORM);
-      if (fileInputRef.current) fileInputRef.current.value = '';
       setVaultOpen(false);
       setVaultNotice({ tone: 'ok', text: t('customerProfile.vault.uploaded') });
       void qc.invalidateQueries({ queryKey: ['me-documents'] });
@@ -617,18 +616,17 @@ export function ProfilePage() {
                   </label>
                   <div className="dm-profile__field">
                     <span>{t('customerProfile.vault.file')}</span>
-                    <label className="dm-profile__file">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept={DOCUMENT_UPLOAD_ACCEPT}
-                        onChange={(e) => setVaultForm((p) => ({ ...p, file: e.target.files?.[0] ?? null }))}
-                      />
+                    <FileDropzone
+                      accept={DOCUMENT_UPLOAD_ACCEPT}
+                      className="dm-profile__file"
+                      hiddenInput={false}
+                      onFile={(file) => setVaultForm((p) => ({ ...p, file }))}
+                    >
                       <span className="dm-profile__file-btn">{t('customerProfile.vault.chooseFile')}</span>
                       <span className={`dm-profile__file-name${vaultForm.file ? ' is-selected' : ''}`}>
                         {vaultForm.file?.name ?? t('customerProfile.vault.noFile')}
                       </span>
-                    </label>
+                    </FileDropzone>
                     <small>{t('customerProfile.vault.fileHint')}</small>
                   </div>
                   <label className="dm-profile__field">

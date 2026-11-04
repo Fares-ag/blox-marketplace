@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, buildPaginationQuery, DEFAULT_PAGE_SIZE, paginationWindow } from '../lib/api';
 import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
@@ -30,6 +30,7 @@ function queueAge(iso?: string | null) {
 export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: string }) {
   const portalBase = usePortalBasePath();
   const detailBase = detailBaseProp ?? withPortalBase('/applications', portalBase);
+  const navigate = useNavigate();
   const { t, applicationStatus } = useOpsLabels();
   const [page, setPage] = useState(0);
   const [q, setQ] = useState('');
@@ -117,6 +118,11 @@ export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: stri
       },
       { id: 'dealer', label: t('ops.col.dealer'), format: (_, a) => a.company?.name ?? '—' },
       {
+        id: 'agent',
+        label: t('ops.credit.agent'),
+        format: (_, a) => a.agent?.name ?? a.agent?.email ?? '—',
+      },
+      {
         id: 'status',
         sortable: true,
         cardStatus: true,
@@ -193,6 +199,7 @@ export function FinanceQueue({ detailBase: detailBaseProp }: { detailBase?: stri
         totalRows={total}
         onPageChange={setPage}
         emptyMessage={emptyMessage}
+        onRowClick={(row) => navigate(`${detailBase}/${row.id}`)}
       />
     </OpsListPage>
   );

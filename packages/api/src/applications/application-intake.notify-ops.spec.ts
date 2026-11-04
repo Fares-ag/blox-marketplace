@@ -132,7 +132,7 @@ describe('ApplicationIntakeService.notifyOps', () => {
     });
     expect(activity.notify).toHaveBeenCalledWith(
       'qauto-credit',
-      'New financing application',
+      'New financing application — Sara Ali at QAuto Audi',
       'Sara Ali at QAuto Audi submitted a financing application (BLOX-0017).',
       '/applications/app-3',
       { forceEmail: true },
@@ -176,8 +176,8 @@ describe('ApplicationIntakeService.notifyOps', () => {
     );
     expect(activity.notify).toHaveBeenCalledWith(
       'credit-1',
-      'Identity hold on an application',
-      'The Qatar ID on a new application is already on file under a different name or date of birth. Review and clear the hold.',
+      'Identity hold — Sara Ali at Chery Elite Motors',
+      'Sara Ali at Chery Elite Motors: the Qatar ID on this application is already on file under a different name or date of birth. Review and clear the hold.',
       '/applications/app-hold',
       { forceEmail: true },
     );

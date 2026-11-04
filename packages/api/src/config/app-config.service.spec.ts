@@ -72,6 +72,42 @@ describe('AppConfigService', () => {
     ).toThrow('BUREAU_INCLUDE_ALL_COMPANIES is not permitted in production');
   });
 
+  const productionCors =
+    'https://blox.market,https://www.blox.market,https://dealer.blox.market,https://credit.blox.market,https://finance.blox.market,https://admin.blox.market,https://ops.blox.market';
+
+  it('resolves staff portal URLs from production CORS hostnames when explicit URLs are unset', () => {
+    const service = new AppConfigService(
+      mockConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://localhost:5432/test',
+        BETTER_AUTH_SECRET: 'integration-test-secret-with-sufficient-entropy-abcdef123456',
+        MARKETPLACE_URL: 'https://www.blox.market',
+        CORS_ORIGINS: productionCors,
+      }) as never,
+    );
+    expect(service.dealerUrl).toBe('https://dealer.blox.market');
+    expect(service.creditUrl).toBe('https://credit.blox.market');
+    expect(service.financeUrl).toBe('https://finance.blox.market');
+    expect(service.adminUrl).toBe('https://admin.blox.market');
+    expect(service.superAdminUrl).toBe('https://ops.blox.market');
+    expect(service.portalSignInUrl('dealer_agent' as never)).toBe('https://dealer.blox.market/auth/sign-in');
+  });
+
+  it('refuses localhost staff portal URLs in production', () => {
+    expect(
+      () =>
+        new AppConfigService(
+          mockConfig({
+            NODE_ENV: 'production',
+            DATABASE_URL: 'postgresql://localhost:5432/test',
+            BETTER_AUTH_SECRET: 'integration-test-secret-with-sufficient-entropy-abcdef123456',
+            MARKETPLACE_URL: 'https://www.blox.market',
+            CORS_ORIGINS: 'https://www.blox.market',
+          }) as never,
+        ),
+    ).toThrow('ADMIN_URL resolved to a local URL in production');
+  });
+
   it('throws when MARKETPLACE_URL is missing in production', () => {
     expect(
       () =>

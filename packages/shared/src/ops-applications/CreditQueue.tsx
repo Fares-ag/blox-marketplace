@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, buildPaginationQuery, DEFAULT_PAGE_SIZE, paginationWindow } from '../lib/api';
 import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
@@ -40,6 +40,7 @@ export function CreditQueue({
 }) {
   const portalBase = usePortalBasePath();
   const detailBase = detailBaseProp ?? withPortalBase('/applications', portalBase);
+  const navigate = useNavigate();
   const { t, applicationStatus } = useOpsLabels();
   const [page, setPage] = useState(0);
   const [q, setQ] = useState('');
@@ -229,6 +230,7 @@ export function CreditQueue({
         totalRows={total}
         onPageChange={setPage}
         emptyMessage={t('ops.common.queueClear')}
+        onRowClick={(row) => navigate(`${detailBase}/${row.id}`)}
       />
     </OpsListPage>
   );

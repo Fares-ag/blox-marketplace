@@ -446,8 +446,9 @@ describe('customer intake (integration)', () => {
       expect.objectContaining({ toValue: lender.id, metadata: { source: 'default_lender' } }),
     );
     const newLead = await ctx.prisma.notification.findFirst({
-      where: { userId: credit.user.id, title: 'New financing application' },
+      where: { userId: credit.user.id, title: { contains: 'New financing application' } },
     });
+    expect(newLead?.title).toContain(' at ');
     expect(newLead?.linkPath).toBe(`/applications/${applicationId}`);
 
     // Submitting twice is not a transition.

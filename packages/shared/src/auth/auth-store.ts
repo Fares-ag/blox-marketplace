@@ -31,6 +31,7 @@ function mapUser(raw: Record<string, unknown>): DmUser {
     company_name: (raw.company_name as string | null) ?? null,
     credit_scope: (raw.credit_scope as DmUser['credit_scope']) ?? 'assigned',
     finance_scope: (raw.finance_scope as DmUser['finance_scope']) ?? 'assigned',
+    dealer_scope: (raw.dealer_scope as DmUser['dealer_scope']) ?? 'assigned',
     full_name: (raw.name as string | null) ?? null,
     first_name: (raw.first_name as string | null) ?? null,
     last_name: (raw.last_name as string | null) ?? null,

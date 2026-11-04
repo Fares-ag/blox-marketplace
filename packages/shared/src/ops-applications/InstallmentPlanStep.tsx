@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { addMonths, formatDateYmd, parseYmd, startOfMonth } from '../lib/date-utils';
+import { addMonths, dmyToIso, formatDateYmd, isoToDmy, parseYmd, startOfMonth } from '../lib/date-utils';
 import { OpsField, OpsSelect } from '../ops-ui-v2/OpsField';
 import { formatMonthsToTenure } from '../lib/tenure';
 import { generateInstallmentSchedule } from '../lib/generate-schedule';
 import type { InstallmentPlan } from '../types/installment-plan';
-import { buildPricingSnapshot, sumInstallmentAmounts } from '../lib/pricing';
+import { adminFeeForFinanced, buildPricingSnapshot, sumInstallmentAmounts } from '../lib/pricing';
 import { downPaymentBounds } from '../lib/product-rules';
 import {
   balloonPricingOverlay,
@@ -48,9 +48,16 @@ export function InstallmentPlanStep({
 }: InstallmentPlanStepProps) {
   const { t } = useOpsLabels();
   const [interval, setInterval] = useState<'Monthly' | 'Daily'>('Monthly');
+  const [dateText, setDateText] = useState('');
+  const dateFocused = useRef(false);
   const [firstInstallmentDate, setFirstInstallmentDate] = useState(() =>
     formatDateYmd(addMonths(startOfMonth(new Date()), 1)),
   );
+
+  useEffect(() => {
+    if (dateFocused.current) return;
+    setDateText(isoToDmy(firstInstallmentDate));
+  }, [firstInstallmentDate]);
 
   const useBalloon = allowBalloon && balloonEnabled;
   const structure = resolveBalloonStructure(downPaymentPct, balloonPct);
@@ -179,11 +186,29 @@ export function InstallmentPlanStep({
 
       <OpsField
         label={t('ops.wizard.firstInstallmentDate')}
-        type="date"
-        lang="en-GB"
-        value={firstInstallmentDate}
-        min={formatDateYmd(new Date())}
-        onChange={(e) => setFirstInstallmentDate(e.target.value)}
+        inputMode="numeric"
+        placeholder="DD/MM/YYYY"
+        maxLength={10}
+        value={dateText}
+        onFocus={() => {
+          dateFocused.current = true;
+        }}
+        onChange={(e) => {
+          const next = e.target.value.replace(/[^\d/]/g, '').slice(0, 10);
+          setDateText(next);
+          const iso = dmyToIso(next);
+          if (iso) setFirstInstallmentDate(iso);
+        }}
+        onBlur={() => {
+          dateFocused.current = false;
+          const iso = dmyToIso(dateText);
+          if (iso) {
+            setFirstInstallmentDate(iso);
+            setDateText(isoToDmy(iso));
+          } else {
+            setDateText(isoToDmy(firstInstallmentDate));
+          }
+        }}
       />
 
       <OpsSelect
@@ -200,6 +225,10 @@ export function InstallmentPlanStep({
         <div className="blox-wizard-plan__metric">
           <small>{t('ops.wizard.downPayment')}</small>
           <div>{formatQar(plan.plan.downPayment ?? 0)} ({formatPercent(downPaymentPct)})</div>
+        </div>
+        <div className="blox-wizard-plan__metric">
+          <small>{t('ops.wizard.adminFee')}</small>
+          <div>{formatQar(adminFeeForFinanced(Math.max(vehiclePrice - Number(plan.plan.downPayment ?? 0), 0)))}</div>
         </div>
         {useBalloon && balloonOk ? (
           <>

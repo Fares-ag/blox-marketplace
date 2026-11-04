@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { FileDropzone } from '../components/FileDropzone';
 import { apiFetch } from '../lib/api';
-import { buildPricingSnapshot } from '../lib/pricing';
+import { formatQar } from '../lib/format';
+import { adminFeeForFinanced, buildPricingSnapshot, clampDownPaymentPct } from '../lib/pricing';
 import { assessAffordability } from '../lib/affordability';
 import { DEFAULT_IN_HOUSE_BALLOON_PCT, clampBalloonPercent, isValidBalloonStructure, resolveBalloonStructure } from '../lib/balloon-payment';
 import { isAlJazeeraFinance, isInHouseFinance } from '../lib/lender-criteria';
@@ -577,7 +578,7 @@ export function AddApplicationWizard({
             <option value="">{t('ops.wizard.selectOffer')}</option>
             {(offers.data?.items ?? []).map((o) => (
               <option key={o.id} value={o.id}>
-                {o.name} · {o.annual_rent_rate}% · {t(financeProductLabelKey(financeProductKind(o)))}
+                {o.name} · {t(financeProductLabelKey(financeProductKind(o)))}
               </option>
             ))}
           </OpsSelect>
@@ -717,6 +718,25 @@ export function AddApplicationWizard({
               }
               hint={t('applyFlow.rule.down_payment_below_recommended', { min: ctx.minDown, condition: ctx.primaryVehicle?.condition ?? 'new' })}
             />
+            <OpsNumberField
+              label={t('ops.wizard.downPaymentAmount')}
+              min={0}
+              max={Math.max(0, Math.round(ctx.priceForPlan))}
+              emptyValue={Math.round((ctx.priceForPlan * data.downPct) / 100)}
+              value={Math.round((ctx.priceForPlan * data.downPct) / 100)}
+              onValueChange={(amount) => {
+                if (!ctx.priceForPlan) return;
+                const bounds = downPaymentBounds();
+                const downPct = clampDownPaymentPct((amount / ctx.priceForPlan) * 100, bounds.min, bounds.max);
+                updateData({
+                  downPct,
+                  balloonPct: allowBalloon ? clampBalloonPercent(downPct, data.balloonPct) : data.balloonPct,
+                });
+              }}
+            />
+            <p className="blox-field__hint">
+              {t('ops.wizard.adminFee')}: {formatQar(adminFeeForFinanced(Math.max(ctx.priceForPlan - (ctx.priceForPlan * data.downPct) / 100, 0)))}
+            </p>
             <InstallmentPlanStep
               vehiclePrice={ctx.priceForPlan}
               offerRate={ctx.rate}
@@ -814,7 +834,7 @@ export function AddApplicationWizard({
                           const rejection = kycUploadRejection(picked);
                           if (rejection) {
                             setError(rejection);
-                            toast.error(rejection);
+                            toast.error(rejection, { autoClose: false, toastId: `step:${rejection}` });
                             return;
                           }
                           setError(null);
@@ -925,6 +945,7 @@ export function AddApplicationWizard({
       (planContext(data).hard.length ? t('dealerOps.validation.rulesBlocking') : null);
     if (validationError) {
       setError(validationError);
+      toast.error(validationError, { autoClose: false, toastId: `step:${validationError}` });
       return;
     }
     if (!data.planPricingSnapshot || !data.installmentPlan || !data.offerId || data.productIds.length === 0) return;
@@ -972,7 +993,7 @@ export function AddApplicationWizard({
             submit: isAdmin ? data.submitOnCreate : true,
           }),
         },
-        { idempotencyKey: createIdempotencyKey.current },
+        { idempotencyKey: createIdempotencyKey.current, silentError: true },
       );
 
       const ids = created.created_ids?.length ? created.created_ids : [created.id];
@@ -983,7 +1004,7 @@ export function AddApplicationWizard({
           const fd = new FormData();
           fd.append('category', category);
           fd.append('file', file);
-          await apiFetch(`/api/ops/applications/${appId}/documents`, { method: 'POST', body: fd });
+          await apiFetch(`/api/ops/applications/${appId}/documents`, { method: 'POST', body: fd }, { silentError: true });
         }
       }
 
@@ -1002,7 +1023,7 @@ export function AddApplicationWizard({
             : null) ??
         (err instanceof Error ? err.message : t('ops.wizard.submitFailed'));
       setError(message);
-      toast.error(message);
+      toast.error(message, { autoClose: false, toastId: `step:${message}` });
     } finally {
       setBusy(false);
     }

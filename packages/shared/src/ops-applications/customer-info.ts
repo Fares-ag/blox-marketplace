@@ -25,7 +25,7 @@ import {
   lenderApplicantIssues,
   resolveLenderCriteria,
 } from '../lib/lender-criteria';
-import { ageFromDateOfBirth, dateOfBirthMatchesQid, parseIsoDateParts, parseQid } from '../lib/qid';
+import { ageFromDateOfBirth, dateOfBirthMatchesQid, isMaskedQid, parseIsoDateParts, parseQid } from '../lib/qid';
 import {
   PRODUCT_RULES,
   RESIDENCE_DURATION_OPTIONS,
@@ -406,7 +406,8 @@ export function buildCustomerSnapshot(value: CustomerInfoFormValue): Record<stri
     const signatory = value.corporate.authorizedSignatory ?? {};
     const email = (signatory.email || value.email).trim().toLowerCase();
     const phone = signatory.phone || value.phone;
-    const qid = signatory.qid || value.qid;
+    const qidRaw = (signatory.qid || value.qid || '').trim();
+    const qid = isMaskedQid(qidRaw) ? undefined : qidRaw;
     const full_name = value.corporate.legalName?.trim() || 'Corporate applicant';
     return {
       applicantType: 'corporate',
@@ -432,8 +433,9 @@ export function buildCustomerSnapshot(value: CustomerInfoFormValue): Record<stri
     };
   }
 
-  const qid = value.qid.trim();
-  const residency = residencyForInfo({ residency: value.residency, qid }) ?? undefined;
+  const qidRaw = value.qid.trim();
+  const qid = isMaskedQid(qidRaw) ? undefined : qidRaw;
+  const residency = residencyForInfo({ residency: value.residency, qid: qidRaw }) ?? undefined;
   const full_name = `${value.firstName} ${value.lastName}`.trim() || value.email;
   const address = compactStrings({
     line1: value.address.line1,
@@ -445,7 +447,7 @@ export function buildCustomerSnapshot(value: CustomerInfoFormValue): Record<stri
   const guarantor = value.hasGuarantor
     ? {
         fullName: value.guarantor.fullName.trim(),
-        qid: value.guarantor.qid.trim(),
+        qid: isMaskedQid(value.guarantor.qid) ? undefined : value.guarantor.qid.trim(),
         phone: value.guarantor.phone.trim(),
         relationship: value.guarantor.relationship || 'other',
         monthlyIncome: value.guarantor.monthlyIncome > 0 ? value.guarantor.monthlyIncome : undefined,
@@ -491,6 +493,7 @@ const VALIDATION_DEFAULTS = {
   phoneInvalid: 'Enter an 8-digit Qatar phone number, for example 5551 2345.',
   dobInvalid: 'Enter the date of birth as a real calendar date.',
   qidInvalid: 'Qatar ID must be 11 digits starting with 2 or 3.',
+  qidTooShort: 'Qatar ID must be 11 digits (you entered {{count}}).',
   dobRequired: 'Date of birth is required.',
   dobMismatch: 'The date of birth does not match the birth year on the Qatar ID.',
   nationalityRequired: 'Nationality is required.',
@@ -538,6 +541,16 @@ function requireTrimmed(value: string | undefined | null, msg: string): string |
   return null;
 }
 
+/** Empty and checksum failures keep the field's own sentence. A short entry says how many digits were typed. */
+function qidProblem(qid: string | undefined, t: IntakeTranslate, invalidKey: CustomerInfoValidationKey): string | null {
+  const trimmed = qid?.trim() ?? '';
+  if (isMaskedQid(trimmed)) return null;
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length > 0 && digits.length !== 11) return message(t, 'qidTooShort', { count: digits.length });
+  if (!trimmed || !parseQid(trimmed).valid) return message(t, invalidKey);
+  return null;
+}
+
 export function validateCustomerInfo(value: CustomerInfoFormValue, t: IntakeTranslate = passthroughTranslate): string | null {
   if (value.applicantType === 'corporate') {
     const corp = value.corporate;
@@ -552,7 +565,8 @@ export function validateCustomerInfo(value: CustomerInfoFormValue, t: IntakeTran
     if (!sig?.firstName?.trim() || !sig?.lastName?.trim()) return message(t, 'corpSignatoryName');
     if (!sig?.email?.trim() || !isValidEmail(sig.email)) return message(t, 'corpSignatoryEmail');
     if (!sig?.phone?.trim() || !isValidQatarPhone(sig.phone)) return message(t, 'corpSignatoryPhone');
-    if (!sig?.qid?.trim() || !parseQid(sig.qid).valid) return message(t, 'corpSignatoryQid');
+    const signatoryQid = qidProblem(sig?.qid, t, 'corpSignatoryQid');
+    if (signatoryQid) return signatoryQid;
     if (!sig?.nationality?.trim()) return message(t, 'corpSignatoryNationality');
     return null;
   }
@@ -565,7 +579,8 @@ export function validateCustomerInfo(value: CustomerInfoFormValue, t: IntakeTran
   if (!isValidQatarPhone(value.phone)) return message(t, 'phoneInvalid');
 
   const qid = value.qid.trim();
-  if (!/^\d{11}$/.test(qid) || !parseQid(qid).valid) return message(t, 'qidInvalid');
+  const qidError = qidProblem(qid, t, 'qidInvalid');
+  if (qidError) return qidError;
   if (!value.dateOfBirth.trim()) return message(t, 'dobRequired');
   // Separated from the QID comparison so "20001-05-12" reads as a bad date
   // rather than as a birth-year mismatch.
@@ -594,7 +609,8 @@ export function validateCustomerInfo(value: CustomerInfoFormValue, t: IntakeTran
   if (value.hasGuarantor) {
     const g = value.guarantor;
     if (!g.fullName.trim()) return message(t, 'guarantorNameRequired');
-    if (!/^\d{11}$/.test(g.qid.trim()) || !parseQid(g.qid.trim()).valid) return message(t, 'guarantorQidInvalid');
+    const guarantorQid = qidProblem(g.qid, t, 'guarantorQidInvalid');
+    if (guarantorQid) return guarantorQid;
     if (!g.phone.trim() || !isValidQatarPhone(g.phone)) return message(t, 'guarantorPhoneRequired');
     if (!g.relationship) return message(t, 'guarantorRelationshipRequired');
   }

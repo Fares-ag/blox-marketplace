@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, buildPaginationQuery, DEFAULT_PAGE_SIZE, paginationWindow } from '../lib/api';
+import { useAuthStore } from '../auth/auth-store';
 import { usePortalBasePath, withPortalBase } from '../ops-ui-v2/PortalBasePath';
 import { formatQar } from '../lib/format';
 import { applicationOpsPillVariant } from '../config/status-styles';
@@ -68,6 +69,8 @@ export function ApplicationsList({
 }) {
   const portalBase = usePortalBasePath();
   const basePath = basePathProp ?? withPortalBase('/applications', portalBase);
+  const navigate = useNavigate();
+  const salesManager = useAuthStore((s) => s.user?.dealer_scope) === 'all';
   const { t, applicationStatus } = useOpsLabels();
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(0);
@@ -76,6 +79,7 @@ export function ApplicationsList({
   const [dealerTab, setDealerTab] = useState<'all' | 'mine' | 'resubmission'>('all');
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const dealer = audience === 'dealer';
+  const visibleDealerTab = dealer && !salesManager && dealerTab === 'all' ? 'mine' : dealerTab;
   const statusIn = STATUS_TABS[tab]?.statusIn ?? '';
 
   const companyId = typeof filters.companyId === 'string' ? filters.companyId : '';
@@ -84,11 +88,11 @@ export function ApplicationsList({
   const createdRange = (filters.createdRange as { startDate?: string; endDate?: string }) ?? {};
 
   const path = dealer
-    ? `/api/dealer/applications?${buildPaginationQuery(page)}${q ? `&q=${encodeURIComponent(q)}` : ''}${dealerTab !== 'all' ? `&tab=${dealerTab}` : ''}`
+    ? `/api/dealer/applications?${buildPaginationQuery(page)}${q ? `&q=${encodeURIComponent(q)}` : ''}${visibleDealerTab !== 'all' ? `&tab=${visibleDealerTab}` : ''}`
     : `/api/ops/applications?${buildPaginationQuery(page)}${q ? `&q=${encodeURIComponent(q)}` : ''}${statusIn ? `&statusIn=${encodeURIComponent(statusIn)}` : ''}${companyId ? `&companyId=${encodeURIComponent(companyId)}` : ''}${financePartnerId ? `&financePartnerId=${encodeURIComponent(financePartnerId)}` : ''}${scheduleHealth ? `&scheduleHealth=${encodeURIComponent(scheduleHealth)}` : ''}${createdRange.startDate ? `&createdFrom=${createdRange.startDate}` : ''}${createdRange.endDate ? `&createdTo=${createdRange.endDate}` : ''}`;
 
   const { data, error, isLoading } = useQuery({
-    queryKey: ['ops-apps', audience, page, q, tab, dealerTab, companyId, financePartnerId, scheduleHealth, createdRange],
+    queryKey: ['ops-apps', audience, page, q, tab, visibleDealerTab, companyId, financePartnerId, scheduleHealth, createdRange],
     queryFn: () =>
       apiFetch<PaginatedResponse<OpsQueueItem> & { metrics?: { loan_value: number; receivable: number; avg_payment: number } }>(path),
   });
@@ -184,6 +188,11 @@ export function ApplicationsList({
     ];
   }, [dealer, dealerMetricsQuery.data, dealerMetricsQuery.isLoading, metrics, t]);
 
+  /** Same dealership on every row — sales managers need the creating agent, not the company name again. */
+  const showSalesExecutiveColumn = dealer && salesManager;
+  const showDealerColumn = !dealer;
+  const showOpsAgentColumn = !dealer;
+
   const columns: Column<OpsQueueItem>[] = useMemo(
     () => [
       {
@@ -217,11 +226,35 @@ export function ApplicationsList({
           </span>
         ),
       },
-      {
-        id: 'dealer',
-        label: t('ops.col.dealer'),
-        format: (_, a) => a.company?.name ?? a.agent?.name ?? '—',
-      },
+      ...(showSalesExecutiveColumn
+        ? [
+            {
+              id: 'agent',
+              cardTitle: true,
+              label: t('dealerOps.workspace.salesExecutive'),
+              format: (_: unknown, a: OpsQueueItem) =>
+                a.agent?.name ?? a.agent?.email ?? t('dealerOps.workspace.unassignedAgent'),
+            } satisfies Column<OpsQueueItem>,
+          ]
+        : []),
+      ...(showDealerColumn
+        ? [
+            {
+              id: 'dealer',
+              label: t('ops.col.dealer'),
+              format: (_: unknown, a: OpsQueueItem) => a.company?.name ?? '—',
+            } satisfies Column<OpsQueueItem>,
+          ]
+        : []),
+      ...(showOpsAgentColumn
+        ? [
+            {
+              id: 'agent',
+              label: t('ops.credit.agent'),
+              format: (_: unknown, a: OpsQueueItem) => a.agent?.name ?? a.agent?.email ?? '—',
+            } satisfies Column<OpsQueueItem>,
+          ]
+        : []),
       {
         id: 'status',
         sortable: true,
@@ -264,7 +297,7 @@ export function ApplicationsList({
         ),
       },
     ],
-    [t, basePath, applicationStatus],
+    [t, basePath, applicationStatus, showSalesExecutiveColumn, showDealerColumn, showOpsAgentColumn],
   );
 
   return (
@@ -307,7 +340,7 @@ export function ApplicationsList({
                   setPage(0);
                 }}
               >
-                <OpsTab value="all" label={t('ops.dealer.tabAll')} />
+                {salesManager ? <OpsTab value="all" label={t('ops.dealer.tabAll')} /> : null}
                 <OpsTab value="mine" label={t('ops.dealer.tabMine')} />
                 <OpsTab value="resubmission" label={t('ops.dealer.tabResubmission')} />
               </OpsTabs>
@@ -350,6 +383,7 @@ export function ApplicationsList({
         onPageChange={setPage}
         defaultSort={{ id: 'created_at', dir: 'desc' }}
         emptyMessage={t('ops.common.noResults')}
+        onRowClick={(row) => navigate(`${basePath}/${row.id}`)}
       />
     </OpsListPage>
   );

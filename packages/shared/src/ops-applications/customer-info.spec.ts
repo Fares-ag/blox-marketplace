@@ -85,6 +85,13 @@ describe('buildCustomerSnapshot / customerInfoFromSnapshot', () => {
     expect(back.guarantor).toMatchObject({ fullName: 'Hamad Al Thani', relationship: 'sibling', monthlyIncome: 18_000 });
   });
 
+  it('omits a masked Qatar ID so a resubmission save cannot overwrite it', () => {
+    const snapshot = buildCustomerSnapshot(individual({ qid: 'XXXXXXX0001' }));
+    expect(snapshot.qid).toBeUndefined();
+    expect(snapshot.full_name).toBe('Aisha Al Thani');
+    expect(validateCustomerInfo(individual({ qid: 'XXXXXXX0001' }))).toBeNull();
+  });
+
   it('keeps expatriate residence duration and derives residency from the QID', () => {
     const snapshot = buildCustomerSnapshot(
       individual({ qid: EXPAT_QID, dateOfBirth: '2001-01-01', nationality: 'India', residency: '', residenceDuration: '1-3-years' }),
@@ -161,6 +168,10 @@ describe('validateCustomerInfo', () => {
     expect(validateCustomerInfo(individual({ gender: '' }))).toMatch(/Gender/);
   });
 
+  it('says how many digits a short Qatar ID has', () => {
+    expect(validateCustomerInfo(individual({ qid: '2906340000' }))).toMatch(/you entered 10/);
+  });
+
   it('requires digits-only CR, Qatar phone, valid QID and nationality for corporate applicants', () => {
     const corporate = (): CustomerInfoFormValue => ({
       ...emptyCustomerInfo(),
@@ -192,7 +203,7 @@ describe('validateCustomerInfo', () => {
         ...corporate(),
         corporate: { ...corporate().corporate, authorizedSignatory: { ...corporate().corporate.authorizedSignatory, qid: '12ab' } },
       }),
-    ).toMatch(/11 valid digits/);
+    ).toMatch(/you entered 2/);
     expect(
       validateCustomerInfo({
         ...corporate(),
@@ -234,7 +245,7 @@ describe('validateCustomerInfo', () => {
         ...withGuarantor,
         guarantor: { fullName: 'Hamad', qid: '123', phone: '', relationship: '', monthlyIncome: 0 },
       }),
-    ).toMatch(/Guarantor Qatar ID/);
+    ).toMatch(/you entered 3/);
   });
 
   it('routes messages through the translator with the key and default', () => {
@@ -252,7 +263,7 @@ describe('document slots in the wizard', () => {
   it('derives required documents from residency, employment type and guarantor', () => {
     const qatari = wizardDocumentSlots(individual());
     expect(qatari.find((s) => s.category === 'passport')?.required).toBe(false);
-    expect(qatari.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'qid_back', 'salary', 'bank']);
+    expect(qatari.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'salary', 'bank']);
 
     const expatSelfEmployedWithGuarantor = wizardDocumentSlots(
       individual({
@@ -263,7 +274,7 @@ describe('document slots in the wizard', () => {
       }),
     );
     const required = expatSelfEmployedWithGuarantor.filter((s) => s.required).map((s) => s.category);
-    expect(required).toEqual(['qid_front', 'qid_back', 'passport', 'cr', 'trade_license', 'business_bank', 'bank', 'guarantor_qid', 'guarantor_salary']);
+    expect(required).toEqual(['qid_front', 'passport', 'cr', 'trade_license', 'business_bank', 'bank', 'guarantor_qid', 'guarantor_salary']);
     expect(expatSelfEmployedWithGuarantor.some((s) => s.category === 'vehicle_quotation')).toBe(true);
   });
 
@@ -289,7 +300,8 @@ describe('document slots in the wizard', () => {
 
     const inHouse = wizardDocumentSlots(individual(), { financePartnerCode: 'in-house-finance' });
     expect(inHouse.map((s) => s.category)).toEqual([
-      'qid',
+      'qid_front',
+      'qid_back',
       'passport',
       'cr',
       'computer_card',
@@ -299,9 +311,11 @@ describe('document slots in the wizard', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'other',
     ]);
     expect(slots.map((s) => s.category)).toEqual([
-      'qid',
+      'qid_front',
+      'qid_back',
       'passport',
       'cr',
       'computer_card',
@@ -311,11 +325,13 @@ describe('document slots in the wizard', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'other',
     ]);
   });
 
   it('reports missing required files, treating `id` as a Qatar ID', () => {
     const file = new File(['x'], 'doc.pdf', { type: 'application/pdf' });
+    expect(validateRequiredWizardDocuments({}, individual())).toMatch(/required documents/i);
     expect(validateRequiredWizardDocuments({ id: file, salary: file, bank: file }, individual())).toBeNull();
     expect(validateRequiredWizardDocuments({ qid: file }, individual())).toMatch(/salary certificate|Salary/i);
     // Legacy signature (applicant type only) keeps working for older callers.

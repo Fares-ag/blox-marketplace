@@ -45,7 +45,10 @@ const HUMAN_MESSAGES: Record<string, string> = {
   contracts_incomplete: 'Sign every agreement before submitting the package.',
   policy_number_invalid: 'Enter the policy number exactly as printed. It needs both letters and digits.',
   effective_from_required: 'Cover start date is required.',
+  effective_from_invalid: 'Cover start must be a real date between 2000 and 15 years from now.',
   expires_at_required: 'Cover end date is required.',
+  expires_at_invalid: 'Cover end must be a real date between 2000 and 15 years from now.',
+  expires_before_effective: 'Cover end must be on or after the cover start.',
   separation_of_duties: 'This action is blocked by separation-of-duties policy.',
   dual_control_required: 'A second approver is required for this action.',
   membership_required: 'Active Blox membership is required to defer payments.',
@@ -102,6 +105,7 @@ const HUMAN_MESSAGES: Record<string, string> = {
   assist_proof_invalid: 'Please verify your phone again to continue.',
   takaful_declaration_required: 'Please confirm the takaful declaration.',
   takaful_policy_locked: 'This policy has been verified and can no longer be edited.',
+  takaful_policy_not_found: 'That policy could not be found.',
   application_completed: 'This application is complete and can no longer be changed.',
   session_absolute_timeout: 'Your session reached its maximum length. Please sign in again.',
   sms_invalid_recipient: 'The mobile number cannot receive SMS.',
@@ -139,7 +143,66 @@ const HUMAN_MESSAGES: Record<string, string> = {
   takaful_provider_not_found: 'The takaful provider was not found.',
   takaful_provider_code_exists: 'A takaful provider with this code already exists.',
   vehicle_price_required: 'Enter the vehicle price to compare comprehensive takaful contributions.',
+  invalid_file_type: 'Upload a PDF or image. This file type is not accepted.',
+  application_not_found: 'That application could not be found.',
+  document_not_found: 'That document could not be found.',
+  customer_not_found: 'That customer could not be found.',
+  listing_image_not_found: 'That listing image could not be found.',
+  schedule_not_found: 'That installment could not be found.',
+  settlement_not_pending: 'This settlement is no longer waiting for a decision.',
+  invalid_idempotency_key: 'The request could not be repeated safely. Try again.',
+  contract_hash_mismatch: 'The signed file does not match the contract that was generated. Download it again and sign that copy.',
+  cannot_delete_application: 'This application cannot be deleted.',
+  cannot_delete_paid_application: 'This application has recorded payments and cannot be deleted.',
+  cannot_rebuild_paid_schedule: 'The schedule cannot be rebuilt after a payment has been recorded.',
+  partner_application_readonly: 'This application is with the finance partner and cannot be edited here.',
+  customer_account_required: 'The customer needs an account before this action.',
+  assist_session_incomplete: 'The customer has not finished this assisted session.',
+  assist_session_not_found: 'This assisted session link is not valid.',
+  takaful_document_not_found: 'The takaful document could not be found.',
+  takaful_already_active: 'This takaful policy is already verified.',
+  issued_at_invalid: 'Enter a valid issue date.',
+  expires_before_issued: 'The expiry date must be on or after the issue date.',
+  holding_cannot_have_parent: 'A holding company cannot belong to another company.',
+  only_dealership_can_have_parent: 'Only a dealership can belong to a holding company.',
+  parent_company_not_found: 'The parent company was not found.',
+  parent_must_be_holding: 'The parent company must be a holding company.',
+  company_cannot_parent_self: 'A company cannot be its own parent.',
+  missing_case_id: 'The identity check is missing its case reference.',
+  not_kyc_document: 'This file is not an identity document.',
+  kyc_case_not_linked: 'Identity verification is not linked to this application.',
+  invalid_signature: 'The identity verification callback could not be verified.',
 };
+
+/** Turn class-validator and other raw strings into a sentence a person can act on. */
+export function humanizeValidatorText(text: string): string {
+  const parts = text
+    .split(/\s*;\s*/)
+    .map(rewriteValidatorPart)
+    .filter(Boolean);
+  return parts.join(' ');
+}
+
+function rewriteValidatorPart(part: string): string {
+  const trimmed = part.trim();
+  if (!trimmed) return '';
+  if (/qid must be exactly 11 digits/i.test(trimmed)) {
+    return 'Qatar ID must be 11 digits starting with 2 or 3.';
+  }
+  if (/email must be an email/i.test(trimmed)) {
+    return 'Enter a valid email address, for example name@example.com.';
+  }
+  if (/should not be empty/i.test(trimmed)) {
+    const field = trimmed.replace(/\s+should not be empty.*/i, '').replace(/[_.]/g, ' ').trim();
+    if (!field) return 'A required field is missing.';
+    return `${field.charAt(0).toUpperCase()}${field.slice(1)} is required.`;
+  }
+  if (/phone/i.test(trimmed) && /must|invalid|digit/i.test(trimmed)) {
+    return 'Enter an 8-digit Qatar phone number, for example 5551 2345.';
+  }
+  if (isMachineErrorCode(trimmed)) return HUMAN_MESSAGES[trimmed] ?? 'An error occurred.';
+  return trimmed;
+}
 
 export function humanMessageForCode(code: string): string {
   return HUMAN_MESSAGES[code] ?? 'An error occurred.';

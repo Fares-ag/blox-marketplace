@@ -27,7 +27,13 @@ async function bootstrap() {
     credentials: true,
     // The portals read these to tell a throttled sign-in from a rejected one
     // and to say how long the wait is; cross-origin they are hidden otherwise.
-    exposedHeaders: ['Retry-After', 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset'],
+    exposedHeaders: [
+      'Retry-After',
+      'RateLimit-Limit',
+      'RateLimit-Remaining',
+      'RateLimit-Reset',
+      'Content-Disposition',
+    ],
   });
 
   const auth = app.get(AUTH_INSTANCE);

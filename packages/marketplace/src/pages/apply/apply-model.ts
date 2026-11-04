@@ -234,6 +234,24 @@ export type DerivedIdentity = {
   age: number | null;
 };
 
+/** `YYYY-MM-DD` → `DD/MM/YYYY` for the customer date field. Empty when it is not an ISO date. */
+export function isoToDmy(iso: string | null | undefined): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? '').trim());
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
+}
+
+/** `DD/MM/YYYY` → `YYYY-MM-DD`, or null when the calendar date is not real. */
+export function dmyToIso(value: string | null | undefined): string | null {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(value ?? '').trim());
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
 export function ageFromIsoDate(dateOfBirth: string, now: Date = new Date()): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null;
   const dob = new Date(`${dateOfBirth}T00:00:00`);

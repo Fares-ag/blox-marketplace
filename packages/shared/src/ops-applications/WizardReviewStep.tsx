@@ -163,6 +163,10 @@ export function WizardReviewStep({
               label={t('ops.wizard.downPayment')}
               value={formatQar(Number(plan.downPayment ?? snapshot?.down_payment ?? 0))}
             />
+            <InfoItem
+              label={t('ops.wizard.adminFee')}
+              value={formatQar(Number(snapshot?.admin_fee ?? 0))}
+            />
             <InfoItem label={t('ops.wizard.paymentInterval')} value={plan.interval} />
             <InfoItem label={t('ops.wizard.firstPayment')} value={formatQar(Number(plan.monthlyAmount ?? 0))} />
             {plan.calculationMethod === 'balloon_payment' && plan.paymentStructure ? (

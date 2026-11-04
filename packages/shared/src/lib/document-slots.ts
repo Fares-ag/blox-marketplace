@@ -110,7 +110,8 @@ export function qautoDocumentSlots(profile: DocumentSlotProfile): DocumentSlot[]
   const corporate = profile.applicantType === 'corporate';
   const expat = profile.residency === 'expat';
   const slots: DocumentSlot[] = [
-    { category: 'qid', required: true, group: 'identity', labelKey: 'applyFlow.docs.qidCopy' },
+    { category: 'qid_front', required: true, group: 'identity', labelKey: 'applyFlow.docs.qidFront' },
+    { category: 'qid_back', required: false, group: 'identity', labelKey: 'applyFlow.docs.qidBack' },
     { category: 'passport', required: expat, group: 'identity', labelKey: 'applyFlow.docs.passportCopy' },
     { category: 'cr', required: selfEmployed || corporate, group: 'business', labelKey: 'applyFlow.docs.employerCr' },
     { category: 'computer_card', required: false, group: 'business', labelKey: 'applyFlow.docs.employerComputerCard' },
@@ -132,6 +133,7 @@ export function qautoDocumentSlots(profile: DocumentSlotProfile): DocumentSlot[]
     { category: 'rental_agreement', required: false, group: 'identity', labelKey: 'applyFlow.docs.tenancyContract' },
     { category: 'national_address', required: false, group: 'identity', labelKey: 'applyFlow.docs.nationalAddress' },
     { category: 'bank_liability', required: false, group: 'income', labelKey: 'applyFlow.docs.bankLiability' },
+    { category: 'other', required: false, group: 'supporting', labelKey: 'applyFlow.docs.other' },
   ];
   if (profile.hasGuarantor) slots.push(...QAUTO_GUARANTOR_SLOTS.map((slot) => ({ ...slot })));
   return slots;
@@ -146,7 +148,7 @@ export function documentSlotsFor(profile: DocumentSlotProfile): DocumentSlot[] {
   const slots: DocumentSlot[] = [];
 
   slots.push({ category: 'qid_front', required: true, group: 'identity', labelKey: 'applyFlow.docs.qidFront' });
-  slots.push({ category: 'qid_back', required: true, group: 'identity', labelKey: 'applyFlow.docs.qidBack' });
+  slots.push({ category: 'qid_back', required: false, group: 'identity', labelKey: 'applyFlow.docs.qidBack' });
   slots.push({ category: 'passport', required: expat, group: 'identity', labelKey: 'applyFlow.docs.passport' });
   slots.push({ category: 'license', required: false, group: 'identity', labelKey: 'applyFlow.docs.license' });
   slots.push({ category: 'residence_proof', required: false, group: 'identity', labelKey: 'applyFlow.docs.residenceProof' });

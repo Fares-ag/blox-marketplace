@@ -81,7 +81,16 @@ export type PricingSnapshot = {
   rate: number;
   monthly: number;
   financed_total: number;
+  /** Flat 1,000 QAR up to 100,000 financed, otherwise 1% of the financed amount. */
+  admin_fee: number;
 };
+
+/** Admin fee on the amount left after the down payment. Exactly 100,000 stays at 1,000 QAR. */
+export function adminFeeForFinanced(financed: number): number {
+  const amount = Math.max(0, Number.isFinite(financed) ? financed : 0);
+  if (amount <= 100_000) return 1000;
+  return roundMoney(amount * 0.01);
+}
 
 /**
  * Keep a chosen down payment inside a band. `maxPct` defaults to the product
@@ -105,6 +114,7 @@ export function buildPricingSnapshot(input: PricingInput): PricingSnapshot {
     input.minDownPaymentPct,
   );
   const downPayment = roundMoney((input.listPrice * safeDownPct) / 100);
+  const financedPrincipal = Math.max(roundMoney(input.listPrice - downPayment), 0);
   const paymentInput: MonthlyPaymentInput = {
     price: input.listPrice,
     downPayment,
@@ -120,6 +130,7 @@ export function buildPricingSnapshot(input: PricingInput): PricingSnapshot {
     rate: input.annualRatePercent,
     monthly: amounts[0] ?? 0,
     financed_total: sumInstallmentAmounts(amounts),
+    admin_fee: adminFeeForFinanced(financedPrincipal),
   };
 }
 

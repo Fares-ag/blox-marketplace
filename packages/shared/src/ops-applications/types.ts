@@ -174,6 +174,12 @@ export type OpsWorkspace = {
   activated_at?: string | null;
   /** Assessment stored at submit (wave 2); the workspace prefers the live endpoint. */
   credit_assessment?: CreditAssessmentDto | null;
+  /** Newest first. A matching pass disables another compliance run. */
+  compliance_checks?: Array<{
+    overall_status?: string;
+    qid_screened?: string;
+    applicant_name?: string;
+  }>;
   approval_authority?: string | null;
   branch_id?: string | null;
   branch_name?: string | null;

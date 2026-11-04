@@ -46,7 +46,13 @@ export function assertTakafulPolicyDateRange(effectiveFrom: Date | null, expires
   }
 }
 
-type ApplicationRef = { id: string; customerUserId: string | null; companyId: string; status: ApplicationStatus };
+type ApplicationRef = {
+  id: string;
+  customerUserId: string | null;
+  companyId: string;
+  agentUserId?: string | null;
+  status: ApplicationStatus;
+};
 
 /** Policies the customer can no longer edit: verified cover and closed records. */
 const LOCKED_STATUSES: TakafulStatus[] = [TakafulStatus.active, TakafulStatus.closed];
@@ -277,7 +283,7 @@ export class TakafulService {
   private async loadApplication(applicationId: string): Promise<ApplicationRef | null> {
     return this.prisma.application.findUnique({
       where: { id: applicationId },
-      select: { id: true, customerUserId: true, companyId: true, status: true },
+      select: { id: true, customerUserId: true, companyId: true, agentUserId: true, status: true },
     });
   }
 
@@ -324,11 +330,27 @@ export class TakafulService {
       },
       select: { id: true },
     });
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        customerEmail: true,
+        customerSnapshot: true,
+        company: { select: { name: true } },
+        customer: { select: { name: true } },
+      },
+    });
+    const snapshot = app?.customerSnapshot && typeof app.customerSnapshot === 'object' ? (app.customerSnapshot as Record<string, unknown>) : {};
+    const customer =
+      (typeof snapshot.full_name === 'string' && snapshot.full_name.trim()) ||
+      app?.customer?.name?.trim() ||
+      app?.customerEmail?.trim() ||
+      'A customer';
+    const dealer = app?.company?.name?.trim() || 'a dealer';
     for (const target of targets) {
       await this.activity.notify(
         target.id,
-        'Takaful policy awaiting verification',
-        `A customer uploaded takaful policy${policyNumber ? ` ${policyNumber}` : ''} for verification.`,
+        `Takaful policy awaiting verification — ${customer} at ${dealer}`,
+        `${customer} at ${dealer} uploaded takaful policy${policyNumber ? ` ${policyNumber}` : ''} for verification.`,
         `/applications/${applicationId}`,
       );
     }

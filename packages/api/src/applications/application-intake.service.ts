@@ -36,23 +36,33 @@ function customerNameFromSnapshot(snapshot: unknown, fallback?: string | null): 
   return legal || fallback?.trim() || 'A customer';
 }
 
-/** Body of the credit-queue email: who applied, and at which dealer. */
-export function creditQueueNoticeBody(
-  app: {
-    customerSnapshot?: unknown;
-    customerEmail?: string | null;
-    referenceSeq?: number | null;
-    company?: { name?: string | null } | null;
-    customer?: { name?: string | null } | null;
-  } | null,
-  fallbackDealer?: string,
-): string {
+type CreditNoticeApp = {
+  customerSnapshot?: unknown;
+  customerEmail?: string | null;
+  referenceSeq?: number | null;
+  company?: { name?: string | null } | null;
+  customer?: { name?: string | null } | null;
+} | null;
+
+function creditNoticeParties(app: CreditNoticeApp, fallbackDealer?: string): { customer: string; dealer: string } {
   const customer = customerNameFromSnapshot(app?.customerSnapshot, app?.customer?.name ?? app?.customerEmail ?? null);
   const fallback = fallbackDealer?.trim();
   const fallbackLooksLikeId = !!fallback && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fallback);
   const dealer = app?.company?.name?.trim() || (fallback && !fallbackLooksLikeId ? fallback : '') || 'a dealer';
+  return { customer, dealer };
+}
+
+/** Body of the credit-queue email: who applied, and at which dealer. */
+export function creditQueueNoticeBody(app: CreditNoticeApp, fallbackDealer?: string): string {
+  const { customer, dealer } = creditNoticeParties(app, fallbackDealer);
   const ref = formatApplicationRef(app?.referenceSeq);
   return `${customer} at ${dealer} submitted a financing application${ref ? ` (${ref})` : ''}.`;
+}
+
+/** Subject of the credit-queue email: who applied, and at which dealer. */
+export function creditQueueNoticeSubject(app: CreditNoticeApp, fallbackDealer?: string): string {
+  const { customer, dealer } = creditNoticeParties(app, fallbackDealer);
+  return `New financing application — ${customer} at ${dealer}`;
 }
 
 /**
@@ -171,11 +181,21 @@ export class ApplicationIntakeService {
         })),
       },
     });
+    const held = await this.prisma.application.findUnique({
+      where: { id: input.applicationId },
+      select: {
+        customerEmail: true,
+        customerSnapshot: true,
+        company: { select: { name: true } },
+        customer: { select: { name: true } },
+      },
+    });
+    const { customer, dealer } = creditNoticeParties(held, input.companyId);
     await this.notifyOps(
       input.companyId,
       [UserRole.credit_officer, UserRole.admin, UserRole.super_admin],
-      'Identity hold on an application',
-      'The Qatar ID on a new application is already on file under a different name or date of birth. Review and clear the hold.',
+      `Identity hold — ${customer} at ${dealer}`,
+      `${customer} at ${dealer}: the Qatar ID on this application is already on file under a different name or date of birth. Review and clear the hold.`,
       `/applications/${input.applicationId}`,
     );
   }
@@ -268,7 +288,8 @@ export class ApplicationIntakeService {
         UserRole.admin,
         UserRole.super_admin,
       ],
-      (role) => (role === UserRole.dealer_agent ? 'New lead on your stock' : 'New financing application'),
+      (role) =>
+        role === UserRole.dealer_agent ? 'New lead on your stock' : creditQueueNoticeSubject(app),
       creditQueueNoticeBody(app),
       `/applications/${appId}`,
     );

@@ -697,6 +697,7 @@ export const en = {
       age: 'Age',
       reopen: 'Reopen',
       complianceCheck: 'Run compliance check',
+      complianceAlreadyPassed: 'This applicant already passed. Change the QID or name to run the check again.',
       complianceRequired:
         'A compliance check has to pass before you can approve and send the contract. Run the compliance check, then approve again.',
       returnFromRecovery: 'Return to hardship',
@@ -1180,6 +1181,8 @@ export const en = {
       intervalMonthly: 'Monthly',
       intervalDaily: 'Daily',
       downPayment: 'Down payment',
+      downPaymentAmount: 'Down payment amount (QAR)',
+      adminFee: 'Admin fee',
       firstPayment: 'First payment',
       firstInstallmentDate: 'First installment date',
       tenure: 'Tenure',
@@ -1319,6 +1322,8 @@ export const en = {
       deleteUserBlocked: 'This user has linked applications or records and cannot be deleted. Suspend the account instead.',
       userDeleted: 'User deleted',
       creditScopeLabel: 'Credit scope',
+      salesManagerLabel: 'Sales manager',
+      salesManagerHint: 'Sees every application at this dealership. Other agents only see their own.',
       financeScopeLabel: 'Finance scope',
       creditCompaniesLabel: 'Credit companies',
       dealerCreditHint:
@@ -2036,6 +2041,7 @@ export const ar: typeof en = {
       age: 'العمر',
       reopen: 'إعادة فتح',
       complianceCheck: 'تشغيل فحص الامتثال',
+      complianceAlreadyPassed: 'اجتاز هذا المتقدم الفحص. غيّر رقم البطاقة أو الاسم لإعادة التشغيل.',
       complianceRequired:
         'يجب أن ينجح فحص الامتثال قبل الموافقة وإرسال العقد. شغّل فحص الامتثال، ثم وافق مرة أخرى.',
       returnFromRecovery: 'العودة إلى التعثر',
@@ -2518,6 +2524,8 @@ export const ar: typeof en = {
       intervalMonthly: 'شهري',
       intervalDaily: 'يومي',
       downPayment: 'الدفعة المقدمة',
+      downPaymentAmount: 'مبلغ الدفعة المقدمة (ر.ق)',
+      adminFee: 'رسوم إدارية',
       firstPayment: 'الدفعة الأولى',
       firstInstallmentDate: 'تاريخ القسط الأول',
       tenure: 'المدة',
@@ -2657,6 +2665,8 @@ export const ar: typeof en = {
       deleteUserBlocked: 'لا يمكن حذف هذا المستخدم لوجود طلبات أو سجلات مرتبطة. علّق الحساب بدلاً من ذلك.',
       userDeleted: 'تم حذف المستخدم',
       creditScopeLabel: 'نطاق الائتمان',
+      salesManagerLabel: 'مدير المبيعات',
+      salesManagerHint: 'يرى كل الطلبات في هذه الوكالة. بقية الوكلاء يرون طلباتهم فقط.',
       financeScopeLabel: 'نطاق التمويل',
       creditCompaniesLabel: 'شركات الائتمان',
       dealerCreditHint:

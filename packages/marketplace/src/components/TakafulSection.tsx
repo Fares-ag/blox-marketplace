@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   MoneyText,
   ApiError,
+  FileDropzone,
   apiFetch,
   documentUploadRejection,
   formatQar,
@@ -146,7 +147,6 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [compareCoverage, setCompareCoverage] = useState<TakafulCoverage>('comprehensive');
   const [compareOpen, setCompareOpen] = useState<boolean | null>(null);
-  const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const policiesQuery = useQuery({
     queryKey: ['app', app.id, 'takaful'],
@@ -208,6 +208,26 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
       }
       if (code === 'policy_number_invalid') {
         setFormError(t('takaful.policyNumberInvalid'));
+        return;
+      }
+      if (code === 'effective_from_required') {
+        setFormError(t('takaful.effectiveFromRequired'));
+        return;
+      }
+      if (code === 'expires_at_required') {
+        setFormError(t('takaful.expiresAtRequired'));
+        return;
+      }
+      if (code === 'takaful_policy_locked') {
+        setFormError(t('takaful.policyLocked'));
+        return;
+      }
+      if (code === 'application_completed') {
+        setFormError(t('takaful.applicationCompleted'));
+        return;
+      }
+      if (code === 'takaful_policy_not_found') {
+        setFormError(t('takaful.policyNotFound'));
         return;
       }
       setFormError(apiError?.message || t('takaful.saveError'));
@@ -312,8 +332,6 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
       setUploadError(t('takaful.uploadError'));
     } finally {
       setUploadingFor(null);
-      const input = fileInputs.current[policy.id];
-      if (input) input.value = '';
     }
   }
 
@@ -424,17 +442,13 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
                 {policy.hasDocument ? t('takaful.documentUploaded') : t('takaful.documentMissing')}
               </span>
               {app.status !== 'completed' && (
-                <label className={`dm-takaful__file${uploading ? ' is-uploading' : ''}`}>
-                  <input
-                    ref={(el) => {
-                      fileInputs.current[policy.id] = el;
-                    }}
-                    type="file"
-                    accept={DOCUMENT_UPLOAD_ACCEPT}
-                    disabled={uploading}
-                    aria-label={policy.hasDocument ? t('takaful.replaceDocument') : t('takaful.upload')}
-                    onChange={(e) => void uploadDocument(policy, e.target.files?.[0])}
-                  />
+                <FileDropzone
+                  accept={DOCUMENT_UPLOAD_ACCEPT}
+                  disabled={uploading}
+                  hiddenInput={false}
+                  className={`dm-takaful__file${uploading ? ' is-uploading' : ''}`}
+                  onFile={(file) => void uploadDocument(policy, file)}
+                >
                   <span>
                     {uploading
                       ? t('takaful.uploading')
@@ -442,7 +456,7 @@ export function TakafulSection({ app }: { app: CustomerApplication }) {
                         ? t('takaful.replaceDocument')
                         : t('takaful.upload')}
                   </span>
-                </label>
+                </FileDropzone>
               )}
               {policy.status === 'pending_verification' && (
                 <span className="dm-takaful__hint">{t('takaful.awaitingVerification')}</span>

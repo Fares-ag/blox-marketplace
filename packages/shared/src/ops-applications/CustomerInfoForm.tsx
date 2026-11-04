@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import { apiFetch } from '../lib/api';
 import { isValidEmail, isValidQatarPhone, normalizeCrNumber, normalizePhoneTyping } from '../lib/contact';
 import {
   dateOfBirthMatchesQid,
+  isMaskedQid,
   nationalityOptionsIncluding,
   normalizeQid,
   parseIsoDateParts,
@@ -99,7 +101,15 @@ export function CustomerInfoForm({
         `/api/ops/customers/search?q=${encodeURIComponent(search)}&limit=30`,
       ),
     enabled: allowExistingCustomer && useExisting,
+    retry: false,
   });
+
+  useEffect(() => {
+    if (!customers.isError) return;
+    const message =
+      customers.error instanceof Error ? customers.error.message : t('ops.common.downloadFailed');
+    toast.error(message);
+  }, [customers.isError, customers.errorUpdatedAt, customers.error, t]);
 
   const parsedQid = useMemo(() => parseQid(value.qid), [value.qid]);
   const residency = residencyForInfo(value);
@@ -126,9 +136,20 @@ export function CustomerInfoForm({
     : dobMismatch
       ? t('dealerOps.intake.dobMismatch')
       : req('dateOfBirth', !value.dateOfBirth.trim(), t('dealerOps.validation.dobRequired'));
-  const qidError = value.qid.length === QID_LENGTH && !parsedQid.valid
-    ? t('dealerOps.validation.qidInvalid')
-    : req('qid', !value.qid.trim() || value.qid.length < QID_LENGTH, t('dealerOps.validation.qidInvalid'));
+  const qidMasked = isMaskedQid(value.qid);
+  const qidDigits = value.qid.replace(/\D/g, '');
+  const qidError = qidMasked
+    ? undefined
+    : qidDigits.length === QID_LENGTH && !parsedQid.valid
+      ? t('dealerOps.validation.qidInvalid')
+      : qidDigits.length > 0 && qidDigits.length < QID_LENGTH
+        ? show('qid', true)
+          ? t('dealerOps.validation.qidTooShort', {
+              count: qidDigits.length,
+              defaultValue: 'Qatar ID must be 11 digits (you entered {{count}}).',
+            })
+          : undefined
+        : req('qid', !value.qid.trim(), t('dealerOps.validation.qidInvalid'));
   const nationalityError = req('nationality', !value.nationality.trim(), t('dealerOps.validation.nationalityRequired'));
   const residenceDurationError = residency === 'expat'
     ? req('residenceDuration', !value.residenceDuration, t('dealerOps.validation.residenceDurationRequired'))
@@ -150,7 +171,10 @@ export function CustomerInfoForm({
   const incomeError = req('income', !value.monthlyIncome || value.monthlyIncome <= 0, t('dealerOps.validation.incomeRequired'));
   // Guarantor
   const guarantorNameError = value.hasGuarantor ? req('guarantorName', !value.guarantor.fullName.trim(), t('dealerOps.validation.guarantorNameRequired')) : undefined;
-  const guarantorQidError = value.hasGuarantor ? req('guarantorQid', !/^\d{11}$/.test(value.guarantor.qid.trim()) || !parseQid(value.guarantor.qid.trim()).valid, t('dealerOps.validation.qidInvalid')) : undefined;
+  const guarantorQidMasked = isMaskedQid(value.guarantor.qid);
+  const guarantorQidError = value.hasGuarantor && !guarantorQidMasked
+    ? req('guarantorQid', !/^\d{11}$/.test(value.guarantor.qid.trim()) || !parseQid(value.guarantor.qid.trim()).valid, t('dealerOps.validation.qidInvalid'))
+    : undefined;
   const guarantorPhoneError = value.hasGuarantor
     ? show('guarantorPhone', !!value.guarantor.phone.trim() && !isValidQatarPhone(value.guarantor.phone))
       ? t('dealerOps.validation.phoneInvalid')
@@ -177,8 +201,10 @@ export function CustomerInfoForm({
   )
     ? t('dealerOps.validation.phoneInvalid')
     : req('signatoryPhone', !value.corporate.authorizedSignatory?.phone?.trim(), t('dealerOps.validation.corpSignatoryPhone'));
-  const signatoryQidError =
-    (value.corporate.authorizedSignatory?.qid ?? '').length === QID_LENGTH && !parsedSignatoryQid.valid
+  const signatoryQidMasked = isMaskedQid(value.corporate.authorizedSignatory?.qid);
+  const signatoryQidError = signatoryQidMasked
+    ? undefined
+    : (value.corporate.authorizedSignatory?.qid ?? '').length === QID_LENGTH && !parsedSignatoryQid.valid
       ? t('dealerOps.validation.qidInvalid')
       : req('signatoryQid', !value.corporate.authorizedSignatory?.qid?.trim(), t('dealerOps.validation.qidInvalid'));
   const sigNationalityError = req('sigNationality', !value.corporate.authorizedSignatory?.nationality?.trim(), t('dealerOps.validation.corpSignatoryNationality'));
@@ -522,8 +548,10 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.credit.qid')}
                 required
+                readOnly={signatoryQidMasked}
                 value={value.corporate.authorizedSignatory?.qid ?? ''}
                 onChange={(e) => {
+                  if (signatoryQidMasked) return;
                   const qid = normalizeQid(e.target.value).slice(0, QID_LENGTH);
                   const parsed = parseQid(qid);
                   patch({
@@ -543,9 +571,25 @@ export function CustomerInfoForm({
                 pattern="\d{11}"
                 maxLength={QID_LENGTH}
                 error={signatoryQidError}
-                hint={t('dealerOps.intake.qidHint')}
+                hint={signatoryQidMasked ? t('dealerOps.intake.qidMasked') : t('dealerOps.intake.qidHint')}
                 mono
               />
+              {signatoryQidMasked && (
+                <button
+                  type="button"
+                  className="blox-text-btn"
+                  onClick={() =>
+                    patch({
+                      corporate: {
+                        ...value.corporate,
+                        authorizedSignatory: { ...value.corporate.authorizedSignatory, qid: '' },
+                      },
+                    })
+                  }
+                >
+                  {t('dealerOps.intake.qidReplace')}
+                </button>
+              )}
               <OpsSelect
                 label={t('ops.customer.nationality')}
                 required
@@ -646,16 +690,24 @@ export function CustomerInfoForm({
               <OpsField
                 label={t('ops.credit.qid')}
                 required
+                readOnly={qidMasked}
                 error={qidError}
                 value={value.qid}
-                onChange={(e) => patchQid(e.target.value)}
+                onChange={(e) => {
+                  if (!qidMasked) patchQid(e.target.value);
+                }}
                 onBlur={() => markTouched('qid')}
                 inputMode="numeric"
                 pattern="\d{11}"
-                maxLength={QID_LENGTH}
-                hint={t('dealerOps.intake.qidHint')}
+                maxLength={qidMasked ? undefined : QID_LENGTH}
+                hint={qidMasked ? t('dealerOps.intake.qidMasked') : t('dealerOps.intake.qidHint')}
                 mono
               />
+              {qidMasked && (
+                <button type="button" className="blox-text-btn" onClick={() => patch({ qid: '' })}>
+                  {t('dealerOps.intake.qidReplace')}
+                </button>
+              )}
               <OpsSelect
                 label={t('ops.customer.nationality')}
                 required
@@ -895,17 +947,29 @@ export function CustomerInfoForm({
                   <OpsField
                     label={t('dealerOps.intake.guarantorQid')}
                     required
+                    readOnly={guarantorQidMasked}
                     error={guarantorQidError}
                     value={value.guarantor.qid}
-                    onChange={(e) =>
-                      patch({ guarantor: { ...value.guarantor, qid: e.target.value.replace(/\D/g, '').slice(0, QID_LENGTH) } })
-                    }
+                    onChange={(e) => {
+                      if (guarantorQidMasked) return;
+                      patch({ guarantor: { ...value.guarantor, qid: e.target.value.replace(/\D/g, '').slice(0, QID_LENGTH) } });
+                    }}
                     onBlur={() => markTouched('guarantorQid')}
                     inputMode="numeric"
                     pattern="\d{11}"
-                    maxLength={QID_LENGTH}
+                    maxLength={guarantorQidMasked ? undefined : QID_LENGTH}
+                    hint={guarantorQidMasked ? t('dealerOps.intake.qidMasked') : undefined}
                     mono
                   />
+                  {guarantorQidMasked && (
+                    <button
+                      type="button"
+                      className="blox-text-btn"
+                      onClick={() => patch({ guarantor: { ...value.guarantor, qid: '' } })}
+                    >
+                      {t('dealerOps.intake.qidReplace')}
+                    </button>
+                  )}
                   <OpsField
                     label={t('dealerOps.intake.guarantorPhone')}
                     required

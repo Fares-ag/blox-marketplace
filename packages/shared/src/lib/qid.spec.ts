@@ -75,7 +75,7 @@ describe('document slots', () => {
 
     const self = documentSlotsFor({ residency: 'qatari', employmentType: 'self-employed' });
     expect(self.some((s) => s.category === 'salary')).toBe(false);
-    expect(self.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'qid_back', 'cr', 'trade_license', 'business_bank', 'bank']);
+    expect(self.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'cr', 'trade_license', 'business_bank', 'bank']);
   });
 
   it('adds guarantor slots and accepts a generic id for the qid slot', () => {
@@ -98,7 +98,7 @@ describe('document slots', () => {
       residency: 'qatari',
       employment: { employmentType: 'private' },
     });
-    expect(employed.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'qid_back', 'salary', 'bank']);
+    expect(employed.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'salary', 'bank']);
 
     const selfEmployed = documentSlotsFromCustomerSnapshot({
       applicantType: 'individual',
@@ -118,7 +118,8 @@ describe('document slots', () => {
       companyCode: 'qauto-audi',
     });
     expect(qauto.map((s) => s.category)).toEqual([
-      'qid',
+      'qid_front',
+      'qid_back',
       'passport',
       'cr',
       'computer_card',
@@ -128,8 +129,9 @@ describe('document slots', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'other',
     ]);
-    expect(qauto.filter((s) => s.required).map((s) => s.category)).toEqual(['qid', 'salary', 'bank']);
+    expect(qauto.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'salary', 'bank']);
     expect(qauto.find((s) => s.category === 'bank')?.labelKey).toBe('applyFlow.docs.bankSixMonths');
 
     const expat = documentSlotsFor({
@@ -147,7 +149,8 @@ describe('document slots', () => {
       financePartnerCode: 'in-house-finance',
     });
     expect(inHouse.map((s) => s.category)).toEqual([
-      'qid',
+      'qid_front',
+      'qid_back',
       'passport',
       'cr',
       'computer_card',
@@ -157,6 +160,7 @@ describe('document slots', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'other',
     ]);
   });
 });

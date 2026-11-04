@@ -419,6 +419,14 @@ export class ApplicationsController {
     return this.apps.documentSlots(user, id);
   }
 
+  @Roles(...OPS_READ_ROLES)
+  @Get('ops/applications/:id/documents/archive')
+  async downloadDocumentsArchive(@CurrentUser() user: User, @Param('id') id: string, @Res() res: Response) {
+    const file = await this.apps.archiveDocuments(user, id);
+    setFileDownloadHeaders(res, file.contentType, file.filename, 'attachment');
+    res.send(file.buffer);
+  }
+
   /** Live credit assessment with the approver block computed for the caller. */
   @Roles(
     UserRole.credit_officer,

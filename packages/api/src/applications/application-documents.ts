@@ -254,7 +254,15 @@ export function uploadedDocumentCategories(
       present.add('qid');
     }
   }
-  if (hasQidRequirement(documents, policy)) present.add('qid');
+  // A generic `qid` marks both front and back complete. Only do that for a
+  // legacy one-file upload, a verified e-KYC front with no back row, or when
+  // both sides are actually on file. One new manual side must not fill the other.
+  const verifiedFrontOnly =
+    documents.some((doc) => isVerifiedKycSlot(doc, 'qid_front')) &&
+    !documents.some((doc) => doc.kycDocumentType === 'qid_back' || doc.category === 'qid_back');
+  if (present.has('qid') || verifiedFrontOnly || (present.has('qid_front') && present.has('qid_back'))) {
+    present.add('qid');
+  }
   return [...identityPresentSet(present)].sort();
 }
 

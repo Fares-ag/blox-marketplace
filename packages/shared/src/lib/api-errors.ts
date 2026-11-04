@@ -80,6 +80,7 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   expires_before_effective: 'Cover end must be on or after the cover start.',
   policy_year_invalid: 'Policy dates must use a realistic year.',
   takaful_policy_locked: 'This policy has been verified and can no longer be edited.',
+  takaful_policy_not_found: 'That policy could not be found.',
   application_completed: 'This application is complete and can no longer be changed.',
   session_absolute_timeout: 'Your session reached its maximum length. Please sign in again.',
   sms_invalid_recipient: 'The mobile number cannot receive SMS.',
@@ -117,6 +118,60 @@ const API_ERROR_MESSAGES: Record<string, string> = {
   takaful_provider_not_found: 'The takaful provider was not found.',
   takaful_provider_code_exists: 'A takaful provider with this code already exists.',
   vehicle_price_required: 'Enter the vehicle price to compare comprehensive takaful contributions.',
+  user_already_exists: 'An account with this email already exists. Please log in to continue.',
+  signup_failed: 'We could not create your account. Please try again.',
+  invalid_credentials: 'Email or password is incorrect.',
+  invalid_refresh_token: 'Your session expired. Please log in again.',
+  payload_too_large: 'The uploaded file is too large.',
+  not_implemented: 'This feature is not available yet.',
+  bureau_sftp_not_enabled: 'Bureau SFTP is not enabled.',
+  bureau_run_not_pending: 'This Bureau run is not awaiting approval.',
+  bureau_run_no_file: 'This Bureau run has no file to send.',
+  forbidden: 'Access to this resource is forbidden.',
+  schedule_already_settled: 'This payment schedule is already settled.',
+  down_payment_incomplete: 'The recorded down payment does not meet the requirement.',
+  down_payment_required_before_activation: 'Collect the down payment before approving the contract for activation.',
+  lpo_gate_requires_acquisition_pending: 'Activation requires a settled purchase order and acquisition evidence.',
+  acquisition_gate_failed: 'Acquisition evidence is incomplete.',
+  pre_disbursal_incomplete: 'Complete the pre-disbursal checklist before activation.',
+  disclosure_required: 'Read and acknowledge the unit-offer disclosure before accepting.',
+  gateway_verification_required: 'Payment completion requires gateway verification.',
+  file_too_large: 'The uploaded file exceeds the 20 MB size limit.',
+  mfa_required: 'Multi-factor authentication is required.',
+  separation_of_duties: 'This action is blocked by separation-of-duties policy.',
+  dual_control_required: 'A second approver is required for this action.',
+  membership_required: 'Active Blox membership is required to defer payments.',
+  deferral_quota_exhausted: 'You have used all payment deferrals for this year.',
+  schedule_not_deferrable: 'This payment cannot be deferred.',
+  invalid_file_type: 'Upload a PDF or image. This file type is not accepted.',
+  application_not_found: 'That application could not be found.',
+  document_not_found: 'That document could not be found.',
+  customer_not_found: 'That customer could not be found.',
+  listing_image_not_found: 'That listing image could not be found.',
+  schedule_not_found: 'That installment could not be found.',
+  settlement_not_pending: 'This settlement is no longer waiting for a decision.',
+  invalid_idempotency_key: 'The request could not be repeated safely. Try again.',
+  contract_hash_mismatch: 'The signed file does not match the contract that was generated. Download it again and sign that copy.',
+  cannot_delete_application: 'This application cannot be deleted.',
+  cannot_delete_paid_application: 'This application has recorded payments and cannot be deleted.',
+  cannot_rebuild_paid_schedule: 'The schedule cannot be rebuilt after a payment has been recorded.',
+  partner_application_readonly: 'This application is with the finance partner and cannot be edited here.',
+  customer_account_required: 'The customer needs an account before this action.',
+  assist_session_incomplete: 'The customer has not finished this assisted session.',
+  assist_session_not_found: 'This assisted session link is not valid.',
+  takaful_document_not_found: 'The takaful document could not be found.',
+  takaful_already_active: 'This takaful policy is already verified.',
+  issued_at_invalid: 'Enter a valid issue date.',
+  expires_before_issued: 'The expiry date must be on or after the issue date.',
+  holding_cannot_have_parent: 'A holding company cannot belong to another company.',
+  only_dealership_can_have_parent: 'Only a dealership can belong to a holding company.',
+  parent_company_not_found: 'The parent company was not found.',
+  parent_must_be_holding: 'The parent company must be a holding company.',
+  company_cannot_parent_self: 'A company cannot be its own parent.',
+  missing_case_id: 'The identity check is missing its case reference.',
+  not_kyc_document: 'This file is not an identity document.',
+  kyc_case_not_linked: 'Identity verification is not linked to this application.',
+  invalid_signature: 'The identity verification callback could not be verified.',
 };
 
 function isMachineErrorCode(value: string): boolean {
@@ -125,6 +180,34 @@ function isMachineErrorCode(value: string): boolean {
 
 export function humanizeApiErrorCode(code: string): string {
   return API_ERROR_MESSAGES[code] ?? 'An error occurred. Please try again.';
+}
+
+/** Turn class-validator text and leftover machine codes into a sentence. */
+export function humanizeValidatorText(text: string): string {
+  const parts = text
+    .split(/\s*;\s*/)
+    .map((part) => {
+      const trimmed = part.trim();
+      if (!trimmed) return '';
+      if (/qid must be exactly 11 digits/i.test(trimmed)) {
+        return 'Qatar ID must be 11 digits starting with 2 or 3.';
+      }
+      if (/email must be an email/i.test(trimmed)) {
+        return 'Enter a valid email address, for example name@example.com.';
+      }
+      if (/should not be empty/i.test(trimmed)) {
+        const field = trimmed.replace(/\s+should not be empty.*/i, '').replace(/[_.]/g, ' ').trim();
+        if (!field) return 'A required field is missing.';
+        return `${field.charAt(0).toUpperCase()}${field.slice(1)} is required.`;
+      }
+      if (/phone/i.test(trimmed) && /must|invalid|digit/i.test(trimmed)) {
+        return 'Enter an 8-digit Qatar phone number, for example 5551 2345.';
+      }
+      if (isMachineErrorCode(trimmed)) return humanizeApiErrorCode(trimmed);
+      return trimmed;
+    })
+    .filter(Boolean);
+  return parts.join(' ');
 }
 
 type ApiErrorJson = {
@@ -145,8 +228,10 @@ export function parseApiErrorBody(data: unknown, httpStatus: number): { message:
 
   if (body.error && typeof body.error === 'object') {
     const code = body.error.code?.trim() || (httpStatus === 409 ? 'conflict' : 'request_failed');
+    const raw = body.error.message?.trim() ?? '';
+    const rewritten = raw ? humanizeValidatorText(raw) : '';
     const message =
-      body.error.message?.trim() ||
+      (rewritten && !isMachineErrorCode(rewritten) ? rewritten : '') ||
       (isMachineErrorCode(code) ? humanizeApiErrorCode(code) : 'An error occurred. Please try again.');
     return { code, message };
   }
@@ -159,7 +244,7 @@ export function parseApiErrorBody(data: unknown, httpStatus: number): { message:
   if (Array.isArray(rawMessage)) {
     return {
       code: 'validation_failed',
-      message: rawMessage.join('; ') || humanizeApiErrorCode('validation_failed'),
+      message: humanizeValidatorText(rawMessage.join('; ')) || humanizeApiErrorCode('validation_failed'),
     };
   }
 
@@ -168,7 +253,7 @@ export function parseApiErrorBody(data: unknown, httpStatus: number): { message:
       return { code: rawMessage, message: humanizeApiErrorCode(rawMessage) };
     }
     if (rawMessage && rawMessage !== 'Conflict' && rawMessage !== 'Bad Request') {
-      return { code: 'request_failed', message: rawMessage };
+      return { code: 'request_failed', message: humanizeValidatorText(rawMessage) };
     }
   }
 

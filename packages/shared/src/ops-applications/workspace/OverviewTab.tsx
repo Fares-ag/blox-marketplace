@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
 import { apiFetch, apiFileUrl } from '../../lib/api';
 import { OpsDetailGrid } from '../../ops-ui-v2';
 import { OpsPrimaryButton, OpsStatusPill } from '../../components/ops-ui';
 import { ApplicationDocumentActions } from '../ApplicationDocumentActions';
+import { DraggableApiFile } from '../DraggableApiFile';
 import { applicationDocumentLabel, isPreviewableImageDocument } from '../../application-document-label';
 import { CustomerInfoForm } from '../CustomerInfoForm';
 import { CustomerInfoOverview } from '../CustomerInfoOverview';
@@ -13,6 +15,7 @@ import {
   buildCustomerSnapshot,
   customerInfoFromSnapshot,
   ruleViolationMessage,
+  validateCustomerInfo,
   slotSatisfiedBy,
   documentSlotContextForWorkspace,
   wizardDocumentSlots,
@@ -89,6 +92,7 @@ function DealerResubmitProfile({
     [snapshot, customerEmail, customerName, customerPhone],
   );
   const [value, setValue] = useState<CustomerInfoFormValue>(initial);
+  const [submitted, setSubmitted] = useState(false);
   useEffect(() => {
     setValue(initial);
   }, [initial]);
@@ -100,13 +104,22 @@ function DealerResubmitProfile({
         onChange={setValue}
         allowExistingCustomer={false}
         highlightFields={highlightFields}
+        submitted={submitted}
       />
       <div className="blox-panel__foot">
         <OpsPrimaryButton
           type="button"
           disabled={saving}
           loading={saving}
-          onClick={() => onSave(buildCustomerSnapshot(value))}
+          onClick={() => {
+            const error = validateCustomerInfo(value, t);
+            if (error) {
+              setSubmitted(true);
+              toast.error(error, { autoClose: false, toastId: `step:${error}` });
+              return;
+            }
+            onSave(buildCustomerSnapshot(value));
+          }}
         >
           {t('ops.workspace.saveChanges')}
         </OpsPrimaryButton>
@@ -314,9 +327,17 @@ export function OverviewTab(props: Props) {
                     <div className="blox-doc-card__preview">
                       {showImage && filePath ? (
                         <img src={apiFileUrl(filePath)} alt={displayName} className="blox-doc-card__thumb" loading="lazy" />
+                      ) : doc?.mime_type?.includes('pdf') && filePath ? (
+                        <DraggableApiFile
+                          filePath={filePath}
+                          filename={doc.original_name ?? `${cat}.pdf`}
+                          className="blox-doc-card__placeholder"
+                        >
+                          PDF
+                        </DraggableApiFile>
                       ) : (
                         <span className="blox-doc-card__placeholder">
-                          {doc?.mime_type?.includes('pdf') ? 'PDF' : doc ? 'IMG' : '—'}
+                          {doc ? 'IMG' : '—'}
                         </span>
                       )}
                     </div>

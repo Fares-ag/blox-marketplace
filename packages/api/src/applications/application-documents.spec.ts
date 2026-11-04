@@ -3,6 +3,7 @@ import {
   documentSlotsForApplication,
   hasAllRequiredDocuments,
   isSlotStale,
+  missingDocumentsForApplication,
   missingRequiredDocumentCategories,
   newestUploadByCategory,
   removeApplicationDocumentsForSlot,
@@ -192,7 +193,8 @@ describe('document freshness', () => {
       { companyCode: 'qauto-audi' },
     );
     expect(dto.slots.map((slot) => slot.category)).toEqual([
-      'qid',
+      'qid_front',
+      'qid_back',
       'passport',
       'cr',
       'computer_card',
@@ -202,8 +204,9 @@ describe('document freshness', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'other',
     ]);
-    expect(dto.missing).toEqual(['qid', 'salary', 'bank']);
+    expect(dto.missing).toEqual(['qid_front', 'salary', 'bank']);
   });
 
   it('returns the dealer credit document pack for in-house conventional finance', () => {
@@ -215,7 +218,8 @@ describe('document freshness', () => {
       { financePartnerCode: 'in-house-finance' },
     );
     expect(dto.slots.map((slot) => slot.category)).toEqual([
-      'qid',
+      'qid_front',
+      'qid_back',
       'passport',
       'cr',
       'computer_card',
@@ -225,7 +229,33 @@ describe('document freshness', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'other',
     ]);
+  });
+
+  it('keeps a legacy one-file QID complete and does not require the optional back', () => {
+    const snapshot = { applicantType: 'individual', employment: { employmentType: 'private-local' } };
+    const ctx = { financePartnerCode: 'in-house-finance' };
+    const rest = [{ category: 'salary' }, { category: 'bank' }];
+    expect(
+      missingDocumentsForApplication(snapshot, [{ category: 'qid' }, ...rest], {}, ctx),
+    ).toEqual([]);
+    expect(
+      missingDocumentsForApplication(
+        snapshot,
+        [{ category: 'qid', kycDocumentType: 'qid_front' }, ...rest],
+        {},
+        ctx,
+      ),
+    ).toEqual([]);
+    expect(
+      missingDocumentsForApplication(
+        snapshot,
+        [{ category: 'qid', kycDocumentType: 'qid_front', verificationStatus: 'verified' }, ...rest],
+        {},
+        ctx,
+      ),
+    ).toEqual([]);
   });
 
   describe('e-KYC identity policy (BRD BR-3)', () => {

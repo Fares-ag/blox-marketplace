@@ -3,10 +3,12 @@ import { documentSlotsFor } from '@drivemarket/shared';
 import {
   buildPlanPricing,
   creditPreviewFor,
+  dmyToIso,
   deriveIdentity,
   emptyApplyForm,
   firstIncompleteStep,
   formFromSnapshot,
+  isoToDmy,
   normalizePlan,
   planFromPricingSnapshot,
   prefillFromAccount,
@@ -55,6 +57,15 @@ const CTX: PlanContext = {
   offerTenureOptions: [12, 24, 36, 48, 60],
   offerMinDownPct: 10,
 };
+
+describe('customer date of birth', () => {
+  it('stores DD/MM/YYYY as an ISO date and rejects an impossible day', () => {
+    expect(dmyToIso('31/01/1990')).toBe('1990-01-31');
+    expect(isoToDmy('1990-01-31')).toBe('31/01/1990');
+    expect(dmyToIso('31/13/1990')).toBeNull();
+    expect(validateIdentity(filledForm({ dateOfBirth: '31/13/1990' }), NOW).dateOfBirth).toBe('applyFlow.error.invalidDob');
+  });
+});
 
 describe('deriveIdentity', () => {
   it('reads residency and nationality from the QID', () => {

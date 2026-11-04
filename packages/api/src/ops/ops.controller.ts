@@ -18,9 +18,9 @@ import { backfillListingImageUrls } from '../../prisma/backfill-listing-image-ur
 import { bootstrapQauto } from '../../prisma/bootstrap-qauto';
 import { backfillInstallmentPlans } from '../applications/backfill-installment-plan';
 import { resolveDescendantCompanyIds } from '../companies/company-hierarchy';
-import { splitDisplayName } from '../customers/customer-profile';
 import { PrismaService } from '../prisma/prisma.service';
 import { vehicleIdentityComplete } from '../products/vehicle-identity';
+import { searchScopedCustomers } from './customer-search';
 import { countInRange, weekBuckets } from './ops-metrics.helpers';
 
 class ActivityLogsQueryDto extends PaginationQueryDto {
@@ -311,6 +311,10 @@ export class OpsController {
       };
     }
     const companyId = user.companyId;
+    const applicationWhere = {
+      companyId,
+      ...(user.dealerScope === 'all' ? {} : { agentUserId: user.id }),
+    };
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
@@ -323,7 +327,7 @@ export class OpsController {
       }),
       this.prisma.application.groupBy({
         by: ['status'],
-        where: { companyId },
+        where: applicationWhere,
         _count: { _all: true },
       }),
       this.prisma.dealerQuote.findMany({
@@ -331,10 +335,10 @@ export class OpsController {
         select: { expiresAt: true, revokedAt: true, usedAt: true },
       }),
       this.prisma.application.count({
-        where: { companyId, createdAt: { gte: monthStart } },
+        where: { ...applicationWhere, createdAt: { gte: monthStart } },
       }),
       this.prisma.application.findMany({
-        where: { companyId, createdAt: { gte: weekBuckets(8)[0]?.start ?? monthStart } },
+        where: { ...applicationWhere, createdAt: { gte: weekBuckets(8)[0]?.start ?? monthStart } },
         select: { createdAt: true },
       }),
     ]);
@@ -815,70 +819,7 @@ export class OpsController {
     if (companyIds && companyIds.length === 0) {
       return { items: [], total: 0, limit, offset: 0 };
     }
-    const users = await this.prisma.user.findMany({
-      where: {
-        role: UserRole.customer,
-        ...(companyIds
-          ? { applications: { some: { companyId: { in: companyIds } } } }
-          : {}),
-        ...(term
-          ? {
-              OR: [
-                { email: { contains: term, mode: 'insensitive' } },
-                { name: { contains: term, mode: 'insensitive' } },
-                { phone: { contains: term, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        qid: true,
-        gender: true,
-        dateOfBirth: true,
-        nationality: true,
-        address: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-
-    const items = await Promise.all(
-      users.map(async (user) => {
-        const latest = await this.prisma.application.findFirst({
-          where: {
-            ...(companyIds ? { companyId: { in: companyIds } } : {}),
-            OR: [
-              { customerUserId: user.id },
-              { customerEmail: { equals: user.email, mode: 'insensitive' } },
-            ],
-          },
-          orderBy: { updatedAt: 'desc' },
-          select: { customerSnapshot: true },
-        });
-        const derived = splitDisplayName(user.name);
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          first_name: user.firstName ?? (derived.firstName || null),
-          last_name: user.lastName ?? (derived.lastName || null),
-          phone: user.phone,
-          qid: user.qid,
-          gender: user.gender,
-          date_of_birth: user.dateOfBirth ? user.dateOfBirth.toISOString().slice(0, 10) : null,
-          nationality: user.nationality,
-          address: user.address,
-          latest_snapshot: latest?.customerSnapshot ?? null,
-        };
-      }),
-    );
-
+    const items = await searchScopedCustomers(this.prisma, { companyIds, term, limit });
     return { items, total: items.length, limit, offset: 0 };
   }
 

@@ -24,6 +24,9 @@ function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
 
 @Injectable()
 export class ComplianceService {
+  /** One check per application while a run is still in flight. An identical passing check is not written again. */
+  private readonly inFlight = new Map<string, Promise<ReturnType<typeof toComplianceCheckDto>>>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
@@ -50,7 +53,18 @@ export class ComplianceService {
 
   async runCheck(user: User, applicationId: string) {
     this.assertOps(user);
+    const existing = this.inFlight.get(applicationId);
+    if (existing) return existing;
 
+    let pending!: Promise<ReturnType<typeof toComplianceCheckDto>>;
+    pending = this.performCheck(user, applicationId).finally(() => {
+      if (this.inFlight.get(applicationId) === pending) this.inFlight.delete(applicationId);
+    });
+    this.inFlight.set(applicationId, pending);
+    return pending;
+  }
+
+  private async performCheck(user: User, applicationId: string) {
     const app = await this.prisma.application.findUnique({
       where: { id: applicationId },
       select: {
@@ -65,6 +79,18 @@ export class ComplianceService {
     const snap = app.customerSnapshot as Record<string, unknown>;
     const qid = String(snap.qid ?? '').trim();
     const applicantName = String(snap.full_name ?? '').trim();
+
+    const latest = await this.prisma.complianceCheck.findFirst({
+      where: { applicationId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (
+      latest?.overallStatus === ComplianceCheckStatus.pass &&
+      latest.qidScreened === qid &&
+      latest.applicantName === applicantName
+    ) {
+      return toComplianceCheckDto(latest);
+    }
 
     const identity = await this.provider.verifyIdentity(qid, applicantName);
     const sanctions = await this.provider.screenSanctions(applicantName);

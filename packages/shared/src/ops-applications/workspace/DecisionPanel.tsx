@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { toast } from 'react-toastify';
 import { useOpsLabels } from '../../i18n/use-ops-labels';
 import { useAuthStore } from '../../auth/auth-store';
 import { Alert, OpsTextarea } from '../../ops-ui-v2';
@@ -13,6 +14,7 @@ import {
   effectiveAffordability,
   formatDbrPct,
   roleListLabel,
+  runUnlessBlocked,
 } from '../credit-decision';
 import { RESUBMISSION_ITEM_KEYS, resubmissionItemLabelKey } from '../../lib/credit-ops-fields';
 import { ReasonDialog } from './ReasonDialog';
@@ -70,6 +72,7 @@ export function DecisionPanel({
       defaultValue: 'Enter a reason before rejecting this application.',
     });
     setReasonError(message);
+    toast.error(message, { autoClose: false, toastId: `block:${message}` });
     requestAnimationFrame(() => {
       const field =
         reasonWrapRef.current?.querySelector<HTMLTextAreaElement>('textarea') ??
@@ -131,7 +134,9 @@ export function DecisionPanel({
 
   function requireResubmission(): boolean {
     if (resubmitItems.length === 0) {
-      setReasonError(t('ops.workspace.resubmissionItemsRequired'));
+      const message = t('ops.workspace.resubmissionItemsRequired');
+      setReasonError(message);
+      toast.error(message, { autoClose: false, toastId: `block:${message}` });
       return false;
     }
     setReasonError(null);
@@ -178,7 +183,24 @@ export function DecisionPanel({
   const secondary: Action[] = [];
   const tertiary: Action[] = [];
   const destructive: Action[] = [];
-  const gated = block ? { disabled: true, title: block.message } : {};
+
+  function explainBlocked(message: string) {
+    setReasonError(message);
+    toast.error(message, { autoClose: false, toastId: `block:${message}` });
+    requestAnimationFrame(() => {
+      sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  function withBlock(action: Action): Action {
+    if (!block) return action;
+    return {
+      ...action,
+      disabled: false,
+      title: undefined,
+      onClick: () => runUnlessBlocked(block.message, action.onClick, explainBlocked),
+    };
+  }
 
   function runSubmitToCredit() {
     mutations.submit.mutate(undefined, {
@@ -201,26 +223,28 @@ export function DecisionPanel({
     );
   if (actions.approveContract)
     primary.push(
-      bindAction({
-        key: 'approve',
-        label: t('ops.credit.approveSendContract'),
-        onClick: () => confirmApproveIfNeeded(() => runApprove()),
-        ...gated,
-      }),
+      withBlock(
+        bindAction({
+          key: 'approve',
+          label: t('ops.credit.approveSendContract'),
+          onClick: () => confirmApproveIfNeeded(() => runApprove()),
+        }),
+      ),
     );
   if (actions.approveForFinance)
     (primary.length ? secondary : primary).push(
-      bindAction({
-        key: 'approveForFinance',
-        label: t('ops.credit.approveForFinance'),
-        onClick: () =>
-          setConfirm({
-            title: t('ops.credit.approveForFinance'),
-            message: t('ops.credit.approveForFinanceConfirm', { label }),
-            onConfirm: () => runTransition('pending_finance_activation'),
-          }),
-        ...gated,
-      }),
+      withBlock(
+        bindAction({
+          key: 'approveForFinance',
+          label: t('ops.credit.approveForFinance'),
+          onClick: () =>
+            setConfirm({
+              title: t('ops.credit.approveForFinance'),
+              message: t('ops.credit.approveForFinanceConfirm', { label }),
+              onConfirm: () => runTransition('pending_finance_activation'),
+            }),
+        }),
+      ),
     );
   if (actions.startContractReview)
     primary.push(
@@ -240,17 +264,18 @@ export function DecisionPanel({
     );
   if (actions.activate)
     primary.push(
-      bindAction({
-        key: 'activate',
-        label: t('ops.credit.activateFinancing'),
-        onClick: () =>
-          setConfirm({
-            title: t('ops.credit.activateFinancing'),
-            message: t('ops.credit.activateConfirm', { label }),
-            onConfirm: () => mutations.activate.mutate(false),
-          }),
-        ...(approvalStage ? gated : {}),
-      }),
+      withBlock(
+        bindAction({
+          key: 'activate',
+          label: t('ops.credit.activateFinancing'),
+          onClick: () =>
+            setConfirm({
+              title: t('ops.credit.activateFinancing'),
+              message: t('ops.credit.activateConfirm', { label }),
+              onConfirm: () => mutations.activate.mutate(false),
+            }),
+        }),
+      ),
     );
   if (actions.recordDownPayment && data.status === 'down_payment_required')
     primary.push(
@@ -340,40 +365,60 @@ export function DecisionPanel({
 
   if (actions.activateAdmin)
     tertiary.push(
-      bindAction({
-        key: 'activateAdmin',
-        label: t('ops.credit.activateAdmin'),
-        onClick: () =>
-          setConfirm({
-            title: t('ops.credit.activateAdmin'),
-            message: t('ops.credit.activateAdminConfirm', { label }),
-            onConfirm: () => mutations.activate.mutate(false),
-          }),
-        ...(approvalStage ? gated : {}),
-      }),
+      withBlock(
+        bindAction({
+          key: 'activateAdmin',
+          label: t('ops.credit.activateAdmin'),
+          onClick: () =>
+            setConfirm({
+              title: t('ops.credit.activateAdmin'),
+              message: t('ops.credit.activateAdminConfirm', { label }),
+              onConfirm: () => mutations.activate.mutate(false),
+            }),
+        }),
+      ),
     );
   if (actions.directActivate && data.allow_direct_activate)
     tertiary.push(
-      bindAction({
-        key: 'directActivate',
-        label: t('ops.credit.directActivate'),
-        onClick: () =>
-          setConfirm({
-            title: t('ops.credit.directActivate'),
-            message: t('ops.credit.directActivateConfirm', { label }),
-            onConfirm: () => mutations.activate.mutate(true),
-          }),
-        ...(approvalStage ? gated : {}),
-      }),
+      withBlock(
+        bindAction({
+          key: 'directActivate',
+          label: t('ops.credit.directActivate'),
+          onClick: () =>
+            setConfirm({
+              title: t('ops.credit.directActivate'),
+              message: t('ops.credit.directActivateConfirm', { label }),
+              onConfirm: () => mutations.activate.mutate(true),
+            }),
+        }),
+      ),
     );
+  const snap = data.customer_snapshot ?? {};
+  const screenedQid = String(snap.qid ?? '').trim();
+  const screenedName = String(snap.full_name ?? '').trim();
+  const latestCompliance = data.compliance_checks?.[0];
+  const complianceAlreadyPassed =
+    latestCompliance?.overall_status === 'pass' &&
+    latestCompliance.qid_screened === screenedQid &&
+    latestCompliance.applicant_name === screenedName;
+
   if (actions.complianceCheck)
     (complianceError ? primary : tertiary).push(
       bindAction({
         key: 'compliance',
         label: t('ops.credit.complianceCheck'),
         onClick: () => {
-          setComplianceError(null);
-          mutations.compliance.mutate();
+          const alreadyPassed = t('ops.credit.complianceAlreadyPassed');
+          runUnlessBlocked(complianceAlreadyPassed ? alreadyPassed : null, () => {
+            setComplianceError(null);
+            mutations.compliance.mutate();
+          }, (message) => {
+            setComplianceError(message);
+            toast.error(message, { autoClose: false, toastId: `block:${message}` });
+            requestAnimationFrame(() => {
+              sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+          });
         },
       }),
     );

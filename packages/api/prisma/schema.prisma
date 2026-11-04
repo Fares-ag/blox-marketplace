@@ -282,6 +282,8 @@ model User {
   company      Company?     @relation(fields: [companyId], references: [id])
   creditScope  OfficerScope @default(assigned)
   financeScope OfficerScope @default(assigned)
+  /// Dealer agents: `assigned` sees only their own applications. `all` is the sales manager.
+  dealerScope  OfficerScope @default(assigned)
   phone        String?
   qid          String?
   /// HMAC blind index of the QID — lets us de-duplicate identities without querying plaintext.

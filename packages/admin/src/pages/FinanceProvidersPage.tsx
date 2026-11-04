@@ -82,8 +82,11 @@ function useProviderErrorText() {
         return t('adminOps.providers.branchCodeExists');
       case 'default_lender_must_be_active':
         return t('adminOps.providers.defaultMustBeActive');
-      default:
-        return code;
+      default: {
+        const text = error instanceof Error ? error.message.trim() : '';
+        if (text && !/^[a-z][a-z0-9_]*$/.test(text)) return text;
+        return t('adminOps.common.requestFailed', { defaultValue: 'The request could not be completed.' });
+      }
     }
   };
 }

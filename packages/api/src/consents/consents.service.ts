@@ -231,7 +231,7 @@ export class ConsentsService {
   async statusForApplication(user: User, applicationId: string): Promise<ConsentStatusDto> {
     const app = await this.prisma.application.findUnique({
       where: { id: applicationId },
-      select: { id: true, customerUserId: true, companyId: true },
+      select: { id: true, customerUserId: true, companyId: true, agentUserId: true },
     });
     if (!app) throw new NotFoundException('application_not_found');
     await assertApplicationCanView(this.prisma, user, app);

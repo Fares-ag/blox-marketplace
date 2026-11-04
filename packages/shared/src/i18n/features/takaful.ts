@@ -50,6 +50,9 @@ export const en = {
   saving: 'Saving…',
   saved: 'Policy saved',
   saveError: 'We could not save the policy. Please try again.',
+  policyLocked: 'This policy has been verified and can no longer be edited.',
+  applicationCompleted: 'This application is complete, so the policy can no longer be changed.',
+  policyNotFound: 'That policy could not be found. Refresh the page and try again.',
   yearInvalid: 'Use a realistic year between 2000 and {{max}}.',
   status: {
     declared: 'Declared',
@@ -149,6 +152,9 @@ export const ar: typeof en = {
   saving: 'جارٍ الحفظ…',
   saved: 'تم حفظ الوثيقة',
   saveError: 'تعذر حفظ الوثيقة. يرجى المحاولة مرة أخرى.',
+  policyLocked: 'تم التحقق من هذه الوثيقة ولم يعد بالإمكان تعديلها.',
+  applicationCompleted: 'اكتمل هذا الطلب، لذا لم يعد بالإمكان تغيير الوثيقة.',
+  policyNotFound: 'تعذر العثور على الوثيقة. حدّث الصفحة وحاول مرة أخرى.',
   yearInvalid: 'استخدم سنة واقعية بين 2000 و{{max}}.',
   status: {
     declared: 'مُصرَّح بها',

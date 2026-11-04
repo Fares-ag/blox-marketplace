@@ -144,6 +144,11 @@ export function normalizeQid(raw: string | null | undefined): string {
   return String(raw ?? '').replace(/\D/g, '');
 }
 
+/** Display mask from `maskQid` (`XXXXXXX8901`). Not a value the user typed. */
+export function isMaskedQid(value: string | null | undefined): boolean {
+  return /x/i.test(String(value ?? ''));
+}
+
 export function parseQid(raw: string | null | undefined, now: Date = new Date()): ParsedQid {
   const digits = String(raw ?? '').trim();
   const invalid = (reason: ParsedQid['reason']): ParsedQid => ({

@@ -39,6 +39,7 @@ export {
   IN_REVIEW_METRIC_STATUSES,
 } from './lib/dashboard-metrics';
 export {
+  adminFeeForFinanced,
   buildInstallmentAmounts,
   buildPricingSnapshot,
   buildPrincipalAmounts,
@@ -410,6 +411,7 @@ export {
   dateOfBirthMatchesQid,
   nationalityOptions,
   nationalityOptionsIncluding,
+  isMaskedQid,
   normalizeQid,
   parseIsoDateParts,
   parseQid,

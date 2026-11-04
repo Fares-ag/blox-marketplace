@@ -386,7 +386,15 @@ export function Table<T extends object>({
                 <tr
                   key={key}
                   className={isSelected ? 'is-selected' : undefined}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  onClick={
+                    onRowClick
+                      ? (event) => {
+                          const target = event.target as HTMLElement | null;
+                          if (target?.closest('a, button, input, select, textarea, label')) return;
+                          onRowClick(row);
+                        }
+                      : undefined
+                  }
                   tabIndex={onRowClick || selectable ? 0 : undefined}
                   onKeyDown={onRowClick || selectable ? (e) => onRowKeyDown(e, row, key) : undefined}
                 >
@@ -424,7 +432,15 @@ export function Table<T extends object>({
             <article
               key={key}
               className={`blox-table-card${isSelected ? ' is-selected' : ''}`}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              onClick={
+                onRowClick
+                  ? (event) => {
+                      const target = event.target as HTMLElement | null;
+                      if (target?.closest('a, button, input, select, textarea, label')) return;
+                      onRowClick(row);
+                    }
+                  : undefined
+              }
             >
               {(titleCol || statusCol || selectable) && (
                 <div className="blox-table-card__top">

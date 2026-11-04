@@ -25,6 +25,7 @@ import { removeApplicationDocumentsForSlot, resolveStoredDocumentCategory } from
 import { buildApplicationPricingSnapshot, resolveTenureMonths } from './application-pricing';
 import { buildPlanFromPricingSnapshot } from '@drivemarket/shared/installment-plan';
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
+import { dealerCanAccessApplication } from './application-access';
 import { mapApplicationDto, type ApplicationAudience } from './application-response.dto';
 import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
 import { submittedStatusForPartner } from './partner-finance';
@@ -499,7 +500,7 @@ export class ApplicationsStaffService {
   ) {
     const app = await this.prisma.application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException();
-    const isDealer = actor.role === UserRole.dealer_agent && actor.companyId === app.companyId;
+    const isDealer = dealerCanAccessApplication(actor, app);
     const isOps =
       actor.role === UserRole.admin ||
       actor.role === UserRole.super_admin ||
@@ -538,7 +539,7 @@ export class ApplicationsStaffService {
     }
 
     storage.assertKycFile(file);
-    await removeApplicationDocumentsForSlot(this.prisma, id, category);
+    if (category !== 'other') await removeApplicationDocumentsForSlot(this.prisma, id, category);
     const stored = resolveStoredDocumentCategory(category);
     const key = await storage.uploadKyc(file, id, stored.category);
     const doc = await this.prisma.applicationDocument.create({

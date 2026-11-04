@@ -41,7 +41,11 @@ export function ApplicationDocumentActions({
           type="button"
           className="blox-btn blox-btn--ghost blox-btn--sm"
           disabled={busy}
-          onClick={() => void run(() => openApiFileInNewTab(filePath))}
+          onClick={() => {
+            if (busy) return;
+            const tab = window.open('about:blank', '_blank');
+            void run(() => openApiFileInNewTab(filePath, tab));
+          }}
         >
           {viewLabel}
         </button>

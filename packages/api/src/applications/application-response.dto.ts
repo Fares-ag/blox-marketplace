@@ -48,6 +48,33 @@ export function resolveDealerCompanyName(app: {
   return null;
 }
 
+/** List and workspace label: account name, then the application snapshot, then email. */
+export function displayCustomerName(input: {
+  name?: string | null;
+  email?: string | null;
+  snapshot?: unknown;
+}): string | null {
+  const fromAccount = input.name?.trim();
+  if (fromAccount) return fromAccount;
+  const raw =
+    input.snapshot && typeof input.snapshot === 'object' && !Array.isArray(input.snapshot)
+      ? (input.snapshot as Record<string, unknown>)
+      : {};
+  const full = typeof raw.full_name === 'string' ? raw.full_name.trim() : '';
+  if (full) return full;
+  const first = typeof raw.firstName === 'string' ? raw.firstName.trim() : '';
+  const last = typeof raw.lastName === 'string' ? raw.lastName.trim() : '';
+  const joined = [first, last].filter(Boolean).join(' ');
+  if (joined) return joined;
+  const legal =
+    raw.corporate && typeof raw.corporate === 'object'
+      ? String((raw.corporate as { legalName?: unknown }).legalName ?? '').trim()
+      : '';
+  if (legal) return legal;
+  const email = input.email?.trim() || (typeof raw.email === 'string' ? raw.email.trim() : '');
+  return email || null;
+}
+
 function companyDtoForAudience(
   app: {
     companyId?: string | null;
@@ -411,7 +438,16 @@ function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudien
   return dto;
 }
 
-function applicationRelations(app: ApplicationRelations, audience: ApplicationAudience) {
+function applicationRelations(
+  app: ApplicationRelations & { customerSnapshot?: unknown; customerEmail?: string | null },
+  audience: ApplicationAudience,
+) {
+  const customerEmail = app.customer?.email ?? app.customerEmail ?? null;
+  const customerName = displayCustomerName({
+    name: app.customer?.name,
+    email: customerEmail,
+    snapshot: app.customerSnapshot,
+  });
   return {
     ...(hasProductFields(app.product) ? { product: toApplicationProductDto(app.product) } : {}),
     ...(app.documents
@@ -425,7 +461,18 @@ function applicationRelations(app: ApplicationRelations, audience: ApplicationAu
       const company = companyDtoForAudience(app, audience);
       return company ? { company } : {};
     })(),
-    ...(app.customer ? { customer: customerForAudience(app.customer, audience) } : {}),
+    ...(app.customer || customerName
+      ? {
+          customer: customerForAudience(
+            {
+              name: customerName,
+              email: customerEmail ?? '',
+              phone: app.customer?.phone,
+            },
+            audience,
+          ),
+        }
+      : {}),
     ...(hasOfferFields(app.offer) ? { offer: toPublicOfferDto(app.offer) } : {}),
     ...(app.paymentSchedules
       ? {
@@ -629,9 +676,12 @@ export function toOpsApplicationQueueItemDto(app: {
       const dealerName = resolveDealerCompanyName(app);
       return dealerName ? { company: { name: dealerName } } : {};
     })(),
-    ...(app.customer
-      ? { customer: { name: app.customer.name, email: app.customer.email } }
-      : {}),
+    ...(() => {
+      const email = app.customer?.email ?? null;
+      const name = displayCustomerName({ name: app.customer?.name, email, snapshot: app.customerSnapshot });
+      if (!app.customer && !name) return {};
+      return { customer: { name, email: email ?? '' } };
+    })(),
     ...(app.agent
       ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
       : { agent: null }),
@@ -711,26 +761,22 @@ export function toDealerApplicationListItemDto(app: {
           },
         }
       : {}),
-    ...(app.customer
-      ? {
-          customer: {
-            name: app.customer.name,
-            email: app.customer.email,
-            phone: app.customer.phone ?? null,
-          },
-        }
-      : app.customerEmail
-        ? {
-            customer: {
-              name:
-                typeof (app.customerSnapshot as { full_name?: unknown } | undefined)?.full_name === 'string'
-                  ? ((app.customerSnapshot as { full_name: string }).full_name ?? null)
-                  : null,
-              email: app.customerEmail,
-              phone: null,
-            },
-          }
-        : {}),
+    ...(() => {
+      const email = app.customer?.email ?? app.customerEmail ?? null;
+      const name = displayCustomerName({
+        name: app.customer?.name,
+        email,
+        snapshot: app.customerSnapshot,
+      });
+      if (!app.customer && !name && !email) return {};
+      return {
+        customer: {
+          name,
+          email: email ?? '',
+          phone: app.customer?.phone ?? null,
+        },
+      };
+    })(),
     ...(app.agent
       ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
       : { agent: null }),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   daysToExpiry,
+  displayCustomerName,
   mapApplicationDto,
   snapshotForAudience,
   toApplicationBlockingDto,
@@ -369,6 +370,35 @@ describe('application-response.dto', () => {
       paymentSchedules: [],
     });
     expect(queue.company).toEqual({ name: 'QA-TEST Motors (do not use)' });
+  });
+
+  it('shows the snapshot name when the customer account has no name', () => {
+    expect(
+      displayCustomerName({
+        name: null,
+        email: 'walkin@example.com',
+        snapshot: { full_name: 'Mohamed Gamal' },
+      }),
+    ).toBe('Mohamed Gamal');
+    const dealer = toDealerApplicationListItemDto({
+      ...app,
+      customer: { name: null, email: 'walkin@example.com', phone: null },
+      customerSnapshot: { full_name: 'Mohamed Gamal' },
+      customerEmail: 'walkin@example.com',
+      product: { make: 'Toyota', model: 'Camry', modelYear: 2024, slug: 'toyota-camry' },
+      agent: null,
+    });
+    expect(dealer.customer?.name).toBe('Mohamed Gamal');
+    const queue = toOpsApplicationQueueItemDto({
+      id: 'app-walkin',
+      status: 'under_review',
+      createdAt: new Date('2026-09-22T00:00:00.000Z'),
+      customerSnapshot: { full_name: 'Mohamed Gamal', qid: '28012345679', phone: '+97455512345' },
+      customer: null,
+      agent: null,
+      paymentSchedules: [],
+    });
+    expect(queue.customer?.name).toBe('Mohamed Gamal');
   });
 
   it('maps takaful policies to the shared TakafulPolicyDto', () => {

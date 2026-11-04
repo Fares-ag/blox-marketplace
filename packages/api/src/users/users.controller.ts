@@ -51,6 +51,7 @@ class UpdateUserDto {
   @IsOptional() @IsString() companyId?: string | null;
   @IsOptional() @IsEnum(OfficerScope) creditScope?: OfficerScope;
   @IsOptional() @IsEnum(OfficerScope) financeScope?: OfficerScope;
+  @IsOptional() @IsEnum(OfficerScope) dealerScope?: OfficerScope;
   @IsOptional() @IsArray() @IsString({ each: true }) creditCompanyIds?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) financeCompanyIds?: string[];
   /** Branch of the user's company; null clears it. Both spellings accepted. */
@@ -68,6 +69,7 @@ class CreateUserDto {
   @IsOptional() @IsString() companyId?: string;
   @IsOptional() @IsEnum(OfficerScope) creditScope?: OfficerScope;
   @IsOptional() @IsEnum(OfficerScope) financeScope?: OfficerScope;
+  @IsOptional() @IsEnum(OfficerScope) dealerScope?: OfficerScope;
   @IsOptional() @IsArray() @IsString({ each: true }) creditCompanyIds?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) financeCompanyIds?: string[];
   @IsOptional() @IsString() home_branch_id?: string | null;
@@ -188,6 +190,7 @@ export class UsersController {
       company_name: user.company?.name ?? null,
       credit_scope: user.creditScope,
       finance_scope: user.financeScope,
+      dealer_scope: user.dealerScope,
       credit_company_ids: user.creditCompanies.map((r) => r.companyId),
       finance_company_ids: user.financeCompanies.map((r) => r.companyId),
       applications_count: user._count.applications,
@@ -296,6 +299,12 @@ export class UsersController {
           financePartnerId,
           creditScope: dto.creditScope ?? undefined,
           financeScope: dto.financeScope ?? undefined,
+          dealerScope:
+            dto.role === UserRole.dealer_agent
+              ? actor.role === UserRole.dealer_agent
+                ? OfficerScope.assigned
+                : (dto.dealerScope ?? OfficerScope.assigned)
+              : undefined,
           emailVerified: staffProvisioned,
         },
         include: { homeBranch: HOME_BRANCH_SELECT, financePartner: FINANCE_PARTNER_SELECT },
@@ -436,6 +445,9 @@ export class UsersController {
           financePartnerId: financePartnerId === undefined ? undefined : financePartnerId,
           creditScope: dto.creditScope ?? undefined,
           financeScope: dto.financeScope ?? undefined,
+          ...(dto.dealerScope !== undefined && actor.role !== UserRole.dealer_agent
+            ? { dealerScope: dto.dealerScope }
+            : {}),
         },
         include: { homeBranch: HOME_BRANCH_SELECT, financePartner: FINANCE_PARTNER_SELECT },
       });
@@ -478,6 +490,7 @@ export class UsersController {
           ...(financePartnerId !== undefined ? { financePartnerId } : {}),
           ...(dto.creditScope !== undefined ? { creditScope: dto.creditScope } : {}),
           ...(dto.financeScope !== undefined ? { financeScope: dto.financeScope } : {}),
+          ...(dto.dealerScope !== undefined ? { dealerScope: dto.dealerScope } : {}),
         },
       },
     });

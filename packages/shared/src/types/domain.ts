@@ -159,6 +159,8 @@ export interface DmUser {
   company_name?: string | null;
   credit_scope: OfficerScope;
   finance_scope: OfficerScope;
+  /** Dealer agents: `all` is a sales manager. Everyone else is `assigned`. */
+  dealer_scope?: OfficerScope;
   full_name: string | null;
   first_name?: string | null;
   last_name?: string | null;

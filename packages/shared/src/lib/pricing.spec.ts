@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminFeeForFinanced,
   buildInstallmentAmounts,
   buildPricingSnapshot,
   computeExactMonthlyPayment,
@@ -8,6 +9,23 @@ import {
   buildPrincipalAmounts,
   sumInstallmentAmounts,
 } from './pricing';
+
+describe('admin fee', () => {
+  it('is 1,000 QAR up to 100,000 financed and 1% above that', () => {
+    expect(adminFeeForFinanced(99_999)).toBe(1000);
+    expect(adminFeeForFinanced(100_000)).toBe(1000);
+    expect(adminFeeForFinanced(150_000)).toBe(1500);
+    const snapshot = buildPricingSnapshot({
+      listPrice: 180_000,
+      annualRatePercent: 0,
+      minDownPaymentPct: 0,
+      tenureMonths: 12,
+      downPaymentPct: 10,
+    });
+    expect(snapshot.down_payment).toBe(18_000);
+    expect(snapshot.admin_fee).toBe(1620);
+  });
+});
 
 describe('pricing schedule invariants', () => {
   it('last installment absorbs rounding residual so the schedule sums to financed total', () => {

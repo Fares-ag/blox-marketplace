@@ -21,6 +21,7 @@ export function UsersPage() {
   const [role, setRole] = useState('dealer_agent');
   const [companyId, setCompanyId] = useState('');
   const [homeBranchId, setHomeBranchId] = useState('');
+  const [salesManager, setSalesManager] = useState(false);
   const [creditScope, setCreditScope] = useState('assigned');
   const [financeScope, setFinanceScope] = useState('assigned');
   const [creditCompanyIds, setCreditCompanyIds] = useState<string[]>([]);
@@ -69,6 +70,7 @@ export function UsersPage() {
           companyId: companyId || undefined,
           home_branch_id: companyId && homeBranchId ? homeBranchId : undefined,
           creditScope: showsCreditFields(role) ? creditScope : undefined,
+          dealerScope: role === 'dealer_agent' && salesManager ? 'all' : undefined,
           financeScope: showsFinanceFields(role) ? financeScope : undefined,
           creditCompanyIds: showsCreditFields(role) ? creditCompanyIds : undefined,
           financeCompanyIds: showsFinanceFields(role) ? financeCompanyIds : undefined,
@@ -80,6 +82,7 @@ export function UsersPage() {
       setName('');
       setCompanyId('');
       setHomeBranchId('');
+      setSalesManager(false);
       setCreditCompanyIds([]);
       setFinanceCompanyIds([]);
       setActionError(null);
@@ -169,6 +172,13 @@ export function UsersPage() {
               )}
               {companyId && (
                 <HomeBranchSelect plain companyId={companyId} value={homeBranchId} onChange={setHomeBranchId} />
+              )}
+              {role === 'dealer_agent' && (
+                <label>
+                  <input type="checkbox" checked={salesManager} onChange={(e) => setSalesManager(e.target.checked)} />{' '}
+                  {t('ops.superAdmin.salesManagerLabel')}
+                  <small className="blox-field__hint">{t('ops.superAdmin.salesManagerHint')}</small>
+                </label>
               )}
               {showsCreditFields(role) && (
                 <>

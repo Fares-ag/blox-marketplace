@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import path from 'node:path';
+import PizZip from 'pizzip';
 import {
   ApplicationStatus,
   DocumentCategory,
@@ -76,6 +77,7 @@ import {
   normalizeContractSeries,
 } from '@drivemarket/shared/domain-rules';
 import { parseApplicationRef } from './application-reference';
+import { documentArchiveFilename } from './document-archive-name';
 import { decideDuplicateApplication, summarizeBlocking } from './application-dedup';
 import { assertLenderApplicantGates, assertNoHardViolations, evaluateProductRules, withRuleFlags } from './application-rules';
 import {
@@ -512,6 +514,7 @@ export class ApplicationsService {
         id: true,
         customerUserId: true,
         companyId: true,
+        agentUserId: true,
         customerSnapshot: true,
         kycCaseId: true,
         company: { select: { code: true, name: true } },
@@ -820,6 +823,8 @@ export class ApplicationsService {
       dto.compliance_checks = app.complianceChecks.map((c) => ({
         id: c.id,
         overall_status: c.overallStatus,
+        qid_screened: c.qidScreened,
+        applicant_name: c.applicantName,
         created_at: c.createdAt.toISOString(),
       }));
       const requiredDown = requiredDownPaymentAmount((app.pricingSnapshot ?? {}) as Record<string, unknown>);
@@ -996,10 +1001,12 @@ export class ApplicationsService {
     const { limit, offset } = resolvePagination(query, { defaultLimit: 50, maxLimit: 100 });
     const search = query.q?.trim();
     const tab = query.tab?.trim();
+    const salesManager = user.dealerScope === 'all';
     const where: Prisma.ApplicationWhereInput = {
       companyId: user.companyId,
       ...(query.status ? { status: query.status } : {}),
-      ...(tab === 'mine' ? { agentUserId: user.id } : {}),
+      // Agents only ever see applications they created. A sales manager can still narrow to their own.
+      ...(!salesManager || tab === 'mine' ? { agentUserId: user.id } : {}),
       ...(tab === 'resubmission' ? { status: ApplicationStatus.resubmission_required } : {}),
       ...(search
         ? {
@@ -1407,7 +1414,7 @@ export class ApplicationsService {
     }
 
     this.storage.assertKycFile(file);
-    await removeApplicationDocumentsForSlot(this.prisma, id, category);
+    if (category !== 'other') await removeApplicationDocumentsForSlot(this.prisma, id, category);
     const stored = resolveStoredDocumentCategory(category);
     const key = await this.storage.uploadKyc(file, id, stored.category);
     const doc = await this.prisma.applicationDocument.create({
@@ -1459,6 +1466,47 @@ export class ApplicationsService {
 
     const file = await this.storage.readKyc(doc.storagePath);
     const ext = path.extname(doc.storagePath) || '.pdf';
+    const filename = doc.originalName?.trim() || `${doc.category}${ext}`;
+    return { ...file, filename };
+  }
+
+  /** Zip of every file on the application. Same view permission as a single download. */
+  async archiveDocuments(user: User, appId: string) {
+    const app = await this.prisma.application.findUnique({
+      where: { id: appId },
+      include: {
+        documents: { orderBy: { createdAt: 'asc' } },
+        customer: { select: { name: true } },
+      },
+    });
+    if (!app) throw new NotFoundException();
+    await assertApplicationCanView(this.prisma, user, app);
+    if (app.documents.length === 0) throw new NotFoundException();
+
+    const zip = new PizZip();
+    const used = new Set<string>();
+    for (const doc of app.documents) {
+      const file = doc.storagePath.startsWith('kyc://')
+        ? await this.kycBridge.readApplicationDocumentBytes(appId, doc)
+        : await this.storedDocumentFile(doc);
+      zip.file(uniqueZipEntryName(file.filename, doc.id, used), file.buffer);
+    }
+    const snapshot = readCustomerSnapshot(app.customerSnapshot);
+    const applicantName = app.customer?.name?.trim() || snapshot.full_name.trim() || null;
+    return {
+      buffer: zip.generate({ type: 'nodebuffer' }) as Buffer,
+      contentType: 'application/zip',
+      filename: documentArchiveFilename({
+        referenceSeq: app.referenceSeq,
+        applicationId: app.id,
+        applicantName,
+      }),
+    };
+  }
+
+  private async storedDocumentFile(doc: { storagePath: string; originalName: string | null; category: string }) {
+    const file = await this.storage.readKyc(doc.storagePath);
+    const ext = path.extname(doc.storagePath) || path.extname(doc.originalName ?? '') || '.pdf';
     const filename = doc.originalName?.trim() || `${doc.category}${ext}`;
     return { ...file, filename };
   }
@@ -1704,4 +1752,17 @@ export class ApplicationsService {
     if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return 'dealer';
     return 'customer';
   }
+}
+
+function uniqueZipEntryName(filename: string, id: string, used: Set<string>): string {
+  const cleaned = filename.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'document';
+  if (!used.has(cleaned)) {
+    used.add(cleaned);
+    return cleaned;
+  }
+  const ext = path.extname(cleaned);
+  const base = ext ? cleaned.slice(0, -ext.length) : cleaned;
+  const named = `${base}-${id.slice(0, 6)}${ext}`;
+  used.add(named);
+  return named;
 }

@@ -1,4 +1,4 @@
-import { ApplicationStatus, User, UserRole } from '@prisma/client';
+import { ApplicationStatus, OfficerScope, User, UserRole } from '@prisma/client';
 import { ForbiddenException } from '@nestjs/common';
 import type { PrismaService } from '../prisma/prisma.service';
 import { assertCompanyScopeForRead } from './company-scope';
@@ -23,16 +23,29 @@ export const BLOCKING_APPLICATION_STATUSES: ApplicationStatus[] = [
   'total_loss',
 ];
 
+/** A sales manager sees the whole dealership. Every other agent sees only applications they own. */
+export function dealerCanAccessApplication(
+  user: Pick<User, 'id' | 'role' | 'companyId' | 'dealerScope'>,
+  app: { companyId: string; agentUserId?: string | null },
+): boolean {
+  if (user.role !== UserRole.dealer_agent || !user.companyId || user.companyId !== app.companyId) return false;
+  if (user.dealerScope === OfficerScope.all) return true;
+  return app.agentUserId === user.id;
+}
+
 export async function assertApplicationCanView(
   prisma: PrismaService,
   user: User,
-  app: { customerUserId: string | null; companyId: string },
+  app: { customerUserId: string | null; companyId: string; agentUserId?: string | null },
 ): Promise<void> {
   if (user.role === UserRole.customer) {
     if (app.customerUserId === user.id) return;
     throw new ForbiddenException('forbidden_role');
   }
-  if (user.role === UserRole.dealer_agent && user.companyId === app.companyId) return;
+  if (user.role === UserRole.dealer_agent) {
+    if (dealerCanAccessApplication(user, app)) return;
+    throw new ForbiddenException('forbidden_role');
+  }
   const ops: UserRole[] = [
     UserRole.credit_officer,
     UserRole.finance_officer,
