@@ -618,19 +618,13 @@ export class ApplicationsLifecycleService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (reopensListing) {
-        // Reopening re-reserves the vehicle; refuse if it was sold meanwhile.
+        // A sold listing stays closed. Applications no longer take an exclusive reservation.
         const product = await tx.product.findUniqueOrThrow({
           where: { id: app.productId },
           select: { listingStatus: true },
         });
         if (product.listingStatus === ListingStatus.sold) {
           throw new ConflictException('vehicle_unavailable');
-        }
-        if (product.listingStatus === ListingStatus.published) {
-          await tx.product.update({
-            where: { id: app.productId },
-            data: { listingStatus: ListingStatus.reserved },
-          });
         }
       }
 

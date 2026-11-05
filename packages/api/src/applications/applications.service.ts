@@ -653,14 +653,6 @@ export class ApplicationsService {
         await tx.application.update({ where: { id }, data: { financePartnerId: lenderId } });
       }
 
-      if (fromStatus === ApplicationStatus.draft) {
-        const reserved = await tx.product.updateMany({
-          where: { id: app.productId, listingStatus: ListingStatus.published },
-          data: { listingStatus: ListingStatus.reserved },
-        });
-        assertRowsUpdated(reserved.count, 'vehicle_unavailable');
-      }
-
       return tx.application.findUniqueOrThrow({ where: { id } });
     });
 

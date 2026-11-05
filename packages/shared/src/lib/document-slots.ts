@@ -133,6 +133,7 @@ export function qautoDocumentSlots(profile: DocumentSlotProfile): DocumentSlot[]
     { category: 'rental_agreement', required: false, group: 'identity', labelKey: 'applyFlow.docs.tenancyContract' },
     { category: 'national_address', required: false, group: 'identity', labelKey: 'applyFlow.docs.nationalAddress' },
     { category: 'bank_liability', required: false, group: 'income', labelKey: 'applyFlow.docs.bankLiability' },
+    { category: 'vehicle_quotation', required: false, group: 'supporting', labelKey: 'applyFlow.docs.vehicleQuotation' },
     { category: 'other', required: false, group: 'supporting', labelKey: 'applyFlow.docs.other' },
   ];
   if (profile.hasGuarantor) slots.push(...QAUTO_GUARANTOR_SLOTS.map((slot) => ({ ...slot })));

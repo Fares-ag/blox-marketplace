@@ -1,6 +1,6 @@
-/** Whether submitting an application will reserve the listing (dealer create always does). */
-export function willReserveListingOnSubmit(isAdmin: boolean, submitOnCreate: boolean): boolean {
-  return !isAdmin || submitOnCreate;
+/** Applications no longer reserve a listing, so submit never takes an exclusive lock. */
+export function willReserveListingOnSubmit(_isAdmin: boolean, _submitOnCreate: boolean): boolean {
+  return false;
 }
 
 export type ListingFinancingBlock = {
@@ -9,22 +9,15 @@ export type ListingFinancingBlock = {
 };
 
 /**
- * Returns a block reason when the listing cannot be used for financing at submit time.
- * When `willReserve` is false (admin draft), only sold/archived are blocked.
+ * A listing can be financed until it is sold or archived.
+ * Reserved and published listings stay selectable — one vehicle may have many applications.
  */
 export function listingFinancingBlock(
   listingStatus: string | undefined,
-  willReserve: boolean,
+  _willReserve?: boolean,
 ): ListingFinancingBlock | null {
   const status = listingStatus ?? 'unknown';
   if (status === 'sold' || status === 'archived') {
-    return { code: 'listing_not_available', status };
-  }
-  if (!willReserve) return null;
-  if (status === 'reserved') {
-    return { code: 'vehicle_unavailable', status };
-  }
-  if (status !== 'published') {
     return { code: 'listing_not_available', status };
   }
   return null;
@@ -32,7 +25,7 @@ export function listingFinancingBlock(
 
 export function isListingSelectableForFinancing(
   listingStatus: string | undefined,
-  willReserve: boolean,
+  willReserve?: boolean,
 ): boolean {
   return listingFinancingBlock(listingStatus, willReserve) === null;
 }

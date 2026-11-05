@@ -420,7 +420,7 @@ describe('customer intake (integration)', () => {
     expect(opsSlots.status).toBe(200);
     expect(opsSlots.body.uploaded).toEqual(['bank', 'passport', 'qid', 'salary']);
 
-    // 4. submitted: reserved listing, default lender of record, ops notified
+    // 4. submitted: listing stays published (no exclusive reservation), default lender of record, ops notified
     const submitted = await submit(bilal, applicationId);
     expect(submitted.status).toBe(200);
     expect(submitted.body).toEqual(
@@ -428,8 +428,8 @@ describe('customer intake (integration)', () => {
     );
     expect(submitted.body.submitted_at).toBeTruthy();
 
-    const reserved = await ctx.prisma.product.findUniqueOrThrow({ where: { id: secondCar.id } });
-    expect(reserved.listingStatus).toBe('reserved');
+    const listing = await ctx.prisma.product.findUniqueOrThrow({ where: { id: secondCar.id } });
+    expect(listing.listingStatus).toBe('published');
     const detail = await authed(bilal.agent).get(`/api/v1/applications/${applicationId}`);
     expect(detail.body).toEqual(
       expect.objectContaining({ status: 'under_review', finance_partner_name: 'Qatar Islamic Bank', financing_source: 'blox' }),

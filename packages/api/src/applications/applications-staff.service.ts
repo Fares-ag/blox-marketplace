@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -27,7 +26,7 @@ import { buildPlanFromPricingSnapshot } from '@drivemarket/shared/installment-pl
 import type { InstallmentPlan } from '@drivemarket/shared/installment-plan';
 import { dealerCanAccessApplication } from './application-access';
 import { mapApplicationDto, type ApplicationAudience } from './application-response.dto';
-import { assertRowsUpdated, transitionApplication } from './guarded-transitions';
+import { transitionApplication } from './guarded-transitions';
 import { submittedStatusForPartner } from './partner-finance';
 import { ZohoCrmService } from '../integrations/zoho/zoho-crm.service';
 import { shouldSyncStatusToCrm } from '../integrations/zoho/zoho-sync-policy';
@@ -188,15 +187,6 @@ export class ApplicationsStaffService {
         throw new BadRequestException('listing_not_available');
       }
 
-      if (initialStatus !== ApplicationStatus.draft) {
-        if (product.listingStatus === ListingStatus.reserved) {
-          throw new ConflictException('vehicle_unavailable');
-        }
-        if (product.listingStatus !== ListingStatus.published) {
-          throw new BadRequestException('listing_not_available');
-        }
-      }
-
       const listPrice = Number(dto.listPrice ?? product.price);
       const sellingPriceForProduct = Number(
         productIds.length === 1 ? templateSellingPrice : product.price,
@@ -291,16 +281,6 @@ export class ApplicationsStaffService {
             ...(assessed ? creditAssessmentData(assessed, pricingWithFlags) : {}),
           },
         });
-
-        if (initialStatus !== ApplicationStatus.draft) {
-          const reserved = await tx.product.updateMany({
-            where: { id: product.id, listingStatus: ListingStatus.published },
-            data: { listingStatus: ListingStatus.reserved },
-          });
-          if (reserved.count === 0 && product.listingStatus === ListingStatus.published) {
-            assertRowsUpdated(reserved.count, 'vehicle_unavailable');
-          }
-        }
 
         return created;
       });
@@ -445,12 +425,6 @@ export class ApplicationsStaffService {
             ...(autoTagged ? { financePartnerId: lenderId } : {}),
             ...(branchId && branchId !== app.branchId ? { branchId } : {}),
           },
-        });
-      }
-      if (fromStatus === ApplicationStatus.draft) {
-        await tx.product.updateMany({
-          where: { id: app.productId, listingStatus: ListingStatus.published },
-          data: { listingStatus: ListingStatus.reserved },
         });
       }
       return tx.application.findUniqueOrThrow({ where: { id } });

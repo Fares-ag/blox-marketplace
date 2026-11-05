@@ -204,6 +204,7 @@ describe('document freshness', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'vehicle_quotation',
       'other',
     ]);
     expect(dto.missing).toEqual(['qid_front', 'salary', 'bank']);
@@ -229,6 +230,7 @@ describe('document freshness', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'vehicle_quotation',
       'other',
     ]);
   });

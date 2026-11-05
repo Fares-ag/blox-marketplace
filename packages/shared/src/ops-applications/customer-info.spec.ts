@@ -311,6 +311,7 @@ describe('document slots in the wizard', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'vehicle_quotation',
       'other',
     ]);
     expect(slots.map((s) => s.category)).toEqual([
@@ -325,6 +326,7 @@ describe('document slots in the wizard', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'vehicle_quotation',
       'other',
     ]);
   });

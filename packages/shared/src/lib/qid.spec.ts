@@ -129,6 +129,7 @@ describe('document slots', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'vehicle_quotation',
       'other',
     ]);
     expect(qauto.filter((s) => s.required).map((s) => s.category)).toEqual(['qid_front', 'salary', 'bank']);
@@ -160,6 +161,7 @@ describe('document slots', () => {
       'rental_agreement',
       'national_address',
       'bank_liability',
+      'vehicle_quotation',
       'other',
     ]);
   });
