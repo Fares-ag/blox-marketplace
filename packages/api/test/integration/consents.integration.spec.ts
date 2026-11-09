@@ -311,8 +311,19 @@ describe('consent centre (integration)', () => {
     expectApiError(forbidden, 403, 'forbidden_role');
 
     const ownDealer = await staffUser(ctx, 'consent-ops-own-dealer', 'dealer_agent', { companyId: company.id });
+    await ctx.prisma.application.update({
+      where: { id: draft.body.id },
+      data: { agentUserId: ownDealer.user.id },
+    });
     const own = await authed(ownDealer.agent).get(`/api/v1/ops/applications/${draft.body.id}/consents`);
     expect(own.status).toBe(200);
+
+    const peer = await staffUser(ctx, 'consent-ops-peer-dealer', 'dealer_agent', { companyId: company.id });
+    expectApiError(
+      await authed(peer.agent).get(`/api/v1/ops/applications/${draft.body.id}/consents`),
+      403,
+      'forbidden_role',
+    );
 
     const customerOnOps = await authed(customer.agent).get(`/api/v1/ops/applications/${draft.body.id}/consents`);
     expectApiError(customerOnOps, 403, 'forbidden_role');

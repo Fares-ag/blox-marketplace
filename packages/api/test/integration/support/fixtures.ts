@@ -197,7 +197,10 @@ export async function setUserRole(
   userId: string,
   role: UserRole,
   extra: Partial<
-    Pick<User, 'companyId' | 'financeScope' | 'creditScope' | 'isActive' | 'homeBranchId' | 'financePartnerId'>
+    Pick<
+      User,
+      'companyId' | 'financeScope' | 'creditScope' | 'dealerScope' | 'isActive' | 'homeBranchId' | 'financePartnerId'
+    >
   > = {},
 ) {
   return prisma.user.update({
@@ -278,6 +281,7 @@ export async function seedDraftApplication(
     company: Company;
     product: Product;
     offer: Offer;
+    agentUserId?: string | null;
   },
 ): Promise<Application> {
   const pricingSnapshot = buildPricingSnapshot(Number(opts.product.price));
@@ -297,6 +301,7 @@ export async function seedDraftApplication(
       offerId: opts.offer.id,
       pricingSnapshot,
       status: 'draft',
+      agentUserId: opts.agentUserId ?? null,
     },
   });
 }
@@ -637,6 +642,7 @@ export async function seedUnderReviewApplication(
     company: Company;
     product: Product;
     offer: Offer;
+    agentUserId?: string | null;
   },
 ) {
   const app = await seedDraftApplication(prisma, opts);

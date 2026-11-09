@@ -1,0 +1,23 @@
+---
+description: Only sales managers may see other agents' deals
+alwaysApply: true
+---
+
+# Dealer deal visibility
+
+Among dealer agents, **only a sales manager** (`dealer_scope: all`) may see or be notified about another agent's application. Regular agents (`assigned`) see, open, mutate, and get notified about **only deals they own** (`application.agentUserId === user.id`). Unassigned web leads belong to sales managers, not the whole floor.
+
+Ops roles (credit, finance, admin) are a different portal and are unchanged.
+
+```ts
+// ❌ BAD — any agent at the dealership
+{ role: 'dealer_agent', companyId }
+user.companyId === app.companyId
+
+// ✅ GOOD
+dealerCanAccessApplication(user, app)
+dealerOwnedApplicationWhere(user)
+dealerAgentNotifyWhere(companyId, app.agentUserId)
+```
+
+Do not add a company-only dealer filter for applications, LPO, assist, guarantor, consents, or submit notifications.

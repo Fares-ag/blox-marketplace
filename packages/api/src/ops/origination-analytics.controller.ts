@@ -2,6 +2,7 @@ import { Controller, ForbiddenException, Get, Query } from '@nestjs/common';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
 import { IsIn, IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Roles } from '../auth/guards';
+import { dealerOwnedApplicationWhere } from '../applications/application-access';
 import { resolveDescendantCompanyIds } from '../companies/company-hierarchy';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -52,7 +53,7 @@ export class OriginationAnalyticsController {
     const applications = await this.prisma.application.findMany({
       where: {
         ...(scopeIds ? { companyId: { in: scopeIds } } : {}),
-        ...(user.role === UserRole.dealer_agent && user.dealerScope !== 'all' ? { agentUserId: user.id } : {}),
+        ...(user.role === UserRole.dealer_agent ? dealerOwnedApplicationWhere(user) : {}),
         createdAt: { lte: to },
         updatedAt: { gte: from },
       },

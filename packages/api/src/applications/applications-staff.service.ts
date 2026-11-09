@@ -9,6 +9,7 @@ import {
   ApplicationStatus,
   DocumentCategory,
   ListingStatus,
+  OfficerScope,
   Prisma,
   User,
   UserRole,
@@ -148,7 +149,13 @@ export class ApplicationsStaffService {
       isDealer || dto.submit
         ? submittedStatusForPartner(offer.financePartner?.crmAdapter)
         : ApplicationStatus.draft;
-    const agentUserId = dto.agentUserId || (isDealer ? actor.id : undefined);
+    // Regular agents cannot attribute a deal to someone else (or leave it
+    // unassigned) — that would either hide it from them or leak it to the
+    // whole floor via a sales-manager queue. Managers and admins may assign.
+    const agentUserId =
+      isDealer && actor.dealerScope !== OfficerScope.all
+        ? actor.id
+        : dto.agentUserId || (isDealer ? actor.id : undefined);
     const branchId = await this.resolveBranchId(actor, agentUserId);
     // Lender of record: the offer's partner, else (when submitting now) the default lender.
     const defaultLenderId =
@@ -354,7 +361,7 @@ export class ApplicationsStaffService {
       },
     });
     if (!app) throw new NotFoundException();
-    if (isDealer && app.companyId !== actor.companyId) throw new ForbiddenException('forbidden_role');
+    if (isDealer && !dealerCanAccessApplication(actor, app)) throw new ForbiddenException('forbidden_role');
     if (
       app.status !== ApplicationStatus.draft &&
       app.status !== ApplicationStatus.resubmission_required &&

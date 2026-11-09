@@ -2,6 +2,7 @@ import { Controller, Get, Post, Query } from '@nestjs/common';
 import { ApplicationStatus, User, UserRole } from '@prisma/client';
 import { IsOptional, IsString } from 'class-validator';
 import { CurrentUser, Roles } from '../auth/guards';
+import { dealerOwnedApplicationWhere } from '../applications/application-access';
 import { customerSearchCompanyIds, opsCompanyFilter } from '../applications/company-scope';
 import {
   PaginationQueryDto,
@@ -313,7 +314,7 @@ export class OpsController {
     const companyId = user.companyId;
     const applicationWhere = {
       companyId,
-      ...(user.dealerScope === 'all' ? {} : { agentUserId: user.id }),
+      ...dealerOwnedApplicationWhere(user),
     };
     const monthStart = new Date();
     monthStart.setDate(1);

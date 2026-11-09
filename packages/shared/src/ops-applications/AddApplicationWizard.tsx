@@ -232,35 +232,39 @@ function DealSetupFields({
   updateData,
   agentCompanyId,
   audience,
+  canAssignAgent,
   t,
 }: {
   data: WizardData;
   updateData: (patch: Partial<WizardData>) => void;
   agentCompanyId: string;
   audience: OpsAudience;
+  canAssignAgent: boolean;
   t: (key: string) => string;
 }) {
   const agents = useQuery({
     queryKey: ['wizard-agents', agentCompanyId],
     queryFn: () => apiFetch<{ items: OpsAgent[] }>(`/api/companies/${agentCompanyId}/agents`),
-    enabled: !!agentCompanyId,
+    enabled: !!agentCompanyId && canAssignAgent,
   });
 
   return (
     <OpsFormSection title={t('ops.wizard.step.deal')}>
       <OpsFormGrid>
-        <OpsSelect
-          label={t('ops.credit.agent')}
-          value={data.agentUserId}
-          onChange={(e) => updateData({ agentUserId: e.target.value })}
-          required
-          fullWidth
-        >
-          <option value="">{t('ops.wizard.selectAgent')}</option>
-          {(agents.data?.items ?? []).map((a) => (
-            <option key={a.id} value={a.id}>{a.name ?? a.email}</option>
-          ))}
-        </OpsSelect>
+        {canAssignAgent ? (
+          <OpsSelect
+            label={t('ops.credit.agent')}
+            value={data.agentUserId}
+            onChange={(e) => updateData({ agentUserId: e.target.value })}
+            required
+            fullWidth
+          >
+            <option value="">{t('ops.wizard.selectAgent')}</option>
+            {(agents.data?.items ?? []).map((a) => (
+              <option key={a.id} value={a.id}>{a.name ?? a.email}</option>
+            ))}
+          </OpsSelect>
+        ) : null}
         <OpsNumberField
           label={t('ops.wizard.listPrice')}
           required
@@ -541,6 +545,7 @@ export function AddApplicationWizard({
           updateData={updateData}
           agentCompanyId={isAdmin ? data.companyId : user?.company_id ?? ''}
           audience={audience}
+          canAssignAgent={isAdmin || user?.dealer_scope === 'all'}
           t={t}
         />
       ),

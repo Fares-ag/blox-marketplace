@@ -79,8 +79,14 @@ describe('assisted sessions (integration)', () => {
     const offer = await seedOffer(ctx.prisma, company.id);
     const product = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id, make: 'Nissan', model: 'Patrol' });
     const customer = await customerUser(ctx, `${label}-customer`, 'Khalid Al-Kuwari');
-    const application = await seedDraftApplication(ctx.prisma, { customer: customer.user, company, product, offer });
     const dealer = await staffUser(ctx, `${label}-dealer`, 'dealer_agent', { companyId: company.id }, 'Sara Sales');
+    const application = await seedDraftApplication(ctx.prisma, {
+      customer: customer.user,
+      company,
+      product,
+      offer,
+      agentUserId: dealer.user.id,
+    });
     return { company, offer, product, customer, application, dealer };
   }
 
@@ -425,7 +431,13 @@ describe('assisted sessions (integration)', () => {
     expect(adminSession.status).toBe(201);
 
     const rejected = await seedProduct(ctx.prisma, { companyId: company.id, offerId: offer.id });
-    const closedApp = await seedDraftApplication(ctx.prisma, { customer: customer.user, company, product: rejected, offer });
+    const closedApp = await seedDraftApplication(ctx.prisma, {
+      customer: customer.user,
+      company,
+      product: rejected,
+      offer,
+      agentUserId: dealer.user.id,
+    });
     await ctx.prisma.application.update({ where: { id: closedApp.id }, data: { status: 'rejected' } });
     expectApiError(
       await authed(dealer.agent).post('/api/v1/assist-sessions').send({ application_id: closedApp.id, phone: '55512345' }),

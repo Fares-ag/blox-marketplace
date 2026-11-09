@@ -16,6 +16,7 @@ import type {
   GuarantorSessionDto,
   GuarantorSessionPublicDto,
 } from '../../../shared/src/types/customer-platform';
+import { dealerCanAccessApplication } from '../applications/application-access';
 import { assertCompanyScopeForRead } from '../applications/company-scope';
 import { readCustomerSnapshot } from '../applications/customer-snapshot';
 import {
@@ -56,6 +57,7 @@ const sessionInclude = {
     select: {
       id: true,
       companyId: true,
+      agentUserId: true,
       customerUserId: true,
       status: true,
       product: { select: { make: true, model: true, modelYear: true } },
@@ -86,6 +88,7 @@ const CLOSED_APPLICATION_STATUSES: ApplicationStatus[] = [
 type ApplicationRef = {
   id: string;
   companyId: string;
+  agentUserId?: string | null;
   customerUserId: string | null;
   status: ApplicationStatus;
   customerSnapshot: Prisma.JsonValue;
@@ -122,7 +125,7 @@ export class GuarantorsService {
     this.secret = resolveAuthSecret(config);
   }
 
-  // ---- Applicant (owner) and staff (dealer_agent own company, credit_officer in scope, admin, super_admin) ----
+  // ---- Applicant (owner) and staff (assigned agent / sales manager, credit in scope, admin, super_admin) ----
 
   async create(user: User, applicationId: string): Promise<GuarantorSessionDto> {
     const app = await this.scopedApplication(user, applicationId);
@@ -500,9 +503,9 @@ export class GuarantorsService {
   }
 
   /**
-   * The applicant sees only their own application; dealer agents their own
-   * company's; credit officers the companies in their scope. Out-of-scope
-   * reads as not found so ids are not enumerable.
+   * The applicant sees only their own application; dealer agents applications
+   * they own (sales managers: the dealership); credit officers the companies
+   * in their scope. Out-of-scope reads as not found so ids are not enumerable.
    */
   private async scopedApplication(user: User, applicationId: string): Promise<ApplicationRef> {
     const app = await this.prisma.application.findUnique({
@@ -510,6 +513,7 @@ export class GuarantorsService {
       select: {
         id: true,
         companyId: true,
+        agentUserId: true,
         customerUserId: true,
         status: true,
         customerSnapshot: true,
@@ -523,7 +527,7 @@ export class GuarantorsService {
         if (app.customerUserId !== user.id) throw new NotFoundException('application_not_found');
         break;
       case UserRole.dealer_agent:
-        if (user.companyId !== app.companyId) throw new NotFoundException('application_not_found');
+        if (!dealerCanAccessApplication(user, app)) throw new NotFoundException('application_not_found');
         break;
       case UserRole.admin:
       case UserRole.super_admin:

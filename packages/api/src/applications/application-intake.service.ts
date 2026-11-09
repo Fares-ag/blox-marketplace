@@ -5,6 +5,7 @@ import { ActivityService } from '../common/activity.service';
 import { EncryptionService } from '../common/encryption.service';
 import { IdentityService } from '../common/identity.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { dealerAgentNotifyWhere } from './application-access';
 import {
   decideIdentityHold,
   type IdentityCandidate,
@@ -272,6 +273,7 @@ export class ApplicationIntakeService {
     const app = await this.prisma.application.findUnique({
       where: { id: appId },
       select: {
+        agentUserId: true,
         customerEmail: true,
         customerSnapshot: true,
         referenceSeq: true,
@@ -292,15 +294,16 @@ export class ApplicationIntakeService {
         role === UserRole.dealer_agent ? 'New lead on your stock' : creditQueueNoticeSubject(app),
       creditQueueNoticeBody(app),
       `/applications/${appId}`,
+      { agentUserId: app?.agentUserId ?? null },
     );
   }
 
   /**
    * Staff who should hear about an event on a company's application: every
    * credit/finance officer who can see the company (global scope or assigned,
-   * including officers assigned to the holding parent), the dealer's agents
-   * when asked for, and admins. The link is portal-relative; BloxShell prefixes
-   * the portal base path when rendering.
+   * including officers assigned to the holding parent), the assigned sales
+   * executive plus sales managers when dealers are in the audience, and admins.
+   * The link is portal-relative; BloxShell prefixes the portal base path when rendering.
    */
   async notifyOps(
     companyId: string,
@@ -308,6 +311,7 @@ export class ApplicationIntakeService {
     title: string | ((role: UserRole) => string),
     body: string,
     linkPath: string,
+    opts?: { agentUserId?: string | null },
   ): Promise<void> {
     const scopeIds = await resolveSelfAndAncestorCompanyIds(this.prisma, companyId);
     const or: Prisma.UserWhereInput[] = [];
@@ -320,7 +324,7 @@ export class ApplicationIntakeService {
       or.push({ role: UserRole.finance_officer, financeCompanies: { some: { companyId: { in: scopeIds } } } });
     }
     if (roles.includes(UserRole.dealer_agent)) {
-      or.push({ role: UserRole.dealer_agent, companyId });
+      or.push(dealerAgentNotifyWhere(companyId, opts?.agentUserId));
     }
     const adminRoles = roles.filter((r) => r === UserRole.admin || r === UserRole.super_admin);
     if (adminRoles.length) or.push({ role: { in: adminRoles } });

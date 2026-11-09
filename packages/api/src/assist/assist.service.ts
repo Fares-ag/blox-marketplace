@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApplicationStatus, AssistedSession, AssistedSessionStatus, Prisma, User, UserRole } from '@prisma/client';
+import { dealerCanAccessApplication } from '../applications/application-access';
 import { maskPhone } from '@drivemarket/shared/domain-rules';
 import type {
   AssistedSessionDto,
@@ -48,6 +49,7 @@ const sessionInclude = {
     select: {
       id: true,
       companyId: true,
+      agentUserId: true,
       customerUserId: true,
       status: true,
       consentsCompletedAt: true,
@@ -129,7 +131,7 @@ export class AssistService {
     this.secret = resolveAuthSecret(config);
   }
 
-  // ---- Staff (dealer_agent own company, admin, super_admin) ----
+  // ---- Staff (assigned agent owns the deal; sales manager sees the dealership; admin, super_admin) ----
 
   async create(user: User, input: CreateAssistedSessionInput): Promise<AssistedSessionDto> {
     const app = await this.prisma.application.findUnique({
@@ -137,6 +139,7 @@ export class AssistService {
       select: {
         id: true,
         companyId: true,
+        agentUserId: true,
         customerUserId: true,
         status: true,
         company: { select: { name: true } },
@@ -205,7 +208,7 @@ export class AssistService {
   async list(user: User, applicationId: string): Promise<AssistedSessionDto[]> {
     const app = await this.prisma.application.findUnique({
       where: { id: applicationId },
-      select: { id: true, companyId: true },
+      select: { id: true, companyId: true, agentUserId: true },
     });
     if (!app) throw new NotFoundException('application_not_found');
     this.assertStaffScope(user, app);
@@ -478,9 +481,9 @@ export class AssistService {
     return session;
   }
 
-  /** Dealer agents only see their own company's applications; out of scope reads as not found. */
-  private assertStaffScope(user: User, app: { companyId: string }): void {
-    if (user.role === UserRole.dealer_agent && user.companyId !== app.companyId) {
+  /** Dealer agents only see applications they own (sales managers: the whole dealership). */
+  private assertStaffScope(user: User, app: { companyId: string; agentUserId?: string | null }): void {
+    if (user.role === UserRole.dealer_agent && !dealerCanAccessApplication(user, app)) {
       throw new NotFoundException('application_not_found');
     }
   }

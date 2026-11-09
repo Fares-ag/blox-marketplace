@@ -30,7 +30,7 @@ import { ActivityService } from '../common/activity.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AppConfigService } from '../config/app-config.service';
 import { assertCompanyScope } from '../applications/company-scope';
-import { assertApplicationCanView } from '../applications/application-access';
+import { assertApplicationCanView, dealerOwnedApplicationWhere } from '../applications/application-access';
 import { transitionApplication } from '../applications/guarded-transitions';
 import { toOpsApplicationDto } from '../applications/application-response.dto';
 import { assertSeparationOfDutiesForApplication } from '../applications/separation-of-duties';
@@ -358,7 +358,10 @@ export class MusharakahService {
     const companyId = user.companyId;
     if (user.role === UserRole.dealer_agent && !companyId) throw new ForbiddenException('forbidden_role');
     const rows = await this.prisma.lpoRecord.findMany({
-      where: user.role === UserRole.dealer_agent ? { dealerCompanyId: companyId! } : {},
+      where:
+        user.role === UserRole.dealer_agent
+          ? { dealerCompanyId: companyId!, application: dealerOwnedApplicationWhere(user) }
+          : {},
       include: {
         application: {
           select: {

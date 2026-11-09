@@ -126,6 +126,11 @@ describe('ApplicationIntakeService.notifyOps', () => {
             role: UserRole.credit_officer,
             creditCompanies: { some: { companyId: { in: ['qauto-audi', 'qauto'] } } },
           },
+          {
+            role: UserRole.dealer_agent,
+            companyId: 'qauto-audi',
+            OR: [{ dealerScope: 'all' }],
+          },
         ]),
       },
       select: { id: true, role: true },
@@ -137,6 +142,30 @@ describe('ApplicationIntakeService.notifyOps', () => {
       '/applications/app-3',
       { forceEmail: true },
     );
+  });
+
+  it('notifies the assigned sales executive and sales managers, not every agent at the dealership', async () => {
+    const { service, prisma } = buildService([]);
+    prisma.application.findUnique.mockResolvedValue({
+      agentUserId: 'sofian',
+      customerEmail: 'sara@example.com',
+      customerSnapshot: { full_name: 'Sara Ali' },
+      referenceSeq: 17,
+      company: { name: 'Chery Elite Motors' },
+      customer: { name: 'Sara Ali' },
+    });
+
+    await service.notifyOpsOnSubmit('company-1', 'app-sofian');
+
+    const where = prisma.user.findMany.mock.calls[0]?.[0]?.where as {
+      OR: Array<{ role?: string; companyId?: string; OR?: unknown }>;
+    };
+    const dealerClause = where.OR.find((clause) => clause.role === UserRole.dealer_agent);
+    expect(dealerClause).toEqual({
+      role: UserRole.dealer_agent,
+      companyId: 'company-1',
+      OR: [{ dealerScope: 'all' }, { id: 'sofian' }],
+    });
   });
 
   it('notifies credit officers about an identity hold', async () => {

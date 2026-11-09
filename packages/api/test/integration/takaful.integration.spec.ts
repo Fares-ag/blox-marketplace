@@ -232,8 +232,12 @@ describe('takaful policies (integration)', () => {
     expect(download.headers['content-type']).toContain('application/pdf');
     expect(Buffer.from(download.body as Buffer).toString()).toBe(POLICY_PDF.toString());
 
-    // Ops read: dealer of the company may read but not verify.
+    // Ops read: the assigned sales executive may read but not verify.
     const dealer = await staffUser(ctx, 'verify-dealer', 'dealer_agent', { companyId: company.id });
+    await ctx.prisma.application.update({
+      where: { id: application.id },
+      data: { agentUserId: dealer.user.id },
+    });
     const opsList = await authed(dealer.agent).get(`/api/v1/ops/applications/${application.id}/takaful`);
     expect(opsList.status).toBe(200);
     expect(opsList.body[0]).toEqual(expect.objectContaining({ id: policyId, status: 'pending_verification' }));

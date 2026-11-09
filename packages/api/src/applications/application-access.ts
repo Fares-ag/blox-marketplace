@@ -33,6 +33,30 @@ export function dealerCanAccessApplication(
   return app.agentUserId === user.id;
 }
 
+/**
+ * List/queue filter for a dealer agent. Sales managers (`all`) are unrestricted
+ * inside the company; assigned agents are pinned to applications they own.
+ */
+export function dealerOwnedApplicationWhere(
+  user: Pick<User, 'id' | 'dealerScope'>,
+): { agentUserId: string } | Record<string, never> {
+  if (user.dealerScope === OfficerScope.all) return {};
+  return { agentUserId: user.id };
+}
+
+/**
+ * Who at the dealership should hear about an application: the assigned sales
+ * executive, plus every sales manager. Other agents are not in that audience —
+ * they cannot open the application, so they must not get the notification either.
+ */
+export function dealerAgentNotifyWhere(companyId: string, agentUserId?: string | null) {
+  return {
+    role: UserRole.dealer_agent,
+    companyId,
+    OR: [{ dealerScope: OfficerScope.all }, ...(agentUserId ? [{ id: agentUserId }] : [])],
+  };
+}
+
 export async function assertApplicationCanView(
   prisma: PrismaService,
   user: User,

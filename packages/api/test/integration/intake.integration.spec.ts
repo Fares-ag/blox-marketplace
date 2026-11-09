@@ -676,6 +676,10 @@ describe('customer intake (integration)', () => {
     expect(JSON.stringify(ops.body.customer_snapshot)).not.toContain(QID.expat);
 
     const dealer = await staffUser(ctx, 'intake-mask-dealer', 'dealer_agent', { companyId: company.id });
+    await ctx.prisma.application.update({
+      where: { id: applicationId },
+      data: { agentUserId: dealer.user.id },
+    });
     const dealerView = await authed(dealer.agent).get(`/api/v1/applications/${applicationId}`);
     expect(dealerView.status).toBe(200);
     expect(dealerView.body.customer_snapshot).toEqual(expect.objectContaining({ qid: 'XXXXXXX2345', phone: '+97455512345' }));
