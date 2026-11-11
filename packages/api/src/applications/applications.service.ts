@@ -653,7 +653,10 @@ export class ApplicationsService {
         await tx.application.update({ where: { id }, data: { financePartnerId: lenderId } });
       }
 
-      return tx.application.findUniqueOrThrow({ where: { id } });
+      return tx.application.findUniqueOrThrow({
+        where: { id },
+        include: { financePartner: { select: { id: true, name: true, code: true, crmAdapter: true } } },
+      });
     });
 
     await this.activity.log({
@@ -1311,7 +1314,10 @@ export class ApplicationsService {
         resubmissionItems: Prisma.JsonNull,
         resubmissionComment: null,
       });
-      return tx.application.findUniqueOrThrow({ where: { id } });
+      return tx.application.findUniqueOrThrow({
+        where: { id },
+        include: { financePartner: { select: { id: true, name: true, code: true, crmAdapter: true } } },
+      });
     });
 
     await this.activity.log({

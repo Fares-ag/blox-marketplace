@@ -32,6 +32,7 @@ function toStaffOfferDto(offer: {
   companyId: string | null;
   financePartnerId: string | null;
   financingType?: string | null;
+  financePartner?: Parameters<typeof toPublicOfferDto>[0]['financePartner'];
 }) {
   return {
     ...toPublicOfferDto(offer),
@@ -95,7 +96,10 @@ export class OffersController {
   @Roles(UserRole.admin, UserRole.super_admin, UserRole.dealer_agent, UserRole.credit_officer)
   @Get('ops/offers/:id')
   async one(@Param('id') id: string) {
-    const offer = await this.prisma.offer.findUnique({ where: { id } });
+    const offer = await this.prisma.offer.findUnique({
+      where: { id },
+      include: { financePartner: { select: { name: true, crmAdapter: true, code: true } } },
+    });
     if (!offer) return null;
     return toStaffOfferDto(offer);
   }

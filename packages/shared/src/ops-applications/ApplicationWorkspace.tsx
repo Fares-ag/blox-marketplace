@@ -380,6 +380,11 @@ export function ApplicationWorkspace({
         {partnerProcessed && (
           <Alert variant="info" title={t('ops.common.partnerFinance')}>
             {t('ops.common.sentToPartner', { partner: data.finance_partner_name ?? t('ops.common.partnerFinance') })}
+            {data.zoho_lead_id
+              ? ` · ${t('ops.common.crmLeadId', { id: data.zoho_lead_id })}`
+              : data.zoho_sync_error
+                ? ` · ${t('ops.common.crmSyncFailed', { error: data.zoho_sync_error })}`
+                : ` · ${t('ops.common.crmSyncPending')}`}
           </Alert>
         )}
         <IdentityHoldBanner

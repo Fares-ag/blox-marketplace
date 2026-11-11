@@ -31,7 +31,7 @@ describe('partner list request', () => {
   it('builds the status filter as a comma list and pages with limit/offset', () => {
     expect(partnerListPath({ tab: 'all', page: 0, pageSize: 25 })).toBe('/api/partner/applications?limit=25&offset=0');
     expect(partnerListPath({ tab: 'review', page: 2, pageSize: 25 })).toBe(
-      '/api/partner/applications?status=under_review%2Cresubmission_required&limit=25&offset=50',
+      '/api/partner/applications?status=under_review%2Cresubmission_required%2Cpartner_processing&limit=25&offset=50',
     );
     expect(partnerStatusesFor('unknown')).toEqual([]);
   });

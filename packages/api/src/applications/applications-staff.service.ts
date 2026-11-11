@@ -50,6 +50,17 @@ function asJson(value: Record<string, unknown>): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
 
+/** Relations the staff/dealer DTOs need after create or submit (lender routing especially). */
+const STAFF_APP_DTO_INCLUDE = {
+  financePartner: { select: { id: true, name: true, code: true, crmAdapter: true } },
+  product: true,
+  company: { select: { id: true, name: true, code: true } },
+  customer: { select: { name: true, email: true, phone: true } },
+  offer: true,
+  agent: { select: { id: true, name: true, email: true } },
+  branch: { select: { id: true, name: true, code: true } },
+} satisfies Prisma.ApplicationInclude;
+
 export type StaffCustomerSnapshot = Record<string, unknown>;
 
 export type StaffCreateApplicationDto = {
@@ -333,12 +344,13 @@ export class ApplicationsStaffService {
         await this.intake.notifyOpsOnSubmit(app.companyId, app.id);
       }
       if (initialStatus !== ApplicationStatus.draft && shouldSyncStatusToCrm(initialStatus)) {
-        void this.zoho.syncApplicationToZoho(app.id, actor.id);
+        await this.zoho.syncApplicationToZoho(app.id, actor.id);
       }
     }
 
     const first = await this.prisma.application.findUniqueOrThrow({
       where: { id: createdIds[0] },
+      include: STAFF_APP_DTO_INCLUDE,
     });
     return {
       ...mapApplicationDto(first, this.audienceFor(actor)),
@@ -434,7 +446,10 @@ export class ApplicationsStaffService {
           },
         });
       }
-      return tx.application.findUniqueOrThrow({ where: { id } });
+      return tx.application.findUniqueOrThrow({
+        where: { id },
+        include: STAFF_APP_DTO_INCLUDE,
+      });
     });
 
     await this.activity.log({
@@ -467,7 +482,7 @@ export class ApplicationsStaffService {
       await this.intake.notifyOpsOnSubmit(app.companyId, id);
     }
     if (shouldSyncStatusToCrm(nextStatus)) {
-      void this.zoho.syncApplicationToZoho(id, actor.id);
+      await this.zoho.syncApplicationToZoho(id, actor.id);
     }
     return mapApplicationDto(updated, this.audienceFor(actor));
   }

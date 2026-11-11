@@ -16,6 +16,12 @@ export function applyIntegrationEnv(overrides: Record<string, string | undefined
   process.env.BUREAU_REPORTING_ENABLED = 'false';
   process.env.BUREAU_INCLUDE_ALL_COMPANIES = 'false';
   process.env.BUREAU_SFTP_ENABLED = 'false';
+  // Never let a local .env refresh token write live Al Jazeera leads from tests.
+  // Assign empty strings (do not delete): ConfigModule.forRoot() reloads `.env`
+  // and dotenv will not override keys that are already set.
+  process.env.ZOHO_CLIENT_ID = '';
+  process.env.ZOHO_CLIENT_SECRET = '';
+  process.env.ZOHO_REFRESH_TOKEN = '';
 
   for (const [key, value] of Object.entries(overrides)) {
     if (value === undefined) delete process.env[key];

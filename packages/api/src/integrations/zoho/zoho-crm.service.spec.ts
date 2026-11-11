@@ -59,24 +59,30 @@ function buildService(apps: Map<string, StoredApp>) {
     },
   };
 
+  const auth = {
+    getAccessToken: vi.fn().mockResolvedValue('token'),
+    resolvedApiDomain: vi.fn().mockReturnValue(null),
+  };
+  const appConfig = {
+    enabled: true,
+    configurationError: null,
+    apiDomain: 'https://www.zohoapis.com',
+    leadSource: 'Partners',
+    requestSubmittedTo: 'Direct to Partner',
+    httpTimeoutMs: 8000,
+  };
+
   const service = new ZohoCrmService(
     prisma as never,
-    { getAccessToken: vi.fn().mockResolvedValue('token') } as never,
-    {
-      enabled: true,
-      configurationError: null,
-      apiDomain: 'https://www.zohoapis.com',
-      leadSource: 'Partners',
-      requestSubmittedTo: 'Direct to Partner',
-      httpTimeoutMs: 8000,
-    } as never,
+    auth as never,
+    appConfig as never,
     { log: vi.fn().mockResolvedValue(undefined) } as never,
     { readKyc: vi.fn() } as never,
     { readApplicationDocumentBytes: vi.fn() } as never,
     { readQid: vi.fn().mockReturnValue(null) } as never,
   );
 
-  return { service, prisma };
+  return { service, prisma, auth, appConfig };
 }
 
 function calls(): Array<{ method: string; url: string }> {
@@ -239,5 +245,17 @@ describe('ZohoCrmService lead create vs update', () => {
     expect(a.zohoLeadId).toBe('new-lead-1');
     expect(b.zohoLeadId).toBe('new-lead-1');
     expect(calls().filter((c) => c.method === 'POST' && /\/Leads$/.test(c.url))).toHaveLength(1);
+  });
+
+  it('posts the lead to the token api_domain when ZOHO_API_DOMAIN disagrees', async () => {
+    const apps = new Map([['app-2', applicationRecord({ id: 'app-2' })]]);
+    const { service, auth, appConfig } = buildService(apps);
+    auth.resolvedApiDomain.mockReturnValue('https://www.zohoapis.com');
+    appConfig.apiDomain = 'https://sandbox.zohoapis.com';
+
+    await service.syncApplicationToZoho('app-2');
+
+    expect(calls().some((c) => c.url.startsWith('https://www.zohoapis.com/crm/v8/Leads'))).toBe(true);
+    expect(calls().some((c) => c.url.includes('sandbox'))).toBe(false);
   });
 });

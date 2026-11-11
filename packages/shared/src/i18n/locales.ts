@@ -594,6 +594,9 @@ export const en = {
       bloxFinance: 'Blox Finance',
       inHouseFinance: 'In-house finance',
       sentToPartner: 'Sent to {{partner}}',
+      crmLeadId: 'CRM lead {{id}}',
+      crmSyncPending: 'CRM export still running',
+      crmSyncFailed: 'CRM export failed ({{error}})',
     },
     status: {
       draft: 'Draft',
@@ -1939,6 +1942,9 @@ export const ar: typeof en = {
       bloxFinance: 'تمويل بلوكس',
       inHouseFinance: 'التمويل الداخلي',
       sentToPartner: 'أُرسل إلى {{partner}}',
+      crmLeadId: 'معرف العميل في CRM {{id}}',
+      crmSyncPending: 'تصدير CRM ما زال جارياً',
+      crmSyncFailed: 'فشل تصدير CRM ({{error}})',
     },
     status: {
       draft: 'مسودة',

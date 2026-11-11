@@ -305,9 +305,14 @@ export class ZohoCrmService {
     return fetchWithTimeout(url, init, this.config.httpTimeoutMs);
   }
 
+  /** Token host wins over `ZOHO_API_DOMAIN` when Zoho says they differ. */
+  private crmApiDomain(): string {
+    return (this.auth.resolvedApiDomain() ?? this.config.apiDomain).replace(/\/$/, '');
+  }
+
   private async createLead(payload: Record<string, unknown>): Promise<string> {
     const token = await this.auth.getAccessToken();
-    const res = await this.zohoFetch(`${this.config.apiDomain}/crm/v8/Leads`, {
+    const res = await this.zohoFetch(`${this.crmApiDomain()}/crm/v8/Leads`, {
       method: 'POST',
       headers: {
         Authorization: `Zoho-oauthtoken ${token}`,
@@ -337,7 +342,7 @@ export class ZohoCrmService {
    */
   private async updateLead(id: string, payload: Record<string, unknown>): Promise<UpdateOutcome> {
     const token = await this.auth.getAccessToken();
-    const res = await this.zohoFetch(`${this.config.apiDomain}/crm/v8/Leads/${id}`, {
+    const res = await this.zohoFetch(`${this.crmApiDomain()}/crm/v8/Leads/${id}`, {
       method: 'PUT',
       headers: {
         Authorization: `Zoho-oauthtoken ${token}`,
@@ -419,7 +424,7 @@ export class ZohoCrmService {
     // every document, stacking duplicates on the partner's lead. Verified
     // against the live API: same call with this parameter returns 200.
     const res = await this.zohoFetch(
-      `${this.config.apiDomain}/crm/v8/Leads/${leadId}/Attachments?fields=id,File_Name,Size`,
+      `${this.crmApiDomain()}/crm/v8/Leads/${leadId}/Attachments?fields=id,File_Name,Size`,
       { headers: { Authorization: `Zoho-oauthtoken ${token}` } },
     );
 
@@ -451,7 +456,7 @@ export class ZohoCrmService {
       fileName,
     );
 
-    const res = await this.zohoFetch(`${this.config.apiDomain}/crm/v8/Leads/${leadId}/Attachments`, {
+    const res = await this.zohoFetch(`${this.crmApiDomain()}/crm/v8/Leads/${leadId}/Attachments`, {
       method: 'POST',
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
       body: form,

@@ -164,6 +164,9 @@ export type OpsWorkspace = {
   finance_partner_name?: string | null;
   finance_partner_code?: string | null;
   finance_partner_id?: string | null;
+  zoho_lead_id?: string | null;
+  zoho_synced_at?: string | null;
+  zoho_sync_error?: string | null;
   submitted_at?: string | null;
   /** Identity hold set at intake when the QID is already on file with different details. */
   identity_hold_reason?: string | null;

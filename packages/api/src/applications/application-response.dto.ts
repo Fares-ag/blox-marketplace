@@ -4,6 +4,7 @@ import { toPublicOfferDto } from '../common/offer-response.dto';
 import { ruleFlagsOf } from './application-rules';
 import { customerPhaseFor } from '@drivemarket/shared/application-status-map';
 import { formatApplicationRef } from './application-reference';
+import { financingSource } from './partner-finance';
 
 type DecimalLike = Prisma.Decimal | number | string | null | undefined;
 
@@ -317,6 +318,9 @@ type ApplicationCore = {
   /** Resolved by the detail loader (no relation on the column). */
   identityHoldClearedByName?: string | null;
   consentsCompletedAt?: Date | null;
+  zohoLeadId?: string | null;
+  zohoSyncedAt?: Date | null;
+  zohoSyncError?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -433,6 +437,9 @@ function baseApplicationFields(app: ApplicationCore, audience: ApplicationAudien
   if (audience === 'ops') {
     dto.status_reason = app.statusReason ?? null;
     dto.finance_partner_branch_id = app.financePartnerBranchId ?? null;
+    dto.zoho_lead_id = app.zohoLeadId ?? null;
+    dto.zoho_synced_at = isoOrNull(app.zohoSyncedAt ?? null);
+    dto.zoho_sync_error = app.zohoSyncError ?? null;
   }
 
   return dto;
@@ -484,7 +491,7 @@ function applicationRelations(
     ...(app.takafulPolicies
       ? { takaful_policies: app.takafulPolicies.map((policy) => toTakafulPolicyDto(policy)) }
       : {}),
-    financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
+    financing_source: financingSource(app.financePartner?.crmAdapter),
     finance_partner_name: app.financePartner?.name ?? null,
     finance_partner_code: app.financePartner?.code ?? null,
     branch_name: app.branch?.name ?? null,
@@ -685,7 +692,7 @@ export function toOpsApplicationQueueItemDto(app: {
     ...(app.agent
       ? { agent: { id: app.agent.id, name: app.agent.name, email: app.agent.email } }
       : { agent: null }),
-    financing_source: app.financePartner?.crmAdapter === 'zoho' ? 'partner' : 'blox',
+    financing_source: financingSource(app.financePartner?.crmAdapter),
     finance_partner_id: app.financePartnerId ?? app.financePartner?.id ?? null,
     finance_partner_name: app.financePartner?.name ?? null,
     finance_partner_code: app.financePartner?.code ?? null,

@@ -7,7 +7,7 @@ import type { PartnerApplicationListResponse } from './types';
 
 export const PARTNER_STATUS_TABS = [
   { id: 'all', statuses: [] as string[] },
-  { id: 'review', statuses: ['under_review', 'resubmission_required'] },
+  { id: 'review', statuses: ['under_review', 'resubmission_required', 'partner_processing'] },
   {
     id: 'contracts',
     statuses: [
@@ -17,7 +17,6 @@ export const PARTNER_STATUS_TABS = [
       'down_payment_required',
       'down_payment_submitted',
       'pending_finance_activation',
-      'partner_processing',
     ],
   },
   { id: 'active', statuses: ['active'] },

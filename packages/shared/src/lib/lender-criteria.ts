@@ -79,7 +79,8 @@ const QATARI: LenderSegmentCriteria = {
 };
 
 export function isAlJazeeraFinance(code?: string | null): boolean {
-  return (code ?? '').trim().toLowerCase() === AL_JAZEERA_FINANCE_CODE;
+  const normalised = (code ?? '').trim().toLowerCase();
+  return normalised === AL_JAZEERA_FINANCE_CODE || normalised === 'al-jazeera';
 }
 
 /** Govt / semi-govt / listed / banks → government + private_approved. */

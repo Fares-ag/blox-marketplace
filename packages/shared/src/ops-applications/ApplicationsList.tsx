@@ -41,7 +41,7 @@ function partnerItems(
 
 const STATUS_TABS = [
   { id: 'all', statusIn: '' },
-  { id: 'inprogress', statusIn: 'under_review,resubmission_required,draft' },
+  { id: 'inprogress', statusIn: 'under_review,resubmission_required,draft,partner_processing' },
   { id: 'contracts', statusIn: 'contract_signing_required,contracts_submitted,contract_under_review' },
   { id: 'active', statusIn: 'active,down_payment_required,down_payment_submitted,pending_finance_activation' },
   { id: 'rejected', statusIn: 'rejected' },

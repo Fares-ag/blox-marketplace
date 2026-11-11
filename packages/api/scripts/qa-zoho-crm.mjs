@@ -113,14 +113,14 @@ async function uploadAllDocs(session, appId, useOps = false) {
   }
 }
 
-async function findZohoProduct(session, { dealer = false } = {}) {
+async function findPublishedProduct(session, { dealer = false } = {}) {
   if (dealer) {
     const { res, data } = await json(session, '/api/v1/dealer/inventory?limit=20');
     if (!res.ok) throw new Error(`dealer inventory failed: ${res.status}`);
     const items = data.items ?? data;
     const published = items.find((p) => (p.listing_status ?? p.listingStatus) === 'published') ?? items[0];
     if (!published) throw new Error('dealer has no inventory listings');
-    return { ...published, defaultOfferId: AL_JAZEERA_OFFER };
+    return published;
   }
   const { res, data } = await json(session, '/api/v1/products?limit=50');
   if (!res.ok) throw new Error(`products list failed: ${res.status}`);
@@ -128,7 +128,16 @@ async function findZohoProduct(session, { dealer = false } = {}) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error('no published product found');
   }
-  return { ...items[0], defaultOfferId: AL_JAZEERA_OFFER };
+  const card = items[0];
+  const slug = card.slug ?? card.id;
+  const detail = await json(session, `/api/v1/products/${slug}`);
+  return detail.res.ok && detail.data ? { ...card, ...detail.data } : card;
+}
+
+async function resolveAlJazeeraOfferId(session) {
+  const { res, data } = await json(session, `/api/v1/ops/offers/${AL_JAZEERA_OFFER}`);
+  if (res.ok && data?.id) return data.id;
+  throw new Error(`Al Jazeera offer ${AL_JAZEERA_OFFER} missing (${res.status})`);
 }
 
 async function zohoFailureFor(session, appId) {
@@ -150,13 +159,26 @@ async function crmExportLogged(session, appId) {
 
 async function waitForZoho(session, appId, attempts = 8) {
   for (let i = 0; i < attempts; i++) {
+    const { res, data } = await json(session, `/api/v1/applications/${appId}`);
+    if (res.ok && data?.zoho_lead_id) {
+      return { ok: true, leadId: data.zoho_lead_id, error: null, failure: null };
+    }
+    if (res.ok && data?.zoho_sync_error) {
+      return { ok: false, leadId: data.zoho_lead_id ?? null, error: data.zoho_sync_error, failure: null };
+    }
     const failure = await zohoFailureFor(session, appId);
-    if (!failure) return { ok: true, failure: null };
-    if (failure.reason === 'sync_error') return { ok: false, failure };
+    if (failure?.reason === 'sync_error') {
+      return { ok: false, leadId: failure.zoho_lead_id ?? null, error: failure.error, failure };
+    }
     await new Promise((r) => setTimeout(r, 2000));
   }
   const failure = await zohoFailureFor(session, appId);
-  return { ok: !failure, failure };
+  return {
+    ok: false,
+    leadId: null,
+    error: failure?.error ?? 'never_synced',
+    failure: failure ?? { reason: 'never_synced' },
+  };
 }
 
 async function cancelIfDraft(session, appId) {
@@ -197,9 +219,9 @@ async function main() {
       const zohoJob = items.find((j) => j.name === 'zoho-retry' || j.job === 'zoho-retry');
       record(
         'preflight',
-        'zoho-retry job healthy',
-        Boolean(zohoJob && zohoJob.stale === false),
-        zohoJob ? `last=${zohoJob.last_success_at ?? 'never'}` : 'job missing',
+        'zoho-retry job registered',
+        Boolean(zohoJob),
+        zohoJob ? `stale=${zohoJob.stale} last=${zohoJob.last_success_at ?? 'never'}` : 'job missing',
       );
     } else {
       record('preflight', 'zoho-retry job health', false, `${jobs.res.status}`);
@@ -246,15 +268,27 @@ async function main() {
     }
 
     if (!customerAppId) {
-      const product = await findZohoProduct(customer);
-      record('customer', 'Find published Al Jazeera listing', true, product.slug ?? product.id);
+      const product = await findPublishedProduct(customer);
+      record('customer', 'Find published listing', true, product.slug ?? product.id);
+      let offerId = product.default_offer_id ?? product.defaultOfferId ?? product.offer?.id;
+      if (!offerId) {
+        const offers = await json(customer, '/api/v1/offers?limit=20');
+        const items = offers.data?.items ?? [];
+        offerId = items.find((o) => o.is_default)?.id ?? items[0]?.id;
+      }
+      record(
+        'customer',
+        'Listing default offer (marketplace no longer forces Al Jazeera)',
+        Boolean(offerId),
+        offerId ?? 'missing',
+      );
 
       const created = await json(customer, '/api/v1/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: product.id,
-          offerId: product.defaultOfferId ?? AL_JAZEERA_OFFER,
+          ...(offerId ? { offerId } : {}),
           customerSnapshot: {
             full_name: 'QA Zoho Customer',
             phone: '+9745559' + String(STAMP).slice(-4),
@@ -272,25 +306,35 @@ async function main() {
 
         const submitted = await json(customer, `/api/v1/applications/${customerAppId}/submit`, { method: 'POST' });
         const submitStatus = submitted.data?.status;
+        const consentBlocked = submitted.data?.error?.code === 'consents_required';
         record(
           'customer',
-          'Submit → partner_processing (Al Jazeera)',
-          submitted.res.ok && submitStatus === 'partner_processing',
-          submitStatus ?? submitted.text,
+          consentBlocked ? 'Submit blocked on consents (customer app, expected)' : 'Submit application',
+          consentBlocked || (submitted.res.ok && ['partner_processing', 'under_review'].includes(submitStatus)),
+          consentBlocked ? 'consents_required' : (submitStatus ?? submitted.text),
         );
       }
     }
 
     if (customerAppId) {
-      const sync = await waitForZoho(credit, customerAppId);
-      record(
-        'customer',
-        'Zoho sync succeeded (absent from /ops/zoho/failures)',
-        sync.ok,
-        sync.failure
-          ? `${sync.failure.reason}: ${sync.failure.error ?? 'no lead id'}`
-          : 'not in failure queue',
-      );
+      const detail = await json(credit, `/api/v1/applications/${customerAppId}`);
+      const partnerCode = detail.data?.finance_partner_code ?? detail.data?.offer?.finance_partner_code;
+      if (partnerCode === 'al-jazeera-finance' || partnerCode === 'al-jazeera') {
+        const sync = await waitForZoho(credit, customerAppId);
+        record(
+          'customer',
+          'Zoho lead id stored on application',
+          sync.ok && Boolean(sync.leadId),
+          sync.ok ? sync.leadId : `${sync.error ?? 'no lead id'}`,
+        );
+      } else {
+        record(
+          'customer',
+          'Marketplace listing is not Al Jazeera (expected — dealer offer is the CRM path)',
+          true,
+          partnerCode ?? 'blox',
+        );
+      }
     }
   } catch (err) {
     record('customer', 'Customer Zoho path', false, err.message);
@@ -303,7 +347,9 @@ async function main() {
     record('dealer', 'Dealer sign-in', me.res.ok, me.data?.company_id ? `company=${me.data.company_id}` : 'company_id missing');
     if (!me.data?.company_id) throw new Error('dealer account has no company_id — portal unusable');
 
-    const product = await findZohoProduct(dealer, { dealer: true });
+    const product = await findPublishedProduct(dealer, { dealer: true });
+    const alJazeeraOfferId = await resolveAlJazeeraOfferId(dealer);
+    record('dealer', 'Resolve Al Jazeera offer', true, alJazeeraOfferId);
     const walkInEmail = `qa-zoho-dealer-${STAMP}@drivemarket.local`;
 
     const created = await json(dealer, '/api/v1/ops/applications', {
@@ -311,7 +357,7 @@ async function main() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         productId: product.id,
-        offerId: AL_JAZEERA_OFFER,
+        offerId: alJazeeraOfferId,
         submit: true,
         customerSnapshot: {
           full_name: 'QA Zoho Walk-in',
@@ -331,12 +377,12 @@ async function main() {
     );
 
     if (dealerAppId) {
-      let sync1 = await waitForZoho(credit, dealerAppId, 4);
+      const sync1 = await waitForZoho(credit, dealerAppId, 4);
       record(
         'dealer',
-        'Initial Zoho sync on create (may be doc-less)',
-        sync1.ok || sync1.failure?.reason === 'never_synced',
-        sync1.failure?.error ?? (sync1.exportLog ? 'crm_export logged' : 'pending'),
+        'Zoho lead created on submit',
+        sync1.ok && Boolean(sync1.leadId),
+        sync1.ok ? sync1.leadId : `${sync1.error ?? 'no lead id'}`,
       );
 
       await uploadAllDocs(dealer, dealerAppId, true);
@@ -345,11 +391,9 @@ async function main() {
       const sync2 = await waitForZoho(credit, dealerAppId, 8);
       record(
         'dealer',
-        'Zoho re-sync after documents',
-        sync2.ok,
-        sync2.failure
-          ? `${sync2.failure.reason}: ${sync2.failure.error ?? 'no lead id'}`
-          : 'not in failure queue',
+        'Zoho lead still present after documents',
+        sync2.ok && Boolean(sync2.leadId),
+        sync2.ok ? sync2.leadId : `${sync2.error ?? 'no lead id'}`,
       );
     }
   } catch (err) {

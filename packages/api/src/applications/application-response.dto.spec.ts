@@ -183,6 +183,31 @@ describe('application-response.dto', () => {
     expect(mapApplicationDto(app, 'customer').status_reason).toBeUndefined();
   });
 
+  it('marks Zoho-adapter partners as financing_source partner', () => {
+    expect(toOpsApplicationDto(app).financing_source).toBe('blox');
+    expect(
+      toOpsApplicationDto({
+        ...app,
+        financePartner: { id: 'fp-aj', name: 'Al Jazeera Finance', code: 'al-jazeera-finance', crmAdapter: 'zoho' },
+      }).financing_source,
+    ).toBe('partner');
+    expect(
+      toDealerApplicationDto({
+        ...app,
+        financePartner: { id: 'fp-aj', name: 'Al Jazeera Finance', code: 'al-jazeera-finance', crmAdapter: 'zoho' },
+      }).financing_source,
+    ).toBe('partner');
+  });
+
+  it('exposes Zoho lead id to ops only', () => {
+    const ops = toOpsApplicationDto(app);
+    expect(ops.zoho_lead_id).toBe('zoho-123');
+    expect(ops.zoho_sync_error).toBe('timeout');
+    expect(ops.zoho_synced_at).toBe('2026-01-01T00:00:00.000Z');
+    expect(toApplicationDto(app)).not.toHaveProperty('zoho_lead_id');
+    expect(toDealerApplicationDto(app)).not.toHaveProperty('zoho_lead_id');
+  });
+
   it('exposes SAP, contract number and resubmission items to dealer and ops only', () => {
     const numbered = {
       ...app,

@@ -46,6 +46,7 @@ describe('Al Jazeera Finance criteria', () => {
 
   it('only overlays when the lender is Al Jazeera', () => {
     expect(isAlJazeeraFinance(AL_JAZEERA_FINANCE_CODE)).toBe(true);
+    expect(isAlJazeeraFinance('al-jazeera')).toBe(true);
     expect(resolveLenderCriteria('blox-finance', 'qatari')).toBeNull();
     expect(resolveLenderCriteria(AL_JAZEERA_FINANCE_CODE, 'qatari')?.maxTenureMonths).toBe(71);
     expect(lenderTenureBounds(IN_HOUSE_FINANCE_CODE)).toEqual({
