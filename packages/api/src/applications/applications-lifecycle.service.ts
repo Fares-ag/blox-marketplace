@@ -59,6 +59,7 @@ import { assertApprovalAuthorized, type ApprovalDecisionOutcome } from './credit
 import { customerNotificationBody } from './customer-notifications';
 import { MusharakahService } from '../musharakah/musharakah.service';
 import { AppConfigService } from '../config/app-config.service';
+import { ApplicationIntakeService } from './application-intake.service';
 import { ContractDocumentsService } from './documents/contract-documents.service';
 import { KycPlatformClient } from '../kyc/kyc-platform.client';
 import type { ContractFieldContext } from './documents/field-maps';
@@ -122,6 +123,7 @@ export class ApplicationsLifecycleService {
     private readonly config: ConfigService,
     private readonly musharakah: MusharakahService,
     private readonly appConfig: AppConfigService,
+    private readonly intake: ApplicationIntakeService,
     private readonly contractDocuments?: ContractDocumentsService,
     private readonly kyc?: KycPlatformClient,
   ) {}
@@ -404,6 +406,9 @@ export class ApplicationsLifecycleService {
         }
       }
     }
+    await this.intake.notifyDealersOnStatus(id, ApplicationStatus.contract_signing_required, {
+      fromStatus: ApplicationStatus.under_review,
+    });
 
     this.analytics.track('approval', {
       application_id: id,
@@ -468,6 +473,9 @@ export class ApplicationsLifecycleService {
         fromValue: 'contract_signing_required',
         toValue: 'contracts_submitted',
       });
+      await this.intake.notifyDealersOnStatus(id, ApplicationStatus.contracts_submitted, {
+        fromStatus: ApplicationStatus.contract_signing_required,
+      });
     }
 
     return toApplicationDto(updated);
@@ -516,6 +524,9 @@ export class ApplicationsLifecycleService {
           `/app/applications/${id}`,
         );
       }
+      await this.intake.notifyDealersOnStatus(id, ApplicationStatus.contracts_submitted, {
+        fromStatus: ApplicationStatus.contract_signing_required,
+      });
     }
 
     return toOpsApplicationDto(updated);
@@ -705,6 +716,7 @@ export class ApplicationsLifecycleService {
         `/app/applications/${id}`,
       );
     }
+    await this.intake.notifyDealersOnStatus(id, toStatus, { fromStatus: app.status, reason });
 
     if (toStatus === 'rejected') {
       this.analytics.track('rejection', {
@@ -815,6 +827,9 @@ export class ApplicationsLifecycleService {
         `/app/applications/${id}`,
       );
     }
+    await this.intake.notifyDealersOnStatus(id, ApplicationStatus.down_payment_submitted, {
+      fromStatus: ApplicationStatus.down_payment_required,
+    });
 
     return toOpsApplicationDto(updated);
   }
@@ -955,6 +970,7 @@ export class ApplicationsLifecycleService {
         `/app/applications/${id}`,
       );
     }
+    await this.intake.notifyDealersOnStatus(id, ApplicationStatus.active, { fromStatus: app.status });
     void this.musharakah.notifyVehicleCareOnActivate(id);
 
     return toOpsApplicationDto(updated);

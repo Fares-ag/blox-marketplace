@@ -107,6 +107,7 @@ describe('ApplicationsLifecycleService.approveWithContract compliance gate', () 
         notifyVehicleCareOnActivate: vi.fn(),
       } as never,
       { preDisbursalGateEnabled: false } as never,
+      { notifyDealersOnStatus: vi.fn().mockResolvedValue(undefined) } as never,
     );
   }
 
@@ -210,6 +211,7 @@ describe('ApplicationsLifecycleService.activate direct-activate compliance gate'
         notifyVehicleCareOnActivate: vi.fn(),
       } as never,
       { preDisbursalGateEnabled: false } as never,
+      { notifyDealersOnStatus: vi.fn().mockResolvedValue(undefined) } as never,
     );
   }
 

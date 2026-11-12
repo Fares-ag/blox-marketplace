@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GuarantorSessionStatus, Prisma, UserRole } from '@prisma/client';
+import { ApplicationStatus, GuarantorSessionStatus, Prisma, UserRole } from '@prisma/client';
 import { ActivityService } from '../common/activity.service';
 import { EncryptionService } from '../common/encryption.service';
 import { IdentityService } from '../common/identity.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { dealerAgentNotifyWhere } from './application-access';
+import { dealerStatusNotice, dealerStatusNoticeSkipped } from './dealer-notifications';
 import {
   decideIdentityHold,
   type IdentityCandidate,
@@ -185,6 +186,7 @@ export class ApplicationIntakeService {
     const held = await this.prisma.application.findUnique({
       where: { id: input.applicationId },
       select: {
+        agentUserId: true,
         customerEmail: true,
         customerSnapshot: true,
         company: { select: { name: true } },
@@ -194,10 +196,11 @@ export class ApplicationIntakeService {
     const { customer, dealer } = creditNoticeParties(held, input.companyId);
     await this.notifyOps(
       input.companyId,
-      [UserRole.credit_officer, UserRole.admin, UserRole.super_admin],
+      [UserRole.credit_officer, UserRole.admin, UserRole.super_admin, UserRole.dealer_agent],
       `Identity hold — ${customer} at ${dealer}`,
       `${customer} at ${dealer}: the Qatar ID on this application is already on file under a different name or date of birth. Review and clear the hold.`,
       `/applications/${input.applicationId}`,
+      { agentUserId: held?.agentUserId ?? null },
     );
   }
 
@@ -299,6 +302,41 @@ export class ApplicationIntakeService {
   }
 
   /**
+   * Assigned sales executive plus sales managers: a credit/finance decision
+   * landed on their deal. Forced email, same audience as a new-lead notice.
+   */
+  async notifyDealersOnStatus(
+    appId: string,
+    toStatus: ApplicationStatus,
+    opts?: { fromStatus?: ApplicationStatus | null; reason?: string | null; excludeUserId?: string | null },
+  ): Promise<void> {
+    if (dealerStatusNoticeSkipped(toStatus)) return;
+    const app = await this.prisma.application.findUnique({
+      where: { id: appId },
+      select: {
+        companyId: true,
+        agentUserId: true,
+        customerEmail: true,
+        customerSnapshot: true,
+        referenceSeq: true,
+        company: { select: { name: true } },
+        customer: { select: { name: true } },
+      },
+    });
+    if (!app) return;
+    const { customer, dealer } = creditNoticeParties(app);
+    const notice = dealerStatusNotice(
+      toStatus,
+      { customer, dealer, ref: formatApplicationRef(app.referenceSeq) },
+      { fromStatus: opts?.fromStatus, reason: opts?.reason },
+    );
+    await this.notifyOps(app.companyId, [UserRole.dealer_agent], notice.title, notice.body, `/applications/${appId}`, {
+      agentUserId: app.agentUserId,
+      excludeUserId: opts?.excludeUserId,
+    });
+  }
+
+  /**
    * Staff who should hear about an event on a company's application: every
    * credit/finance officer who can see the company (global scope or assigned,
    * including officers assigned to the holding parent), the assigned sales
@@ -311,7 +349,7 @@ export class ApplicationIntakeService {
     title: string | ((role: UserRole) => string),
     body: string,
     linkPath: string,
-    opts?: { agentUserId?: string | null },
+    opts?: { agentUserId?: string | null; excludeUserId?: string | null },
   ): Promise<void> {
     const scopeIds = await resolveSelfAndAncestorCompanyIds(this.prisma, companyId);
     const or: Prisma.UserWhereInput[] = [];
@@ -335,6 +373,7 @@ export class ApplicationIntakeService {
       select: { id: true, role: true },
     });
     for (const target of targets) {
+      if (opts?.excludeUserId && target.id === opts.excludeUserId) continue;
       await this.activity.notify(
         target.id,
         typeof title === 'function' ? title(target.role) : title,

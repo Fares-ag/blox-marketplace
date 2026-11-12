@@ -1390,6 +1390,9 @@ export class ApplicationsService {
       toValue: 'submission_cancelled',
     });
     await this.kycBridge.liftHoldIfTerminal(id, 'submission_cancelled');
+    if (fromStatus !== ApplicationStatus.draft) {
+      await this.intake.notifyDealersOnStatus(id, ApplicationStatus.submission_cancelled, { fromStatus, reason });
+    }
     return toApplicationDto(updated);
   }
 

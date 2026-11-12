@@ -30,7 +30,13 @@ import { ActivityService } from '../common/activity.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AppConfigService } from '../config/app-config.service';
 import { assertCompanyScope } from '../applications/company-scope';
-import { assertApplicationCanView, dealerOwnedApplicationWhere } from '../applications/application-access';
+import {
+  assertApplicationCanView,
+  dealerAgentNotifyWhere,
+  dealerOwnedApplicationWhere,
+} from '../applications/application-access';
+import { formatApplicationRef } from '../applications/application-reference';
+import { dealerStatusNotice } from '../applications/dealer-notifications';
 import { transitionApplication } from '../applications/guarded-transitions';
 import { toOpsApplicationDto } from '../applications/application-response.dto';
 import { assertSeparationOfDutiesForApplication } from '../applications/separation-of-duties';
@@ -67,6 +73,39 @@ export class MusharakahService {
 
   unitOffersOn(company?: { unitOffersEnabled?: boolean | null }): boolean {
     return this.appConfig.unitOffersEnabled && company?.unitOffersEnabled !== false;
+  }
+
+  private async notifyDealers(
+    app: {
+      id: string;
+      companyId: string;
+      agentUserId: string | null;
+      customerEmail: string;
+      customerSnapshot: unknown;
+      referenceSeq: number;
+      company?: { name?: string | null } | null;
+    },
+    toStatus: ApplicationStatus,
+    fromStatus: ApplicationStatus,
+  ) {
+    const snap = app.customerSnapshot && typeof app.customerSnapshot === 'object' ? (app.customerSnapshot as Record<string, unknown>) : {};
+    const fullName = typeof snap.full_name === 'string' ? snap.full_name.trim() : '';
+    const notice = dealerStatusNotice(
+      toStatus,
+      {
+        customer: fullName || app.customerEmail,
+        dealer: app.company?.name?.trim() || 'a dealer',
+        ref: formatApplicationRef(app.referenceSeq),
+      },
+      { fromStatus },
+    );
+    const targets = await this.prisma.user.findMany({
+      where: { isActive: true, ...dealerAgentNotifyWhere(app.companyId, app.agentUserId) },
+      select: { id: true },
+    });
+    for (const target of targets) {
+      await this.activity.notify(target.id, notice.title, notice.body, `/applications/${app.id}`, { forceEmail: true });
+    }
   }
 
   async maybeOpenRegister(
@@ -269,7 +308,10 @@ export class MusharakahService {
 
   async issueLpo(user: User, applicationId: string, body?: { reference?: string; notes?: string }) {
     if (!FINANCE_ROLES.includes(user.role)) throw new ForbiddenException('forbidden_role');
-    const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      include: { company: { select: { name: true } } },
+    });
     if (!app) throw new NotFoundException();
     await assertCompanyScope(this.prisma, user, app.companyId);
     if (app.status === ApplicationStatus.partner_processing) {
@@ -307,12 +349,16 @@ export class MusharakahService {
       toValue: ApplicationStatus.lpo_issued,
     });
     this.analytics.track('lpo_issued', { application_id: applicationId });
+    await this.notifyDealers(app, ApplicationStatus.lpo_issued, ApplicationStatus.pending_finance_activation);
     return toOpsApplicationDto(updated);
   }
 
   async confirmLpoSettlement(user: User, applicationId: string, body?: { settlementRef?: string }) {
     if (!FINANCE_ROLES.includes(user.role)) throw new ForbiddenException('forbidden_role');
-    const app = await this.prisma.application.findUnique({ where: { id: applicationId } });
+    const app = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      include: { company: { select: { name: true } } },
+    });
     if (!app) throw new NotFoundException();
     await assertCompanyScope(this.prisma, user, app.companyId);
     if (app.status !== ApplicationStatus.lpo_issued) {
@@ -348,6 +394,7 @@ export class MusharakahService {
       fromValue: ApplicationStatus.lpo_issued,
       toValue: ApplicationStatus.acquisition_pending,
     });
+    await this.notifyDealers(app, ApplicationStatus.acquisition_pending, ApplicationStatus.lpo_issued);
     return toOpsApplicationDto(updated);
   }
 

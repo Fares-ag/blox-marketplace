@@ -6,10 +6,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { User, UserRole } from '@prisma/client';
+import { ApplicationStatus, User, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { ActivityService } from '../../common/activity.service';
+import { ApplicationIntakeService } from '../application-intake.service';
 import { assertApplicationCanView } from '../application-access';
 import { assertCompanyScope } from '../company-scope';
 import { verifySignedContractReferencesOriginal } from '../contract-pdf';
@@ -74,6 +75,7 @@ export class ContractDocumentsService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly activity: ActivityService,
+    private readonly intake: ApplicationIntakeService,
   ) {}
 
   async generateDocumentsForApproval(input: {
@@ -265,6 +267,9 @@ export class ContractDocumentsService {
         `/app/applications/${applicationId}`,
       );
     }
+    await this.intake.notifyDealersOnStatus(applicationId, ApplicationStatus.contracts_submitted, {
+      fromStatus: ApplicationStatus.contract_signing_required,
+    });
     return updated;
   }
 

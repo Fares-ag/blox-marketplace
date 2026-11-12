@@ -109,6 +109,7 @@ describe('ApplicationsLifecycleService.activate down-payment guard', () => {
         notifyVehicleCareOnActivate: vi.fn(),
       } as never,
       { preDisbursalGateEnabled: false } as never,
+      { notifyDealersOnStatus: vi.fn().mockResolvedValue(undefined) } as never,
     );
   }
 
@@ -269,6 +270,7 @@ describe('ApplicationsLifecycleService.recordDownPayment', () => {
         notifyVehicleCareOnActivate: vi.fn(),
       } as never,
       { preDisbursalGateEnabled: false } as never,
+      { notifyDealersOnStatus: vi.fn().mockResolvedValue(undefined) } as never,
     );
   }
 
@@ -396,6 +398,7 @@ describe('ApplicationsLifecycleService.opsTransition down payment', () => {
         notifyVehicleCareOnActivate: vi.fn(),
       } as never,
       { preDisbursalGateEnabled: false } as never,
+      { notifyDealersOnStatus: vi.fn().mockResolvedValue(undefined) } as never,
     );
   }
 

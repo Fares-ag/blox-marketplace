@@ -199,6 +199,11 @@ describe('ApplicationIntakeService.notifyOps', () => {
             { role: UserRole.credit_officer, creditScope: 'all' },
             { role: UserRole.credit_officer, creditCompanies: { some: { companyId: { in: ['company-1'] } } } },
             { role: { in: [UserRole.admin, UserRole.super_admin] } },
+            {
+              role: UserRole.dealer_agent,
+              companyId: 'company-1',
+              OR: [{ dealerScope: 'all' }],
+            },
           ]),
         }),
       }),
@@ -210,5 +215,50 @@ describe('ApplicationIntakeService.notifyOps', () => {
       '/applications/app-hold',
       { forceEmail: true },
     );
+  });
+
+  it('emails the assigned agent and sales managers when credit sends a deal back', async () => {
+    const { service, prisma, activity } = buildService([
+      { id: 'sofian', role: UserRole.dealer_agent },
+      { id: 'manager', role: UserRole.dealer_agent },
+    ]);
+    prisma.application.findUnique.mockResolvedValue({
+      companyId: 'company-1',
+      agentUserId: 'sofian',
+      customerEmail: 'sara@example.com',
+      customerSnapshot: { full_name: 'Sara Ali' },
+      referenceSeq: 17,
+      company: { name: 'Chery Elite Motors' },
+      customer: { name: 'Sara Ali' },
+    });
+
+    await service.notifyDealersOnStatus('app-sofian', 'resubmission_required', {
+      reason: 'Upload a recent salary certificate',
+    });
+
+    const where = prisma.user.findMany.mock.calls[0]?.[0]?.where as {
+      OR: Array<{ role?: string; companyId?: string; OR?: unknown }>;
+    };
+    expect(where.OR).toEqual([
+      {
+        role: UserRole.dealer_agent,
+        companyId: 'company-1',
+        OR: [{ dealerScope: 'all' }, { id: 'sofian' }],
+      },
+    ]);
+    expect(activity.notify).toHaveBeenCalledTimes(2);
+    expect(activity.notify).toHaveBeenCalledWith(
+      'sofian',
+      'Resubmission needed — BLOX-0017',
+      'Sara Ali at Chery Elite Motors (BLOX-0017) was sent back for updates. Open the application to see what to correct. Upload a recent salary certificate',
+      '/applications/app-sofian',
+      { forceEmail: true },
+    );
+  });
+
+  it('does not email dealers for partner_processing (they created the walk-in)', async () => {
+    const { service, activity } = buildService([{ id: 'sofian', role: UserRole.dealer_agent }]);
+    await service.notifyDealersOnStatus('app-1', 'partner_processing');
+    expect(activity.notify).not.toHaveBeenCalled();
   });
 });
