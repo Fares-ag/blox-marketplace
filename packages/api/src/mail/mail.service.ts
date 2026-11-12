@@ -538,6 +538,21 @@ export class MailService {
     });
   }
 
+  async sendPasswordResetOtpEmail(to: string, code: string, expiresInMinutes: number): Promise<void> {
+    await this.send({
+      to,
+      subject: 'Reset your Blox password',
+      text:
+        `We received a request to reset your Blox password.\n\n` +
+        `Your verification code is ${code}. It expires in ${expiresInMinutes} minutes.\n\n` +
+        `Enter this code in the Blox app to choose a new password. ` +
+        `If you did not request this, ignore this email — your password is unchanged.`,
+      template: 'password_reset',
+      payload: { otp: code, expiresInMinutes },
+      authCritical: true,
+    });
+  }
+
   async sendWalkInInviteEmail(to: string, url: string, dealerName: string): Promise<void> {
     await this.send({
       to,

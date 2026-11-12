@@ -6,6 +6,9 @@ import type { NextFunction, Request, Response } from 'express';
 import path from 'node:path';
 import { AppModule } from './app.module';
 import { AUTH_INSTANCE } from './auth/auth.constants';
+import { mountPasswordResetMobile } from './auth/password-reset-mobile';
+import { MailService } from './mail/mail.service';
+import { PrismaService } from './prisma/prisma.service';
 import { applySecurityMiddleware } from './common/security-middleware';
 import { applyRequestIdMiddleware, RequestIdLogger } from './common/request-id';
 import { applyMulterErrorMiddleware } from './common/multer-error.middleware';
@@ -46,6 +49,21 @@ async function bootstrap() {
   await applySecurityMiddleware(expressApp, config);
 
   const handler = toNodeHandler(auth);
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const express = require('express');
+  // Mobile OTP reset reads isMobile / OTP before Better Auth strips unknown fields.
+  // The web link flow is forwarded to Better Auth when those fields are absent.
+  mountPasswordResetMobile(
+    expressApp,
+    express.json({ limit: '32kb' }),
+    (req, res) => handler(req, res),
+    {
+      prisma: app.get(PrismaService),
+      mail: app.get(MailService),
+      auth,
+      config,
+    },
+  );
 
   // Express 5: named wildcard required (bare `*` throws PathError)
   expressApp.all('/api/auth/*path', (req: Request, res: Response) => handler(req, res));
@@ -59,8 +77,6 @@ async function bootstrap() {
   });
 
   // Re-enable JSON body parser for Nest routes (auth handler reads its own body)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const express = require('express');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const multer = require('multer');
   expressApp.use(
